@@ -1,0 +1,12 @@
+{
+  "name": "@noot/config",
+  "version": "0.0.0",
+  "private": true,
+  "main": "eslint-preset.js",
+  "files": ["eslint-preset.js"],
+  "dependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.8.0",
+    "@typescript-eslint/parser": "^8.8.0",
+    "eslint": "^8.57.1"
+  }
+}

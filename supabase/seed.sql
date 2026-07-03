@@ -1,0 +1,5 @@
+-- Dev seed data for noot. Mirror the demo content in
+-- design_handoff_noot_app/app/booking-data.jsx (tutors, courses, availability,
+-- reviews). Applied by `supabase db reset` after migrations.
+--
+-- Placeholder — add INSERTs once migrations/0001_init.sql defines the schema.

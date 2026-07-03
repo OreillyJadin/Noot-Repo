@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "noot",
+    "slug": "noot",
+    "scheme": "noot",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.noot.app"
+    },
+    "android": {
+      "package": "com.noot.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
