@@ -1,0 +1,248 @@
+// TP Tutor Profile — ported from screens-tabs.jsx (ProfileTab, role-locked as
+// ProfileTabTutor). Backend-only actions (the prototype's showToast) become a
+// TODO(api)'d Alert; "Dark mode" is a local visual toggle only (not wired to the real
+// theme yet — that lives in ThemeProvider at the app root).
+import React, { useState } from 'react';
+import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, useTheme, type IconName } from '@noot/ui';
+import { useApp } from '../lib/store';
+
+const ME = {
+  name: 'Lindsay Thomas',
+  first: 'Lindsay',
+  year: 'Sophomore',
+  major: 'Pre-Business',
+  email: 'lindsay.t@students.edu',
+};
+
+const STATS: [string, string][] = [
+  ['84', 'Sessions taught'],
+  ['4.9', 'Avg rating'],
+  ['112', 'Hours'],
+];
+
+// TODO(api): backend-only actions from the prototype's showToast() — swap for real
+// navigation/mutations once wired up.
+function notify(label: string) {
+  Alert.alert(label, 'Built with backend — coming soon.');
+}
+
+function Row({
+  icon,
+  label,
+  sub,
+  value,
+  onPress,
+  danger,
+  last,
+  control,
+}: {
+  icon: IconName;
+  label: string;
+  sub?: string;
+  value?: string;
+  onPress?: () => void;
+  danger?: boolean;
+  last?: boolean;
+  control?: React.ReactNode;
+}) {
+  const t = useTheme();
+  const content = (
+    <View style={[styles.row, !last && { borderBottomWidth: 1, borderBottomColor: t.border }]}>
+      <View style={[styles.rowIcon, { backgroundColor: danger ? t.accentWeak : t.surface2 }]}>
+        <Ic name={icon} size={17} color={danger ? t.accent : t.text2} strokeWidth={1.8} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[styles.rowLabel, { color: danger ? t.accent : t.text }]}>{label}</Text>
+        {sub ? <Text style={[styles.rowSub, { color: t.text3 }]}>{sub}</Text> : null}
+      </View>
+      {control}
+      {value ? <Text style={[styles.rowValue, { color: t.text3 }]}>{value}</Text> : null}
+      {onPress && !control ? <Ic name="chevR" size={17} color={t.text3} strokeWidth={2} /> : null}
+    </View>
+  );
+  if (onPress) {
+    return <Pressable onPress={onPress}>{content}</Pressable>;
+  }
+  return content;
+}
+
+export default function TutorProfile() {
+  const t = useTheme();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { setRole } = useApp();
+  const [dark, setDark] = useState(false);
+
+  const onTab = (key: string) => {
+    switch (key) {
+      case 'tutor_home':
+        router.replace('/tutor_home');
+        break;
+      case 'tutor_calendar':
+        router.replace('/tutor_calendar');
+        break;
+      case 'tutor_sessions':
+        router.replace('/tutor_sessions');
+        break;
+      case 'tutor_profile':
+        router.replace('/tutor_profile');
+        break;
+    }
+  };
+
+  const switchToStudent = () => {
+    setRole('student');
+    router.replace('/home');
+  };
+
+  return (
+    <Screen>
+      <View style={[styles.header, { paddingTop: insets.top + 4, backgroundColor: t.bg }]}>
+        <View style={styles.headerRow}>
+          <H1 style={styles.headerTitle}>Profile</H1>
+          <Pressable onPress={() => notify('Settings')} style={[styles.gearBtn, { backgroundColor: t.surface, borderColor: t.border }]}>
+            <Ic name="gear" size={19} color={t.text2} strokeWidth={1.7} />
+          </Pressable>
+        </View>
+      </View>
+      <Body pad={20} contentStyle={{ paddingTop: 10 }}>
+        {/* identity card */}
+        <Card style={{ padding: 18 }}>
+          <View style={styles.identityRow}>
+            <View style={{ position: 'relative' }}>
+              <Avatar size={64} label={ME.first[0]} />
+              <Pressable
+                onPress={() => notify('Change photo')}
+                style={[styles.editBadge, { backgroundColor: t.accent, borderColor: t.surface }]}
+              >
+                <Ic name="edit" size={11} color={t.onAccent} strokeWidth={2.2} />
+              </Pressable>
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <H2 style={styles.name}>{ME.name}</H2>
+              <Text style={[styles.sub, { color: t.text3 }]}>
+                {ME.year} · {ME.major}
+              </Text>
+              <View style={styles.verifiedRow}>
+                <Ic name="shield" size={13} color={t.good} strokeWidth={1.9} />
+                <Text style={[styles.verifiedText, { color: t.good }]}>Verified tutor</Text>
+              </View>
+            </View>
+          </View>
+          <View style={[styles.statsRow, { borderTopColor: t.border }]}>
+            {STATS.map(([n, l], i) => (
+              <View key={l} style={[styles.statCell, i > 0 && { borderLeftWidth: 1, borderLeftColor: t.border }]}>
+                <Text style={[styles.statNum, { color: t.text }]}>{n}</Text>
+                <Text style={[styles.statLabel, { color: t.text3 }]}>{l}</Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+
+        {/* payout summary */}
+        <Card onPress={() => notify('Stripe payouts')} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
+          <View style={[styles.promoIcon, { backgroundColor: t.accent }]}>
+            <Ic name="dollar" size={20} color={t.onAccent} strokeWidth={1.8} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.promoTitle, { color: t.text }]}>$182 next payout</Text>
+            <Text style={[styles.promoSub, { color: t.text2 }]}>Deposits to •••• 4521 · Fri</Text>
+          </View>
+          <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
+        </Card>
+
+        {/* account */}
+        <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Account</Eyebrow>
+        <Card style={styles.cardNoPad}>
+          <Row icon="user" label="Personal info" sub={ME.email} onPress={() => router.push('/edit_personal')} />
+          <Row icon="cap" label="Courses & rates" sub="CH 101 · $25/hr, CH 102 · $30/hr" onPress={() => router.push('/edit_rates')} />
+          <Row icon="cal" label="Availability" sub="Set your typical week" onPress={() => router.push('/edit_availability')} />
+          <Row icon="edit" label="Edit tutor profile" sub="Photo, bio — what students see" onPress={() => router.push('/edit_tutor')} />
+          <Row icon="dollar" label="Payout account" sub="Stripe · •••• 4521" onPress={() => notify('Stripe Connect')} />
+          <Row icon="doc" label="Earnings & payment history" onPress={() => notify('Earnings')} last />
+        </Card>
+
+        {/* standing */}
+        <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Standing</Eyebrow>
+        <Card style={styles.cardNoPad}>
+          <Row icon="shield" label="Cancellation rate" sub="0 in the last 30 days" value="Good" onPress={() => notify('Standing details')} />
+          <Row icon="flame" label="Response time" sub="Usually within 2 hrs" onPress={() => notify('Stats')} last />
+        </Card>
+
+        {/* preferences */}
+        <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Preferences</Eyebrow>
+        <Card style={styles.cardNoPad}>
+          <Row icon="bell" label="Notifications" sub="Reminders, messages, offers" onPress={() => notify('Notification settings')} />
+          <Row icon="gear" label="Dark mode" control={<Toggle on={dark} onPress={() => setDark((d) => !d)} />} />
+          <Row icon="help" label="Help & support" onPress={() => notify('Help center')} last />
+        </Card>
+
+        {/* switch to student mode */}
+        <Card onPress={switchToStudent} style={styles.switchCard}>
+          <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
+            <Ic name="user" size={21} color={t.accent} strokeWidth={1.7} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.switchTitle, { color: t.text }]}>Switch to student mode</Text>
+            <Text style={[styles.switchSub, { color: t.text3 }]}>Book sessions and learn from other tutors</Text>
+          </View>
+          <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
+        </Card>
+
+        {/* sign out */}
+        <View style={{ marginTop: 4 }}>
+          <Card style={styles.cardNoPad}>
+            <Row icon="logout" label="Sign out" danger onPress={() => router.replace('/')} last />
+          </Card>
+        </View>
+        <Text style={[styles.footer, { color: t.text3 }]}>noot · v1.0 · Peer tutoring for campus</Text>
+      </Body>
+      <TabBar active="tutor_profile" onTab={onTab} role="tutor" />
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: { flexShrink: 0, paddingHorizontal: 20, paddingBottom: 6 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerTitle: { fontSize: 28 },
+  gearBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  identityRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  editBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  name: { fontSize: 19 },
+  sub: { fontSize: 13, marginTop: 2 },
+  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 7 },
+  verifiedText: { fontSize: 12, fontWeight: '600' },
+  statsRow: { flexDirection: 'row', marginTop: 16, paddingTop: 16, borderTopWidth: 1 },
+  statCell: { flex: 1, alignItems: 'center' },
+  statNum: { fontSize: 20, fontWeight: '800' },
+  statLabel: { fontSize: 11, marginTop: 1 },
+  promo: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1 },
+  promoIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  promoTitle: { fontSize: 14, fontWeight: '700' },
+  promoSub: { fontSize: 12, marginTop: 1 },
+  cardNoPad: { padding: 0, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 13 },
+  rowIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  rowLabel: { fontSize: 15, fontWeight: '500' },
+  rowSub: { fontSize: 12, marginTop: 1 },
+  rowValue: { fontSize: 14 },
+  switchCard: { marginTop: 22, flexDirection: 'row', alignItems: 'center', gap: 13, padding: 16 },
+  switchIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  switchTitle: { fontSize: 15, fontWeight: '700' },
+  switchSub: { fontSize: 12, marginTop: 1 },
+  footer: { textAlign: 'center', fontSize: 12, marginTop: 18 },
+});

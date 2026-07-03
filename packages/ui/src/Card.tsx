@@ -1,6 +1,6 @@
 // Card — surface container, ported from app/kit.jsx (<Card>). Optional flat/selected/pressable.
 import React from 'react';
-import { Pressable, View, StyleSheet, type ViewStyle } from 'react-native';
+import { Pressable, View, StyleSheet, type ViewStyle, type StyleProp } from 'react-native';
 import { useTheme } from './ThemeProvider';
 import { parseRadius } from './_util';
 
@@ -9,7 +9,7 @@ export interface CardProps {
   onPress?: () => void;
   selected?: boolean;
   flat?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function Card({ children, onPress, selected, flat, style }: CardProps) {

@@ -1,0 +1,296 @@
+// TC · Tutor Calendar — ported from screens-calendar.jsx (TutorCalendar).
+// Booked sessions + availability on ONE weekly surface: pick a day, then tap any
+// empty time to open/close it for booking. Sessions are tappable -> TB2 detail.
+// This is a tutor tab root (TabBar persists across tutor_home/tutor_calendar/
+// tutor_sessions/tutor_profile).
+import React, { useMemo, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { Screen, Body, TabBar, Card, Avatar, Ic, Label, useTheme } from '@noot/ui';
+import { useApp } from '../lib/store';
+import { DAYS, slotsFor, tutorById } from '../lib/data';
+
+const CAL_TIMES = ['9:00 AM', '10:30 AM', '12:00 PM', '1:30 PM', '3:00 PM', '4:30 PM', '6:00 PM', '7:30 PM'];
+
+interface CalSession {
+  name: string;
+  av: string;
+  course: string;
+  where: string;
+  pay: string;
+  len: string;
+}
+
+// Demo booked sessions on the tutor's calendar: DAYS index -> { time -> session }
+const CAL_SESSIONS: Record<number, Record<string, CalSession>> = {
+  1: { '3:00 PM': { name: 'Lindsay Thomas', av: 'L', course: 'MGT 300', where: 'Gorgas Library, Fl 2', pay: '$28', len: '1 hr' } },
+  9: { '10:30 AM': { name: 'Marcus B.', av: 'M', course: 'MGT 300', where: 'Online — Integrated Video', pay: '$28', len: '1 hr' } },
+};
+
+const WEEK_TABS: [number, string][] = [
+  [0, 'This week'],
+  [1, 'Next week'],
+];
+
+// Start from the same deterministic availability generator the booking flow uses (T5 calendar)
+function calInitOpen(): Record<number, Set<string>> {
+  const base = slotsFor(1);
+  const map: Record<number, Set<string>> = {};
+  for (let d = 0; d < 14; d++) map[d] = new Set(base[d] || []);
+  return map;
+}
+
+export default function TutorCalendar() {
+  const t = useTheme();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { patchBooking } = useApp();
+
+  const [week, setWeek] = useState(0); // 0 = this week · 1 = next week
+  const [day, setDay] = useState(1); // selected index into DAYS
+  const [open, setOpen] = useState<Record<number, Set<string>>>(calInitOpen);
+
+  const days = DAYS.slice(week * 7, week * 7 + 7);
+  const sessions = CAL_SESSIONS[day] || {};
+  const openSet = open[day] || new Set<string>();
+  const dayObj = DAYS.find((d) => d.i === day) || DAYS[0]!;
+
+  const toggle = (time: string) => {
+    setOpen((prev) => {
+      const next = { ...prev, [day]: new Set(prev[day]) };
+      if (next[day]!.has(time)) next[day]!.delete(time);
+      else next[day]!.add(time);
+      return next;
+    });
+  };
+  const pickWeek = (w: number) => {
+    setWeek(w);
+    setDay(w * 7);
+  };
+  const openDetail = () => {
+    patchBooking({ tutor: tutorById('sara') });
+    router.push('/tb2' as never);
+  };
+  const copyToNextWeek = () => {
+    // TODO(api): persist availability copy server-side.
+    Alert.alert('Availability copied to next week');
+  };
+  const onTab = (key: string) => {
+    if (key === 'tutor_calendar') return;
+    router.push(`/${key}` as never);
+  };
+
+  const stats = useMemo(() => {
+    let o = 0;
+    let b = 0;
+    days.forEach((d) => {
+      o += (open[d.i] || new Set<string>()).size;
+      b += Object.keys(CAL_SESSIONS[d.i] || {}).length;
+    });
+    return { o, b };
+  }, [open, week]);
+
+  return (
+    <Screen>
+      <View style={[styles.top, { paddingTop: insets.top + 12 }]}>
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: t.text }]}>Calendar</Text>
+          <Text style={{ fontSize: 18 }}>🦎</Text>
+        </View>
+
+        {/* week switch */}
+        <View style={[styles.weekSwitch, { backgroundColor: t.surface2 }]}>
+          {WEEK_TABS.map(([v, l]) => {
+            const on = week === v;
+            return (
+              <Pressable
+                key={v}
+                onPress={() => pickWeek(v)}
+                style={[
+                  styles.weekSeg,
+                  { backgroundColor: on ? t.surface : 'transparent' },
+                  on && styles.weekSegShadow,
+                ]}
+              >
+                <Text style={[styles.weekSegLabel, { color: on ? t.text : t.text3 }]}>{l}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* day strip — dot = booked session, count = open times */}
+        <View style={styles.dayStrip}>
+          {days.map((d) => {
+            const on = day === d.i;
+            const booked = Object.keys(CAL_SESSIONS[d.i] || {}).length > 0;
+            const nOpen = (open[d.i] || new Set<string>()).size;
+            return (
+              <Pressable
+                key={d.i}
+                onPress={() => setDay(d.i)}
+                style={[
+                  styles.dayCell,
+                  { backgroundColor: on ? t.accent : t.surface, borderColor: on ? t.accent : t.border },
+                ]}
+              >
+                <Text style={[styles.dayDow, { color: on ? t.onAccent : t.text3 }]}>{d.dow}</Text>
+                <Text style={[styles.dayDom, { color: on ? t.onAccent : t.text }]}>{d.dom}</Text>
+                <View style={styles.dayDots}>
+                  {booked && (
+                    <View style={[styles.dot, { backgroundColor: on ? t.onAccent : t.accent }]} />
+                  )}
+                  {nOpen > 0 && (
+                    <View
+                      style={[
+                        styles.dot,
+                        { backgroundColor: on ? 'rgba(255,255,255,0.55)' : t.good, opacity: 0.9 },
+                      ]}
+                    />
+                  )}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* weekly summary */}
+        <View style={styles.summaryRow}>
+          <Text style={[styles.summaryText, { color: t.text3 }]}>
+            <Text style={[styles.summaryStrong, { color: t.text }]}>{stats.b}</Text> booked ·{' '}
+            <Text style={[styles.summaryStrong, { color: t.text }]}>{stats.o}</Text> open this week
+          </Text>
+          <Text onPress={copyToNextWeek} style={[styles.copyLink, { color: t.accent }]}>
+            Copy to next week
+          </Text>
+        </View>
+      </View>
+
+      <Body pad={20} contentStyle={{ paddingTop: 12 }}>
+        <Label style={{ fontSize: 13, marginBottom: 10 }}>{dayObj.label}</Label>
+        <View style={{ gap: 8 }}>
+          {CAL_TIMES.map((time) => {
+            const s = sessions[time];
+            const isOpen = openSet.has(time);
+            return (
+              <View key={time} style={styles.slotRow}>
+                <Text
+                  style={[
+                    styles.slotTime,
+                    { color: s ? t.text : isOpen ? t.text2 : t.text3 },
+                  ]}
+                >
+                  {time}
+                </Text>
+                {s ? (
+                  <Card onPress={openDetail} style={styles.sessionCard}>
+                    <Avatar size={36} label={s.av} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={styles.sessionTopRow}>
+                        <Text numberOfLines={1} style={[styles.sessionName, { color: t.text }]}>
+                          {s.name}
+                        </Text>
+                        <Text style={[styles.sessionPay, { color: t.good }]}>{s.pay}</Text>
+                      </View>
+                      <View style={styles.sessionMetaRow}>
+                        <Ic name={s.where.startsWith('Online') ? 'video' : 'pin'} size={12} color={t.accent} strokeWidth={1.8} />
+                        <Text numberOfLines={1} style={[styles.sessionMeta, { color: t.text3 }]}>
+                          {s.course} · {s.len}
+                        </Text>
+                      </View>
+                    </View>
+                    <Ic name="chevR" size={16} color={t.text3} strokeWidth={2} />
+                  </Card>
+                ) : (
+                  <Pressable
+                    onPress={() => toggle(time)}
+                    style={[
+                      styles.openSlot,
+                      {
+                        backgroundColor: isOpen ? t.accentWeak : t.surface,
+                        borderColor: isOpen ? t.accentBorder : t.borderStrong,
+                        borderStyle: isOpen ? 'solid' : 'dashed',
+                        opacity: isOpen ? 1 : 0.6,
+                      },
+                    ]}
+                  >
+                    <View style={styles.openSlotLeft}>
+                      <View style={[styles.dotSm, { backgroundColor: isOpen ? t.good : t.borderStrong }]} />
+                      <Text style={[styles.openSlotLabel, { color: isOpen ? t.accent : t.text3 }]}>
+                        {isOpen ? 'Open for booking' : 'Closed'}
+                      </Text>
+                    </View>
+                    <Text style={[styles.openSlotHint, { color: t.text3 }]}>
+                      {isOpen ? 'Tap to close' : 'Tap to open'}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.footnote}>
+          <View style={{ marginTop: 1 }}>
+            <Ic name="bolt" size={14} color={t.accent} strokeWidth={1.8} />
+          </View>
+          <Text style={[styles.footnoteText, { color: t.text3 }]}>
+            Open times are instantly bookable by students. Booked sessions can be rescheduled from their detail view.
+          </Text>
+        </View>
+      </Body>
+
+      <TabBar active="tutor_calendar" onTab={onTab} role="tutor" />
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  top: { paddingHorizontal: 20 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  title: { fontSize: 22, fontWeight: '700' },
+  weekSwitch: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 16, marginTop: 14, marginBottom: 12 },
+  weekSeg: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 14 },
+  weekSegShadow: {
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  weekSegLabel: { fontSize: 14, fontWeight: '600' },
+  dayStrip: { flexDirection: 'row', gap: 6 },
+  dayCell: { flex: 1, paddingTop: 8, paddingBottom: 7, borderRadius: 13, alignItems: 'center', borderWidth: 1.5 },
+  dayDow: { fontSize: 10, fontWeight: '600' },
+  dayDom: { fontSize: 16, fontWeight: '700', marginTop: 1 },
+  dayDots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, marginTop: 4, height: 6 },
+  dot: { width: 5, height: 5, borderRadius: 2.5 },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 4 },
+  summaryText: { fontSize: 12.5 },
+  summaryStrong: { fontWeight: '700' },
+  copyLink: { fontSize: 12.5, fontWeight: '600' },
+  slotRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  slotTime: { width: 60, flexShrink: 0, fontSize: 12, fontWeight: '600', textAlign: 'right' },
+  sessionCard: { flex: 1, flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12 },
+  sessionTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
+  sessionName: { fontSize: 14, fontWeight: '600' },
+  sessionPay: { fontSize: 13, fontWeight: '700' },
+  sessionMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  sessionMeta: { fontSize: 12 },
+  openSlot: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  openSlotLeft: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  dotSm: { width: 7, height: 7, borderRadius: 3.5 },
+  openSlotLabel: { fontSize: 13, fontWeight: '600' },
+  openSlotHint: { fontSize: 11.5 },
+  footnote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 16, paddingHorizontal: 2 },
+  footnoteText: { flex: 1, fontSize: 12, lineHeight: 17 },
+});

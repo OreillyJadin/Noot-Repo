@@ -3,7 +3,14 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "moduleResolution": "Bundler",
-    "types": ["react", "react-native"]
+    "types": [
+      "react",
+      "react-native"
+    ]
   },
-  "include": ["app", "*.ts", "*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+  "include": [
+    "app",
+    "*.ts",
+    "*.tsx"
+  ]
 }

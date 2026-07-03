@@ -1,0 +1,167 @@
+// B2 Tutor Profile — ported from design_handoff_noot_app/app/screens-booking.jsx (B2).
+// Shows the tutor selected in B1 (booking.tutor); falls back to TUTORS[0] so this
+// screen never crashes if it's opened directly. "Book a session" carries the tutor
+// (+ chosen course) forward into B3.
+import React from 'react';
+import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Avatar, H1, Sub, Eyebrow, Ic, useTheme } from '@noot/ui';
+import { useApp } from '../lib/store';
+import { TUTORS, reviewsFor } from '../lib/data';
+
+export default function B2() {
+  const t = useTheme();
+  const router = useRouter();
+  const { booking, patchBooking } = useApp();
+  const tutor = booking.tutor ?? TUTORS[0]!;
+  const minRate = Math.min(...tutor.courses.map((c) => c[2]));
+  const activeCourse = booking.course ?? tutor.courses[0]?.[0] ?? '';
+  const reviews = reviewsFor(activeCourse);
+
+  const book = (courseCode?: string) => {
+    patchBooking({ tutor, course: courseCode ?? activeCourse });
+    router.push('/b3');
+  };
+
+  const save = () => {
+    // TODO(api): persist to the student's saved-tutors list via @noot/core.
+    Alert.alert('Saved to your list');
+  };
+
+  return (
+    <Screen>
+      <NavTop
+        title=""
+        onBack={() => router.back()}
+        trailing={
+          <Pressable onPress={save} style={[styles.bookmarkBtn, { backgroundColor: t.surface, borderColor: t.border }]}>
+            <Ic name="bookmark" size={17} color={t.text2} strokeWidth={1.8} />
+          </Pressable>
+        }
+      />
+
+      <Body pad={20} contentStyle={{ paddingTop: 0 }}>
+        <View style={styles.header}>
+          <Avatar size={92} />
+          <H1 style={{ fontSize: 24, marginTop: 14 }}>{tutor.name}</H1>
+          <Text style={{ fontSize: 14, color: t.text3, marginTop: 3 }}>
+            {tutor.year} · {tutor.major}
+          </Text>
+          <View style={styles.headerStats}>
+            <Text style={{ fontSize: 14, color: t.text2 }}>
+              <Text style={{ color: t.text, fontWeight: '700' }}>{tutor.sessions}</Text> sessions completed
+            </Text>
+            <View style={[styles.divider, { backgroundColor: t.border }]} />
+            <Badge label="Verified" tone="good" />
+          </View>
+        </View>
+
+        <Section title="About">
+          <Sub style={{ fontSize: 14 }}>{tutor.bio}</Sub>
+        </Section>
+
+        <Section title="Courses & rates">
+          <View style={{ gap: 8 }}>
+            {tutor.courses.map(([code, grade, rate, sess]) => (
+              <Card key={code} onPress={() => book(code)} style={styles.courseCard}>
+                <View style={[styles.gradeBox, { backgroundColor: t.accent }]}>
+                  <Text style={{ color: t.onAccent, fontWeight: '700', fontSize: 14 }}>{grade}</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{code}</Text>
+                  <View style={styles.courseMetaRow}>
+                    <Badge label={`Grade ${grade}`} tone="good" />
+                    <Text style={{ fontSize: 12, color: t.text3 }}>· {sess} sessions</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>
+                  ${rate}
+                  <Text style={{ fontSize: 11, color: t.text3, fontWeight: '500' }}>/hr</Text>
+                </Text>
+              </Card>
+            ))}
+          </View>
+        </Section>
+
+        <Section title="Reviews">
+          <View style={{ gap: 8 }}>
+            {reviews.map((r) => (
+              <Card key={`${r.name}-${r.when}`} flat style={styles.reviewCard}>
+                <View style={styles.reviewHead}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>{r.name}</Text>
+                  <Stars n={r.rating} />
+                </View>
+                <Text style={{ fontSize: 12, color: t.text3, marginTop: 2 }}>
+                  {r.course} · {r.when}
+                </Text>
+                <Text style={{ fontSize: 13, color: t.text2, lineHeight: 19, marginTop: 6 }}>{r.text}</Text>
+              </Card>
+            ))}
+          </View>
+        </Section>
+
+        <Section title="Verified by noot">
+          <Card flat style={{ ...styles.verifiedCard, backgroundColor: t.surfaceAlt }}>
+            <Ic name="shield" size={18} color={t.good} strokeWidth={1.8} />
+            <Text style={{ flex: 1, fontSize: 13, color: t.text2, lineHeight: 19.5 }}>
+              Grades are confirmed against official UA transcripts. Session quality is monitored by our team — flag
+              any concern and we&apos;ll review it directly.
+            </Text>
+          </Card>
+        </Section>
+      </Body>
+
+      <ActionBar>
+        <View style={{ flexShrink: 0 }}>
+          <Text style={{ fontSize: 12, color: t.text3 }}>From</Text>
+          <Text style={{ fontSize: 20, fontWeight: '700', color: t.text }}>
+            ${minRate}
+            <Text style={{ fontSize: 12, color: t.text3, fontWeight: '500' }}>/hr</Text>
+          </Text>
+        </View>
+        <Button label="Book a session" kind="primary" iconRight="chevron" style={{ flex: 1 }} onPress={() => book(activeCourse)} />
+      </ActionBar>
+    </Screen>
+  );
+}
+
+// ── local helpers (used only by this screen) ───────────────────────────────
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const t = useTheme();
+  return (
+    <View style={{ marginTop: 24 }}>
+      <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>{title}</Eyebrow>
+      {children}
+    </View>
+  );
+}
+
+function Stars({ n, size = 13 }: { n: number; size?: number }) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+      <Ic name="star" size={size + 1} strokeWidth={0} fill={t.accent} color={t.accent} />
+      <Text style={{ fontSize: size, fontWeight: '700', color: t.text }}>{n}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  bookmarkBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  header: { alignItems: 'center' },
+  headerStats: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 12 },
+  divider: { width: 1, height: 16 },
+  courseCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
+  gradeBox: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  courseMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  reviewCard: { padding: 14 },
+  reviewHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  verifiedCard: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14 },
+});
