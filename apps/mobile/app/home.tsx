@@ -33,7 +33,7 @@ export default function Home() {
           </Text>
         </Card>
 
-        <Button label="Start over" variant="secondary" onPress={() => router.replace('/')} />
+        <Button label="Start over" kind="secondary" onPress={() => router.replace('/')} />
       </View>
     </SafeAreaView>
   );

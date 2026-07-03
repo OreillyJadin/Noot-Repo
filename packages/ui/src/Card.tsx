@@ -1,28 +1,28 @@
-// Card — surface container, ported from app/kit.jsx (<Card>). Optionally selectable/pressable.
+// Card — surface container, ported from app/kit.jsx (<Card>). Optional flat/selected/pressable.
 import React from 'react';
 import { Pressable, View, StyleSheet, type ViewStyle } from 'react-native';
 import { useTheme } from './ThemeProvider';
+import { parseRadius } from './_util';
 
 export interface CardProps {
   children: React.ReactNode;
   onPress?: () => void;
   selected?: boolean;
+  flat?: boolean;
   style?: ViewStyle;
 }
 
-function parseRadius(px: string): number {
-  const n = parseInt(px, 10);
-  return Number.isFinite(n) ? Math.min(n, 999) : 16;
-}
-
-export function Card({ children, onPress, selected, style }: CardProps) {
+export function Card({ children, onPress, selected, flat, style }: CardProps) {
   const t = useTheme();
   const base: ViewStyle = {
     backgroundColor: t.surface,
-    borderRadius: parseRadius(t.cardRadius),
+    borderRadius: parseRadius(t.cardRadius, 16),
     borderWidth: selected ? 2 : 1,
     borderColor: selected ? t.accent : t.border,
     padding: 16,
+    ...(flat
+      ? {}
+      : { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 }),
   };
   if (onPress) {
     return (

@@ -1,7 +1,9 @@
-// Field — labeled text input, ported from app/kit.jsx (<Field>). Controlled.
-import React from 'react';
+// Field — labeled text input, ported from app/kit.jsx (<Field>). Controlled;
+// supports prefix/suffix adornments, multiline, and a hint line.
+import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, type KeyboardTypeOptions } from 'react-native';
 import { useTheme } from './ThemeProvider';
+import { parseRadius } from './_util';
 
 export interface FieldProps {
   label?: string;
@@ -11,11 +13,10 @@ export interface FieldProps {
   keyboardType?: KeyboardTypeOptions;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   secureTextEntry?: boolean;
-}
-
-function parseRadius(px: string): number {
-  const n = parseInt(px, 10);
-  return Number.isFinite(n) ? Math.min(n, 999) : 12;
+  multiline?: boolean;
+  hint?: string;
+  prefix?: React.ReactNode;
+  suffix?: React.ReactNode;
 }
 
 export function Field({
@@ -26,35 +27,54 @@ export function Field({
   keyboardType,
   autoCapitalize = 'none',
   secureTextEntry,
+  multiline,
+  hint,
+  prefix,
+  suffix,
 }: FieldProps) {
   const t = useTheme();
+  const [focused, setFocused] = useState(false);
   return (
     <View style={styles.wrap}>
       {label ? <Text style={[styles.label, { color: t.text2 }]}>{label}</Text> : null}
-      <TextInput
-        placeholder={placeholder}
-        placeholderTextColor={t.text3}
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize}
-        secureTextEntry={secureTextEntry}
+      <View
         style={[
-          styles.input,
+          styles.box,
           {
-            color: t.text,
             backgroundColor: t.surface,
-            borderColor: t.border,
+            borderColor: focused ? t.accent : t.borderStrong,
             borderRadius: parseRadius(t.fieldRadius),
+            alignItems: multiline ? 'flex-start' : 'center',
+            paddingVertical: multiline ? 12 : 0,
+            minHeight: multiline ? 88 : 50,
           },
         ]}
-      />
+      >
+        {prefix}
+        <TextInput
+          placeholder={placeholder}
+          placeholderTextColor={t.text3}
+          value={value}
+          onChangeText={onChangeText}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
+          secureTextEntry={secureTextEntry}
+          multiline={multiline}
+          style={[styles.input, { color: t.text }]}
+        />
+        {suffix}
+      </View>
+      {hint ? <Text style={[styles.hint, { color: t.text3 }]}>{hint}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: 6, alignSelf: 'stretch' },
-  label: { fontSize: 13, fontWeight: '600' },
-  input: { borderWidth: 1, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16 },
+  label: { fontSize: 12, fontWeight: '600' },
+  box: { flexDirection: 'row', gap: 8, borderWidth: 1.5, paddingHorizontal: 14 },
+  input: { flex: 1, fontSize: 16, paddingVertical: 0 },
+  hint: { fontSize: 12, lineHeight: 17 },
 });
