@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>noot — App Sitemap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sage:#78A070; --sage-d:#5E8456; --ink:#283028; --cream:#F4F2EC; --sand:#D0C0A0;
+    --paper:#FBFAF6; --card:#FFFFFF; --line:rgba(40,48,40,.14); --muted:#8C9488; --text:#1E261E;
+    --branch:#C08A3E; --tab:#5B86B0;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--cream);color:var(--text);font-family:"Inter",-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1280px;margin:0 auto;padding:40px 32px 80px;}
+  .head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:8px;}
+  h1{font-family:"Poppins",sans-serif;font-weight:700;letter-spacing:-.03em;font-size:34px;margin:0;color:var(--ink);}
+  h1 .dot{color:var(--sage);}
+  .lede{font-size:15px;color:var(--muted);max-width:560px;line-height:1.5;margin-top:8px;}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--text);align-items:center;}
+  .legend .it{display:flex;align-items:center;gap:7px;}
+  .legend .ln{width:26px;height:0;border-top-width:2.5px;border-top-style:solid;}
+  .board{position:relative;margin-top:30px;}
+  svg.edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible;}
+  .lane{position:relative;z-index:2;display:grid;grid-template-columns:108px 1fr;gap:18px;align-items:start;padding:14px 0;border-top:1px dashed var(--line);}
+  .lane:first-child{border-top:none;}
+  .lane-label{position:sticky;top:0;font-family:"Poppins",sans-serif;font-weight:700;font-size:13px;color:var(--ink);text-align:right;padding-top:12px;line-height:1.25;}
+  .lane-label .n{display:block;font-family:"Inter";font-weight:500;font-size:11px;color:var(--muted);margin-top:3px;}
+  .row{display:flex;flex-wrap:wrap;gap:30px 40px;align-items:flex-start;}
+  .node{position:relative;width:158px;background:var(--card);border:1px solid var(--line);border-radius:14px;
+    box-shadow:0 1px 2px rgba(40,48,40,.04),0 8px 20px rgba(40,48,40,.05);padding:11px 12px 12px;}
+  .node .code{display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:6px;background:var(--sage);color:#fff;
+    font-family:"Poppins";font-weight:700;font-size:11px;letter-spacing:.02em;}
+  .node .nm{font-weight:650;font-size:13.5px;color:var(--ink);margin-top:8px;line-height:1.25;}
+  .node .file{font-size:10.5px;color:var(--muted);margin-top:6px;font-family:ui-monospace,Menlo,monospace;}
+  .node.tabbed{border-color:rgba(91,134,176,.5);box-shadow:0 1px 2px rgba(40,48,40,.04),0 8px 20px rgba(91,134,176,.10);}
+  .node .ret{display:flex;flex-wrap:wrap;gap:4px;margin-top:9px;}
+  .ret .chip{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:600;color:var(--muted);
+    background:var(--cream);border:1px solid var(--line);border-radius:6px;padding:2px 6px;}
+  .ret .chip b{color:var(--sage-d);font-weight:700;}
+  .start{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#fff;background:var(--ink);
+    border-radius:999px;padding:4px 10px;position:absolute;top:-10px;left:12px;z-index:3;}
+  .note{margin-top:30px;font-size:13px;color:var(--muted);line-height:1.6;border-top:1px dashed var(--line);padding-top:18px;}
+  .note b{color:var(--text);}
+  .elabel{font-family:"Inter";font-size:10px;font-weight:600;fill:var(--branch);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>noot <span class="dot">·</span> App Sitemap</h1>
+      <div class="lede">Every screen, its page code &amp; name, the file it lives in, and how navigation flows between them. Generated from the same screen map the app runs on (<code>app/screens-map.jsx</code>).</div>
+    </div>
+    <div class="legend">
+      <div class="it"><span class="ln" style="border-color:var(--sage)"></span>Next step</div>
+      <div class="it"><span class="ln" style="border-color:var(--branch);border-top-style:dashed"></span>Branch / cross-flow</div>
+      <div class="it"><span class="ln" style="border-color:var(--tab);border-top-style:dotted"></span>Bottom-tab sibling</div>
+      <div class="it"><span class="chip" style="font-size:10.5px;font-weight:600;color:var(--muted);background:var(--cream);border:1px solid var(--line);border-radius:6px;padding:2px 6px">↩ returns</span></div>
+    </div>
+  </div>
+  <div class="board" id="board">
+    <svg class="edges" id="edges"><defs>
+      <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--sage-d)"/></marker>
+      <marker id="ahb" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--branch)"/></marker>
+    </defs></svg>
+    <div id="lanes"></div>
+  </div>
+  <div class="note" id="note"></div>
+</div>
+
+<script>
+// ── screen data (mirror of app/screens-map.jsx) ──────────────────────────────
+const SCREENS = {
+  landing:{code:'O1',name:'Welcome / Landing',flow:'Onboarding',file:'screens-shared.jsx',to:[['signup','Log in / Sign up']]},
+  signup:{code:'O2',name:'Sign Up (.edu Email)',flow:'Onboarding',file:'screens-shared.jsx',to:[['verified','Open magic link']]},
+  verified:{code:'O3',name:'Email Verified',flow:'Onboarding',file:'screens-shared.jsx',to:[['role',"Let's go"]]},
+  role:{code:'O4',name:'Choose Your Role',flow:'Onboarding',file:'screens-shared.jsx',to:[['student_profile',"I'm a student"],['t1','I want to tutor']]},
+  student_profile:{code:'S1',name:'Student Profile Setup',flow:'Student',file:'screens-student.jsx',to:[['home','Complete profile']]},
+  home:{code:'S2',name:'Student Home (For You)',flow:'Student',file:'screens-home.jsx',tabs:true,to:[['b2','Continue with tutor'],['sessions','Session details'],['student_home','Browse']]},
+  student_home:{code:'S3',name:'Search / Browse',flow:'Student',file:'screens-student.jsx',tabs:true,to:[['b1','Search'],['b2','Tap a tutor']]},
+  b1:{code:'B1',name:'Search Results',flow:'Booking',file:'screens-booking.jsx',to:[['b2','Open tutor']]},
+  b2:{code:'B2',name:'Tutor Profile',flow:'Booking',file:'screens-booking.jsx',to:[['b3','Book a session']]},
+  b3:{code:'B3',name:'Select Session',flow:'Booking',file:'screens-booking2.jsx',to:[['b4','Continue to payment']]},
+  b4:{code:'B4',name:'Payment',flow:'Booking',file:'screens-booking2.jsx',to:[['b5','Pay → on success']]},
+  b5:{code:'B5',name:'Booking Confirmed',flow:'Booking',file:'screens-booking2.jsx',to:[['home','Done']]},
+  saved:{code:'S4',name:'Saved (inside Sessions)',flow:'Student tabs',file:'screens-tabs.jsx',tabs:true,to:[['b2','Open tutor']]},
+  sessions:{code:'S5',name:'My Sessions',flow:'Student tabs',file:'screens-tabs.jsx',tabs:true,to:[['c1','Rate a session'],['xsr','Reschedule'],['chat','Message'],['b3','Book again']]},
+  profile:{code:'S6',name:'My Profile',flow:'Student tabs',file:'screens-tabs.jsx',tabs:true,to:[['edit_personal','Personal info'],['edit_courses','My courses'],['t1','Become a tutor'],['home','Switch to student'],['landing','Sign out']]},
+  edit_personal:{code:'P1',name:'Edit Personal Info',flow:'Edit profile',file:'screens-edit.jsx',to:[['profile','Save → back']]},
+  edit_courses:{code:'P2',name:'My Courses (Edit)',flow:'Edit profile',file:'screens-edit.jsx',to:[['profile','Save → back']]},
+  edit_tutor:{code:'P3',name:'Edit Tutor Profile',flow:'Edit profile',file:'screens-edit.jsx',to:[['b2','Preview public profile'],['tutor_profile','Save → back']]},
+  edit_rates:{code:'P4',name:'Courses & Rates (Edit)',flow:'Edit profile',file:'screens-edit.jsx',to:[['t3','Add a course'],['tutor_profile','Save → back']]},
+  edit_availability:{code:'P5',name:'Set Availability (Edit)',flow:'Edit profile',file:'screens-edit.jsx',to:[['tutor_calendar','Open Calendar'],['tutor_profile','Save → back']]},
+  t1:{code:'T1',name:'Become a Tutor',flow:'Tutor setup',file:'screens-tutor.jsx',to:[['t2','Get started']]},
+  t2:{code:'T2',name:'Tutor Profile',flow:'Tutor setup',file:'screens-tutor.jsx',to:[['t3','Save & continue'],['landing','Save & exit']]},
+  t3:{code:'T3',name:'Courses You Tutor',flow:'Tutor setup',file:'screens-tutor.jsx',to:[['t4','Save & continue'],['landing','Save & exit']]},
+  t4:{code:'T4',name:'Set Your Rates',flow:'Tutor setup',file:'screens-tutor.jsx',to:[['t5','Save & continue'],['landing','Save & exit']]},
+  t5:{code:'T5',name:'Set Availability',flow:'Tutor setup',file:'screens-tutor.jsx',to:[['t6','Save & continue'],['landing','Save & exit']]},
+  t6:{code:'T6',name:'Verify Grades',flow:'Tutor setup',file:'screens-tutor.jsx',to:[['t7','Submit for review'],['landing','Save & exit']]},
+  t7:{code:'T7',name:'Tutor Agreement',flow:'Tutor setup',file:'screens-tutor.jsx',to:[['t8','Sign & continue'],['landing','Save & exit']]},
+  t8:{code:'T8',name:'Payout Setup (Stripe)',flow:'Tutor setup',file:'screens-tutor.jsx',to:[['t9','Continue with Stripe'],['landing','Save & exit']]},
+  t9:{code:'T9',name:'Review Profile',flow:'Tutor setup',file:'screens-tutor.jsx',to:[['t10','Submit for review']]},
+  t10:{code:'T10',name:'Application In Review',flow:'Tutor setup',file:'screens-tutor.jsx',to:[['tutor_home','Go to dashboard']]},
+  tutor_home:{code:'TH',name:'Tutor Home (Dashboard)',flow:'Tutor home',file:'screens-home.jsx',tabs:true,to:[['tb2','Session details'],['chat_tutor','Message'],['edit_availability','Set availability'],['edit_rates','Adjust rates'],['edit_tutor','Edit profile']]},
+  tutor_calendar:{code:'TC',name:'Tutor Calendar',flow:'Tutor home',file:'screens-calendar.jsx',tabs:true,to:[['tb2','Open session']]},
+  tutor_sessions:{code:'TS',name:'Tutor Sessions',flow:'Tutor home',file:'screens-home.jsx',tabs:true,to:[['tb2','Open session']]},
+  tutor_profile:{code:'TP',name:'Tutor Profile',flow:'Tutor home',file:'screens-tabs.jsx',tabs:true,to:[['edit_personal','Personal info'],['edit_rates','Courses & rates'],['edit_availability','Availability'],['edit_tutor','Edit tutor profile'],['home','Switch to student'],['landing','Sign out']]},
+  chat:{code:'M1',name:'Chat (Student view)',flow:'Messaging',file:'screens-chat.jsx',to:[]},
+  chat_tutor:{code:'M2',name:'Chat (Tutor view)',flow:'Messaging',file:'screens-chat.jsx',to:[]},
+  tb1:{code:'TB1',name:'New Booking Alert',flow:'Tutor sessions',file:'screens-tutorside.jsx',to:[['tb2','View session details']]},
+  tb2:{code:'TB2',name:'Session Detail (Tutor)',flow:'Tutor sessions',file:'screens-tutorside.jsx',to:[['xtr','Reschedule'],['xtc','Cancel']]},
+  c1:{code:'C1',name:'Session Completion Prompt',flow:'Completion',file:'screens-completion.jsx',to:[['c2','As student'],['c3','As tutor']]},
+  c2:{code:'C2',name:'Student Rates Tutor',flow:'Completion',file:'screens-completion.jsx',to:[['c4','Submit']]},
+  c3:{code:'C3',name:'Tutor Rates Student',flow:'Completion',file:'screens-completion.jsx',to:[['c4','Submit']]},
+  c4:{code:'C4',name:'Feedback Confirmation',flow:'Completion',file:'screens-completion.jsx',to:[['home','Done']]},
+  xsc:{code:'X1',name:'Cancel Session (Student)',flow:'Exceptions',file:'screens-changes.jsx',to:[['home','Done']]},
+  xtc:{code:'X2',name:'Cancel Session (Tutor)',flow:'Exceptions',file:'screens-changes.jsx',to:[['xtr','Reschedule instead'],['home','Cancel & refund']]},
+  xtr:{code:'X3',name:'Propose Reschedule (Tutor)',flow:'Exceptions',file:'screens-changes.jsx',to:[['xsr',"See student's view"]]},
+  xsr:{code:'X4',name:'Reschedule Request (Student)',flow:'Exceptions',file:'screens-changes.jsx',to:[['home','Accept / decline → done']]},
+  xns:{code:'X5',name:'Report No-Show',flow:'Exceptions',file:'screens-changes.jsx',to:[['home','Done']]},
+};
+const FLOWS = [
+  ['Onboarding','Shared entry'],
+  ['Student','Setup + Home hub'],
+  ['Booking','Find & book'],
+  ['Student tabs','Bottom nav'],
+  ['Edit profile','Dedicated editors'],
+  ['Messaging','Chat threads'],
+  ['Tutor setup','Apply (10 steps)'],
+  ['Tutor home','Dashboard + sessions'],
+  ['Tutor sessions','Incoming booking'],
+  ['Completion','After session'],
+  ['Exceptions','Cancel · reschedule · no-show'],
+];
+const START = { landing:'Start', home:'Skip to', tutor_home:'Skip to' };
+// returns (rendered as chips, not arrows): target landing/home with a closing label
+const RET = /save & exit|sign out|go to dashboard|done|cancel & refund|accept/i;
+function isReturn(srcKey,e){ return (e[0]==='landing'||e[0]==='home') && RET.test(e[1]); }
+
+// ── render nodes ─────────────────────────────────────────────────────────────
+const lanesEl = document.getElementById('lanes');
+FLOWS.forEach(([flow,sub])=>{
+  const keys = Object.keys(SCREENS).filter(k=>SCREENS[k].flow===flow);
+  const lane = document.createElement('div'); lane.className='lane';
+  lane.innerHTML = `<div class="lane-label">${flow}<span class="n">${sub}</span></div>`;
+  const row = document.createElement('div'); row.className='row';
+  keys.forEach(k=>{
+    const s = SCREENS[k];
+    const rets = s.to.filter(e=>isReturn(k,e));
+    const node = document.createElement('div');
+    node.className = 'node' + (s.tabs?' tabbed':'');
+    node.id = 'node-'+k;
+    node.innerHTML =
+      (START[k]?`<span class="start">${START[k]==='Start'?'▶ Start here':'⏭ '+START[k]}</span>`:'') +
+      `<span class="code">${s.code}</span>` +
+      `<div class="nm">${s.name}</div>` +
+      `<div class="file">${s.file}</div>` +
+      (rets.length?`<div class="ret">${rets.map(e=>`<span class="chip">↩ <b>${SCREENS[e[0]].code}</b> ${e[1]}</span>`).join('')}</div>`:'');
+    row.appendChild(node);
+  });
+  lane.appendChild(row); lanesEl.appendChild(lane);
+});
+
+// ── draw edges ───────────────────────────────────────────────────────────────
+function draw(){
+  const board = document.getElementById('board'), svg = document.getElementById('edges');
+  const br = board.getBoundingClientRect();
+  svg.setAttribute('width', board.scrollWidth); svg.setAttribute('height', board.scrollHeight);
+  [...svg.querySelectorAll('path.e,text.elabel')].forEach(n=>n.remove());
+  const ctr = (k)=>{ const el=document.getElementById('node-'+k); if(!el) return null; const r=el.getBoundingClientRect();
+    return { l:r.left-br.left, r:r.right-br.left, t:r.top-br.top, b:r.bottom-br.top, cx:r.left-br.left+r.width/2, cy:r.top-br.top+r.height/2, w:r.width, h:r.height }; };
+  Object.keys(SCREENS).forEach(srcKey=>{
+    const s=SCREENS[srcKey], a=ctr(srcKey); if(!a) return;
+    s.to.forEach(e=>{
+      if(isReturn(srcKey,e)) return;            // returns are chips
+      const tgtKey=e[0], b=ctr(tgtKey); if(!b) return;
+      const sameFlow = SCREENS[tgtKey].flow===s.flow;
+      const branch = !sameFlow;
+      let x1,y1,x2,y2,c1x,c1y,c2x,c2y;
+      const horiz = Math.abs(a.cy-b.cy) < 30 && b.l >= a.r-4;
+      if(horiz){ // left→right same row
+        x1=a.r; y1=a.cy; x2=b.l; y2=b.cy;
+        const dx=Math.max(20,(x2-x1)*0.5); c1x=x1+dx;c1y=y1;c2x=x2-dx;c2y=y2;
+      } else if (b.t >= a.b-4){ // target below
+        x1=a.cx; y1=a.b; x2=b.cx; y2=b.t;
+        const dy=Math.max(24,(y2-y1)*0.45); c1x=x1;c1y=y1+dy;c2x=x2;c2y=y2-dy;
+      } else if (b.b <= a.t+4){ // target above (loops up)
+        x1=a.cx; y1=a.t; x2=b.cx; y2=b.b;
+        const dy=Math.max(24,(y1-y2)*0.45); c1x=x1;c1y=y1-dy;c2x=x2;c2y=y2+dy;
+      } else { // fallback right→left into a node on another row
+        x1=a.r; y1=a.cy; x2=b.l; y2=b.cy;
+        const dx=Math.max(30,Math.abs(x2-x1)*0.4); c1x=x1+dx;c1y=y1;c2x=x2-dx;c2y=y2;
+      }
+      const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+      p.setAttribute('class','e');
+      p.setAttribute('d',`M${x1},${y1} C${c1x},${c1y} ${c2x},${c2y} ${x2},${y2}`);
+      p.setAttribute('fill','none');
+      p.setAttribute('stroke', branch?'var(--branch)':'var(--sage-d)');
+      p.setAttribute('stroke-width', branch?'2':'2.5');
+      if(branch) p.setAttribute('stroke-dasharray','5 4');
+      p.setAttribute('marker-end', branch?'url(#ahb)':'url(#ah)');
+      p.setAttribute('opacity', branch?'0.85':'0.95');
+      svg.appendChild(p);
+      if(branch){ // label cross-flow edges
+        const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+        t.setAttribute('class','elabel'); t.setAttribute('x',(c1x+c2x)/2+4); t.setAttribute('y',(c1y+c2y)/2-3);
+        t.textContent=e[1]; svg.appendChild(t);
+      }
+    });
+  });
+}
+window.addEventListener('load', ()=>{ draw(); setTimeout(draw,200); });
+window.addEventListener('resize', draw);
+if(document.fonts&&document.fonts.ready) document.fonts.ready.then(draw);
+
+document.getElementById('note').innerHTML =
+  '<b>How to read this:</b> Solid green = the primary “next” action. Dashed amber = a branch or a jump into another flow (labelled with the trigger). Blue-bordered cards are <b>bottom-tab destinations</b>. The tab bar is <b>role-aware</b>: students get <b>Home · Search · Sessions · Profile</b> (Home = the “For You” study hub; <b>Saved is now a segment inside Sessions</b>), tutors get <b>Home · Calendar · Sessions · Profile</b> (Home = TH dashboard; Calendar = TC weekly agenda + availability). Profile edits open <b>dedicated editor screens (P1–P5)</b> — never the onboarding steps, which are locked once completed. ↩ chips are returns (done, save &amp; exit, sign out) that loop back to <b>O1 Landing</b> or <b>S2 Student Home</b>. Every edge mirrors a real <code>go()</code> call in the code.';
+</script>
+</body>
+</html>

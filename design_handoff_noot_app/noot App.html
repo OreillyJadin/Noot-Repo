@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>noot — Peer Tutoring for Campus Life</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #e7e4de;
+    font-family: -apple-system, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  #root { height: 100%; }
+
+  .tc-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  .tc-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+
+  .tc-tap { -webkit-tap-highlight-color: transparent; transition: transform .1s ease, filter .1s ease; }
+  .tc-tap:active { transform: scale(0.97); }
+  .tc-btn { -webkit-tap-highlight-color: transparent; }
+  .tc-btn:active { transform: scale(0.98); filter: brightness(0.96); }
+
+  .scr { will-change: transform; }
+  .scr-fwd  { animation: scrInR .34s cubic-bezier(.32,.72,0,1); }
+  .scr-back { animation: scrInL .34s cubic-bezier(.32,.72,0,1); }
+  @keyframes scrInR { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  @keyframes scrInL { from { transform: translateX(-24%); filter: brightness(.95); } to { transform: translateX(0); filter: brightness(1); } }
+
+  .bk-fade { animation: bkFade .2s ease both; }
+  .bk-sheet { animation: bkUp .32s cubic-bezier(.32,.72,0,1) both; }
+  @keyframes bkFade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes bkUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+  .bk-hs { animation: bkPop .5s cubic-bezier(.2,1.3,.4,1); }
+  @keyframes bkPop { 0% { transform: scale(0.5); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
+  .bk-ring { animation: bkRing 1.4s ease-out .25s infinite; }
+  .bk-ring2 { animation-delay: .9s; }
+  @keyframes bkRing { 0% { transform: scale(0.7); opacity: .55; } 100% { transform: scale(1.35); opacity: 0; } }
+
+  .bk-spin { animation: bkSpin .8s linear infinite; }
+  @keyframes bkSpin { to { transform: rotate(360deg); } }
+
+  .bk-range { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; background: var(--surface-2); outline: none; }
+  .bk-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); cursor: pointer; box-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+  .bk-range::-moz-range-thumb { width: 24px; height: 24px; border: none; border-radius: 50%; background: var(--accent); cursor: pointer; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scr-fwd, .scr-back, .bk-sheet, .bk-hs, .bk-ring { animation: none; }
+    .bk-ring { display: none; }
+  }
+
+  #boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #78A070; font-weight: 600; font-size: 14px; }
+</style>
+</head>
+<body>
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100" height="100" rx="22" fill="#78A070"/>
+  <text x="50" y="52" font-family="Poppins, -apple-system, system-ui, sans-serif" font-size="34" font-weight="700" letter-spacing="-2" fill="#fff" text-anchor="middle" dominant-baseline="central">noot</text>
+</svg>
+</template>
+<div id="root"><div id="boot">Loading noot…</div></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="app/ios-frame.jsx"></script>
+<script type="text/babel" src="app/tweaks-panel.jsx"></script>
+<script type="text/babel" src="app/theme.jsx"></script>
+<script type="text/babel" src="app/brand-data.jsx"></script>
+<script type="text/babel" src="app/screens-map.jsx"></script>
+<script type="text/babel" src="app/kit.jsx"></script>
+<script type="text/babel" src="app/chat-store.jsx"></script>
+<script type="text/babel" src="app/screens-shared.jsx"></script>
+<script type="text/babel" src="app/screens-student.jsx"></script>
+<script type="text/babel" src="app/screens-tutor.jsx"></script>
+<script type="text/babel" src="app/booking-data.jsx"></script>
+<script type="text/babel" src="app/screens-booking.jsx"></script>
+<script type="text/babel" src="app/screens-booking2.jsx"></script>
+<script type="text/babel" src="app/screens-tutorside.jsx"></script>
+<script type="text/babel" src="app/screens-completion.jsx"></script>
+<script type="text/babel" src="app/screens-changes.jsx"></script>
+<script type="text/babel" src="app/screens-tabs.jsx"></script>
+<script type="text/babel" src="app/screens-home.jsx"></script>
+<script type="text/babel" src="app/screens-calendar.jsx"></script>
+<script type="text/babel" src="app/screens-edit.jsx"></script>
+<script type="text/babel" src="app/screens-chat.jsx"></script>
+<script type="text/babel" src="app/tc-app.jsx"></script>
+</body>
+</html>
