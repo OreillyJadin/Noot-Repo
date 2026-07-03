@@ -87,22 +87,28 @@ outgrows functions.
 
 ### Roles
 
-Four roles, **one `role` enum per user** (base `Users` table), with profile tables only for the
-two roles that need extra data:
+Four roles. **A user can hold more than one role and switch between them from their Profile**
+(resolved decision — the handoff's mode switch, not the PRD's single-role). A user carries a set of
+`roles` plus an `active_role`; profile tables exist only for the roles that need extra data.
 
 | Role | Profile table | Key behavior | Signup gate |
 |---|---|---|---|
 | Student | — | Books sessions with tutors | Active on `.edu` verify |
 | Tutor | `TutorProfiles` | Uploads transcript; **admin-approved** before bookable | `.edu` verify → admin approval |
 | Ambassador | `AmbassadorProfiles` | Recruits students/tutors via referral code; earns a **flat $5 one-time bonus** per referral's first completed paid session | Active on `.edu` verify |
-| Admin | — | noot team — approves tutors, manages accounts | Internal |
+| Admin | — | noot team — approves tutors, moderates reviews, manages accounts | Internal |
+
+A typical account is student + tutor; ambassador/admin are usually held on their own.
 
 ### Tables
 
 ```
 Users                         base identity (Supabase Auth backs id + email)
-  id · email(.edu, unique) · role(student|tutor|ambassador|admin)
-  first_name · last_name · status(active|suspended|banned) · created_at · updated_at
+  id · email(.edu, unique) · first_name · last_name
+  status(active|suspended|banned) · created_at · updated_at
+user_roles                    a user may hold several (student/tutor/ambassador/admin)
+  user_id · role · PRIMARY KEY(user_id, role)
+  (Users.active_role tracks the role currently switched-to in Profile)
 
 TutorProfiles                 1:1 with Users where role=tutor
   id · user_id(unique) · bio · subjects · hourly_rate · transcript_url
@@ -136,11 +142,18 @@ Conversations                 pre-booking messaging (per student↔tutor)
 Messages
   id · conversation_id · sender_id · content · read_at · created_at
 
-Reviews                       one per booking, student → tutor
-  id · booking_id(unique) · reviewer_id · tutor_id · rating(1-5) · comment · created_at
+Reviews                       ADMIN-MODERATED; hidden from everyone until approved
+  id · booking_id · reviewer_id · subject_user_id(the person being rated)
+  rating(1-5) · comment
+  approval_status(pending|approved|rejected) · reviewed_by(admin) · reviewed_at
+  created_at
+  → visible to no one (not even the subject) until approval_status=approved;
+    once approved it attaches to subject_user_id's profile and updates rating_avg
 
-TutorAvailability             recurring weekly windows (MVP: no one-off overrides)
+TutorAvailability             recurring weekly windows
   id · tutor_id · day_of_week(0-6) · start_time · end_time · created_at
+availability_overrides        one-off open/close per date (calendar tap-to-toggle, TC)
+  id · tutor_id · date · start_time · end_time · is_open · created_at
 
 PushTokens                    device registration for notifications
   id · user_id · token · platform(ios|android) · created_at
@@ -148,24 +161,24 @@ PushTokens                    device registration for notifications
 
 **RLS highlights:** users read/write only their own row; bookings visible only to their student or
 tutor; conversation/message rows only to participants; only `approved` tutors are student-visible;
-`ReferralBonuses` uniqueness on `referral_id` enforces one-bonus-per-referral.
+**reviews are readable only when `approval_status=approved`** (pending/rejected visible to admins
+only); `ReferralBonuses` uniqueness on `referral_id` enforces one-bonus-per-referral.
 
 **Backend rules (Edge Functions, §5):** booking must fall inside a `TutorAvailability` window and
 not overlap a confirmed booking; on `completed` + payment cleared, check the referred user for a
 `Referrals` row with no `ReferralBonuses` yet → create one.
 
-### ⚠ PRD ↔ design-handoff conflicts to resolve (§13)
+### Resolved decisions (PRD ↔ handoff)
 
-The PRD (data layer) and the design handoff (UI) disagree in a few places. **PRD wins for the data
-model**; these need a product decision before the schema is final:
+Where the PRD and the design handoff disagreed, these are the decided outcomes:
 
-| Topic | PRD (`prd-data-models.md`) | Handoff (`HANDOFF.md`) |
-|---|---|---|
-| Roles per account | **single `role`** per user | one account, **student↔tutor mode switch** |
-| Ratings | one-way `Reviews` (student→tutor) | **double-blind** two-way (C2/C3) |
-| Cancellation refund | binary: full before 24h, none after | **tiered** (>24h 100% · 2–24h 50% · <2h 0%) |
-| Availability | weekly windows only (MVP) | weekly + **tap-to-toggle overrides** (TC calendar) |
-| Ambassador role | **yes** (referrals + $5 bonus) | not in the handoff |
+| Topic | Decision |
+|---|---|
+| Roles per account | **Multiple roles per account**, switched from Profile (`user_roles` + `active_role`) |
+| Ratings/reviews | **Admin-moderated** — hidden from everyone until an admin approves, then attached to the rated user |
+| Cancellation refund | **Binary 24h** — full refund before `scheduled_at − 24h`, none after |
+| Availability | **Weekly windows + one-off overrides** (`TutorAvailability` + `availability_overrides`) |
+| Ambassador role | **Included** (referrals + flat $5 one-time bonus) |
 
 ---
 
@@ -179,15 +192,15 @@ Everything the client can't be trusted to do. Deno, in `supabase/functions/`.
 | `stripe-webhook` | Stripe | `payment_intent.succeeded` → confirm booking; `account.updated` → tutor Connect onboarding status; refunds/transfers. |
 | `confirm-booking` | after payment | Create `bookings` row (+ series for weekly), drop B3 intro message into the thread (B5), fire TB1 to tutor. |
 | `connect-onboarding-link` | T9 payout setup | Create Stripe Connect account + hosted onboarding link. |
-| `complete-session` | C-flow / cron | Capture held payment, create transfer/payout to tutor's connected account. |
-| `submit-rating` | C2 / C3 | Store rating; flip `visible=true` only when both sides have rated (double-blind). |
-| `cancel-booking` | X1 / X2 | Refund-tier math (>24h 100% · 2–24h 50% · <2h/no-show 0%); tutor-cancel = student 100%, log `incidents` (cancellation rate >2/30d). |
-| `reschedule-booking` | X3 / X4 | Propose/accept new time; enforce 3-reschedule → auto-refund+credit. |
-| `report-no-show` | X5 | Threshold checks; 3-strike escalation (warn → 30-day pre-pay → suspension). |
-| `auto-complete` (scheduled) | `pg_cron` | If neither side rates within 24h → auto-complete + release payment. |
+| `complete-session` | C-flow / cron | Capture held payment, transfer payout to tutor; on success, run the referral-bonus check. |
+| `submit-review` | after session | Store review as `approval_status=pending` — hidden from everyone until moderated. |
+| `moderate-review` | admin | Admin approves/rejects a review; on approve, attach to the subject user + update `rating_avg`. |
+| `award-referral-bonus` | on `complete-session` | If the booking's student/tutor was referred and has no prior bonus → create a `ReferralBonuses` row + payout. |
+| `cancel-booking` | cancel | **Binary 24h**: cancel before `scheduled_at − 24h` → full refund; after → none. Set `refund_status`. |
+| `approve-tutor` | admin | Set `TutorProfiles.approval_status`; only approved tutors become bookable. |
 | `send-reminders` (scheduled) | `pg_cron` | 24h + 1h reminders (location / video link on the 1h). |
 
-Client never touches the Stripe secret key or writes `bookings`/`payouts`/`ratings.visible` directly.
+Client never touches the Stripe secret key or writes `bookings`/`payouts`/review approval directly.
 
 ---
 
@@ -230,11 +243,13 @@ reproduce against the real backend — do not port localStorage.
   capture. Service fee shown as its own line — **Free ($0.00)** at launch (`application_fee_amount`,
   toggle on later). Test cards: `4242` approves · `0002` declines.
 - **Payout:** on completion, capture the PaymentIntent and transfer to the tutor's connected
-  account (payout within ~2 business days, per C4 copy). Tutor Connect onboarding is T9.
-- **Double-blind ratings:** C2/C3 stay hidden until both submit (prevents retaliation); 24h no
-  response → auto-complete + release. Enforced in `submit-rating` / `auto-complete`, never client-side.
-- **Refunds / disputes / strikes:** all math and counters are server rules (see §5 `cancel-booking`,
-  `report-no-show`) — the screens only surface states and copy.
+  account (payout within ~2 business days). Tutor Connect onboarding is part of tutor setup.
+- **Reviews (admin-moderated):** stored `pending` and hidden from everyone until an admin approves,
+  then attached to the rated user. Enforced in `submit-review` / `moderate-review` + RLS, never client-side.
+- **Refunds (binary 24h):** full refund if cancelled before `scheduled_at − 24h`, none after —
+  server rule in §5 `cancel-booking`; the screens only surface the state.
+- **Referral bonus:** flat $5 once per referral, on the referred user's first completed paid
+  session (§5 `award-referral-bonus`) — paid to the ambassador's Connect account.
 - Payments are **hosting-independent** — unchanged across Phase 1 and Phase 2.
 
 ---
@@ -319,7 +334,7 @@ it in expo-router.
 
 - [x] Scaffold monorepo (pnpm + Turborepo), `apps/mobile` (Expo), `apps/web` (Next.js).
 - [x] Port `theme.jsx` → `packages/theme`; starter `kit.jsx` → `packages/ui`.
-- [ ] **Resolve the PRD ↔ handoff conflicts (§4)** — the 5 rows in that table. Blocks the schema.
+- [x] Resolve the PRD ↔ handoff conflicts (§4) — see "Resolved decisions".
 - [ ] Finalize schema in `supabase/migrations/0001_init.sql` from §4 / `prd-data-models.md`.
 - [ ] Port remaining `kit.jsx` primitives + screens into `packages/ui` / `apps/mobile`.
 - [ ] Stand up Supabase project + `.edu` auth hook + `campuses` allowlist.
