@@ -83,61 +83,89 @@ outgrows functions.
 
 ## 4. Data model (Postgres)
 
-Sketch of the core tables backing the handoff's entities. RLS on every table.
+**Authoritative source: `prd-data-models.md`.** This section summarizes it. RLS on every table.
+
+### Roles
+
+Four roles, **one `role` enum per user** (base `Users` table), with profile tables only for the
+two roles that need extra data:
+
+| Role | Profile table | Key behavior | Signup gate |
+|---|---|---|---|
+| Student | — | Books sessions with tutors | Active on `.edu` verify |
+| Tutor | `TutorProfiles` | Uploads transcript; **admin-approved** before bookable | `.edu` verify → admin approval |
+| Ambassador | `AmbassadorProfiles` | Recruits students/tutors via referral code; earns a **flat $5 one-time bonus** per referral's first completed paid session | Active on `.edu` verify |
+| Admin | — | noot team — approves tutors, manages accounts | Internal |
+
+### Tables
 
 ```
-auth.users                    ← Supabase-managed identity (magic link)
+Users                         base identity (Supabase Auth backs id + email)
+  id · email(.edu, unique) · role(student|tutor|ambassador|admin)
+  first_name · last_name · status(active|suspended|banned) · created_at · updated_at
 
-profiles                      1:1 with auth.users
-  id (fk auth.users) · full_name · email · college · avatar_initials
-  is_student · is_tutor · active_role · created_at
+TutorProfiles                 1:1 with Users where role=tutor
+  id · user_id(unique) · bio · subjects · hourly_rate · transcript_url
+  approval_status(pending|approved|rejected) · reviewed_by(admin) · reviewed_at
+  stripe_connect_account_id · rating_avg(denormalized) · created_at · updated_at
+  → only approved tutors are visible/bookable
 
-tutor_profiles                1:1 with a profile (when is_tutor)
-  user_id · headline · bio · grade_verification_status(draft|submitted|verified)
-  stripe_account_id · status(draft|in_review|active) · sessions_completed
-  rating_avg  ← PRIVATE, never exposed student-facing (credibility = sessions_completed)
+AmbassadorProfiles            1:1 with Users where role=ambassador
+  id · user_id(unique) · referral_code(unique) · stripe_connect_account_id
+  total_referrals · total_earned · created_at · updated_at
 
-tutor_courses                 per-course offerings + rates
-  id · tutor_id · course_code(e.g. MGT 300) · title · rate_cents
+Referrals                     who each ambassador recruited
+  id · ambassador_id · referred_user_id · referred_role(student|tutor)
+  referral_code_used · created_at
 
-availability_templates        recurring open blocks (tutor's weekly template, T5)
-  tutor_id · weekday · start_time · end_time
-availability_overrides        one-off open/close (calendar tap-to-toggle, TC)
-  tutor_id · date · start_time · end_time · is_open
+ReferralBonuses               flat $5, one per referral EVER
+  id · ambassador_id · referral_id(unique) · triggering_booking_id
+  bonus_amount · status(pending|paid) · paid_at · created_at
 
-bookings                      the unit of work (auto-confirm model — no approval step)
-  id · student_id · tutor_id · course_code · starts_at · ends_at · length_min
-  location · video_url · video_provider  ← external link at launch (§9); null for in-person
-  focus_tag(general|hw|exam|resume|advising) · intro_message
-  repeat(once|weekly) · series_id  ← recurring series link
-  price_cents · service_fee_cents(0 at launch) · status(confirmed|completed|cancelled|no_show)
-  stripe_payment_intent_id · created_at
+Bookings                      the unit of work
+  id · student_id · tutor_id · subject · scheduled_at · duration_minutes
+  price · platform_fee · tutor_payout_amount
+  session_type(video|in_person) · meeting_link · location  ← external link (§9)
+  status(pending|confirmed|completed|cancelled)
+  cancellation_deadline(scheduled_at − 24h) · cancelled_at
+  refund_status(not_applicable|refunded|not_refunded)
+  stripe_payment_intent_id(charged upfront) · created_at · updated_at
 
-chat_threads                  one per (student, tutor) pair
-  id · student_id · tutor_id
-chat_messages
-  id · thread_id · sender_id · body · created_at
-message_attachments
-  id · message_id · storage_path · kind(image|file) · filename
+Conversations                 pre-booking messaging (per student↔tutor)
+  id · student_id · tutor_id · created_at
+Messages
+  id · conversation_id · sender_id · content · read_at · created_at
 
-ratings                       double-blind (§8)
-  id · booking_id · rater_id · ratee_id · stars(1-5) · note
-  is_public  ← student→tutor review public; tutor→student note PRIVATE
-  visible    ← false until BOTH sides submit (or 24h auto-complete)
+Reviews                       one per booking, student → tutor
+  id · booking_id(unique) · reviewer_id · tutor_id · rating(1-5) · comment · created_at
 
-disputes                      "did this happen as expected? No" → pauses payout
-  id · booking_id · opened_by · reason · status
+TutorAvailability             recurring weekly windows (MVP: no one-off overrides)
+  id · tutor_id · day_of_week(0-6) · start_time · end_time · created_at
 
-payouts
-  id · tutor_id · booking_id · amount_cents · stripe_transfer_id · status · released_at
-
-incidents                     drives cancellation-rate + no-show strikes (§8)
-  id · user_id · type(cancel|no_show) · booking_id · created_at
+PushTokens                    device registration for notifications
+  id · user_id · token · platform(ios|android) · created_at
 ```
 
-**RLS highlights:** a profile reads/writes only its own row; bookings visible only to their
-student or tutor; chat rows only to thread participants; `ratings` hidden until `visible=true`;
-`tutor_profiles.rating_avg` and `ratings.note` (tutor→student) never returned to students.
+**RLS highlights:** users read/write only their own row; bookings visible only to their student or
+tutor; conversation/message rows only to participants; only `approved` tutors are student-visible;
+`ReferralBonuses` uniqueness on `referral_id` enforces one-bonus-per-referral.
+
+**Backend rules (Edge Functions, §5):** booking must fall inside a `TutorAvailability` window and
+not overlap a confirmed booking; on `completed` + payment cleared, check the referred user for a
+`Referrals` row with no `ReferralBonuses` yet → create one.
+
+### ⚠ PRD ↔ design-handoff conflicts to resolve (§13)
+
+The PRD (data layer) and the design handoff (UI) disagree in a few places. **PRD wins for the data
+model**; these need a product decision before the schema is final:
+
+| Topic | PRD (`prd-data-models.md`) | Handoff (`HANDOFF.md`) |
+|---|---|---|
+| Roles per account | **single `role`** per user | one account, **student↔tutor mode switch** |
+| Ratings | one-way `Reviews` (student→tutor) | **double-blind** two-way (C2/C3) |
+| Cancellation refund | binary: full before 24h, none after | **tiered** (>24h 100% · 2–24h 50% · <2h 0%) |
+| Availability | weekly windows only (MVP) | weekly + **tap-to-toggle overrides** (TC calendar) |
+| Ambassador role | **yes** (referrals + $5 bonus) | not in the handoff |
 
 ---
 
@@ -289,10 +317,12 @@ it in expo-router.
 
 ## 13. Open decisions / next steps
 
-- [ ] Finalize schema in `supabase/migrations` (this doc's §4 is the sketch).
-- [ ] Scaffold monorepo (pnpm + Turborepo), `apps/mobile` (Expo), `apps/web` (Next.js).
-- [ ] Port `theme.jsx` → `packages/theme` and `kit.jsx` → `packages/ui` first (unblocks all screens).
+- [x] Scaffold monorepo (pnpm + Turborepo), `apps/mobile` (Expo), `apps/web` (Next.js).
+- [x] Port `theme.jsx` → `packages/theme`; starter `kit.jsx` → `packages/ui`.
+- [ ] **Resolve the PRD ↔ handoff conflicts (§4)** — the 5 rows in that table. Blocks the schema.
+- [ ] Finalize schema in `supabase/migrations/0001_init.sql` from §4 / `prd-data-models.md`.
+- [ ] Port remaining `kit.jsx` primitives + screens into `packages/ui` / `apps/mobile`.
 - [ ] Stand up Supabase project + `.edu` auth hook + `campuses` allowlist.
-- [ ] Stripe Connect account + the payment/payout Edge Functions.
+- [ ] Stripe Connect account + the payment/payout Edge Functions (+ referral-bonus function).
 - [ ] Video link source (§9): auto-generate per-session room vs. tutor-pasted URL.
 - [ ] Decide analytics/observability (e.g. PostHog) — not covered here.
