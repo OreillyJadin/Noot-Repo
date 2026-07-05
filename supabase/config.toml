@@ -20,7 +20,9 @@ enabled = true
 port = 54323
 
 # Local mailbox — magic links land here (http://localhost:54324), no real email sent.
-[local_smtp]
+# NOTE: use [inbucket], not [local_smtp]. CLI 2.109 accepts both (warns [inbucket] is
+# deprecated) but the Supabase "Preview" GitHub check rejects [local_smtp] on push.
+[inbucket]
 enabled = true
 port = 54324
 
