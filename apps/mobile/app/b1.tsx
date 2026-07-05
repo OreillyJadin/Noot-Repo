@@ -2,13 +2,14 @@
 // Live sort chips + a filter bottom sheet (price/availability/gender) narrow the tutor
 // list for the active course. Tapping a tutor saves it into the booking draft and opens B2.
 // Real wiring later: replace TUTORS with @noot/core search results for `course`.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Chip, Badge, Avatar, Button, H2, Label, Ic, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS, DAYS, slotsFor, type Tutor } from '../lib/data';
+import { toTutor, DAYS, slotsFor, type Tutor } from '../lib/data';
 
 type SortKey = 'best' | 'sessions' | 'price' | 'soon';
 type AvailKey = 'any' | 'today' | 'week';
@@ -61,6 +62,18 @@ export default function B1() {
   const { patchBooking } = useApp();
   const course = 'MGT 300';
 
+  const [tutors, setTutors] = useState<Tutor[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    api.tutors
+      .search({ course })
+      .then((list) => { if (active) setTutors(list.map(toTutor)); })
+      .catch(() => {})
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [course]);
+
   const [sort, setSort] = useState<SortKey>('best');
   const [filterOpen, setFilterOpen] = useState(false);
   const [maxPrice, setMaxPrice] = useState(MAX_PRICE);
@@ -69,7 +82,7 @@ export default function B1() {
   const activeFilters =
     (maxPrice < MAX_PRICE ? 1 : 0) + (avail !== 'any' ? 1 : 0) + (gender !== 'any' ? 1 : 0);
 
-  const withAvail: TutorWithAvail[] = TUTORS.map((tt) => {
+  const withAvail: TutorWithAvail[] = tutors.map((tt) => {
     const a = nextAvailability(tt);
     return { ...tt, availDayIndex: a.dayIndex, availLabel: a.label };
   });
@@ -169,7 +182,9 @@ export default function B1() {
           {list.length === 0 && (
             <View style={styles.empty}>
               <Ic name="search" size={28} color={t.text3} strokeWidth={1.6} />
-              <Text style={{ marginTop: 10, fontSize: 15, color: t.text3 }}>No tutors match these filters.</Text>
+              <Text style={{ marginTop: 10, fontSize: 15, color: t.text3 }}>
+                {loading ? 'Loading tutors…' : 'No tutors match these filters.'}
+              </Text>
             </View>
           )}
         </View>

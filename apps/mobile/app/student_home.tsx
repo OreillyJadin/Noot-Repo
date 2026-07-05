@@ -2,13 +2,14 @@
 // hub into the booking flow: tappable search bar + category tabs → a "popular"
 // carousel and a detailed tutor list, both opening the tutor profile (B2).
 // Real wiring later: replace TUTORS with @noot/core per-category search results.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, Field, Ic, H2, Muted, TabBar, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS, type Tutor } from '../lib/data';
+import { toTutor, type Tutor } from '../lib/data';
 
 const CATS = ['For you', 'Business', 'STEM', 'Humanities'] as const;
 const TITLES: Record<(typeof CATS)[number], string> = {
@@ -63,7 +64,18 @@ export default function StudentHome() {
   const [tab, setTab] = useState(0);
 
   const cat = CATS[tab] ?? CATS[0];
-  const rows = TUTORS; // see NOTE(api) above — same pool for every category today
+  // Live tutors from the API (see NOTE(api) above — same pool for every category today).
+  const [rows, setRows] = useState<Tutor[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    api.tutors
+      .search()
+      .then((list) => { if (active) setRows(list.map(toTutor)); })
+      .catch(() => { /* no session / no tutors → empty state */ })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const openSearch = () => router.push('/b1');
   const openTutor = (tutor: Tutor) => {
@@ -144,9 +156,15 @@ export default function StudentHome() {
           </Text>
         </View>
         <View style={styles.list}>
-          {rows.map((tutor) => (
-            <TutorRow key={tutor.id} tutor={tutor} onPress={() => openTutor(tutor)} />
-          ))}
+          {loading ? (
+            <Muted style={styles.listNote}>Loading tutors…</Muted>
+          ) : rows.length === 0 ? (
+            <Muted style={styles.listNote}>No tutors yet.</Muted>
+          ) : (
+            rows.map((tutor) => (
+              <TutorRow key={tutor.id} tutor={tutor} onPress={() => openTutor(tutor)} />
+            ))
+          )}
         </View>
       </Body>
 
@@ -174,6 +192,7 @@ const styles = StyleSheet.create({
   miniVerified: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   miniVerifiedLabel: { fontSize: 12, fontWeight: '600' },
   list: { paddingHorizontal: 20, paddingBottom: 8, gap: 10 },
+  listNote: { paddingVertical: 20, textAlign: 'center' },
   rowCard: { padding: 12 },
   rowInner: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   rowBody: { flex: 1, minWidth: 0 },

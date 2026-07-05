@@ -1,9 +1,10 @@
 // S1 Student Profile Setup — ported from screens-student.jsx (StudentProfile).
 // Step 3 of 3 in onboarding. "Complete profile" → Student Home.
-// Real wiring later: persist name/year/major/courses via @noot/core.
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+// Prefills from api.getMe(); persists name/year/major/courses via @noot/core.
+import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { api } from '@noot/core';
 import {
   Screen,
   NavTop,
@@ -49,14 +50,47 @@ function AddCourseChip({ onPress }: { onPress: () => void }) {
 export default function StudentProfile() {
   const t = useTheme();
   const router = useRouter();
-  const [firstName, setFirstName] = useState('Lindsay');
-  const [lastName, setLastName] = useState('Thomas');
-  const [year, setYear] = useState('Sophomore');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [year, setYear] = useState('');
   const [major, setMajor] = useState('');
-  const [courses] = useState(['CH 101', 'MGT 300']);
+  const [courses, setCourses] = useState<string[]>([]);
+  const [, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    api.getMe()
+      .then((me) => {
+        if (active && me) {
+          setFirstName(me.firstName);
+          setLastName(me.lastName);
+          setYear(me.year ?? '');
+          setMajor(me.major ?? '');
+          setCourses(me.courses);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const addCourse = () => {
     // TODO(api): course search — built with backend
+  };
+
+  const complete = async () => {
+    try {
+      await api.profile.updatePersonal({
+        firstName,
+        lastName,
+        year: year || null,
+        major: major || null,
+      });
+      await api.profile.setCourses(courses);
+      router.push('/home');
+    } catch {
+      Alert.alert('Could not save', 'Please sign in and try again.');
+    }
   };
 
   return (
@@ -108,7 +142,7 @@ export default function StudentProfile() {
         </Text>
       </Body>
       <ActionBar>
-        <Button label="Complete profile" kind="primary" full iconRight="chevron" onPress={() => router.push('/home')} />
+        <Button label="Complete profile" kind="primary" full iconRight="chevron" onPress={complete} />
       </ActionBar>
     </Screen>
   );

@@ -1,17 +1,59 @@
 // O2 Sign Up — ported from screens-shared.jsx (SignUp). .edu email → magic link.
-// Demo: "Send magic link" flips to the check-inbox state; "Open the link" → Verified.
-// Real wiring later: @noot/core auth.sendMagicLink(email).
+// Real send goes through @noot/core auth.sendMagicLink (Supabase OTP); .edu domain
+// gating is enforced server-side. "Open the link (demo)" still fakes the deep-link
+// return until magic-link deep-linking lands.
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button, Card, Field, useTheme } from '@noot/ui';
+import { auth } from '@noot/core';
+import { useApp } from '../lib/store';
 
 export default function SignUp() {
   const t = useTheme();
   const router = useRouter();
+  const { setRole } = useApp();
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // DEV ONLY — skip the magic-link round-trip and sign in with a seeded account
+  // (see supabase/seed_demo.mjs). Stripped from production builds by __DEV__.
+  const devLogin = async (kind: 'student' | 'tutor') => {
+    const devEmail = kind === 'student' ? 'student@crimson.ua.edu' : 'sara@crimson.ua.edu';
+    setError(null);
+    const res = await auth.devSignIn(devEmail, 'password123');
+    if (!res.ok) {
+      setError(res.error ?? 'Dev sign-in failed');
+      return;
+    }
+    setRole(kind);
+    router.replace(kind === 'student' ? '/student_home' : '/tutor_home');
+  };
+
+  const handleSend = async () => {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError('Enter your campus email.');
+      return;
+    }
+    setSending(true);
+    setError(null);
+    try {
+      const res = await auth.sendMagicLink(trimmed);
+      if (res.ok) {
+        setSent(true);
+      } else {
+        setError(res.error ?? "Couldn't send the link. Try again.");
+      }
+    } catch {
+      setError("Couldn't reach noot. Check your connection and try again.");
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
@@ -38,11 +80,16 @@ export default function SignUp() {
               label="Campus email"
               placeholder="yourname@crimson.ua.edu"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(v) => { setEmail(v); if (error) setError(null); }}
               keyboardType="email-address"
             />
             <Text style={{ color: t.text3, fontSize: 13 }}>Must be a verified .edu address from your school.</Text>
-            <Button label="Send magic link" onPress={() => setSent(true)} />
+            {error ? <Text style={{ color: '#C0392B', fontSize: 14 }}>{error}</Text> : null}
+            <Button
+              label={sending ? 'Sending…' : 'Send magic link'}
+              disabled={sending}
+              onPress={handleSend}
+            />
           </>
         ) : (
           <>
@@ -57,6 +104,14 @@ export default function SignUp() {
             </Card>
           </>
         )}
+
+        {__DEV__ ? (
+          <View style={{ gap: 8, marginTop: 8 }}>
+            <Text style={{ color: t.text3, fontSize: 12, textAlign: 'center' }}>Dev shortcuts (skip magic link)</Text>
+            <Button label="Dev: sign in as student" kind="secondary" onPress={() => devLogin('student')} />
+            <Button label="Dev: sign in as tutor" kind="secondary" onPress={() => devLogin('tutor')} />
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

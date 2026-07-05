@@ -1,9 +1,9 @@
 // M1 Chat (Student view) — ported from screens-chat.jsx (Chat, perspective="student").
 // Full conversation thread with a tutor: text + image/file attachments.
-// Prototype persisted threads via NootStore (localStorage); here we keep the
-// thread in local useState, seeded with demo messages. Real wiring later:
-// @noot/core messaging (load/send/subscribe) will replace the local state.
-import React, { useRef, useState } from 'react';
+// Wired to @noot/core messaging: the conversation with booking.tutor is
+// loaded/created on mount, messages are fetched + streamed live, and the
+// composer sends through the API. Attachments remain a local demo (TODO(api)).
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ic, Avatar, useTheme, type IconName } from '@noot/ui';
+import { api, auth, type Message as ApiMessage } from '@noot/core';
 import { useApp } from '../lib/store';
 import { tutorById } from '../lib/data';
 
@@ -31,6 +32,7 @@ interface Attachment {
 }
 
 interface Message {
+  id: string;
   who: Who;
   text?: string;
   attach?: Attachment[];
@@ -44,14 +46,25 @@ const DEMO_ATTACHMENTS: Attachment[] = [
   { name: 'Practice_Problems.pdf', kind: 'file', size: 154_000 },
 ];
 
-// Seed thread — mirrors chat-store.jsx SEED_THREADS.sara.
-const SEED_MESSAGES: Message[] = [
-  { who: 'student', text: "Hey, I'm Lindsay! Looking forward to working through MGT 300 with you.", time: 'May 27' },
-  { who: 'tutor', text: "Hi Lindsay! Great — want to start with Porter's Five Forces? That's usually the trickiest on Reynolds' exam.", time: 'May 27' },
-  { who: 'student', text: "Yes please. I'll bring my case packet.", time: 'May 27' },
-  { who: 'tutor', text: 'Perfect. See you at Gorgas, 2nd floor \u{1F44D}', time: 'May 28' },
-  { who: 'student', text: 'That session was super helpful, thank you!', time: 'May 28' },
-];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Group-header label for a message (mirrors the prototype's per-day dividers).
+function timeLabel(iso: string): string {
+  const d = new Date(iso);
+  if (d.toDateString() === new Date().toDateString()) return 'Today';
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
+
+// @noot/core Message → the local bubble shape. `mineWho`/`otherWho` place the
+// bubble on the correct side by comparing the sender to the signed-in user.
+function toLocal(m: ApiMessage, uid: string | null, mineWho: Who, otherWho: Who): Message {
+  return {
+    id: m.id,
+    who: m.senderId === uid ? mineWho : otherWho,
+    text: m.content,
+    time: timeLabel(m.createdAt),
+  };
+}
 
 function fmtSize(b: number): string {
   if (b < 1024) return `${b} B`;
@@ -65,15 +78,48 @@ export default function Chat() {
   const { booking } = useApp();
   const perspective: Who = 'student';
 
-  // No live booking context yet → fall back to a demo tutor thread.
+  // Counterpart tutor comes from the booking draft (set by sessions/b5/home before
+  // navigating here); fall back to the demo tutor if we arrived without one.
   const tutor = booking.tutor ?? tutorById('sara')!;
+  const tutorId = tutor.id;
   const other = tutor.name;
   const otherSub = `${tutor.year} · ${tutor.major}`;
 
-  const [messages, setMessages] = useState<Message[]>(SEED_MESSAGES);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState<Attachment[]>([]);
+  const [convId, setConvId] = useState<string | null>(null);
+  const [uid, setUid] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+
+  // Load/create the conversation, fetch its messages, and stream live ones.
+  useEffect(() => {
+    let active = true;
+    let unsub = () => {};
+    (async () => {
+      try {
+        const me = await auth.getSessionUserId();
+        const conv = await api.chat.getOrCreateConversation(tutorId);
+        if (!active) return;
+        setUid(me);
+        setConvId(conv.id);
+        const initial = await api.chat.listMessages(conv.id);
+        if (!active) return;
+        setMessages(initial.map((m) => toLocal(m, me, 'student', 'tutor')));
+        unsub = api.chat.subscribe(conv.id, (m) =>
+          setMessages((prev) =>
+            prev.some((p) => p.id === m.id) ? prev : [...prev, toLocal(m, me, 'student', 'tutor')],
+          ),
+        );
+      } catch {
+        // No session / backend unavailable → gentle empty thread.
+      }
+    })();
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, [tutorId]);
 
   const canSend = draft.trim().length > 0 || pending.length > 0;
 
@@ -85,12 +131,20 @@ export default function Chat() {
 
   const removePending = (i: number) => setPending((p) => p.filter((_, j) => j !== i));
 
-  const send = () => {
+  const send = async () => {
     const text = draft.trim();
-    if (!text && pending.length === 0) return;
-    setMessages((m) => [...m, { who: perspective, text, attach: pending.length ? pending : undefined, time: 'Now' }]);
+    if (!text || !convId) return;
     setDraft('');
     setPending([]);
+    try {
+      const created = await api.chat.sendMessage(convId, text);
+      // Append optimistically; the live subscription guards against a duplicate.
+      setMessages((prev) =>
+        prev.some((p) => p.id === created.id) ? prev : [...prev, toLocal(created, uid, 'student', 'tutor')],
+      );
+    } catch {
+      // Send failed (no session / offline) — leave the thread unchanged.
+    }
   };
 
   const notify = () => {
@@ -137,7 +191,7 @@ export default function Chat() {
             const prev = messages[i - 1];
             const showTime = !prev || prev.time !== m.time;
             return (
-              <React.Fragment key={i}>
+              <React.Fragment key={m.id}>
                 {showTime && <Text style={[styles.timeLabel, { color: t.text3 }]}>{m.time}</Text>}
                 <Bubble mine={mine} m={m} />
               </React.Fragment>

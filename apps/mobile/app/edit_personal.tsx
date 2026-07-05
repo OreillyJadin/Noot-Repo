@@ -1,28 +1,57 @@
 // P1 Edit Personal Info — ported from screens-edit.jsx (EditPersonal). Settings-style
-// editor for student + tutor personal info. Save is a front-end stub → back().
-// TODO(api): wire to @noot/core profile.update(...) once backend exists.
-import React, { useState } from 'react';
+// editor for student + tutor personal info. Prefills from api.getMe() and persists
+// via api.profile.updatePersonal(...).
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Field, Select, Label, Avatar, Ic, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 
 export default function EditPersonal() {
   const t = useTheme();
   const router = useRouter();
-  const [firstName, setFirstName] = useState('Lindsay');
-  const [lastName, setLastName] = useState('Thomas');
-  const [year, setYear] = useState('Sophomore');
-  const [major, setMajor] = useState('Pre-Business');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [year, setYear] = useState('');
+  const [major, setMajor] = useState('');
+  const [email, setEmail] = useState('');
+  const [, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    api.getMe()
+      .then((me) => {
+        if (active && me) {
+          setFirstName(me.firstName);
+          setLastName(me.lastName);
+          setYear(me.year ?? '');
+          setMajor(me.major ?? '');
+          setEmail(me.email);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const changePhoto = () => {
     // TODO(api): wire photo upload to backend.
     Alert.alert('Change photo', 'Coming soon — built with backend.');
   };
 
-  const save = () => {
-    // TODO(api): persist profile changes.
-    Alert.alert('Profile updated');
-    router.back();
+  const save = async () => {
+    try {
+      await api.profile.updatePersonal({
+        firstName,
+        lastName,
+        year: year || null,
+        major: major || null,
+      });
+      Alert.alert('Profile updated');
+      router.back();
+    } catch {
+      Alert.alert('Could not save', 'Please sign in and try again.');
+    }
   };
 
   return (
@@ -31,7 +60,7 @@ export default function EditPersonal() {
       <Body>
         <View style={styles.avatarWrap}>
           <View style={{ position: 'relative' }}>
-            <Avatar size={78} label="L" />
+            <Avatar size={78} label={firstName.charAt(0).toUpperCase() || 'L'} />
             <Pressable
               onPress={changePhoto}
               style={[styles.avatarEdit, { backgroundColor: t.accent, borderColor: t.surface }]}
@@ -61,7 +90,7 @@ export default function EditPersonal() {
           <Label style={{ fontSize: 13, marginBottom: 8 }}>Campus email</Label>
           <View style={[styles.lockedRow, { backgroundColor: t.surface2, borderColor: t.border }]}>
             <Ic name="lock" size={16} color={t.text3} strokeWidth={1.8} />
-            <Text style={[styles.lockedEmail, { color: t.text2 }]}>lindsay.t@students.edu</Text>
+            <Text style={[styles.lockedEmail, { color: t.text2 }]}>{email || 'lindsay.t@students.edu'}</Text>
           </View>
           <Text style={[styles.lockedHint, { color: t.text3 }]}>Your verified .edu email can&apos;t be changed.</Text>
         </View>

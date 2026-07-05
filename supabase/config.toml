@@ -1,0 +1,38 @@
+# Supabase local dev config (ARCHITECTURE.md §3, §11).
+# `supabase start` reads this. If your CLI version rejects a key, regenerate with
+# `supabase init` in a scratch dir and merge — the [auth]/[db] core keys are stable.
+project_id = "noot"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+# Local mailbox — magic links land here (http://localhost:54324), no real email sent.
+[local_smtp]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+# Where the magic-link redirect returns. Expo dev server default; add prod/app URLs later.
+site_url = "http://localhost:8081"
+additional_redirect_urls = ["http://localhost:8081", "noot://"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+# Local: no click-to-confirm; the magic-link OTP itself is the verification.
+enable_confirmations = false

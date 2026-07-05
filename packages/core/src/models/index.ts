@@ -25,6 +25,12 @@ export interface User {
   roles: Role[];
   activeRole: Role;
   status: UserStatus;
+  /** Academic/demographic profile (0004). Nullable — filled in after signup. */
+  year: string | null;
+  major: string | null;
+  gender: 'f' | 'm' | null;
+  /** Course codes the student is taking (drives home/search categories). */
+  courses: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -45,8 +51,58 @@ export interface TutorProfile {
   stripeConnectAccountId: string | null;
   /** Denormalized from approved Reviews. Not shown until reviews are approved. */
   ratingAvg: number | null;
+  /** Denormalized session count across all courses (0004). */
+  totalSessions: number;
+  /** Headline verified transcript grade shown as a badge (0004). */
+  verifiedGrade: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+/** A course a tutor teaches, with the verified grade / rate / session count (0004). */
+export interface TutorCourse {
+  id: UUID;
+  tutorId: UUID;
+  courseCode: string;
+  grade: string | null;
+  hourlyRate: number;
+  sessions: number;
+  createdAt: Timestamp;
+}
+
+/** Joined tutor view for search results and cards (user + profile + courses). */
+export interface TutorSummary {
+  userId: UUID;
+  firstName: string;
+  lastName: string;
+  year: string | null;
+  major: string | null;
+  gender: 'f' | 'm' | null;
+  bio: string;
+  subjects: string[];
+  hourlyRate: number;
+  ratingAvg: number | null;
+  totalSessions: number;
+  verifiedGrade: string | null;
+  courses: TutorCourse[];
+}
+
+/** A conversation plus the counterpart and last message, for the chat list. */
+export interface ConversationSummary {
+  id: UUID;
+  counterpart: { id: UUID; firstName: string; lastName: string };
+  lastMessage: Message | null;
+  createdAt: Timestamp;
+}
+
+/** An approved review with the reviewer's name and the session's course, for display. */
+export interface ReviewSummary {
+  id: UUID;
+  rating: number;
+  comment: string | null;
+  reviewerName: string;
+  course: string;
+  createdAt: Timestamp;
 }
 
 export interface AmbassadorProfile {

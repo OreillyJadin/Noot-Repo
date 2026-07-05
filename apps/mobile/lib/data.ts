@@ -1,5 +1,8 @@
 // Demo data ported from design_handoff_noot_app/app/booking-data.jsx.
-// Swap for API data (@noot/core) later. Anchored dates (not live) so the demo is stable.
+// The TUTORS/REVIEWS_POOL arrays are the offline fallback; live screens now fetch via
+// @noot/core and map into these same shapes with the adapters at the bottom of this file.
+// Availability (DAYS/slotsFor) is still client-derived — real availability wiring is TODO.
+import type { ReviewSummary, TutorSummary } from '@noot/core';
 
 export const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -104,4 +107,53 @@ export function tutorById(id: string): Tutor | undefined {
 
 export function reviewsFor(_course: string): Review[] {
   return REVIEWS_POOL;
+}
+
+// ── adapters: @noot/core API shapes → the UI Tutor/Review shapes above ──────────
+// Screens keep rendering exactly as before; only the data source changes.
+
+function relativeWhen(iso: string): string {
+  const then = new Date(iso).getTime();
+  const days = Math.floor((Date.now() - then) / 86_400_000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  if (days < 14) return 'Last week';
+  if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
+  return 'Last month';
+}
+
+/** TutorSummary (users+profile+courses) → the mock Tutor card shape. */
+export function toTutor(s: TutorSummary): Tutor {
+  const name = s.lastName ? `${s.firstName} ${s.lastName.charAt(0)}.` : s.firstName;
+  const courses: Tutor['courses'] = s.courses.length
+    ? s.courses.map((c) => [c.courseCode, c.grade ?? '', c.hourlyRate, c.sessions])
+    : s.subjects.map((code) => [code, s.verifiedGrade ?? '', s.hourlyRate, 0]);
+  const rate = s.hourlyRate || Math.min(...courses.map((c) => c[2]));
+  return {
+    id: s.userId,
+    name,
+    year: s.year ?? '',
+    major: s.major ?? '',
+    rating: s.ratingAvg ?? 0,
+    sessions: s.totalSessions,
+    rate,
+    gender: s.gender ?? 'f',
+    verified: s.verifiedGrade ?? 'A',
+    next: 0,
+    nextLabel: '',
+    bio: s.bio,
+    courses,
+  };
+}
+
+/** ReviewSummary → the mock Review shape (reviewer name + course + relative time). */
+export function toReview(r: ReviewSummary): Review {
+  return {
+    name: r.reviewerName || 'Student',
+    course: r.course,
+    rating: r.rating,
+    when: relativeWhen(r.createdAt),
+    text: r.comment ?? '',
+  };
 }

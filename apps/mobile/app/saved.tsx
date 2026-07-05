@@ -2,15 +2,14 @@
 // Note: per screens-map.jsx this list has since been folded into the Sessions tab's
 // "Saved" segment (see sessions.tsx), but the standalone route is kept per the nav map.
 // Tapping a tutor stashes it on the in-progress booking draft and opens their profile (B2).
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, Ic, H1, TabBar, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS, tutorById } from '../lib/data';
-
-const SAVED_IDS = ['sara', 'nina', 'devon'];
+import { toTutor, type Tutor } from '../lib/data';
 
 function TabHeader({ title }: { title: string }) {
   const t = useTheme();
@@ -26,10 +25,20 @@ export default function Saved() {
   const t = useTheme();
   const router = useRouter();
   const { patchBooking } = useApp();
+  const [tutors, setTutors] = useState<Tutor[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    api.tutors
+      .listSaved()
+      .then((list) => { if (active) setTutors(list.map(toTutor)); })
+      .catch(() => {})
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
-  const open = (id: string) => {
-    const tutor = tutorById(id) ?? TUTORS[0]!;
-    patchBooking({ tutor, course: 'MGT 300' });
+  const open = (tutor: Tutor) => {
+    patchBooking({ tutor, course: tutor.courses[0]?.[0] ?? 'MGT 300' });
     router.push('/b2');
   };
 
@@ -54,34 +63,36 @@ export default function Saved() {
     <Screen>
       <TabHeader title="Saved" />
       <Body pad={20} contentStyle={{ paddingTop: 8 }}>
-        <Text style={[styles.count, { color: t.text3 }]}>{SAVED_IDS.length} tutors saved for later</Text>
+        <Text style={[styles.count, { color: t.text3 }]}>
+          {loading ? 'Loading…' : `${tutors.length} tutor${tutors.length === 1 ? '' : 's'} saved for later`}
+        </Text>
         <View style={{ gap: 10 }}>
-          {SAVED_IDS.map((id) => {
-            const tutor = tutorById(id) ?? TUTORS[0]!;
-            return (
-              <Card key={id} onPress={() => open(id)} style={styles.row}>
-                <Avatar size={48} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <View style={styles.rowHead}>
-                    <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
-                    <Text style={[styles.rate, { color: t.text }]}>
-                      ${tutor.rate}
-                      <Text style={[styles.rateUnit, { color: t.text3 }]}>/hr</Text>
-                    </Text>
-                  </View>
-                  <Text style={[styles.sub, { color: t.text3 }]}>
-                    {tutor.year} · {tutor.major}
+          {tutors.map((tutor) => (
+            <Card key={tutor.id} onPress={() => open(tutor)} style={styles.row}>
+              <Avatar size={48} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={styles.rowHead}>
+                  <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
+                  <Text style={[styles.rate, { color: t.text }]}>
+                    ${tutor.rate}
+                    <Text style={[styles.rateUnit, { color: t.text3 }]}>/hr</Text>
                   </Text>
-                  <View style={styles.tagsRow}>
-                    <Badge label="MGT 300" tone="accentSoft" />
-                    <Badge label="✓ Verified" tone="good" />
-                    <Text style={[styles.sessions, { color: t.text3 }]}>{tutor.sessions} sessions</Text>
-                  </View>
                 </View>
-                <Ic name="bookmark" size={19} color={t.accent} strokeWidth={1.6} fill={t.accent} />
-              </Card>
-            );
-          })}
+                <Text style={[styles.sub, { color: t.text3 }]}>
+                  {tutor.year} · {tutor.major}
+                </Text>
+                <View style={styles.tagsRow}>
+                  <Badge label={tutor.courses[0]?.[0] ?? 'MGT 300'} tone="accentSoft" />
+                  <Badge label="✓ Verified" tone="good" />
+                  <Text style={[styles.sessions, { color: t.text3 }]}>{tutor.sessions} sessions</Text>
+                </View>
+              </View>
+              <Ic name="bookmark" size={19} color={t.accent} strokeWidth={1.6} fill={t.accent} />
+            </Card>
+          ))}
+          {!loading && tutors.length === 0 ? (
+            <Text style={[styles.count, { color: t.text3, marginTop: 8 }]}>No saved tutors yet.</Text>
+          ) : null}
         </View>
       </Body>
       <TabBar active="saved" onTab={onTab} role="student" />

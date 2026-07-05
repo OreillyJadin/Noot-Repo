@@ -1,16 +1,27 @@
 // P2 My Courses (Edit) — ported from screens-edit.jsx (EditCourses). Student-only
-// settings editor for the courses that power the For-You feed. Save is a
-// front-end stub → back(). TODO(api): wire to @noot/core profile.setCourses(...).
-import React, { useState } from 'react';
+// settings editor for the courses that power the For-You feed. Prefills from
+// api.getMe().courses and persists via api.profile.setCourses(...).
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Field, Label, Ic, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 
 export default function EditCourses() {
   const t = useTheme();
   const router = useRouter();
-  const [courses, setCourses] = useState<string[]>(['MGT 300', 'EC 110', 'CH 101']);
+  const [courses, setCourses] = useState<string[]>([]);
   const [draft, setDraft] = useState('');
+  const [, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    api.getMe()
+      .then((me) => { if (active && me) setCourses(me.courses); })
+      .catch(() => {})
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const add = () => {
     const c = draft.trim().toUpperCase();
@@ -20,10 +31,14 @@ export default function EditCourses() {
 
   const remove = (c: string) => setCourses(courses.filter((x) => x !== c));
 
-  const save = () => {
-    // TODO(api): persist course list.
-    Alert.alert('Courses updated');
-    router.back();
+  const save = async () => {
+    try {
+      await api.profile.setCourses(courses);
+      Alert.alert('Courses updated');
+      router.back();
+    } catch {
+      Alert.alert('Could not save', 'Please sign in and try again.');
+    }
   };
 
   return (

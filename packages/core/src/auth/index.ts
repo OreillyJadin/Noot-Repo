@@ -17,6 +17,24 @@ export async function sendMagicLink(email: string): Promise<SignInResult> {
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
+/**
+ * DEV ONLY — establish a session with email+password (no magic-link round-trip).
+ * Signs in if the user exists, otherwise signs up (locally `enable_confirmations`
+ * is off, so signUp returns a session immediately). Gated by `__DEV__` at the call
+ * site; real auth is magic-link only (see `sendMagicLink`).
+ */
+export async function devSignIn(email: string, password: string): Promise<SignInResult> {
+  const sb = getSupabase();
+  const signedIn = await sb.auth.signInWithPassword({ email, password });
+  if (!signedIn.error) return { ok: true };
+  const signedUp = await sb.auth.signUp({ email, password });
+  if (signedUp.error) return { ok: false, error: signedUp.error.message };
+  if (!signedUp.data.session) {
+    return { ok: false, error: 'Signed up but no session — is email confirmation on?' };
+  }
+  return { ok: true };
+}
+
 export async function signOut(): Promise<void> {
   await getSupabase().auth.signOut();
 }

@@ -1,5 +1,19 @@
--- Dev seed data for noot. Mirror the demo content in
--- design_handoff_noot_app/app/booking-data.jsx (tutors, courses, availability,
--- reviews). Applied by `supabase db reset` after migrations.
+-- Dev seed data for noot. Applied by `supabase db reset` AFTER migrations.
 --
--- Placeholder — add INSERTs once migrations/0001_init.sql defines the schema.
+-- The campus allowlist (crimson.ua.edu, ua.edu) is seeded in the migration itself
+-- (0003) so the .edu gate works in every environment — it is NOT repeated here.
+--
+-- Demo tutors/bookings are intentionally NOT auto-seeded: every person row hangs off
+-- an auth.users row (users.id references auth.users.id), so realistic seed data means
+-- creating auth users first. The cleanest local path is to sign up through the app
+-- against the local stack (magic links appear in Inbucket at http://localhost:54324),
+-- then let the app write profiles/availability.
+--
+-- To seed demo accounts non-interactively instead, create the auth users via the
+-- Admin API (service_role key) — e.g. POST {url}/auth/v1/admin/users — then INSERT the
+-- matching tutor_profiles / tutor_availability rows here, mirroring the demo content in
+-- design_handoff_noot_app/app/booking-data.jsx. Left as a TODO to keep this idempotent.
+
+-- (add extra campuses for local testing here if needed)
+-- insert into campuses (domain, name) values ('example.edu', 'Example University')
+--   on conflict (domain) do nothing;

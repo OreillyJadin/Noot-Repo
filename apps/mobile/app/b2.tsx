@@ -2,12 +2,13 @@
 // Shows the tutor selected in B1 (booking.tutor); falls back to TUTORS[0] so this
 // screen never crashes if it's opened directly. "Book a session" carries the tutor
 // (+ chosen course) forward into B3.
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Avatar, H1, Sub, Eyebrow, Ic, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS, reviewsFor } from '../lib/data';
+import { TUTORS, toReview, type Review } from '../lib/data';
 
 export default function B2() {
   const t = useTheme();
@@ -16,16 +17,29 @@ export default function B2() {
   const tutor = booking.tutor ?? TUTORS[0]!;
   const minRate = Math.min(...tutor.courses.map((c) => c[2]));
   const activeCourse = booking.course ?? tutor.courses[0]?.[0] ?? '';
-  const reviews = reviewsFor(activeCourse);
+
+  const [reviews, setReviews] = useState<Review[]>([]);
+  useEffect(() => {
+    let active = true;
+    api.reviews
+      .listForTutor(tutor.id)
+      .then((rs) => { if (active) setReviews(rs.map(toReview)); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [tutor.id]);
 
   const book = (courseCode?: string) => {
     patchBooking({ tutor, course: courseCode ?? activeCourse });
     router.push('/b3');
   };
 
-  const save = () => {
-    // TODO(api): persist to the student's saved-tutors list via @noot/core.
-    Alert.alert('Saved to your list');
+  const save = async () => {
+    try {
+      await api.tutors.save(tutor.id);
+      Alert.alert('Saved to your list');
+    } catch {
+      Alert.alert('Sign in to save tutors');
+    }
   };
 
   return (

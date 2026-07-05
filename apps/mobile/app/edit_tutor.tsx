@@ -1,29 +1,64 @@
 // P3 Edit Tutor Profile — ported from screens-edit.jsx (EditTutorProfile). The
 // public-facing tutor profile editor. "Preview" jumps to the student-facing
-// Tutor Profile (B2). Save is a front-end stub → back().
-// TODO(api): wire to @noot/core profile.updateTutorProfile(...).
-import React, { useState } from 'react';
+// Tutor Profile (B2). Wired to @noot/core: prefills from api.getMe →
+// tutors.getById (display name from the user, "About you" from the tutor bio)
+// and persists the bio via profile.updateTutorProfile(...). Display name is
+// derived from the user's name (not editable through this method) and photo
+// upload is still a stub.
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Field, Avatar, Ic, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 
 export default function EditTutorProfile() {
   const t = useTheme();
   const router = useRouter();
-  const [displayName, setDisplayName] = useState('Lindsay T.');
-  const [about, setAbout] = useState(
-    'Sophomore in Pre-Business. I took CH 101 with Prof. Weaver and pulled an A — I keep sessions practical: we work your actual problem sets, not generic notes.'
-  );
+  const [displayName, setDisplayName] = useState('');
+  const [about, setAbout] = useState('');
+  const [, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getMe()
+      .then((me) => (me ? api.tutors.getById(me.id) : null))
+      .then((tutor) => {
+        if (active && tutor) {
+          const initial = tutor.lastName ? `${tutor.lastName.charAt(0)}.` : '';
+          setDisplayName(`${tutor.firstName} ${initial}`.trim());
+          setAbout(tutor.bio);
+        }
+      })
+      .catch(() => {
+        /* no session / no tutor profile → leave fields empty */
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const changePhoto = () => {
     // TODO(api): wire photo upload to backend.
     Alert.alert('Change photo', 'Coming soon — built with backend.');
   };
 
-  const save = () => {
-    // TODO(api): persist tutor profile changes.
-    Alert.alert('Tutor profile updated');
-    router.back();
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await api.profile.updateTutorProfile({ bio: about.trim() });
+      Alert.alert('Tutor profile updated');
+      router.back();
+    } catch {
+      Alert.alert('Could not save', 'Please check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -81,7 +116,7 @@ export default function EditTutorProfile() {
         </View>
       </Body>
       <ActionBar>
-        <Button label="Save changes" full onPress={save} />
+        <Button label="Save changes" full onPress={save} disabled={saving} />
       </ActionBar>
     </Screen>
   );

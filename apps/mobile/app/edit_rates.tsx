@@ -1,35 +1,80 @@
 // P4 Courses & Rates (Edit) — ported from screens-edit.jsx (EditRates). Tutor-only
 // settings editor for per-course hourly rates. "Add a course" jumps to the tutor
-// application's Courses step (T3). Save is a front-end stub → back().
-// TODO(api): wire to @noot/core profile.updateRates(...).
-import React, { useState } from 'react';
+// application's Courses step (T3). Wired to @noot/core: prefills the tutor's
+// per-course rows (api.getMe → tutors.getById) and persists them on save via
+// profile.setTutorCourses(...) — the contract method for per-course rate rows.
+// (profile.updateRates(number) sets only a single base rate, which this
+// per-course UI doesn't expose, so we persist each course row instead.)
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Ic, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 
 interface Rate {
   code: string;
   grade: string;
   rate: number;
+  sessions: number;
 }
-
-const INITIAL_RATES: Rate[] = [
-  { code: 'CH 101', grade: 'A', rate: 25 },
-  { code: 'CH 102', grade: 'A', rate: 30 },
-];
 
 export default function EditRates() {
   const t = useTheme();
   const router = useRouter();
-  const [rates, setRates] = useState<Rate[]>(INITIAL_RATES);
+  const [rates, setRates] = useState<Rate[]>([]);
+  const [, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getMe()
+      .then((me) => (me ? api.tutors.getById(me.id) : null))
+      .then((tutor) => {
+        if (active && tutor) {
+          setRates(
+            tutor.courses.map((c) => ({
+              code: c.courseCode,
+              grade: c.grade ?? '',
+              rate: c.hourlyRate,
+              sessions: c.sessions,
+            })),
+          );
+        }
+      })
+      .catch(() => {
+        /* no session / no tutor profile → empty list */
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const bump = (i: number, d: number) =>
     setRates((rs) => rs.map((r, j) => (j === i ? { ...r, rate: Math.min(120, Math.max(10, r.rate + d)) } : r)));
 
-  const save = () => {
-    // TODO(api): persist rate changes.
-    Alert.alert('Rates updated');
-    router.back();
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await api.profile.setTutorCourses(
+        rates.map((r) => ({
+          courseCode: r.code,
+          grade: r.grade || null,
+          hourlyRate: r.rate,
+          sessions: r.sessions,
+        })),
+      );
+      Alert.alert('Rates updated');
+      router.back();
+    } catch {
+      Alert.alert('Could not save', 'Please check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -92,7 +137,7 @@ export default function EditRates() {
         </View>
       </Body>
       <ActionBar>
-        <Button label="Save changes" full onPress={save} />
+        <Button label="Save changes" full onPress={save} disabled={saving} />
       </ActionBar>
     </Screen>
   );
