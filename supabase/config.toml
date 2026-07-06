@@ -30,7 +30,9 @@ port = 54324
 enabled = true
 # Where the magic-link redirect returns. Expo dev server default; add prod/app URLs later.
 site_url = "http://localhost:8081"
-additional_redirect_urls = ["http://localhost:8081", "noot://"]
+# Magic-link returns to /auth-callback; the ** globs let any path/params through.
+# Cloud mirrors this in Dashboard → Auth → URL Configuration (separate from this file).
+additional_redirect_urls = ["http://localhost:8081", "http://localhost:8081/**", "noot://", "noot://**"]
 jwt_expiry = 3600
 enable_signup = true
 

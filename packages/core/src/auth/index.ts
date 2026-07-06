@@ -11,10 +11,66 @@ export interface SignInResult {
   error?: string;
 }
 
-/** Send a magic link to a campus email. Domain is validated server-side. */
-export async function sendMagicLink(email: string): Promise<SignInResult> {
-  const { error } = await getSupabase().auth.signInWithOtp({ email });
+/**
+ * Send a magic link to a campus email. Domain is validated server-side.
+ * `redirectTo` is where the emailed link returns (the app's auth-callback deep
+ * link — build it with expo-linking `createURL('/auth-callback')`). It must be on
+ * the Supabase project's redirect allow-list (config.toml `additional_redirect_urls`
+ * locally; dashboard → Auth → URL Configuration on cloud).
+ */
+export async function sendMagicLink(email: string, redirectTo?: string): Promise<SignInResult> {
+  const { error } = await getSupabase().auth.signInWithOtp({
+    email,
+    options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
+  });
   return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * Complete sign-in from the magic-link redirect. Call this from the auth-callback
+ * screen with the full inbound URL. Handles the PKCE `?code=` exchange and the
+ * `?token_hash=&type=` (verifyOtp) fallback, and is idempotent — if a session is
+ * already live (re-mount / StrictMode double-run) it just reports success.
+ */
+export async function completeAuthFromUrl(url: string): Promise<SignInResult> {
+  const sb = getSupabase();
+  // Already signed in (e.g. this effect ran twice) — nothing to exchange.
+  const existing = await sb.auth.getSession();
+  if (existing.data.session) return { ok: true };
+
+  let params: URLSearchParams;
+  try {
+    const u = new URL(url);
+    // Errors and (rarely) tokens can arrive in the fragment — fold it in.
+    params = new URLSearchParams(u.search || (u.hash ? u.hash.replace(/^#/, '') : ''));
+    if (u.search && u.hash) {
+      new URLSearchParams(u.hash.replace(/^#/, '')).forEach((v, k) => {
+        if (!params.has(k)) params.append(k, v);
+      });
+    }
+  } catch {
+    return { ok: false, error: 'Malformed sign-in link.' };
+  }
+
+  const errDesc = params.get('error_description') || params.get('error');
+
+  const code = params.get('code');
+  if (code) {
+    const { error } = await sb.auth.exchangeCodeForSession(code);
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
+
+  const tokenHash = params.get('token_hash');
+  const type = params.get('type');
+  if (tokenHash && type) {
+    const { error } = await sb.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: type as 'magiclink' | 'signup' | 'email' | 'recovery' | 'invite',
+    });
+    return error ? { ok: false, error: error.message } : { ok: true };
+  }
+
+  return { ok: false, error: errDesc || 'This sign-in link is invalid or expired.' };
 }
 
 /**

@@ -134,11 +134,12 @@ bundles all 805 modules with no errors and serves 200. NOT click-tested in a liv
 3. **Column-level hardening** — RLS can't stop a tutor editing their own
    `tutor_profiles.approval_status`; needs a trigger (approval only via `approve-tutor`
    service role). Noted in `0002_rls.sql`.
-4. **Real magic-link auth (SMTP + deep-linking)** — the app can't do real `.edu` sign-ups yet.
-   Two parts: (a) **cloud SMTP is not configured** so magic-link emails don't send to real
-   addresses (see "Cloud auth / SMTP setup" below); (b) the magic-link **redirect back into the
-   app isn't built** — `signup.tsx`'s "Open the link (demo)" is still a fake deep-link. Local
-   dev sidesteps both via `devSignIn` + Mailpit.
+4. **Real magic-link auth (SMTP)** — only part (a) remains. (b) is DONE (2026-07-06, see
+   "Magic-link deep-linking" below): the app now sends a real `emailRedirectTo`, has an
+   `/auth-callback` route that exchanges the `?code=` for a session, and routes new vs.
+   returning users. What's LEFT is (a): **cloud SMTP is not configured** so magic-link emails
+   don't deliver to real addresses (see "Cloud auth / SMTP setup" below) + mirroring the
+   redirect allow-list into the cloud dashboard. Local dev sidesteps SMTP via Mailpit.
 5. **Message attachments** — `models.MessageAttachment` exists but no table.
 6. **ESLint guardrail** (ban `@supabase/*` imports outside `packages/core`/`supabase/functions`)
    — verify it's actually configured. `@noot/core` re-exports `getSupabase` from its root,
@@ -175,13 +176,44 @@ pre-confirmed via the admin API, so `devSignIn` password login works on cloud to
 6. **Confirmation vs OTP:** cloud has email confirmations ON by default (that's why an
    un-seeded `devSignIn` signUp gets no session). For real users the magic link IS the
    confirmation — no change needed. Don't turn confirmations off on cloud.
-7. **Then the app-side deep-link work (TODO #4b)** — handle the magic-link redirect in the Expo
-   app (expo-router deep link → `supabase.auth` session exchange) so tapping the emailed link
-   lands the user signed-in. `signup.tsx`'s fake "Open the link (demo)" button gets replaced.
+7. **App-side deep-link work — DONE** (2026-07-06, see "Magic-link deep-linking" below). The
+   `/auth-callback` route already exchanges the emailed link's code for a session. Once SMTP +
+   the cloud redirect URLs (step 4) are set, real `.edu` sign-ups work end-to-end.
 
 **Test after setup:** sign up with a real `@crimson.ua.edu` address (campus gate in `0003`
 allows it) → confirm the email arrives from your domain → tapping the link signs you in.
 Config-only changes here have no local runtime surface; verify by doing that real sign-up.
+
+## Magic-link deep-linking (built 2026-07-06)
+
+The app-side of real magic-link auth (was TODO #4b) is DONE and verified end-to-end against
+the local stack. How it flows:
+
+1. `signup.tsx` → `auth.sendMagicLink(email, Linking.createURL('/auth-callback'))` sets
+   `emailRedirectTo` so the emailed link returns to the app (web: `http://localhost:8081/auth-callback`,
+   device build: `noot://auth-callback`).
+2. Supabase emails a link to GoTrue `/auth/v1/verify?...&redirect_to=…`; following it `303`s to
+   `/auth-callback?code=<uuid>` (PKCE).
+3. `apps/mobile/app/auth-callback.tsx` (new route) calls `auth.completeAuthFromUrl(url)` →
+   `exchangeCodeForSession(code)` (with a `token_hash`/`verifyOtp` fallback), then routes:
+   onboarded (`firstName` set) → `/home` or `/tutor_home` by role; new user → `/verified`.
+4. Client config (`packages/core/src/supabase.ts`): `flowType: 'pkce'`, `detectSessionInUrl:
+   false` (we parse the URL ourselves), and a `storage` adapter — `_layout.tsx` passes
+   AsyncStorage on native (session + PKCE verifier survive a restart), localStorage on web.
+
+**Verify:** `pnpm dlx tsx scripts/verify_magiclink.mts` — drives the real `@noot/core`
+functions: send → read Mailpit → follow verify link → exchange code → `getMe`. 5/5 pass.
+
+**Caveats / still TODO:**
+- **Not click-tested in a live Expo web browser** — core logic + `expo export` bundling are
+  verified; do a manual pass on `pnpm mobile` → `w`.
+- **Expo Go** uses the `exp://…` scheme, not `noot://` — device deep-linking needs a real
+  dev/prod build. Web dev works today.
+- **Cloud redirect URLs**: `config.toml`'s `additional_redirect_urls` now includes
+  `http://localhost:8081/**` + `noot://**`, but cloud dashboard URL config is separate — mirror
+  it there (see SMTP setup step 4).
+- **Cross-device links** break PKCE (verifier is on the sending device). Same-device (the norm)
+  works; revisit `token_hash` flow if cross-device is needed.
 
 ## Key schema decision (don't undo without reading)
 

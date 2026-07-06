@@ -9,6 +9,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { Button, Card, Field, useTheme } from '@noot/ui';
 import { auth } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -49,7 +50,11 @@ export default function SignUp() {
     setSending(true);
     setError(null);
     try {
-      const res = await auth.sendMagicLink(trimmed);
+      // Where the emailed link returns: noot://auth-callback on device,
+      // http://<host>/auth-callback on web. Must be on the project's redirect
+      // allow-list (config.toml locally / dashboard URL config on cloud).
+      const redirectTo = Linking.createURL('/auth-callback');
+      const res = await auth.sendMagicLink(trimmed, redirectTo);
       if (res.ok) {
         setSent(true);
       } else {
