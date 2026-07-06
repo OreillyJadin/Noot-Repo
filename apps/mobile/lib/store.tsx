@@ -9,6 +9,9 @@ export type Role = 'student' | 'tutor';
 /** The booking object carried B3 → B4 → B5. All optional until built up. */
 export interface BookingDraft {
   tutor?: Tutor;
+  /** Set once a real booking exists (confirm-booking, or an item from listUpcoming) —
+   *  the completion (C*) and change (X*) flows act on this id. */
+  bookingId?: string;
   course?: string;
   dayIndex?: number;
   slot?: string;

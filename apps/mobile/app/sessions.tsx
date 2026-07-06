@@ -2,7 +2,7 @@
 // segmented tabs. Upcoming + Saved read live via @noot/core; Past is still demo data
 // because the backend has no past-sessions endpoint (see TODO(api) below).
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, Chip, Button, Ic, H1, TabBar, useTheme } from '@noot/ui';
@@ -107,20 +107,63 @@ export default function Sessions() {
     patchBooking({ tutor, course: course || 'MGT 300', slot: undefined, dayIndex: undefined, tag: undefined, message: '' });
     router.push('/b3');
   };
-  const reschedule = (tutor: Tutor) => {
-    // TODO(api): wire the actual reschedule mutation in the /xsr flow.
-    patchBooking({ tutor });
-    router.push('/xsr');
+  // Change/completion flows act on a real booking id. Upcoming items carry `b.id`;
+  // when reached without one (e.g. the dev launcher), we keep the old local behavior so
+  // nothing breaks. The X*/C* screens read booking.bookingId to run the real mutation.
+  const reschedule = (tutor: Tutor, bookingId?: string) => {
+    try {
+      if (!bookingId) {
+        // Dev launcher / no real booking — keep the current demo behavior.
+        patchBooking({ tutor });
+        router.push('/xsr');
+        return;
+      }
+      patchBooking({ tutor, bookingId });
+      router.push('/xsr');
+    } catch (e) {
+      Alert.alert('Something went wrong', 'Could not open reschedule. Please try again.');
+    }
   };
-  const cancelSession = (tutor: Tutor) => {
-    // TODO(api): wire the actual cancel mutation in the /xsc flow.
-    patchBooking({ tutor });
-    router.push('/xsc');
+  const cancelSession = (tutor: Tutor, bookingId?: string) => {
+    try {
+      if (!bookingId) {
+        patchBooking({ tutor });
+        router.push('/xsc');
+        return;
+      }
+      patchBooking({ tutor, bookingId });
+      router.push('/xsc');
+    } catch (e) {
+      Alert.alert('Something went wrong', 'Could not open cancel. Please try again.');
+    }
   };
-  const reportNoShow = (tutor: Tutor) => {
-    // TODO(api): wire the actual no-show report in the /xns flow.
-    patchBooking({ tutor });
-    router.push('/xns');
+  const reportNoShow = (tutor: Tutor, bookingId?: string) => {
+    try {
+      if (!bookingId) {
+        patchBooking({ tutor });
+        router.push('/xns');
+        return;
+      }
+      patchBooking({ tutor, bookingId });
+      router.push('/xns');
+    } catch (e) {
+      Alert.alert('Something went wrong', 'Could not open no-show report. Please try again.');
+    }
+  };
+  const rate = (tutor: Tutor, bookingId?: string) => {
+    // TODO(api): Past items are demo data with no real booking id, so we can't call the
+    // real rating mutation yet — Past needs real booking ids from a past-sessions
+    // endpoint. Until then, keep the current local behavior of just opening /c1.
+    try {
+      if (!bookingId) {
+        router.push('/c1');
+        return;
+      }
+      patchBooking({ tutor, bookingId });
+      router.push('/c1');
+    } catch (e) {
+      Alert.alert('Something went wrong', 'Could not open rating. Please try again.');
+    }
   };
   const openTutor = (tutor: Tutor, course?: string) => {
     patchBooking({ tutor, course: course || 'MGT 300' });
@@ -211,12 +254,12 @@ export default function Sessions() {
                     </View>
                     <View style={styles.btnRow}>
                       <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
-                      <Button label="Reschedule" kind="tint" size="sm" style={{ flex: 1 }} onPress={() => reschedule(tutor)} />
+                      <Button label="Reschedule" kind="tint" size="sm" style={{ flex: 1 }} onPress={() => reschedule(tutor, b.id)} />
                     </View>
                     <View style={styles.linkRow}>
-                      <Text onPress={() => cancelSession(tutor)} style={[styles.link, { color: t.text3 }]}>Cancel session</Text>
+                      <Text onPress={() => cancelSession(tutor, b.id)} style={[styles.link, { color: t.text3 }]}>Cancel session</Text>
                       <Text style={[styles.link, { color: t.text3 }]}>·</Text>
-                      <Text onPress={() => reportNoShow(tutor)} style={[styles.link, { color: t.text3 }]}>Report a no-show</Text>
+                      <Text onPress={() => reportNoShow(tutor, b.id)} style={[styles.link, { color: t.text3 }]}>Report a no-show</Text>
                     </View>
                   </View>
                 </Card>
@@ -225,7 +268,9 @@ export default function Sessions() {
           </View>
         ) : (
           <View style={{ gap: 10 }}>
-            {/* TODO(api): no past-sessions endpoint — Past stays demo data (see PAST above). */}
+            {/* TODO(api): no past-sessions endpoint — Past stays demo data (see PAST above).
+                These items have no real booking id, so the Rate action can't yet run the
+                real rating mutation; a past-sessions endpoint must supply real ids. */}
             {PAST.map((s, i) => {
               const tutor = tutorById(s.id) ?? TUTORS[0]!;
               return (
@@ -241,8 +286,10 @@ export default function Sessions() {
                     {s.rated ? (
                       <Badge label="✓ Rated" tone="neutral" />
                     ) : (
-                      // TODO(api): rating submit is wired in the /c1 flow, not this pass.
-                      <Button label="Rate" kind="primary" size="sm" onPress={() => router.push('/c1')} />
+                      // TODO(api): rating submit is wired in the /c1 flow. Past items are
+                      // demo with no real booking id, so rate() falls back to the local
+                      // behavior until real ids exist.
+                      <Button label="Rate" kind="primary" size="sm" onPress={() => rate(tutor)} />
                     )}
                   </View>
                   <View style={styles.btnRow}>

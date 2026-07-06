@@ -3,10 +3,11 @@
 // impact and nudges toward proposing a reschedule instead. "Propose a reschedule
 // instead" → Propose Reschedule (X3). "Cancel & refund" confirms, then Done → Home.
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, Ic, H1, Sub, HeroIcon, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
 import { TUTORS, DAYS, type Tutor } from '../lib/data';
 
@@ -59,7 +60,24 @@ export default function XTutorCancel() {
   const tutor = booking.tutor ?? TUTORS[0]!;
   const cost = baseCost(booking, tutor);
   const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
   const cancelsThisMonth = 1; // tracked internally; flag at >2 / 30 days
+
+  async function onConfirmCancel() {
+    if (!booking.bookingId) {
+      setDone(true);
+      return;
+    }
+    try {
+      setBusy(true);
+      await api.bookings.cancel(booking.bookingId);
+      setDone(true);
+    } catch (e) {
+      Alert.alert('Could not cancel session', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (done) {
     return (
@@ -126,7 +144,7 @@ export default function XTutorCancel() {
       </Body>
       <ActionBar style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <Button kind="secondary" full label="Propose a reschedule instead" onPress={() => router.push('/xtr')} />
-        <Button kind="primary" full label={`Cancel & refund ${X_STUDENT.first}`} onPress={() => setDone(true)} />
+        <Button kind="primary" full label={`Cancel & refund ${X_STUDENT.first}`} disabled={busy} onPress={onConfirmCancel} />
       </ActionBar>
     </Screen>
   );

@@ -3,10 +3,11 @@
 // tutor no-show (full refund) and a tutor reporting a student no-show (payout +
 // 3-strike policy). The signed-in role picks the starting persona. Done → Home.
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, Eyebrow, Ic, H1, Sub, HeroIcon, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
 import { TUTORS, DAYS, type Tutor } from '../lib/data';
 
@@ -119,6 +120,23 @@ export default function XNoShow() {
   }
 
   const studentView = persona === 'student';
+
+  // party = who didn't show. In the student view the tutor is the no-show; in the
+  // tutor view the student is the no-show (mirrors the button labels below).
+  const submit = async () => {
+    const party: 'student' | 'tutor' = studentView ? 'tutor' : 'student';
+    if (!booking.bookingId) {
+      setDone(true);
+      return;
+    }
+    try {
+      await api.bookings.reportNoShow({ bookingId: booking.bookingId, party });
+      setDone(true);
+    } catch (e) {
+      Alert.alert('Something went wrong', "Couldn't report the no-show. Please try again.");
+    }
+  };
+
   return (
     <Screen>
       <NavTop onBack={() => router.back()} title="Report a no-show" />
@@ -151,7 +169,7 @@ export default function XNoShow() {
           kind="primary"
           full
           label={studentView ? "Tutor didn't show" : "Student didn't show"}
-          onPress={() => setDone(true)}
+          onPress={submit}
         />
         <Text
           onPress={() => setPersona(studentView ? 'tutor' : 'student')}

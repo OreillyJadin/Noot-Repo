@@ -2,9 +2,10 @@
 // Mirrors C2's controls, but the written note is private (tutors + noot team
 // only, never shown to students).
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Field, Avatar, Ic, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 
 const RATING_WORDS = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'];
@@ -76,12 +77,30 @@ export default function C3() {
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState('');
   const [happened, setHappened] = useState<Happened>(null);
+  const [submitting, setSubmitting] = useState(false);
   const ready = rating > 0 && happened != null;
 
-  const submit = () => {
-    if (!ready) return;
-    // TODO(api): persist rating/private note + dispute flag to backend
-    router.push('/c4?role=tutor');
+  const submit = async () => {
+    if (!ready || submitting) return;
+    // Reached via the dev launcher without a real booking → keep demo behavior.
+    if (!booking.bookingId) {
+      router.push('/c4?role=tutor');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.reviews.submit({
+        bookingId: booking.bookingId,
+        rating,
+        comment: review.trim() || undefined,
+        happened: happened === 'yes',
+      });
+      router.push('/c4?role=tutor');
+    } catch {
+      Alert.alert('Could not submit rating', 'Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -134,7 +153,7 @@ export default function C3() {
           label={happened === 'no' ? 'Submit & report issue' : 'Submit rating'}
           kind="primary"
           full
-          disabled={!ready}
+          disabled={!ready || submitting}
           onPress={submit}
         />
       </ActionBar>

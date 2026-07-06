@@ -2,9 +2,10 @@
 // Old → new time comparison with an Accept / Decline choice. Price is unchanged
 // either way. Accepting or declining both land on a confirmation, then Done → Home.
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { api } from '@noot/core';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, Divider, Ic, H1, H2, Sub, HeroIcon, useTheme } from '@noot/ui';
 import { useApp, type BookingDraft } from '../lib/store';
 import { TUTORS, DAYS, type Tutor } from '../lib/data';
@@ -35,6 +36,25 @@ export default function XRescheduleRequest() {
   const newDay = DAYS[3]!;
   const newSlot = '4:30 PM';
   const [result, setResult] = useState<Result>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function respond(action: 'accept' | 'decline') {
+    if (busy) return;
+    // No real booking (e.g. reached via the dev launcher): keep the local demo behavior.
+    if (!booking.bookingId) {
+      setResult(action === 'accept' ? 'accepted' : 'declined');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.bookings.reschedule({ bookingId: booking.bookingId, action });
+      setResult(action === 'accept' ? 'accepted' : 'declined');
+    } catch {
+      Alert.alert('Something went wrong', 'Please check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (result) {
     const accepted = result === 'accepted';
@@ -112,8 +132,8 @@ export default function XRescheduleRequest() {
         </Card>
       </Body>
       <ActionBar>
-        <Button kind="secondary" size="md" label="Decline" style={{ flex: 1 }} onPress={() => setResult('declined')} />
-        <Button kind="primary" label="Accept new time" style={{ flex: 1.6 }} onPress={() => setResult('accepted')} />
+        <Button kind="secondary" size="md" label="Decline" style={{ flex: 1 }} disabled={busy} onPress={() => respond('decline')} />
+        <Button kind="primary" label="Accept new time" style={{ flex: 1.6 }} disabled={busy} onPress={() => respond('accept')} />
       </ActionBar>
     </Screen>
   );

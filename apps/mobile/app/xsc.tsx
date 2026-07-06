@@ -3,7 +3,7 @@
 // so all of them are visible without wiring a real countdown. Refund math is live,
 // computed off the session price (tutor's course rate × booked length). Done → Home.
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -22,6 +22,7 @@ import {
   HeroIcon,
   useTheme,
 } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
 import { TUTORS, DAYS, type Tutor } from '../lib/data';
 
@@ -90,8 +91,33 @@ export default function XStudentCancel() {
   const cost = baseCost(booking, tutor);
   const [tier, setTier] = useState<TierId>('early');
   const [done, setDone] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  // When a real booking is cancelled, the server decides the refund %; prefer it.
+  const [serverRefund, setServerRefund] = useState<number | null>(null);
   const tobj = TIERS.find((x) => x.id === tier)!;
-  const refund = cost * tobj.refundPct;
+  const tierRefund = cost * tobj.refundPct;
+  const refund = serverRefund ?? tierRefund;
+
+  const onCancel = async () => {
+    // Demo path: no real booking (e.g. reached via the dev launcher) — keep tier UI.
+    if (!booking.bookingId) {
+      setDone(true);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await api.bookings.cancel(booking.bookingId);
+      setServerRefund(cost * (res.refundPercent / 100));
+      setDone(true);
+    } catch (e) {
+      Alert.alert(
+        'Could not cancel',
+        e instanceof Error ? e.message : 'Something went wrong. Please try again.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (done) {
     return (
@@ -180,8 +206,15 @@ export default function XStudentCancel() {
         <Button
           kind="primary"
           full
-          label={refund > 0 ? `Cancel & refund ${money(refund)}` : 'Cancel session'}
-          onPress={() => setDone(true)}
+          disabled={submitting}
+          label={
+            submitting
+              ? 'Cancelling…'
+              : refund > 0
+                ? `Cancel & refund ${money(refund)}`
+                : 'Cancel session'
+          }
+          onPress={onCancel}
         />
         <Text style={{ fontSize: 11, color: t.text3, textAlign: 'center' }}>
           Refund timing follows our cancellation policy.

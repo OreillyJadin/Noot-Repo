@@ -158,6 +158,41 @@ async function invokeFn<T>(name: string, body?: Record<string, unknown>): Promis
 }
 
 // ---------------------------------------------------------------------------
+// write-method inputs (Edge Function bodies)
+// ---------------------------------------------------------------------------
+
+export interface ConfirmBookingInput {
+  tutorId: string;
+  subject: string;
+  scheduledAt: string;
+  durationMinutes: number;
+  sessionType: 'video' | 'in_person';
+  location?: string;
+  meetingLink?: string;
+  price: number;
+  message?: string;
+  paymentIntentId?: string;
+}
+
+export interface RescheduleBookingInput {
+  bookingId: string;
+  action: 'propose' | 'accept' | 'decline';
+  newScheduledAt?: string;
+}
+
+export interface ReportNoShowInput {
+  bookingId: string;
+  party: 'student' | 'tutor';
+}
+
+export interface SubmitRatingInput {
+  bookingId: string;
+  rating: number;
+  comment?: string;
+  happened?: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // api
 // ---------------------------------------------------------------------------
 
@@ -358,11 +393,39 @@ export const api = {
   },
 
   /** B4 → held PaymentIntent via the `create-payment-intent` Edge Function. */
-  createPaymentIntent(bookingDraft: Partial<Booking>) {
-    return invokeFn<{ clientSecret: string }>(
-      'create-payment-intent',
-      bookingDraft as Record<string, unknown>,
-    );
+  createPaymentIntent(
+    amountCents: number,
+  ): Promise<{ clientSecret: string; paymentIntentId: string; simulated: boolean }> {
+    return invokeFn('create-payment-intent', { amountCents });
+  },
+
+  // --- bookings (trust-sensitive writes → Edge Functions, see ARCHITECTURE.md §5) ---
+  bookings: {
+    /** Capture the held payment and create the booking + conversation (confirm-booking). */
+    confirm(
+      input: ConfirmBookingInput,
+    ): Promise<{ bookingId: string; conversationId: string }> {
+      return invokeFn('confirm-booking', input as unknown as Record<string, unknown>);
+    },
+
+    /** Cancel a booking; returns the resulting refund outcome (cancel-booking). */
+    cancel(
+      bookingId: string,
+    ): Promise<{ status: string; refundPercent: number; refundStatus: string }> {
+      return invokeFn('cancel-booking', { bookingId });
+    },
+
+    /** Propose/accept/decline a reschedule of a booking (reschedule-booking). */
+    reschedule(input: RescheduleBookingInput): Promise<{ ok: true }> {
+      return invokeFn('reschedule-booking', input as unknown as Record<string, unknown>);
+    },
+
+    /** Report that a party didn't show; returns refund outcome (report-no-show). */
+    reportNoShow(
+      input: ReportNoShowInput,
+    ): Promise<{ status: string; refundPercent: number }> {
+      return invokeFn('report-no-show', input as unknown as Record<string, unknown>);
+    },
   },
 
   // --- chat ---
@@ -503,6 +566,11 @@ export const api = {
         };
       });
       /* eslint-enable @typescript-eslint/no-explicit-any */
+    },
+
+    /** Submit a rating/review for a completed booking (submit-rating). */
+    submit(input: SubmitRatingInput): Promise<{ reviewId: string }> {
+      return invokeFn('submit-rating', input as unknown as Record<string, unknown>);
     },
   },
 };

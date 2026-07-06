@@ -3,11 +3,12 @@
 // policy notes. Reads the booking draft from useApp() with safe fallbacks so
 // nothing renders undefined if a student lands here without going through B3.
 import React, { useState } from 'react';
-import { View, Text, Pressable, Modal, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Modal, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Chip, Badge, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS, DAYS } from '../lib/data';
+import { TUTORS, DAYS, MONTHS } from '../lib/data';
 
 type Status = 'idle' | 'wallet' | 'processing' | 'declined';
 
@@ -20,7 +21,7 @@ const POLICY_ROWS: [string, string, 'good' | 'neutral'][] = [
 export default function B4() {
   const t = useTheme();
   const router = useRouter();
-  const { booking } = useApp();
+  const { booking, patchBooking } = useApp();
 
   // Fall back to sane defaults — never render undefined if the draft is empty.
   const tutor = booking.tutor ?? TUTORS[0]!;
@@ -49,21 +50,80 @@ export default function B4() {
   const [wallet, setWallet] = useState<'apple' | 'google'>('apple');
   const [policyOpen, setPolicyOpen] = useState(false);
 
-  // PaymentIntent confirm -> success routes to B5; the test-decline card fails.
-  const confirmPI = () => {
+  // Build an ISO scheduledAt from the picked day + slot ("3:00 PM"), falling back
+  // to now+1d if either is missing/unparseable so we never send a bad timestamp.
+  const computeScheduledAt = (): string => {
+    try {
+      const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(slot.trim());
+      const monthIdx = MONTHS.indexOf(dayObj.month);
+      if (!m || monthIdx < 0) throw new Error('unparseable slot/day');
+      let hh = Number(m[1]);
+      const mm = Number(m[2]);
+      const pm = m[3]!.toUpperCase() === 'PM';
+      if (pm && hh !== 12) hh += 12;
+      if (!pm && hh === 12) hh = 0;
+      const d = new Date(2026, monthIdx, dayObj.dom, hh, mm, 0, 0); // demo calendar is 2026
+      if (Number.isNaN(d.getTime())) throw new Error('bad date');
+      return d.toISOString();
+    } catch {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      return d.toISOString();
+    }
+  };
+
+  // Real payment + booking: hold a (simulated) PaymentIntent, then create the
+  // booking through @noot/core and stash its id for B5. Errors surface via Alert
+  // and reset to idle so the student can retry — never crash. Shared by the card
+  // and wallet flows.
+  const runPayment = async () => {
     setStatus('processing');
-    setTimeout(() => {
-      if (card === '0002') setStatus('declined');
-      else router.push('/b5');
-    }, 1200);
+    // Reached via the dev launcher with no real draft -> keep the demo behavior.
+    if (!booking.tutor) {
+      setTimeout(() => router.push('/b5'), 1000);
+      return;
+    }
+    try {
+      const price = (rate * lengthMin) / 60;
+      const amountCents = Math.round(price * 100);
+      const { paymentIntentId } = await api.createPaymentIntent(amountCents);
+      const sessionType: 'video' | 'in_person' = location.startsWith('Online') ? 'video' : 'in_person';
+      const { bookingId } = await api.bookings.confirm({
+        tutorId: booking.tutor.id,
+        subject: course,
+        scheduledAt: computeScheduledAt(),
+        durationMinutes: lengthMin,
+        sessionType,
+        location,
+        meetingLink: undefined,
+        price,
+        message: booking.message,
+        paymentIntentId,
+      });
+      patchBooking({ bookingId });
+      router.push('/b5');
+    } catch (err) {
+      setStatus('idle');
+      Alert.alert('Payment failed', err instanceof Error ? err.message : 'Something went wrong — please try again.');
+    }
+  };
+
+  // PaymentIntent confirm -> success routes to B5; the test-decline card fails
+  // locally (never hits the network) so the declined UI state is preserved.
+  const confirmPI = () => {
+    if (card === '0002') {
+      setStatus('processing');
+      setTimeout(() => setStatus('declined'), 1200);
+      return;
+    }
+    void runPayment();
   };
   const openWallet = (w: 'apple' | 'google') => {
     setWallet(w);
     setStatus('wallet');
   };
   const confirmWallet = () => {
-    setStatus('processing');
-    setTimeout(() => router.push('/b5'), 1000);
+    void runPayment();
   };
 
   return (

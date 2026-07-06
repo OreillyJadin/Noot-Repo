@@ -2,9 +2,10 @@
 // 1–5 stars, an optional public review (500 char cap), and a "did this happen
 // as expected?" toggle that surfaces a dispute warning when answered "No".
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Field, Avatar, Ic, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { TUTORS } from '../lib/data';
 
@@ -77,12 +78,30 @@ export default function C2() {
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState('');
   const [happened, setHappened] = useState<Happened>(null);
+  const [submitting, setSubmitting] = useState(false);
   const ready = rating > 0 && happened != null;
 
-  const submit = () => {
-    if (!ready) return;
-    // TODO(api): persist rating/review + dispute flag to backend
-    router.push('/c4?role=student');
+  const submit = async () => {
+    if (!ready || submitting) return;
+    // Dev-launcher / no real booking: keep the original navigation-only demo behavior.
+    if (!booking.bookingId) {
+      router.push('/c4?role=student');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.reviews.submit({
+        bookingId: booking.bookingId,
+        rating,
+        comment: review || undefined,
+        happened: happened === 'yes',
+      });
+      router.push('/c4?role=student');
+    } catch (e) {
+      Alert.alert('Couldn’t submit rating', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -129,7 +148,7 @@ export default function C2() {
           label={happened === 'no' ? 'Submit & open dispute' : 'Submit rating'}
           kind="primary"
           full
-          disabled={!ready}
+          disabled={!ready || submitting}
           onPress={submit}
         />
       </ActionBar>
