@@ -13,7 +13,8 @@ max_rows = 1000
 [db]
 port = 54322
 shadow_port = 54320
-major_version = 15
+# 17 to match the CLI's bundled Postgres (2.109 runs 17.6) and the cloud project.
+major_version = 17
 
 [studio]
 enabled = true

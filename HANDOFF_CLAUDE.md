@@ -124,11 +124,14 @@ bundles all 805 modules with no errors and serves 200. NOT click-tested in a liv
 
 ## Known TODOs / gaps (roughly prioritized)
 
-1. **Edge Functions** — only `create-payment-intent` is a skeleton. `stripe-webhook`,
-   `confirm-booking`, `complete-session`, `submit-review`/`moderate-review`, `cancel-booking`,
-   `approve-tutor`, `award-referral-bonus`, `send-reminders` are unwritten (ARCHITECTURE.md §5).
-   Bookings can't be created from the app yet (that path is an Edge Function). `listUpcoming`
-   returns 0 until `confirm-booking` exists.
+1. **Edge Functions** — the booking set is DONE, DEPLOYED to cloud (all ACTIVE), and
+   verified: `create-payment-intent`, `confirm-booking`, `cancel-booking`,
+   `reschedule-booking`, `report-no-show`, `submit-rating`. Booking works end-to-end in the
+   app against cloud (verified 2026-07-06 via `scripts/verify_booking_cloud.mts`);
+   `listUpcoming` returns real rows. **Money is simulated** (`sim_pi_…`, no real charge/payout).
+   Still UNWRITTEN: `stripe-webhook`, `complete-session`, `connect-onboarding-link`,
+   `approve-tutor`, `award-referral-bonus`, `send-reminders`/`auto-complete` (crons)
+   (ARCHITECTURE.md §5). Real Stripe money movement is the big remaining piece.
 2. **Realtime `chat.subscribe`** (websocket) was NOT exercised by the smoke test — only the
    insert/read message flow was. Low risk but unverified.
 3. **Column-level hardening** — RLS can't stop a tutor editing their own
@@ -230,3 +233,12 @@ ARCHITECTURE.md §4 "resolved decisions" supersede `prd-data-models.md` on confl
 - Git user is "Jadin". Commit only when the user asks — don't commit unprompted.
 - `node` is not on PATH by default: `~/.local/node-v22.23.1-linux-x64/bin`.
 - The Supabase CLI `.deb` installer is gitignored (`*.deb`).
+- **`MANUAL_SETUP.md`** (root) is the owner-facing checklist of dashboard/deploy steps
+  (SMTP, redeploys, local-vs-cloud). Point the user there for "what do I need to do?".
+- **Local Postgres is now 17** (`config.toml [db] major_version = 17`). On 2026-07-06 the
+  local stack wouldn't start: CLI 2.109 runs PG17.6 but the volume was PG15. Fixed by
+  removing `supabase_db_noot` volume + `supabase start` (fresh) + `node supabase/seed_demo.mjs`.
+  Local demo data is disposable — always reproducible from migrations + the seed script.
+- **Local edge runtime only serves functions present at `supabase start`.** After adding a
+  new function, `supabase stop && supabase start` (a `docker restart` won't pick it up).
+  Cloud is unaffected — deploy with `supabase functions deploy`.
