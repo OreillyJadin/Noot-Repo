@@ -3,14 +3,18 @@
 // (backend TODO), and a reschedule/cancel affordance. The prototype's <BottomSheet>
 // doesn't exist in @noot/ui, so the "Need to reschedule or cancel?" sheet is built
 // locally with RN's <Modal>, preserving the same copy and two choices.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Avatar, Divider, Eyebrow, Button, Ic, useTheme, type IconName } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
-import { DAYS, TUTORS, type Tutor } from '../lib/data';
+import { DAYS, TUTORS, toTutor, type Tutor } from '../lib/data';
 
+// TODO(api): on a tutor-side session detail the counterpart is the session's student,
+// but the booking draft carries no studentId and a Booking exposes only studentId with
+// no student-name read — so the student's name/year/major stay demo values.
 const STUDENT = { name: 'Lindsay Thomas', first: 'Lindsay', year: 'Sophomore', major: 'Pre-Business' };
 const FEE_RATE = 0.175; // 15–20% platform fee; using 17.5% midpoint
 
@@ -49,7 +53,19 @@ export default function TB2() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { booking } = useApp();
-  const tutor = booking.tutor ?? TUTORS[0]!;
+  // Session facts + earnings are derived from the booking draft (store). When the draft
+  // is empty (e.g. deep-linked), fetch a real tutor for rate/course data instead of demo.
+  const [fetchedTutor, setFetchedTutor] = useState<Tutor | null>(null);
+  useEffect(() => {
+    if (booking.tutor) return; // draft already carries the tutor
+    let active = true;
+    api.tutors
+      .search()
+      .then((list) => { if (active && list[0]) setFetchedTutor(toTutor(list[0])); })
+      .catch(() => { /* no session/offline -> keep demo fallback */ });
+    return () => { active = false; };
+  }, [booking.tutor]);
+  const tutor = booking.tutor ?? fetchedTutor ?? TUTORS[0]!;
   const f = sessionFacts(booking, tutor);
   const [moreOpen, setMoreOpen] = useState(false);
 

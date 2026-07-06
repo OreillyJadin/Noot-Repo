@@ -39,12 +39,9 @@ interface Message {
   time: string;
 }
 
-// Demo attachments the paperclip button cycles through.
-// TODO(api): replace with a real image/file picker (expo-image-picker / expo-document-picker).
-const DEMO_ATTACHMENTS: Attachment[] = [
-  { name: 'IMG_0192.jpg', kind: 'image', size: 482_000 },
-  { name: 'Practice_Problems.pdf', kind: 'file', size: 154_000 },
-];
+// Attachment source for the paperclip button. Empty until upload is wired.
+// TODO(api): attachment upload — real image/file picker + upload via @noot/core.
+const ATTACHMENTS: Attachment[] = [];
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -123,9 +120,10 @@ export default function Chat() {
 
   const canSend = draft.trim().length > 0 || pending.length > 0;
 
-  const addDemoAttachment = () => {
-    // TODO(api): open a real attach sheet (camera roll / files) instead of cycling demo data.
-    const next = DEMO_ATTACHMENTS[pending.length % DEMO_ATTACHMENTS.length]!;
+  const addAttachment = () => {
+    // TODO(api): attachment upload — open a real attach sheet (camera roll / files) and upload.
+    if (ATTACHMENTS.length === 0) return;
+    const next = ATTACHMENTS[pending.length % ATTACHMENTS.length]!;
     setPending((p) => [...p, next]);
   };
 
@@ -209,7 +207,7 @@ export default function Chat() {
 
         <View style={[styles.composer, { backgroundColor: t.surface, borderTopColor: t.border }]}>
           <Pressable
-            onPress={addDemoAttachment}
+            onPress={addAttachment}
             accessibilityLabel="Attach"
             style={[styles.roundBtn, { backgroundColor: t.surface2 }]}
           >

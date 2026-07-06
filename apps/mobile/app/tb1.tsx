@@ -8,21 +8,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Avatar, Divider, H1, Sub, Ic, useTheme } from '@noot/ui';
 import { useApp, type BookingDraft } from '../lib/store';
-import { DAYS, TUTORS, type Tutor } from '../lib/data';
+import { DAYS, type Tutor } from '../lib/data';
 
+// TODO(api): no endpoint for a booking's student identity (name/year/major) — a Booking
+// only carries studentId, and there's no generic getUserById. Keep this demo value.
 const STUDENT = { name: 'Lindsay Thomas', first: 'Lindsay', year: 'Sophomore', major: 'Pre-Business' };
 const FEE_RATE = 0.175; // 15–20% platform fee; using 17.5% midpoint
 
-function sessionFacts(booking: BookingDraft, tutor: Tutor) {
+function sessionFacts(booking: BookingDraft, tutor?: Tutor) {
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1]!;
   const lengthMin = booking.lengthMin ?? 60;
   const lengthHours = lengthMin / 60;
   const lenLabel = lengthMin === 30 ? '30 min' : `${lengthHours} hr`;
   const slot = booking.slot ?? '3:00 PM';
   const location = booking.location ?? 'Gorgas Library, Fl 2';
-  const course = booking.course ?? tutor.courses[0]![0];
-  const courseMatch = tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!;
-  const rate = courseMatch[2];
+  const course = booking.course ?? tutor?.courses[0]?.[0] ?? '';
+  const courseMatch = tutor?.courses.find((c) => c[0] === course) ?? tutor?.courses[0];
+  const rate = courseMatch?.[2] ?? 0;
   const gross = rate * lengthHours;
   const fee = gross * FEE_RATE;
   const payout = gross - fee;
@@ -35,7 +37,8 @@ export default function TB1() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { booking } = useApp();
-  const tutor = booking.tutor ?? TUTORS[0]!;
+  // Session + payout come from the booking draft carried through the flow (store).
+  const tutor = booking.tutor; // no TUTORS[0] demo fallback — sessionFacts degrades safely.
   const f = sessionFacts(booking, tutor);
   const dayWord = f.dayObj.label === 'Today' ? 'today' : f.dayObj.label === 'Tomorrow' ? 'tomorrow' : f.dayObj.label;
 

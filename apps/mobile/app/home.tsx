@@ -2,13 +2,28 @@
 // Study hub: next-session countdown, exam nudge, streak/goals, "pick up where you
 // left off". This is a tab root (Home tab). No live session store yet — the next
 // session + weekly numbers are demo data, same as the prototype.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, useTheme, type IconName } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { tutorById } from '../lib/data';
+import { tutorById, toTutor, type Tutor } from '../lib/data';
+import { useMe, firstName } from '../lib/useMe';
+
+/** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
+function formatWhen(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dayDiff = Math.round((startDay - startToday) / 86400000);
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const label =
+    dayDiff === 0 ? 'Today' : dayDiff === 1 ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  return `${label} · ${time}`;
+}
 
 function useCountdown(target: number) {
   const [now, setNow] = useState(Date.now());
@@ -103,12 +118,40 @@ const POP: [string, string, string, string, string][] = [
 export default function Home() {
   const t = useTheme();
   const router = useRouter();
-  const { patchBooking } = useApp();
+  const { patchBooking, role } = useApp();
+  const { me } = useMe();
 
-  // No live session store yet — demo "next session" like the prototype.
+  // Next session: live from api.listUpcoming()[0] when there's a session; demo fallback otherwise.
   const sara = tutorById('sara')!;
-  const next = { course: 'MGT 300', when: 'Tomorrow · 3:00 PM', where: 'Gorgas Library', tutor: sara };
-  const target = useMemo(() => Date.now() + 27 * 3600000, []);
+  const [next, setNext] = useState<{ course: string; when: string; where: string; tutor: Tutor; at: number }>({
+    course: 'MGT 300',
+    when: 'Tomorrow · 3:00 PM',
+    where: 'Gorgas Library',
+    tutor: sara,
+    at: Date.now() + 27 * 3600000,
+  });
+  useEffect(() => {
+    let active = true;
+    api
+      .listUpcoming()
+      .then(async (bookings) => {
+        const b = bookings[0];
+        if (!b) return; // no upcoming session → keep demo fallback
+        const summary = await api.tutors.getById(b.tutorId);
+        if (!active) return;
+        setNext({
+          course: b.subject,
+          when: formatWhen(b.scheduledAt),
+          where: b.location ?? 'Online',
+          tutor: summary ? toTutor(summary) : sara,
+          at: new Date(b.scheduledAt).getTime(),
+        });
+      })
+      .catch(() => { /* no session / offline → keep demo fallback */ });
+    return () => { active = false; };
+  }, []);
+
+  // TODO(api): no read endpoint for study streak / monthly goal / hours — demo values.
   const goalDone = 3;
   const goalTotal = 5;
 
@@ -140,7 +183,7 @@ export default function Home() {
         <View style={styles.welcomeRow}>
           <View>
             <Text style={[styles.welcomeLabel, { color: t.text3 }]}>Welcome back</Text>
-            <H2 style={{ fontSize: 24 }}>Hey, Lindsay</H2>
+            <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>
           </View>
           <Text style={{ fontSize: 40 }}>🦎</Text>
         </View>
@@ -163,7 +206,7 @@ export default function Home() {
               </Text>
             </View>
           </View>
-          <CountdownPills target={target} />
+          <CountdownPills target={next.at} />
           <View style={styles.nextActions}>
             <Pressable onPress={openChat} style={[styles.nextBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
               <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />
@@ -176,6 +219,7 @@ export default function Home() {
         </View>
 
         {/* Exam radar — course-aware nudge */}
+        {/* TODO(api): no exam-schedule or tutor-availability read endpoint — demo copy. */}
         <Card flat style={[styles.examCard, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>
           <View style={[styles.examIcon, { backgroundColor: t.surface }]}>
             <Ic name="cap" size={20} color={t.accent} strokeWidth={1.8} />
@@ -225,7 +269,7 @@ export default function Home() {
         </View>
       </Body>
 
-      <TabBar active="home" onTab={goTab} role="student" />
+      <TabBar active="home" onTab={goTab} role={role} />
     </SafeAreaView>
   );
 }

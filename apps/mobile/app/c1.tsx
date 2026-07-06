@@ -2,13 +2,15 @@
 // Auto-routes by the signed-in role: a student rates the tutor (C2), a tutor
 // rates the student (C3). The "preview" link is a demo-only way to peek at the
 // other side without actually changing your role.
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Avatar, Badge, Ic, HeroIcon, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS, DAYS } from '../lib/data';
+import { TUTORS, DAYS, toTutor } from '../lib/data';
+import type { Tutor } from '../lib/data';
 
 const STUDENT = { name: 'Lindsay Thomas', first: 'Lindsay' };
 
@@ -17,8 +19,30 @@ export default function C1() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { role, booking } = useApp();
-  const tutor = booking.tutor ?? TUTORS[0]!;
   const isTutor = role === 'tutor';
+
+  // Counterpart = the tutor the student just met with, carried on the booking draft.
+  // If the draft is empty (e.g. deep-linked), fetch a real tutor instead of demo data.
+  const [fetchedTutor, setFetchedTutor] = useState<Tutor | null>(null);
+  useEffect(() => {
+    if (booking.tutor) return; // draft already has the counterpart
+    let active = true;
+    api.tutors
+      .search()
+      .then((list) => {
+        if (active && list[0]) setFetchedTutor(toTutor(list[0]));
+      })
+      .catch(() => {
+        /* no session/offline -> keep demo fallback */
+      });
+    return () => {
+      active = false;
+    };
+  }, [booking.tutor]);
+  const tutor = booking.tutor ?? fetchedTutor ?? TUTORS[0]!;
+
+  // TODO(api): tutor-view counterpart is the session's student; the booking draft
+  // carries no student and there's no read for it — keep demo STUDENT for now.
 
   const course = booking.course || 'MGT 300';
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) || DAYS[1]!;

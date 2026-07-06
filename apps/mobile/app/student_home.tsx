@@ -10,6 +10,7 @@ import { Screen, Body, Card, Avatar, Badge, Field, Ic, H2, Muted, TabBar, useThe
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
+import { useMe, firstName } from '../lib/useMe';
 
 const CATS = ['For you', 'Business', 'STEM', 'Humanities'] as const;
 const TITLES: Record<(typeof CATS)[number], string> = {
@@ -60,7 +61,8 @@ export default function StudentHome() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { patchBooking } = useApp();
+  const { patchBooking, role } = useApp();
+  const { me } = useMe();
   const [tab, setTab] = useState(0);
 
   const cat = CATS[tab] ?? CATS[0];
@@ -93,7 +95,7 @@ export default function StudentHome() {
         <View style={styles.headerRow}>
           <View>
             <Muted style={styles.welcome}>Welcome back</Muted>
-            <H2 style={styles.name}>Hey, Lindsay</H2>
+            <H2 style={styles.name}>Hey, {firstName(me, 'there')}</H2>
           </View>
           <Avatar size={40} />
         </View>
@@ -168,7 +170,7 @@ export default function StudentHome() {
         </View>
       </Body>
 
-      <TabBar active="student_home" role="student" onTab={onTab} />
+      <TabBar active="student_home" role={role} onTab={onTab} />
     </Screen>
   );
 }

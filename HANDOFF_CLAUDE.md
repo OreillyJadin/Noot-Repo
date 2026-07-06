@@ -1,13 +1,17 @@
 # Handoff — for the next Claude chat
 
-_Updated 2026-07-05. Read this first, then `ARCHITECTURE.md` (authoritative for the whole system)._
+_Updated 2026-07-06. Read this first, then `ARCHITECTURE.md` (authoritative for the whole system)._
 
 ## TL;DR of where we are
 
-The app is now **wired to a live Supabase backend and verified end-to-end.** The local
-stack is running, all migrations are applied, the `@noot/core` data layer is fully
-implemented (no more stubs), and the mobile screens read/write through it. A backend
-smoke test drives the real `@noot/core` code against the live DB and passes 14/14.
+The app is now **wired to a live Supabase backend and verified end-to-end.** All migrations
+are applied (local AND cloud), the `@noot/core` data layer is fully implemented (no more
+stubs), and the mobile screens read/write through it. A backend smoke test drives the real
+`@noot/core` code against the DB and passes 14/14 — verified against **both** local and cloud.
+
+**As of 2026-07-06 the app points at the CLOUD project** (`apps/mobile/.env` →
+`https://nepnxbvseuzuayhxaigo.supabase.co`), so it works on real phones via Expo Go. Local
+values are kept commented in `.env` for easy switch-back.
 
 ## Repo shape (context)
 
@@ -36,8 +40,21 @@ pnpm + Turborepo monorepo. Peer-to-peer campus tutoring, launching University of
   Run: `SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node supabase/seed_demo.mjs`
   (defaults target the local stack). Dev login: `student@crimson.ua.edu` / tutor
   `sara@crimson.ua.edu`.
-- **`apps/mobile/.env`** is set to the local stack (URL + anon key, verified to match
-  `supabase status`). `_layout.tsx` calls `initSupabase()` from `EXPO_PUBLIC_SUPABASE_*`.
+- **Cloud project** `nepnxbvseuzuayhxaigo` (us-east-1, Postgres 17, ACTIVE, linked via
+  `supabase link`). All 5 migrations applied there too; seeded with the same demo data
+  (2026-07-06). `_layout.tsx` calls `initSupabase()` from `EXPO_PUBLIC_SUPABASE_*`.
+- **`apps/mobile/.env` currently points at CLOUD** (URL + anon key). The local stack values
+  are commented in the same file — swap the comments to go back to local. `.env` is gitignored;
+  keys never hit the repo.
+
+### Switching env targets
+- **Cloud → local:** in `apps/mobile/.env`, comment the cloud `EXPO_PUBLIC_SUPABASE_*` lines
+  and uncomment the local ones (`http://127.0.0.1:54321` + local anon key). Local needs the
+  Docker stack up (`supabase start`).
+- **Seed cloud:** `SUPABASE_URL=https://nepnxbvseuzuayhxaigo.supabase.co
+  SUPABASE_SERVICE_ROLE_KEY=<cloud service_role> node supabase/seed_demo.mjs`
+  (get the key: `supabase projects api-keys --project-ref nepnxbvseuzuayhxaigo`).
+- **Push new migrations to cloud:** `supabase db push` (no Docker needed).
 
 ## State of `packages/core`
 
@@ -62,11 +79,48 @@ pnpm + Turborepo monorepo. Peer-to-peer campus tutoring, launching University of
 - `pnpm --filter @noot/core typecheck` — clean.
 - `pnpm --filter @noot/mobile typecheck` — **clean** (fixed this session, see below).
 
+The same smoke test was re-run against the **cloud** project (env vars pointed at
+`https://nepnxbvseuzuayhxaigo.supabase.co`) after switching `.env` — **14/14 pass on cloud too.**
+
 ### Fixed this session
 - The pre-existing `process`-not-typed errors in `apps/mobile/app/_layout.tsx` are resolved
   by a new ambient `apps/mobile/expo-env.d.ts` (declares the `process` global + our
   `EXPO_PUBLIC_*` keys, merging with `expo/types`' `NodeJS.ProcessEnv`). Deliberately did NOT
   add `@types/node` — it would add Node globals that don't exist in the RN runtime.
+
+## Screen-wiring audit & fixes (2026-07-06)
+
+A full audit of all 47 screens (reachability, nav edges vs the design's
+`design_handoff_noot_app/app/screens-map.jsx`, and `@noot/core` wiring). Fixes landed:
+
+**Navigation / reachability:**
+- `role.tsx` — was the real onboarding bug: both role buttons pushed `/home` and never
+  persisted the role. Now `setRole(sel)` + routes Student → `/student_profile`, Tutor →
+  `/t1`. Un-orphans `student_profile` (S1) and the whole `t1…t10` tutor onboarding.
+- Role-aware tabs: all 8 tab screens now read `role` from `useApp()` and pass it to
+  `<TabBar>` (was hardcoded `"student"`); tab switching standardized to
+  `router.replace('/'+key)` (also fixed `tutor_calendar` which used `push`).
+- `xsc` (cancel) + `xns` (no-show) un-orphaned — entry links added on `sessions.tsx`.
+- Sign-in labeling: auth screen reads `?mode=login|signup` so "Log In" no longer shows a
+  page titled "Sign up" (magic-link = one flow; only the copy differs).
+
+**Read-only data wiring** (added `apps/mobile/lib/useMe.ts` — the `getMe()` hook):
+- ~21 screens now read real data via `@noot/core` (identity, tutor lists, saved list,
+  upcoming sessions, chat threads) instead of `lib/data.ts` demo constants / hardcoded
+  "Lindsay Thomas". Places with no API yet are marked `// TODO(api): …`.
+
+**Dev shortcuts (`signup.tsx`):** `__DEV__`-gated devSignIn shortcuts are correct (real
+session + `setRole`). Fixed: dev student now lands on `/home` (was `/student_home`), and the
+"Open the link (demo)" fake deep-link is now `__DEV__`-only (it advanced to `/verified`
+without a session — would strand a real prod user unauthenticated).
+
+**Verified:** whole-workspace `pnpm -r typecheck` clean; `expo export --platform web`
+bundles all 805 modules with no errors and serves 200. NOT click-tested in a live browser
+(none available in that session) — do a manual pass per the golden rule.
+
+**Not done (needs Edge Functions — see below):** write mutations remain UI-only stubs
+(`b4` payment, `c2/c3` ratings, `xsc/xtc/xtr/xsr/xns` cancel/refund/reschedule/no-show) and
+`sessions` "Past" / tutor earnings/stats / availability-read have no endpoints yet.
 
 ## Known TODOs / gaps (roughly prioritized)
 
@@ -80,13 +134,54 @@ pnpm + Turborepo monorepo. Peer-to-peer campus tutoring, launching University of
 3. **Column-level hardening** — RLS can't stop a tutor editing their own
    `tutor_profiles.approval_status`; needs a trigger (approval only via `approve-tutor`
    service role). Noted in `0002_rls.sql`.
-4. **Magic-link deep-linking** — real magic-link redirect into the app isn't built; local dev
-   uses `devSignIn` / Mailpit. `signup.tsx`'s "Open the link (demo)" is still a fake deep-link.
+4. **Real magic-link auth (SMTP + deep-linking)** — the app can't do real `.edu` sign-ups yet.
+   Two parts: (a) **cloud SMTP is not configured** so magic-link emails don't send to real
+   addresses (see "Cloud auth / SMTP setup" below); (b) the magic-link **redirect back into the
+   app isn't built** — `signup.tsx`'s "Open the link (demo)" is still a fake deep-link. Local
+   dev sidesteps both via `devSignIn` + Mailpit.
 5. **Message attachments** — `models.MessageAttachment` exists but no table.
 6. **ESLint guardrail** (ban `@supabase/*` imports outside `packages/core`/`supabase/functions`)
    — verify it's actually configured. `@noot/core` re-exports `getSupabase` from its root,
    which could let a screen bypass the `api`/`auth` wrappers — consider not re-exporting the
    raw client from the package root.
+
+## Cloud auth / SMTP setup (before real `.edu` sign-ups)
+
+**Why this is needed:** on cloud, `sendMagicLink` (`signInWithOtp`) sends an email. Supabase's
+built-in email service only delivers to project members and is hard rate-limited (a few/hour) —
+it is NOT for real users. Until a real SMTP provider is wired, real students can't receive a
+magic link. (Local dev doesn't hit this: emails land in Mailpit at `http://localhost:54324`,
+and `devSignIn` skips email entirely.) Seeded demo accounts also skip it — they're created
+pre-confirmed via the admin API, so `devSignIn` password login works on cloud today.
+
+**Steps (do these in the Supabase dashboard for project `nepnxbvseuzuayhxaigo`):**
+
+1. **Pick an SMTP provider** — Resend, Postmark, SendGrid, or AWS SES. Verify a sending domain
+   (e.g. `mail.noot.app`) with SPF + DKIM records so mail isn't spam-filtered.
+2. **Dashboard → Authentication → Emails → SMTP Settings → enable Custom SMTP** and fill:
+   - Host / Port (587 STARTTLS or 465 SSL), Username, Password (the provider's API key/creds)
+   - Sender email (on the verified domain) + sender name ("Noot")
+3. **Dashboard → Authentication → Rate Limits** — raise the email send rate above the tiny
+   built-in default to something sane for launch.
+4. **Redirect URLs — Dashboard → Authentication → URL Configuration:**
+   - Site URL + Additional Redirect URLs must include the app's magic-link return target.
+   - These mirror `supabase/config.toml`'s `[auth] site_url` / `additional_redirect_urls`
+     (currently `http://localhost:8081` and `noot://`). Add the production web origin and the
+     real app deep-link scheme (`noot://…`) here too. **Cloud dashboard settings are separate
+     from `config.toml`** (config.toml only drives the LOCAL stack unless you `supabase config
+     push`), so set them in both places.
+5. **Customize the magic-link email template** (Authentication → Emails → Templates) — subject/
+   body/branding. Keep the `{{ .ConfirmationURL }}` token.
+6. **Confirmation vs OTP:** cloud has email confirmations ON by default (that's why an
+   un-seeded `devSignIn` signUp gets no session). For real users the magic link IS the
+   confirmation — no change needed. Don't turn confirmations off on cloud.
+7. **Then the app-side deep-link work (TODO #4b)** — handle the magic-link redirect in the Expo
+   app (expo-router deep link → `supabase.auth` session exchange) so tapping the emailed link
+   lands the user signed-in. `signup.tsx`'s fake "Open the link (demo)" button gets replaced.
+
+**Test after setup:** sign up with a real `@crimson.ua.edu` address (campus gate in `0003`
+allows it) → confirm the email arrives from your domain → tapping the link signs you in.
+Config-only changes here have no local runtime surface; verify by doing that real sign-up.
 
 ## Key schema decision (don't undo without reading)
 

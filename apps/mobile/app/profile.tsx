@@ -7,16 +7,13 @@ import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, useTheme, type IconName } from '@noot/ui';
+import { useApp } from '../lib/store';
+import { useMe, fullName, firstName } from '../lib/useMe';
 
-const ME = {
-  name: 'Lindsay Thomas',
-  first: 'Lindsay',
-  year: 'Sophomore',
-  major: 'Pre-Business',
-  email: 'lindsay.t@students.edu',
-  credits: 10,
-};
+// TODO(api): referral credits — no stats/credits endpoint in @noot/core, keep demo value.
+const CREDITS = 10;
 
+// TODO(api): no session-count/hours/saved stats endpoint in @noot/core, keep demo values.
 const STATS: [string, string][] = [
   ['12', 'Sessions'],
   ['18', 'Hours'],
@@ -73,24 +70,14 @@ export default function Profile() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { role } = useApp();
+  const { me } = useMe();
   const [dark, setDark] = useState(false);
 
-  const onTab = (key: string) => {
-    switch (key) {
-      case 'home':
-        router.replace('/home');
-        break;
-      case 'student_home':
-        router.replace('/student_home');
-        break;
-      case 'sessions':
-        router.replace('/sessions');
-        break;
-      case 'profile':
-        router.replace('/profile');
-        break;
-    }
-  };
+  const displayName = fullName(me, 'Student');
+  const displayFirst = firstName(me, 'Student');
+
+  const onTab = (key: string) => router.replace(`/${key}` as never);
 
   return (
     <Screen>
@@ -107,7 +94,7 @@ export default function Profile() {
         <Card style={{ padding: 18 }}>
           <View style={styles.identityRow}>
             <View style={{ position: 'relative' }}>
-              <Avatar size={64} label={ME.first[0]} />
+              <Avatar size={64} label={displayFirst[0]} />
               <Pressable
                 onPress={() => notify('Change photo')}
                 style={[styles.editBadge, { backgroundColor: t.accent, borderColor: t.surface }]}
@@ -116,9 +103,9 @@ export default function Profile() {
               </Pressable>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <H2 style={styles.name}>{ME.name}</H2>
+              <H2 style={styles.name}>{displayName}</H2>
               <Text style={[styles.sub, { color: t.text3 }]}>
-                {ME.year} · {ME.major}
+                {me?.year ?? '—'} · {me?.major ?? '—'}
               </Text>
               <View style={styles.verifiedRow}>
                 <Ic name="shield" size={13} color={t.good} strokeWidth={1.9} />
@@ -142,7 +129,7 @@ export default function Profile() {
             <Ic name="gift" size={20} color={t.onAccent} strokeWidth={1.7} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.promoTitle, { color: t.text }]}>${ME.credits} in credits</Text>
+            <Text style={[styles.promoTitle, { color: t.text }]}>${CREDITS} in credits</Text>
             <Text style={[styles.promoSub, { color: t.text2 }]}>Invite a classmate, you both get $10</Text>
           </View>
           <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
@@ -151,7 +138,7 @@ export default function Profile() {
         {/* account */}
         <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Account</Eyebrow>
         <Card style={styles.cardNoPad}>
-          <Row icon="user" label="Personal info" sub={ME.email} onPress={() => router.push('/edit_personal')} />
+          <Row icon="user" label="Personal info" sub={me?.email ?? '—'} onPress={() => router.push('/edit_personal')} />
           <Row icon="cap" label="My courses" sub="MGT 300, EC 110" onPress={() => router.push('/edit_courses')} />
           <Row icon="card" label="Payment methods" sub="Visa •••• 4242" onPress={() => notify('Payment methods')} />
           <Row icon="doc" label="Booking & payment history" onPress={() => notify('History')} last />
@@ -185,7 +172,7 @@ export default function Profile() {
         </View>
         <Text style={[styles.footer, { color: t.text3 }]}>noot · v1.0 · Peer tutoring for campus</Text>
       </Body>
-      <TabBar active="profile" onTab={onTab} role="student" />
+      <TabBar active="profile" onTab={onTab} role={role} />
     </Screen>
   );
 }

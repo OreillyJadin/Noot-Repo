@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, H1, Ic, useTheme, type IconName } from '@noot/ui';
 import { useApp } from '../lib/store';
-import { TUTORS, DAYS } from '../lib/data';
+import { DAYS } from '../lib/data';
 
 export default function B5() {
   const t = useTheme();
@@ -15,14 +15,15 @@ export default function B5() {
   const insets = useSafeAreaInsets();
   const { booking } = useApp();
 
-  // Fall back to sane defaults — never render undefined if the draft is empty.
-  const tutor = booking.tutor ?? TUTORS[0]!;
+  // Recap reads straight from the booking draft the upstream screens (B3 → B4) built up.
+  // Soft, neutral fallbacks so nothing renders undefined if someone deep-links in cold.
+  const tutorName = booking.tutor?.name ?? 'your tutor';
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1] ?? DAYS[0]!;
   const lengthMin = booking.lengthMin ?? 60;
   const lenLabel = lengthMin === 30 ? '30 min' : `${lengthMin / 60} hr`;
   const slot = booking.slot ?? '3:00 PM';
   const location = booking.location ?? 'Gorgas Library, Fl 2';
-  const course = booking.course ?? tutor.courses[0]![0];
+  const course = booking.course ?? booking.tutor?.courses[0]?.[0] ?? 'Your course';
   const dayWord = dayObj.label === 'Today' ? 'today' : dayObj.label === 'Tomorrow' ? 'tomorrow' : dayObj.label;
 
   const rows: [IconName, string][] = [
@@ -52,7 +53,7 @@ export default function B5() {
           </View>
           <H1 style={{ fontSize: 26, marginTop: 22, textAlign: 'center' }}>Deal locked in.</H1>
           <Text style={[styles.sub, { color: t.text2 }]}>
-            You&apos;re set with <Text style={{ fontWeight: '700', color: t.text }}>{tutor.name}</Text> {dayWord}. We&apos;ve
+            You&apos;re set with <Text style={{ fontWeight: '700', color: t.text }}>{tutorName}</Text> {dayWord}. We&apos;ve
             emailed the details to you both.
           </Text>
         </View>

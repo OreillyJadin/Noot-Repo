@@ -20,6 +20,7 @@ import {
   type IconName,
 } from '@noot/ui';
 import { useApp } from '../lib/store';
+import { useMe, firstName } from '../lib/useMe';
 import { TUTORS, DAYS, slotsFor } from '../lib/data';
 
 const LENGTHS: [number, string][] = [
@@ -38,8 +39,7 @@ const FOCUS_TAGS: [string, IconName][] = [
   ['Advising', 'user'],
 ];
 
-// TODO(api): "Lindsay" is a placeholder for the signed-in student's first name.
-function focusMessage(tag: string | null, course: string, me = 'Lindsay'): string {
+function focusMessage(tag: string | null, course: string, me = 'there'): string {
   switch (tag) {
     case 'Finish HW':
       return `Hey, I'm ${me}! I look forward to going over my homework for ${course} with you.`;
@@ -61,8 +61,11 @@ export default function B3() {
   const t = useTheme();
   const router = useRouter();
   const { booking, patchBooking } = useApp();
+  const { me } = useMe();
+  const studentFirst = firstName(me, 'there');
 
   const tutor = booking.tutor ?? TUTORS[0]!;
+  // TODO(api): availability is demo (no tutor availability-read endpoint) — derived from tutor name.
   const slots = slotsFor(tutor.name.charCodeAt(0) % 5);
   const availableDays = DAYS.filter((d) => slots[d.i] && slots[d.i]!.length);
 
@@ -87,13 +90,13 @@ export default function B3() {
   const pickTag = (newTag: string) => {
     setTag(newTag);
     if (!msgEdited || msg.trim() === '') {
-      setMsg(focusMessage(newTag, course));
+      setMsg(focusMessage(newTag, course, studentFirst));
       setMsgEdited(false);
     }
   };
   // Keep an un-edited template in sync if the course changes after a tag is picked.
   useEffect(() => {
-    if (tag && !msgEdited) setMsg(focusMessage(tag, course));
+    if (tag && !msgEdited) setMsg(focusMessage(tag, course, studentFirst));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [course]);
 
@@ -351,7 +354,7 @@ export default function B3() {
             {tag && msgEdited ? (
               <Text
                 onPress={() => {
-                  setMsg(focusMessage(tag, course));
+                  setMsg(focusMessage(tag, course, studentFirst));
                   setMsgEdited(false);
                 }}
                 style={{ fontSize: 12, fontWeight: '600', color: t.accent }}

@@ -6,8 +6,22 @@ import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, useTheme, type IconName } from '@noot/ui';
+import { api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { tutorById } from '../lib/data';
+import { useMe, firstName } from '../lib/useMe';
+
+/** Booking scheduledAt (+ optional location) → "Tomorrow · 3:00 PM · Gorgas Library". */
+function sessionMeta(iso: string, location: string | null): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const dayDiff = Math.round((startOf(d) - startOf(now)) / 86400000);
+  const dayLabel =
+    dayDiff === 0 ? 'Today' : dayDiff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return [dayLabel, time, location].filter(Boolean).join(' · ');
+}
 
 function useCountdown(target: number) {
   const [now, setNow] = useState(Date.now());
@@ -66,9 +80,22 @@ const ACTIONS: [IconName, string, string][] = [
 export default function TutorHome() {
   const t = useTheme();
   const router = useRouter();
-  const { patchBooking } = useApp();
+  const { patchBooking, role } = useApp();
+  const { me } = useMe();
 
-  const target = useMemo(() => Date.now() + 20 * 3600000, []);
+  // Next confirmed, future session (as tutor OR student) from the live API.
+  const [next, setNext] = useState<Booking | null>(null);
+  useEffect(() => {
+    let active = true;
+    api
+      .listUpcoming()
+      .then((list) => { if (active) setNext(list[0] ?? null); })
+      .catch(() => { /* no session / offline → keep demo fallback */ });
+    return () => { active = false; };
+  }, []);
+
+  // Countdown to the real session when we have one, else the demo target.
+  const target = useMemo(() => (next ? new Date(next.scheduledAt).getTime() : Date.now() + 20 * 3600000), [next]);
 
   const goTab = (key: string) => router.replace((`/${key}`) as any);
   const openChat = () => {
@@ -87,7 +114,7 @@ export default function TutorHome() {
         <View style={styles.welcomeRow}>
           <View>
             <Text style={[styles.welcomeLabel, { color: t.text3 }]}>Tutor dashboard</Text>
-            <H2 style={{ fontSize: 24 }}>Hey, Lindsay</H2>
+            <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>
           </View>
           <Text style={{ fontSize: 40 }}>🦎</Text>
         </View>
@@ -99,16 +126,19 @@ export default function TutorHome() {
           <Text style={styles.geckoDeco}>🦎</Text>
           <View style={styles.rowBetween}>
             <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>YOUR NEXT SESSION</Text>
-            <Badge label="MGT 300" tone="ink" />
+            <Badge label={next?.subject ?? 'MGT 300'} tone="ink" />
           </View>
           <View style={styles.nextTutorRow}>
+            {/* TODO(api): a Booking exposes only studentId — no student-name lookup, so the student name/avatar stay demo. */}
             <Avatar size={40} label="L" />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.nextName, { color: t.onAccent }]}>Lindsay Thomas</Text>
-              <Text style={[styles.nextMeta, { color: t.onAccent }]}>Tomorrow · 3:00 PM · Gorgas Library</Text>
+              <Text style={[styles.nextMeta, { color: t.onAccent }]}>
+                {next ? sessionMeta(next.scheduledAt, next.location) : 'Tomorrow · 3:00 PM · Gorgas Library'}
+              </Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={[styles.payout, { color: t.onAccent }]}>$28</Text>
+              <Text style={[styles.payout, { color: t.onAccent }]}>${next ? next.tutorPayoutAmount : 28}</Text>
               <Text style={[styles.payoutLabel, { color: t.onAccent }]}>payout</Text>
             </View>
           </View>
@@ -131,6 +161,7 @@ export default function TutorHome() {
             Earnings →
           </Text>
         </View>
+        {/* TODO(api): weekly earnings / sessions-taught / rating stats — no tutor-stats endpoint exists yet. */}
         <View style={styles.statsRow}>
           <StatCard icon="dollar" big="$182" label="Earned this week" />
           <StatCard icon="cap" big="6" label="Sessions taught" />
@@ -152,6 +183,7 @@ export default function TutorHome() {
         </View>
 
         {/* Recent message */}
+        {/* TODO(api): populate from api.chat.listConversations() + latest message (demo for now). */}
         <Eyebrow style={{ marginTop: 8 }}>Recent message</Eyebrow>
         <Card onPress={openChat} style={styles.msgRow}>
           <Avatar size={40} label="L" />
@@ -165,7 +197,7 @@ export default function TutorHome() {
         </Card>
       </Body>
 
-      <TabBar active="tutor_home" onTab={goTab} role="tutor" />
+      <TabBar active="tutor_home" onTab={goTab} role={role} />
     </SafeAreaView>
   );
 }

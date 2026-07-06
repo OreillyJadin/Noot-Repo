@@ -8,15 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, useTheme, type IconName } from '@noot/ui';
 import { useApp } from '../lib/store';
+import { useMe, fullName, firstName } from '../lib/useMe';
 
-const ME = {
-  name: 'Lindsay Thomas',
-  first: 'Lindsay',
-  year: 'Sophomore',
-  major: 'Pre-Business',
-  email: 'lindsay.t@students.edu',
-};
-
+// TODO(api): tutor teaching stats (sessions taught, avg rating, hours) — no stats
+// endpoint exists yet; kept as demo values.
 const STATS: [string, string][] = [
   ['84', 'Sessions taught'],
   ['4.9', 'Avg rating'],
@@ -73,25 +68,15 @@ export default function TutorProfile() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { setRole } = useApp();
+  const { role, setRole } = useApp();
+  const { me } = useMe();
   const [dark, setDark] = useState(false);
 
-  const onTab = (key: string) => {
-    switch (key) {
-      case 'tutor_home':
-        router.replace('/tutor_home');
-        break;
-      case 'tutor_calendar':
-        router.replace('/tutor_calendar');
-        break;
-      case 'tutor_sessions':
-        router.replace('/tutor_sessions');
-        break;
-      case 'tutor_profile':
-        router.replace('/tutor_profile');
-        break;
-    }
-  };
+  const meName = fullName(me, 'Tutor');
+  const meFirst = firstName(me, 'T');
+  const meYearMajor = [me?.year, me?.major].filter(Boolean).join(' · ') || '—';
+
+  const onTab = (key: string) => router.replace(`/${key}` as never);
 
   const switchToStudent = () => {
     setRole('student');
@@ -113,7 +98,7 @@ export default function TutorProfile() {
         <Card style={{ padding: 18 }}>
           <View style={styles.identityRow}>
             <View style={{ position: 'relative' }}>
-              <Avatar size={64} label={ME.first[0]} />
+              <Avatar size={64} label={meFirst[0]} />
               <Pressable
                 onPress={() => notify('Change photo')}
                 style={[styles.editBadge, { backgroundColor: t.accent, borderColor: t.surface }]}
@@ -122,9 +107,9 @@ export default function TutorProfile() {
               </Pressable>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <H2 style={styles.name}>{ME.name}</H2>
+              <H2 style={styles.name}>{meName}</H2>
               <Text style={[styles.sub, { color: t.text3 }]}>
-                {ME.year} · {ME.major}
+                {meYearMajor}
               </Text>
               <View style={styles.verifiedRow}>
                 <Ic name="shield" size={13} color={t.good} strokeWidth={1.9} />
@@ -143,6 +128,7 @@ export default function TutorProfile() {
         </Card>
 
         {/* payout summary */}
+        {/* TODO(api): payout amount / schedule / account — no earnings or payout endpoint; demo values. */}
         <Card onPress={() => notify('Stripe payouts')} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
           <View style={[styles.promoIcon, { backgroundColor: t.accent }]}>
             <Ic name="dollar" size={20} color={t.onAccent} strokeWidth={1.8} />
@@ -157,7 +143,7 @@ export default function TutorProfile() {
         {/* account */}
         <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Account</Eyebrow>
         <Card style={styles.cardNoPad}>
-          <Row icon="user" label="Personal info" sub={ME.email} onPress={() => router.push('/edit_personal')} />
+          <Row icon="user" label="Personal info" sub={me?.email ?? '—'} onPress={() => router.push('/edit_personal')} />
           <Row icon="cap" label="Courses & rates" sub="CH 101 · $25/hr, CH 102 · $30/hr" onPress={() => router.push('/edit_rates')} />
           <Row icon="cal" label="Availability" sub="Set your typical week" onPress={() => router.push('/edit_availability')} />
           <Row icon="edit" label="Edit tutor profile" sub="Photo, bio — what students see" onPress={() => router.push('/edit_tutor')} />
@@ -166,6 +152,7 @@ export default function TutorProfile() {
         </Card>
 
         {/* standing */}
+        {/* TODO(api): standing metrics (cancellation rate, response time) — no tutor stats endpoint; demo values. */}
         <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Standing</Eyebrow>
         <Card style={styles.cardNoPad}>
           <Row icon="shield" label="Cancellation rate" sub="0 in the last 30 days" value="Good" onPress={() => notify('Standing details')} />
@@ -200,7 +187,7 @@ export default function TutorProfile() {
         </View>
         <Text style={[styles.footer, { color: t.text3 }]}>noot · v1.0 · Peer tutoring for campus</Text>
       </Body>
-      <TabBar active="tutor_profile" onTab={onTab} role="tutor" />
+      <TabBar active="tutor_profile" onTab={onTab} role={role} />
     </Screen>
   );
 }

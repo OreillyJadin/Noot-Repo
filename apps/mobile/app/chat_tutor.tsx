@@ -47,7 +47,10 @@ const DEMO_ATTACHMENTS: Attachment[] = [
   { name: 'Practice_Problems.pdf', kind: 'file', size: 154_000 },
 ];
 
-// Hardcoded to match the prototype (ChatTutor always shows this demo student).
+// Counterpart (student) identity. The booking draft only carries `tutor`, so no
+// student id/name is available to resolve here — keep the prototype demo value.
+// TODO(api): resolve the real student from the conversation (conv.studentId) via a
+// user lookup once the tutor-side counterpart id is available.
 const OTHER = 'Lindsay Thomas';
 const OTHER_SUB = 'Sophomore · Pre-Business';
 

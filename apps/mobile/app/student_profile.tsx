@@ -1,10 +1,11 @@
 // S1 Student Profile Setup — ported from screens-student.jsx (StudentProfile).
 // Step 3 of 3 in onboarding. "Complete profile" → Student Home.
-// Prefills from api.getMe(); persists name/year/major/courses via @noot/core.
+// Prefills from useMe(); persists name/year/major/courses via @noot/core.
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { api } from '@noot/core';
+import { useMe } from '../lib/useMe';
 import {
   Screen,
   NavTop,
@@ -50,29 +51,23 @@ function AddCourseChip({ onPress }: { onPress: () => void }) {
 export default function StudentProfile() {
   const t = useTheme();
   const router = useRouter();
+  const { me } = useMe();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [year, setYear] = useState('');
   const [major, setMajor] = useState('');
   const [courses, setCourses] = useState<string[]>([]);
-  const [, setLoading] = useState(true);
 
+  // Prefill the editable fields once the signed-in user loads (returning user
+  // sees their own data). Falls back to empty strings before load / no session.
   useEffect(() => {
-    let active = true;
-    api.getMe()
-      .then((me) => {
-        if (active && me) {
-          setFirstName(me.firstName);
-          setLastName(me.lastName);
-          setYear(me.year ?? '');
-          setMajor(me.major ?? '');
-          setCourses(me.courses);
-        }
-      })
-      .catch(() => {})
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, []);
+    if (!me) return;
+    setFirstName(me.firstName);
+    setLastName(me.lastName);
+    setYear(me.year ?? '');
+    setMajor(me.major ?? '');
+    setCourses(me.courses);
+  }, [me]);
 
   const addCourse = () => {
     // TODO(api): course search — built with backend

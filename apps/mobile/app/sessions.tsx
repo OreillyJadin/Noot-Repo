@@ -1,15 +1,15 @@
 // S5 My Sessions — ported from screens-tabs.jsx (SessionsTab). Upcoming / Past / Saved
-// segmented tabs. The prototype reads session lists from NootStore (localStorage);
-// there's no backend store yet, so this uses local demo data.
-// TODO(api): replace UPCOMING/PAST with real session data (and wire "Saved" to the
-// student's actual saved-tutors list) once the backend is available.
-import React, { useState } from 'react';
+// segmented tabs. Upcoming + Saved read live via @noot/core; Past is still demo data
+// because the backend has no past-sessions endpoint (see TODO(api) below).
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, Chip, Button, Ic, H1, TabBar, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
+import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS, tutorById } from '../lib/data';
+import { TUTORS, tutorById, toTutor, type Tutor } from '../lib/data';
 
 type SegmentKey = 'upcoming' | 'past' | 'saved';
 
@@ -22,17 +22,35 @@ interface DemoSession {
   rated?: boolean;
 }
 
-const UPCOMING: DemoSession[] = [
-  { id: 'sara', course: 'MGT 300', when: 'Today · 3:00 PM', where: 'Online · Zoom', soon: true },
-  { id: 'devon', course: 'MGT 300', when: 'Tomorrow · 10:30 AM', where: 'Gorgas Library, 2nd floor' },
-];
+/** An upcoming booking joined with its resolved tutor (name/rate come from getById). */
+interface UpcomingItem {
+  booking: Booking;
+  tutor: Tutor | null;
+}
 
+// TODO(api): no past-sessions endpoint — keep demo Past data until one exists.
 const PAST: DemoSession[] = [
   { id: 'maya', course: 'MGT 300', when: 'Last Tue · 4:00 PM', rated: true },
   { id: 'alex', course: 'MGT 300', when: 'Last Thu · 1:30 PM', rated: false },
 ];
 
-const SAVED_IDS = ['sara', 'nina', 'devon'];
+/** Format a booking's scheduledAt into the "Today · 3:00 PM" style the card uses. */
+function formatWhen(iso: string): string {
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const today = new Date();
+  const tomorrow = new Date();
+  tomorrow.setDate(today.getDate() + 1);
+  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  const day = sameDay(d, today) ? 'Today' : sameDay(d, tomorrow) ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  return `${day} · ${time}`;
+}
+
+/** Where a booking happens — meeting link for video, location for in-person. */
+function formatWhere(b: Booking): string {
+  if (b.sessionType === 'video') return b.meetingLink ? 'Online · Zoom' : 'Online';
+  return b.location ?? 'In person';
+}
 
 function TabHeader({ title }: { title: string }) {
   const t = useTheme();
@@ -47,46 +65,69 @@ function TabHeader({ title }: { title: string }) {
 export default function Sessions() {
   const t = useTheme();
   const router = useRouter();
-  const { patchBooking } = useApp();
+  const { patchBooking, role } = useApp();
   const [tab, setTab] = useState<SegmentKey>('upcoming');
 
-  const message = (id: string) => {
-    const tutor = tutorById(id) ?? TUTORS[0]!;
+  // Upcoming: confirmed future bookings, each joined to its tutor via getById.
+  const [upcoming, setUpcoming] = useState<UpcomingItem[]>([]);
+  // Saved: the student's saved-tutors list.
+  const [saved, setSaved] = useState<Tutor[]>([]);
+  useEffect(() => {
+    let active = true;
+    api
+      .listUpcoming()
+      .then(async (bookings) => {
+        const items = await Promise.all(
+          bookings.map(async (b) => {
+            const summary = await api.tutors.getById(b.tutorId).catch(() => null);
+            return { booking: b, tutor: summary ? toTutor(summary) : null } as UpcomingItem;
+          }),
+        );
+        if (active) setUpcoming(items);
+      })
+      .catch(() => { /* no session / offline → keep empty */ });
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    api.tutors
+      .listSaved()
+      .then((list) => { if (active) setSaved(list.map(toTutor)); })
+      .catch(() => { /* no session / offline → keep empty */ });
+    return () => { active = false; };
+  }, []);
+
+  // Navigation into the mutation flows below is unchanged (read-only pass); each carries
+  // the resolved tutor into the target screen via the local booking store.
+  const message = (tutor: Tutor) => {
     patchBooking({ tutor });
     router.push('/chat');
   };
-  const bookAgain = (id: string, course?: string) => {
-    const tutor = tutorById(id) ?? TUTORS[0]!;
+  const bookAgain = (tutor: Tutor, course?: string) => {
     patchBooking({ tutor, course: course || 'MGT 300', slot: undefined, dayIndex: undefined, tag: undefined, message: '' });
     router.push('/b3');
   };
-  const reschedule = (id: string) => {
-    const tutor = tutorById(id) ?? TUTORS[0]!;
+  const reschedule = (tutor: Tutor) => {
+    // TODO(api): wire the actual reschedule mutation in the /xsr flow.
     patchBooking({ tutor });
     router.push('/xsr');
   };
-  const openTutor = (id: string) => {
-    const tutor = tutorById(id) ?? TUTORS[0]!;
-    patchBooking({ tutor, course: 'MGT 300' });
+  const cancelSession = (tutor: Tutor) => {
+    // TODO(api): wire the actual cancel mutation in the /xsc flow.
+    patchBooking({ tutor });
+    router.push('/xsc');
+  };
+  const reportNoShow = (tutor: Tutor) => {
+    // TODO(api): wire the actual no-show report in the /xns flow.
+    patchBooking({ tutor });
+    router.push('/xns');
+  };
+  const openTutor = (tutor: Tutor, course?: string) => {
+    patchBooking({ tutor, course: course || 'MGT 300' });
     router.push('/b2');
   };
 
-  const onTab = (key: string) => {
-    switch (key) {
-      case 'home':
-        router.replace('/home');
-        break;
-      case 'student_home':
-        router.replace('/student_home');
-        break;
-      case 'sessions':
-        router.replace('/sessions');
-        break;
-      case 'profile':
-        router.replace('/profile');
-        break;
-    }
-  };
+  const onTab = (key: string) => router.replace(`/${key}` as never);
 
   return (
     <Screen>
@@ -105,11 +146,11 @@ export default function Sessions() {
       <Body pad={20} contentStyle={{ paddingTop: 4 }}>
         {tab === 'saved' ? (
           <View style={{ gap: 10 }}>
-            <Text style={[styles.count, { color: t.text3 }]}>{SAVED_IDS.length} tutors saved for later</Text>
-            {SAVED_IDS.map((id) => {
-              const tutor = tutorById(id) ?? TUTORS[0]!;
+            <Text style={[styles.count, { color: t.text3 }]}>{saved.length} tutors saved for later</Text>
+            {saved.map((tutor) => {
               return (
-                <Card key={id} onPress={() => openTutor(id)} style={styles.savedRow}>
+                <Card key={tutor.id} onPress={() => openTutor(tutor)} style={styles.savedRow}>
+                  {/* TODO(api): un-save handler (remove from saved tutors) — write action, not wired this pass. */}
                   <Avatar size={46} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <View style={styles.rowHead}>
@@ -134,12 +175,16 @@ export default function Sessions() {
           </View>
         ) : tab === 'upcoming' ? (
           <View style={{ gap: 12 }}>
-            {UPCOMING.map((s, i) => {
-              const tutor = tutorById(s.id) ?? TUTORS[0]!;
-              const online = (s.where ?? '').startsWith('Online');
+            {upcoming.map(({ booking: b, tutor: joined }) => {
+              const tutor = joined ?? TUTORS[0]!;
+              const when = formatWhen(b.scheduledAt);
+              const where = formatWhere(b);
+              const online = b.sessionType === 'video';
+              // "Starts soon" if the session begins within the next hour.
+              const soon = new Date(b.scheduledAt).getTime() - Date.now() < 3_600_000;
               return (
-                <Card key={i} style={styles.cardNoPad}>
-                  {s.soon ? (
+                <Card key={b.id} style={styles.cardNoPad}>
+                  {soon ? (
                     <View style={[styles.soonBanner, { backgroundColor: t.accent }]}>
                       <Ic name="clock" size={13} color={t.onAccent} strokeWidth={2.2} />
                       <Text style={[styles.soonText, { color: t.onAccent }]}>Starts soon · reminder set</Text>
@@ -150,23 +195,28 @@ export default function Sessions() {
                       <Avatar size={46} />
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
-                        <Text style={[styles.sub, { color: t.text3 }]}>{s.course}</Text>
+                        <Text style={[styles.sub, { color: t.text3 }]}>{b.subject}</Text>
                       </View>
                       <Badge label={tutor.name.split(' ')[0] ?? ''} tone="accentSoft" />
                     </View>
                     <View style={{ gap: 8, marginTop: 12 }}>
                       <View style={styles.metaRow}>
                         <Ic name="cal" size={15} color={t.accent} strokeWidth={1.8} />
-                        <Text style={[styles.metaText, { color: t.text2 }]}>{s.when}</Text>
+                        <Text style={[styles.metaText, { color: t.text2 }]}>{when}</Text>
                       </View>
                       <View style={styles.metaRow}>
                         <Ic name={online ? 'video' : 'pin'} size={15} color={t.accent} strokeWidth={1.8} />
-                        <Text style={[styles.metaText, { color: t.text2 }]}>{s.where}</Text>
+                        <Text style={[styles.metaText, { color: t.text2 }]}>{where}</Text>
                       </View>
                     </View>
                     <View style={styles.btnRow}>
-                      <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(s.id)} />
-                      <Button label="Reschedule" kind="tint" size="sm" style={{ flex: 1 }} onPress={() => reschedule(s.id)} />
+                      <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
+                      <Button label="Reschedule" kind="tint" size="sm" style={{ flex: 1 }} onPress={() => reschedule(tutor)} />
+                    </View>
+                    <View style={styles.linkRow}>
+                      <Text onPress={() => cancelSession(tutor)} style={[styles.link, { color: t.text3 }]}>Cancel session</Text>
+                      <Text style={[styles.link, { color: t.text3 }]}>·</Text>
+                      <Text onPress={() => reportNoShow(tutor)} style={[styles.link, { color: t.text3 }]}>Report a no-show</Text>
                     </View>
                   </View>
                 </Card>
@@ -175,6 +225,7 @@ export default function Sessions() {
           </View>
         ) : (
           <View style={{ gap: 10 }}>
+            {/* TODO(api): no past-sessions endpoint — Past stays demo data (see PAST above). */}
             {PAST.map((s, i) => {
               const tutor = tutorById(s.id) ?? TUTORS[0]!;
               return (
@@ -190,12 +241,13 @@ export default function Sessions() {
                     {s.rated ? (
                       <Badge label="✓ Rated" tone="neutral" />
                     ) : (
+                      // TODO(api): rating submit is wired in the /c1 flow, not this pass.
                       <Button label="Rate" kind="primary" size="sm" onPress={() => router.push('/c1')} />
                     )}
                   </View>
                   <View style={styles.btnRow}>
-                    <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(s.id)} />
-                    <Button label="Book again" kind="tint" size="sm" iconRight="plus" style={{ flex: 1 }} onPress={() => bookAgain(s.id, s.course)} />
+                    <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
+                    <Button label="Book again" kind="tint" size="sm" iconRight="plus" style={{ flex: 1 }} onPress={() => bookAgain(tutor, s.course)} />
                   </View>
                 </Card>
               );
@@ -203,7 +255,7 @@ export default function Sessions() {
           </View>
         )}
       </Body>
-      <TabBar active="sessions" onTab={onTab} role="student" />
+      <TabBar active="sessions" onTab={onTab} role={role} />
     </Screen>
   );
 }
@@ -220,6 +272,8 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   metaText: { fontSize: 13 },
   btnRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  linkRow: { flexDirection: 'row', gap: 10, marginTop: 10, justifyContent: 'center' },
+  link: { fontSize: 12, fontWeight: '600' },
   pastHead: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   savedRow: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
   rowHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },

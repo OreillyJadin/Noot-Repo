@@ -1,20 +1,38 @@
 // TS Tutor Sessions — ported from screens-home.jsx (TutorSessions). Upcoming/Past
 // segmented list of a tutor's sessions. Tab root (tutor Sessions tab).
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Body, TabBar, Card, Avatar, Ic, H2, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { tutorById } from '../lib/data';
 
 type Tab = 'upcoming' | 'past';
 
-const UPCOMING: [string, string, string, string, string, string][] = [
-  ['Lindsay Thomas', 'L', 'MGT 300', 'Tomorrow · 3:00 PM', 'Gorgas Library, Fl 2', '$28'],
-  ['Marcus B.', 'M', 'MGT 300', 'Thu Jun 25 · 10:30 AM', 'Online — Integrated Video', '$28'],
+/** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
+function formatWhen(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dayDiff = Math.round((startDay - startToday) / 86400000);
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const label =
+    dayDiff === 0 ? 'Today' : dayDiff === 1 ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  return `${label} · ${time}`;
+}
+
+interface UpRow { name: string; av: string; course: string; when: string; where: string; pay: string; }
+
+// Demo fallback shown before data loads or when there's no session.
+const UPCOMING_DEMO: UpRow[] = [
+  { name: 'Lindsay Thomas', av: 'L', course: 'MGT 300', when: 'Tomorrow · 3:00 PM', where: 'Gorgas Library, Fl 2', pay: '$28' },
+  { name: 'Marcus B.', av: 'M', course: 'MGT 300', when: 'Thu Jun 25 · 10:30 AM', where: 'Online — Integrated Video', pay: '$28' },
 ];
 
+// TODO(api): no read endpoint for past/completed sessions — demo values.
 const PAST: [string, string, string, string, string][] = [
   ['Priya S.', 'P', 'CH 101', 'Jun 12 · 2:00 PM', '$25'],
   ['Jordan K.', 'J', 'CH 102', 'Jun 5 · 4:30 PM', '$30'],
@@ -23,11 +41,39 @@ const PAST: [string, string, string, string, string][] = [
 export default function TutorSessions() {
   const t = useTheme();
   const router = useRouter();
-  const { patchBooking } = useApp();
+  const { patchBooking, role } = useApp();
   const [tab, setTab] = useState<Tab>('upcoming');
+
+  // Upcoming: live confirmed future sessions for the signed-in tutor; demo fallback otherwise.
+  const [upcoming, setUpcoming] = useState<UpRow[]>(UPCOMING_DEMO);
+  useEffect(() => {
+    let active = true;
+    api
+      .listUpcoming()
+      .then((bookings) => {
+        if (!active || bookings.length === 0) return; // no upcoming → keep demo fallback
+        setUpcoming(
+          bookings.map((b) => {
+            // TODO(api): no endpoint to resolve a booking's student name from studentId.
+            const name = 'Student';
+            return {
+              name,
+              av: name.charAt(0),
+              course: b.subject,
+              when: formatWhen(b.scheduledAt),
+              where: b.sessionType === 'video' ? 'Online — Integrated Video' : b.location ?? 'In person',
+              pay: `$${b.tutorPayoutAmount}`,
+            };
+          }),
+        );
+      })
+      .catch(() => { /* no session / offline → keep demo fallback */ });
+    return () => { active = false; };
+  }, []);
 
   const goTab = (key: string) => router.replace((`/${key}`) as any);
   const openDetail = () => {
+    // TODO(api): pass the tapped booking's real tutor/session once detail wiring lands.
     patchBooking({ tutor: tutorById('sara') });
     router.push('/tb2');
   };
@@ -60,21 +106,21 @@ export default function TutorSessions() {
       <Body contentStyle={{ paddingTop: 14 }}>
         {tab === 'upcoming' ? (
           <View style={{ gap: 10 }}>
-            {UPCOMING.map(([n, av, course, when, where, pay], i) => (
+            {upcoming.map((r, i) => (
               <Card key={i} onPress={openDetail} style={{ padding: 14 }}>
                 <View style={styles.upcomingRow}>
-                  <Avatar size={44} label={av} />
+                  <Avatar size={44} label={r.av} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <View style={styles.rowBetween}>
-                      <Text style={[styles.name, { color: t.text }]}>{n}</Text>
-                      <Text style={[styles.pay, { color: t.good }]}>{pay}</Text>
+                      <Text style={[styles.name, { color: t.text }]}>{r.name}</Text>
+                      <Text style={[styles.pay, { color: t.good }]}>{r.pay}</Text>
                     </View>
                     <Text style={[styles.meta, { color: t.text3 }]}>
-                      {course} · {when}
+                      {r.course} · {r.when}
                     </Text>
                     <View style={styles.whereRow}>
-                      <Ic name={where.startsWith('Online') ? 'video' : 'pin'} size={13} color={t.accent} strokeWidth={1.8} />
-                      <Text style={[styles.whereText, { color: t.text2 }]}>{where}</Text>
+                      <Ic name={r.where.startsWith('Online') ? 'video' : 'pin'} size={13} color={t.accent} strokeWidth={1.8} />
+                      <Text style={[styles.whereText, { color: t.text2 }]}>{r.where}</Text>
                     </View>
                   </View>
                 </View>
@@ -99,7 +145,7 @@ export default function TutorSessions() {
         )}
       </Body>
 
-      <TabBar active="tutor_sessions" onTab={goTab} role="tutor" />
+      <TabBar active="tutor_sessions" onTab={goTab} role={role} />
     </SafeAreaView>
   );
 }

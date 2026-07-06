@@ -1,11 +1,14 @@
-// O2 Sign Up — ported from screens-shared.jsx (SignUp). .edu email → magic link.
+// O2 Sign Up / Sign in — ported from screens-shared.jsx (SignUp). .edu email → magic link.
+// Auth is magic-link only (no passwords), so signing in and signing up are the SAME
+// flow: enter your .edu email, get a link. The `?mode=login|signup` param only changes
+// the copy so a "Log In" tap doesn't land on a page titled "Sign up".
 // Real send goes through @noot/core auth.sendMagicLink (Supabase OTP); .edu domain
 // gating is enforced server-side. "Open the link (demo)" still fakes the deep-link
 // return until magic-link deep-linking lands.
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Button, Card, Field, useTheme } from '@noot/ui';
 import { auth } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -14,6 +17,8 @@ export default function SignUp() {
   const t = useTheme();
   const router = useRouter();
   const { setRole } = useApp();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const isLogin = mode === 'login';
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
@@ -30,7 +35,9 @@ export default function SignUp() {
       return;
     }
     setRole(kind);
-    router.replace(kind === 'student' ? '/student_home' : '/tutor_home');
+    // Land where the real onboarding flow lands each role: student For-You home (S2),
+    // tutor dashboard (TH).
+    router.replace(kind === 'student' ? '/home' : '/tutor_home');
   };
 
   const handleSend = async () => {
@@ -59,15 +66,21 @@ export default function SignUp() {
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
       <View style={styles.nav}>
         <Text onPress={() => router.back()} style={[styles.back, { color: t.accent }]}>‹ Back</Text>
-        <Text style={[styles.navTitle, { color: t.text }]}>Sign Up</Text>
+        <Text style={[styles.navTitle, { color: t.text }]}>{isLogin ? 'Sign in' : 'Sign up'}</Text>
         <View style={{ width: 48 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
         {!sent ? (
           <>
-            <Text style={[styles.h1, { color: t.text }]}>What&apos;s your campus email?</Text>
-            <Text style={[styles.sub, { color: t.text2 }]}>We&apos;ll send you a magic link to verify it&apos;s really you.</Text>
+            <Text style={[styles.h1, { color: t.text }]}>
+              {isLogin ? 'Welcome back' : "What's your campus email?"}
+            </Text>
+            <Text style={[styles.sub, { color: t.text2 }]}>
+              {isLogin
+                ? "Enter your campus email and we'll send you a magic link to sign in."
+                : "We'll send you a magic link to verify it's really you."}
+            </Text>
 
             <Card style={{ backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
               <Text style={[styles.eyebrow, { color: t.accent }]}>WHY .EDU?</Text>
@@ -99,7 +112,13 @@ export default function SignUp() {
             </Text>
             <Card style={{ alignItems: 'center', gap: 14 }}>
               <Text style={{ fontSize: 40 }}>✉️</Text>
-              <Button label="Open the link (demo)" onPress={() => router.push('/verified')} />
+              {/* DEV ONLY — fake deep-link that walks the O3→O4 onboarding UI. It does NOT
+                  establish a session (no devSignIn), so it must never ship: in production a
+                  user would be advanced into the app unauthenticated. Real magic-link
+                  deep-linking (TODO) replaces this. */}
+              {__DEV__ ? (
+                <Button label="Open the link (demo)" onPress={() => router.push('/verified')} />
+              ) : null}
               <Text onPress={() => setSent(false)} style={{ color: t.accent, fontWeight: '600' }}>Change email</Text>
             </Card>
           </>

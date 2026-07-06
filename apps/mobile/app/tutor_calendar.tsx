@@ -3,13 +3,14 @@
 // empty time to open/close it for booking. Sessions are tappable -> TB2 detail.
 // This is a tutor tab root (TabBar persists across tutor_home/tutor_calendar/
 // tutor_sessions/tutor_profile).
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, TabBar, Card, Avatar, Ic, Label, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { DAYS, slotsFor, tutorById } from '../lib/data';
+import { DAYS, MONTHS, slotsFor, tutorById } from '../lib/data';
 
 const CAL_TIMES = ['9:00 AM', '10:30 AM', '12:00 PM', '1:30 PM', '3:00 PM', '4:30 PM', '6:00 PM', '7:30 PM'];
 
@@ -23,10 +24,33 @@ interface CalSession {
 }
 
 // Demo booked sessions on the tutor's calendar: DAYS index -> { time -> session }
+// Offline/no-session fallback; replaced by api.listUpcoming() when a session loads.
 const CAL_SESSIONS: Record<number, Record<string, CalSession>> = {
   1: { '3:00 PM': { name: 'Lindsay Thomas', av: 'L', course: 'MGT 300', where: 'Gorgas Library, Fl 2', pay: '$28', len: '1 hr' } },
   9: { '10:30 AM': { name: 'Marcus B.', av: 'M', course: 'MGT 300', where: 'Online — Integrated Video', pay: '$28', len: '1 hr' } },
 };
+
+// Format a booking time into the same slot labels the grid renders (CAL_TIMES).
+function slotLabel(d: Date): string {
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h < 12 ? 'AM' : 'PM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
+}
+
+// Duration minutes -> friendly length label.
+function lenLabel(min: number): string {
+  if (min % 60 === 0) return `${min / 60} hr`;
+  if (min > 60) return `${Math.floor(min / 60)} hr ${min % 60} min`;
+  return `${min} min`;
+}
+
+// Map the booking's date to an index into the fixed 14-day DAYS window (or null if outside it).
+function dayIndexFor(d: Date): number | null {
+  const hit = DAYS.find((x) => x.dom === d.getDate() && x.month === MONTHS[d.getMonth()]);
+  return hit ? hit.i : null;
+}
 
 const WEEK_TABS: [number, string][] = [
   [0, 'This week'],
@@ -45,18 +69,50 @@ export default function TutorCalendar() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { patchBooking } = useApp();
+  const { patchBooking, role } = useApp();
 
   const [week, setWeek] = useState(0); // 0 = this week · 1 = next week
   const [day, setDay] = useState(1); // selected index into DAYS
   const [open, setOpen] = useState<Record<number, Set<string>>>(calInitOpen);
+  // Booked sessions on the grid: live from api.listUpcoming(); CAL_SESSIONS is the offline fallback.
+  const [sessionsByDay, setSessionsByDay] = useState<Record<number, Record<string, CalSession>>>(CAL_SESSIONS);
+
+  // TODO(api): availability (open/closed slots) has no read endpoint — `open` stays client-derived (calInitOpen).
+  useEffect(() => {
+    let active = true;
+    api
+      .listUpcoming()
+      .then((bookings) => {
+        if (!active || bookings.length === 0) return; // no sessions / offline → keep demo fallback
+        const byDay: Record<number, Record<string, CalSession>> = {};
+        for (const b of bookings) {
+          const at = new Date(b.scheduledAt);
+          const di = dayIndexFor(at);
+          if (di == null) continue; // outside the visible 14-day window
+          const online = b.sessionType === 'video';
+          (byDay[di] ??= {})[slotLabel(at)] = {
+            // TODO(api): a booking exposes only studentId; no read endpoint resolves a student's name.
+            name: 'Student',
+            av: 'S',
+            course: b.subject,
+            where: online ? 'Online — Integrated Video' : (b.location ?? 'In person'),
+            pay: `$${Math.round(b.tutorPayoutAmount)}`,
+            len: lenLabel(b.durationMinutes),
+          };
+        }
+        setSessionsByDay(byDay);
+      })
+      .catch(() => { /* no session / offline → keep demo fallback */ });
+    return () => { active = false; };
+  }, []);
 
   const days = DAYS.slice(week * 7, week * 7 + 7);
-  const sessions = CAL_SESSIONS[day] || {};
+  const sessions = sessionsByDay[day] || {};
   const openSet = open[day] || new Set<string>();
   const dayObj = DAYS.find((d) => d.i === day) || DAYS[0]!;
 
   const toggle = (time: string) => {
+    // TODO(api): persist availability open/close (no write endpoint yet — local-only).
     setOpen((prev) => {
       const next = { ...prev, [day]: new Set(prev[day]) };
       if (next[day]!.has(time)) next[day]!.delete(time);
@@ -78,7 +134,7 @@ export default function TutorCalendar() {
   };
   const onTab = (key: string) => {
     if (key === 'tutor_calendar') return;
-    router.push(`/${key}` as never);
+    router.replace(`/${key}` as never);
   };
 
   const stats = useMemo(() => {
@@ -86,10 +142,10 @@ export default function TutorCalendar() {
     let b = 0;
     days.forEach((d) => {
       o += (open[d.i] || new Set<string>()).size;
-      b += Object.keys(CAL_SESSIONS[d.i] || {}).length;
+      b += Object.keys(sessionsByDay[d.i] || {}).length;
     });
     return { o, b };
-  }, [open, week]);
+  }, [open, week, sessionsByDay]);
 
   return (
     <Screen>
@@ -123,7 +179,7 @@ export default function TutorCalendar() {
         <View style={styles.dayStrip}>
           {days.map((d) => {
             const on = day === d.i;
-            const booked = Object.keys(CAL_SESSIONS[d.i] || {}).length > 0;
+            const booked = Object.keys(sessionsByDay[d.i] || {}).length > 0;
             const nOpen = (open[d.i] || new Set<string>()).size;
             return (
               <Pressable
@@ -240,7 +296,7 @@ export default function TutorCalendar() {
         </View>
       </Body>
 
-      <TabBar active="tutor_calendar" onTab={onTab} role="tutor" />
+      <TabBar active="tutor_calendar" onTab={onTab} role={role} />
     </Screen>
   );
 }

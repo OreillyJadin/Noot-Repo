@@ -39,6 +39,10 @@ function avInit(): Record<Day, Set<BlockId>> {
 export default function EditAvailability() {
   const t = useTheme();
   const router = useRouter();
+  // TODO(api): needs a getAvailability read (e.g. api.profile.getAvailability(): WeeklyWindow[])
+  // to prefill the grid with the tutor's saved weekly template instead of the hardcoded avInit()
+  // demo defaults. No such read endpoint exists in @noot/core yet (only profile.updateAvailability
+  // writes it), so we keep the demo seed for now.
   const [av, setAv] = useState<Record<Day, Set<BlockId>>>(avInit);
   const [saving, setSaving] = useState(false);
 

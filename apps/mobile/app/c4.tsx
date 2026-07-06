@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Divider, Ic, HeroIcon, useTheme } from '@noot/ui';
 import { useApp } from '../lib/store';
-import { TUTORS } from '../lib/data';
 
 const FEE_RATE = 0.175; // 15–20% platform fee; using 17.5% midpoint (matches sessionFacts demo calc)
 
@@ -20,10 +19,15 @@ export default function C4() {
   const { role } = useLocalSearchParams<{ role?: string }>();
   const isTutor = role === 'tutor';
 
-  const tutor = booking.tutor ?? TUTORS[0]!;
-  const course = booking.course || tutor.courses[0]![0];
-  const courseEntry = tutor.courses.find((c) => c[0] === course) || tutor.courses[0]!;
-  const rate = courseEntry[2];
+  // Recap counterpart comes from the in-progress booking draft (store), which B1/B2
+  // populate from live @noot/core tutor data — no hardcoded demo tutor fallback.
+  const tutor = booking.tutor;
+  const tutorFirst = tutor?.name.split(' ')[0] ?? 'your tutor';
+
+  // Net payout is still a client-side demo calc from the draft's rate/length.
+  // TODO(api): read the real net payout for this session (no earnings/payout read endpoint yet).
+  const courseEntry = tutor?.courses.find((c) => c[0] === booking.course) ?? tutor?.courses[0];
+  const rate = courseEntry?.[2] ?? 28;
   const lengthHours = (booking.lengthMin ?? 60) / 60;
   const gross = rate * lengthHours;
   const payout = gross - gross * FEE_RATE;
@@ -69,7 +73,7 @@ export default function C4() {
               <Ic name="bolt" size={18} color={t.accent} strokeWidth={1.8} />
             </View>
             <Text style={[styles.cardText, { color: t.text2 }]}>
-              Your rating feeds <Text style={{ fontWeight: '700', color: t.text }}>{tutor.name.split(' ')[0]}&apos;s</Text> standing
+              Your rating feeds <Text style={{ fontWeight: '700', color: t.text }}>{tutorFirst}&apos;s</Text> standing
               in search. noot reviews feedback and decides when ratings publish — so scores stay fair and can&apos;t be gamed.
             </Text>
           </Card>

@@ -1,10 +1,13 @@
 // O4 Choose Role — ported from screens-shared.jsx (Role). One account holds both;
-// pick what to start as. Student → /home; Tutor → /home?role=tutor (tutor setup TBD).
+// pick what to start as. Student → S1 profile setup → Home; Tutor → T1 onboarding → … → Tutor Home.
+// The choice is persisted to the shared app store so the whole app (tab bar, role-gated
+// screens) reflects the active role.
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button, Card, useTheme } from '@noot/ui';
+import { useApp } from '../lib/store';
 
 type RoleId = 'student' | 'tutor';
 
@@ -16,7 +19,14 @@ const ROLES: { id: RoleId; title: string; bullets: string[] }[] = [
 export default function Role() {
   const t = useTheme();
   const router = useRouter();
+  const { setRole } = useApp();
   const [sel, setSel] = useState<RoleId>('student');
+
+  const onContinue = () => {
+    setRole(sel);
+    // Student → profile setup (S1); tutor → verification onboarding (T1 → … → tutor_home).
+    router.push(sel === 'student' ? '/student_profile' : '/t1');
+  };
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
@@ -57,7 +67,7 @@ export default function Role() {
       <View style={styles.actionBar}>
         <Button
           label={sel === 'student' ? 'Continue as Student' : 'Continue as Tutor'}
-          onPress={() => router.push(sel === 'student' ? '/home' : '/home?role=tutor')}
+          onPress={onContinue}
         />
       </View>
     </SafeAreaView>

@@ -1,7 +1,7 @@
 // B1 Search Results — ported from design_handoff_noot_app/app/screens-booking.jsx (B1).
 // Live sort chips + a filter bottom sheet (price/availability/gender) narrow the tutor
 // list for the active course. Tapping a tutor saves it into the booking draft and opens B2.
-// Real wiring later: replace TUTORS with @noot/core search results for `course`.
+// Live data: tutors come from api.tutors.search({ course }) mapped via toTutor.
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,8 +37,9 @@ const MAX_PRICE = 40;
 
 type TutorWithAvail = Tutor & { availDayIndex: number; availLabel: string };
 
-/** Real next-available day/time for a tutor, computed from their slot calendar
- * (same seed convention as b3.tsx: `tutor.name.charCodeAt(0) % 5`). */
+/** Demo next-available day/time for a tutor, derived client-side from the mock slot
+ * calendar (same seed convention as b3.tsx: `tutor.name.charCodeAt(0) % 5`).
+ * TODO(api): no availability-read endpoint yet — replace with real tutor availability. */
 function nextAvailability(tutor: Tutor): { dayIndex: number; label: string } {
   const slots = slotsFor(tutor.name.charCodeAt(0) % 5);
   const day = DAYS.find((d) => (slots[d.i]?.length ?? 0) > 0);
@@ -59,8 +60,8 @@ export default function B1() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { patchBooking } = useApp();
-  const course = 'MGT 300';
+  const { patchBooking, booking } = useApp();
+  const course = booking.course ?? 'MGT 300';
 
   const [tutors, setTutors] = useState<Tutor[]>([]);
   const [loading, setLoading] = useState(true);
