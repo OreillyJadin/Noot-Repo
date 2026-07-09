@@ -1,11 +1,12 @@
 // S5 My Sessions — ported from screens-tabs.jsx (SessionsTab). Upcoming / Past / Saved
 // segmented tabs. Upcoming + Saved read live via @noot/core; Past is still demo data
 // because the backend has no past-sessions endpoint (see TODO(api) below).
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Alert, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, Chip, Button, Ic, H1, TabBar, useTheme } from '@noot/ui';
+import { useTabNav } from '../lib/useTabNav';
 import { api } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -170,7 +171,9 @@ export default function Sessions() {
     router.push('/b2');
   };
 
-  const onTab = (key: string) => router.replace(`/${key}` as never);
+  const scrollRef = useRef<ScrollView>(null);
+  // Re-tapping Sessions returns to the Upcoming segment + scrolls to top.
+  const { active, onTab } = useTabNav({ scrollRef, onReselect: () => setTab('upcoming') });
 
   return (
     <Screen>
@@ -186,7 +189,7 @@ export default function Sessions() {
           <Chip key={v} label={l} on={tab === v} onPress={() => setTab(v)} />
         ))}
       </View>
-      <Body pad={20} contentStyle={{ paddingTop: 4 }}>
+      <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 4 }}>
         {tab === 'saved' ? (
           <View style={{ gap: 10 }}>
             <Text style={[styles.count, { color: t.text3 }]}>{saved.length} tutors saved for later</Text>
@@ -302,7 +305,7 @@ export default function Sessions() {
           </View>
         )}
       </Body>
-      <TabBar active="sessions" onTab={onTab} role={role} />
+      <TabBar active={active} onTab={onTab} role={role} />
     </Screen>
   );
 }

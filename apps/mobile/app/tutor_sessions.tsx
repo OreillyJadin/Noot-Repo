@@ -1,13 +1,14 @@
 // TS Tutor Sessions — ported from screens-home.jsx (TutorSessions). Upcoming/Past
 // segmented list of a tutor's sessions. Tab root (tutor Sessions tab).
-import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Body, TabBar, Card, Avatar, Ic, H2, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { tutorById } from '../lib/data';
+import { useTabNav } from '../lib/useTabNav';
 
 type Tab = 'upcoming' | 'past';
 
@@ -71,7 +72,8 @@ export default function TutorSessions() {
     return () => { active = false; };
   }, []);
 
-  const goTab = (key: string) => router.replace((`/${key}`) as any);
+  const scrollRef = useRef<ScrollView>(null);
+  const { active, onTab } = useTabNav({ scrollRef, onReselect: () => setTab('upcoming') });
   const openDetail = () => {
     // TODO(api): pass the tapped booking's real tutor/session once detail wiring lands.
     patchBooking({ tutor: tutorById('sara') });
@@ -103,7 +105,7 @@ export default function TutorSessions() {
         </View>
       </View>
 
-      <Body contentStyle={{ paddingTop: 14 }}>
+      <Body ref={scrollRef} contentStyle={{ paddingTop: 14 }}>
         {tab === 'upcoming' ? (
           <View style={{ gap: 10 }}>
             {upcoming.map((r, i) => (
@@ -145,7 +147,7 @@ export default function TutorSessions() {
         )}
       </Body>
 
-      <TabBar active="tutor_sessions" onTab={goTab} role={role} />
+      <TabBar active={active} onTab={onTab} role={role} />
     </SafeAreaView>
   );
 }

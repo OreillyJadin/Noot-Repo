@@ -2,8 +2,8 @@
 // Study hub: next-session countdown, exam nudge, streak/goals, "pick up where you
 // left off". This is a tab root (Home tab). No live session store yet — the next
 // session + weekly numbers are demo data, same as the prototype.
-import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, useTheme, type IconName } from '@noot/ui';
@@ -11,6 +11,7 @@ import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { tutorById, toTutor, type Tutor } from '../lib/data';
 import { useMe, firstName } from '../lib/useMe';
+import { useTabNav } from '../lib/useTabNav';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
 function formatWhen(iso: string): string {
@@ -155,7 +156,8 @@ export default function Home() {
   const goalDone = 3;
   const goalTotal = 5;
 
-  const goTab = (key: string) => router.replace((`/${key}`) as any);
+  const scrollRef = useRef<ScrollView>(null);
+  const { active, onTab } = useTabNav({ scrollRef });
 
   const openTutor = (id: string, course: string) => {
     patchBooking({ tutor: tutorById(id), course });
@@ -189,7 +191,7 @@ export default function Home() {
         </View>
       </View>
 
-      <Body contentStyle={{ paddingTop: 8 }}>
+      <Body ref={scrollRef} contentStyle={{ paddingTop: 8 }}>
         {/* Next session countdown */}
         <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
           <Text style={styles.geckoDeco}>🦎</Text>
@@ -269,7 +271,7 @@ export default function Home() {
         </View>
       </Body>
 
-      <TabBar active="home" onTab={goTab} role={role} />
+      <TabBar active={active} onTab={onTab} role={role} />
     </SafeAreaView>
   );
 }

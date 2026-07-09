@@ -3,14 +3,15 @@
 // empty time to open/close it for booking. Sessions are tappable -> TB2 detail.
 // This is a tutor tab root (TabBar persists across tutor_home/tutor_calendar/
 // tutor_sessions/tutor_profile).
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Alert, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, TabBar, Card, Avatar, Ic, Label, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { DAYS, MONTHS, slotsFor, tutorById } from '../lib/data';
+import { useTabNav } from '../lib/useTabNav';
 
 const CAL_TIMES = ['9:00 AM', '10:30 AM', '12:00 PM', '1:30 PM', '3:00 PM', '4:30 PM', '6:00 PM', '7:30 PM'];
 
@@ -132,10 +133,15 @@ export default function TutorCalendar() {
     // TODO(api): persist availability copy server-side.
     Alert.alert('Availability copied to next week');
   };
-  const onTab = (key: string) => {
-    if (key === 'tutor_calendar') return;
-    router.replace(`/${key}` as never);
-  };
+  const scrollRef = useRef<ScrollView>(null);
+  // Re-tapping Calendar snaps back to this-week / default day + scrolls to top.
+  const { active, onTab } = useTabNav({
+    scrollRef,
+    onReselect: () => {
+      setWeek(0);
+      setDay(1);
+    },
+  });
 
   const stats = useMemo(() => {
     let o = 0;
@@ -222,7 +228,7 @@ export default function TutorCalendar() {
         </View>
       </View>
 
-      <Body pad={20} contentStyle={{ paddingTop: 12 }}>
+      <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 12 }}>
         <Label style={{ fontSize: 13, marginBottom: 10 }}>{dayObj.label}</Label>
         <View style={{ gap: 8 }}>
           {CAL_TIMES.map((time) => {
@@ -296,7 +302,7 @@ export default function TutorCalendar() {
         </View>
       </Body>
 
-      <TabBar active="tutor_calendar" onTab={onTab} role={role} />
+      <TabBar active={active} onTab={onTab} role={role} />
     </Screen>
   );
 }

@@ -2,13 +2,14 @@
 // ProfileTabStudent). Backend-only actions (the prototype's showToast) become a
 // TODO(api)'d Alert; "Dark mode" is a local visual toggle only (not wired to the real
 // theme yet — that lives in ThemeProvider at the app root).
-import React, { useState } from 'react';
-import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, useTheme, type IconName } from '@noot/ui';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
+import { useTabNav } from '../lib/useTabNav';
 
 // TODO(api): referral credits — no stats/credits endpoint in @noot/core, keep demo value.
 const CREDITS = 10;
@@ -77,7 +78,8 @@ export default function Profile() {
   const displayName = fullName(me, 'Student');
   const displayFirst = firstName(me, 'Student');
 
-  const onTab = (key: string) => router.replace(`/${key}` as never);
+  const scrollRef = useRef<ScrollView>(null);
+  const { active, onTab } = useTabNav({ scrollRef });
 
   return (
     <Screen>
@@ -89,7 +91,7 @@ export default function Profile() {
           </Pressable>
         </View>
       </View>
-      <Body pad={20} contentStyle={{ paddingTop: 10 }}>
+      <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 10 }}>
         {/* identity card */}
         <Card style={{ padding: 18 }}>
           <View style={styles.identityRow}>
@@ -172,7 +174,7 @@ export default function Profile() {
         </View>
         <Text style={[styles.footer, { color: t.text3 }]}>noot · v1.0 · Peer tutoring for campus</Text>
       </Body>
-      <TabBar active="profile" onTab={onTab} role={role} />
+      <TabBar active={active} onTab={onTab} role={role} />
     </Screen>
   );
 }

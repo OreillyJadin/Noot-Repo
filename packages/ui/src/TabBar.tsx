@@ -38,7 +38,17 @@ export function TabBar({ active, onTab, role = 'student' }: TabBarProps) {
         const on = active === tab.key;
         const color = on ? t.accent : t.text3;
         return (
-          <Pressable key={tab.key} onPress={() => onTab(tab.key)} style={styles.tab}>
+          <Pressable
+            key={tab.key}
+            onPress={() => onTab(tab.key)}
+            style={styles.tab}
+            // Active tab stays focusable and pressable (never disabled) — pressing
+            // it again scrolls to top / soft-resets the page, so we advertise that.
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={tab.label}
+            accessibilityHint={on ? 'Scroll to top and reset this page' : `Go to ${tab.label}`}
+          >
             {tab.icon === 'home' ? (
               <Text style={{ fontSize: 20, opacity: on ? 1 : 0.5 }}>🦎</Text>
             ) : (

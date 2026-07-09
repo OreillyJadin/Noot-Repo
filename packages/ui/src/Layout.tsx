@@ -45,9 +45,15 @@ export interface BodyProps {
   contentStyle?: ViewStyle;
 }
 
-export function Body({ children, pad = 20, contentStyle }: BodyProps) {
+// forwardRef exposes the inner ScrollView so callers (e.g. the tab bar's
+// "reselect" action) can scroll the page back to top. See lib/useTabNav.
+export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
+  { children, pad = 20, contentStyle },
+  ref,
+) {
   return (
     <ScrollView
+      ref={ref}
       style={styles.bodyScroll}
       contentContainerStyle={[{ padding: pad, paddingTop: 4, gap: 14 }, contentStyle]}
       keyboardShouldPersistTaps="handled"
@@ -55,7 +61,7 @@ export function Body({ children, pad = 20, contentStyle }: BodyProps) {
       {children}
     </ScrollView>
   );
-}
+});
 
 export function ActionBar({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
   const t = useTheme();

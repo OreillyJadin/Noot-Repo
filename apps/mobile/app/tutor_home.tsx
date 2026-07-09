@@ -1,8 +1,8 @@
 // TH Tutor Home (Dashboard) — ported from screens-home.jsx (TutorHome).
 // Lightweight dashboard: next session + payout countdown, weekly stats, quick
 // management actions, recent message. Tab root (tutor Home tab).
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, useTheme, type IconName } from '@noot/ui';
@@ -10,6 +10,7 @@ import { api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { tutorById } from '../lib/data';
 import { useMe, firstName } from '../lib/useMe';
+import { useTabNav } from '../lib/useTabNav';
 
 /** Booking scheduledAt (+ optional location) → "Tomorrow · 3:00 PM · Gorgas Library". */
 function sessionMeta(iso: string, location: string | null): string {
@@ -97,7 +98,8 @@ export default function TutorHome() {
   // Countdown to the real session when we have one, else the demo target.
   const target = useMemo(() => (next ? new Date(next.scheduledAt).getTime() : Date.now() + 20 * 3600000), [next]);
 
-  const goTab = (key: string) => router.replace((`/${key}`) as any);
+  const scrollRef = useRef<ScrollView>(null);
+  const { active, onTab } = useTabNav({ scrollRef });
   const openChat = () => {
     patchBooking({ tutor: tutorById('sara') });
     router.push('/chat_tutor');
@@ -120,7 +122,7 @@ export default function TutorHome() {
         </View>
       </View>
 
-      <Body contentStyle={{ paddingTop: 8 }}>
+      <Body ref={scrollRef} contentStyle={{ paddingTop: 8 }}>
         {/* Next session + payout */}
         <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
           <Text style={styles.geckoDeco}>🦎</Text>
@@ -197,7 +199,7 @@ export default function TutorHome() {
         </Card>
       </Body>
 
-      <TabBar active="tutor_home" onTab={goTab} role={role} />
+      <TabBar active={active} onTab={onTab} role={role} />
     </SafeAreaView>
   );
 }

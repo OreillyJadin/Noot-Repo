@@ -2,14 +2,15 @@
 // Note: per screens-map.jsx this list has since been folded into the Sessions tab's
 // "Saved" segment (see sessions.tsx), but the standalone route is kept per the nav map.
 // Tapping a tutor stashes it on the in-progress booking draft and opens their profile (B2).
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, Ic, H1, TabBar, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
+import { useTabNav } from '../lib/useTabNav';
 
 function TabHeader({ title }: { title: string }) {
   const t = useTheme();
@@ -42,27 +43,13 @@ export default function Saved() {
     router.push('/b2');
   };
 
-  const onTab = (key: string) => {
-    switch (key) {
-      case 'home':
-        router.replace('/home');
-        break;
-      case 'student_home':
-        router.replace('/student_home');
-        break;
-      case 'sessions':
-        router.replace('/sessions');
-        break;
-      case 'profile':
-        router.replace('/profile');
-        break;
-    }
-  };
+  const scrollRef = useRef<ScrollView>(null);
+  const { active, onTab } = useTabNav({ scrollRef });
 
   return (
     <Screen>
       <TabHeader title="Saved" />
-      <Body pad={20} contentStyle={{ paddingTop: 8 }}>
+      <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 8 }}>
         <Text style={[styles.count, { color: t.text3 }]}>
           {loading ? 'Loading…' : `${tutors.length} tutor${tutors.length === 1 ? '' : 's'} saved for later`}
         </Text>
@@ -95,7 +82,7 @@ export default function Saved() {
           ) : null}
         </View>
       </Body>
-      <TabBar active="saved" onTab={onTab} role="student" />
+      <TabBar active={active} onTab={onTab} role="student" />
     </Screen>
   );
 }

@@ -2,7 +2,7 @@
 // hub into the booking flow: tappable search bar + category tabs → a "popular"
 // carousel and a detailed tutor list, both opening the tutor profile (B2).
 // Real wiring later: replace TUTORS with @noot/core per-category search results.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -11,6 +11,7 @@ import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { useMe, firstName } from '../lib/useMe';
+import { useTabNav } from '../lib/useTabNav';
 
 const CATS = ['For you', 'Business', 'STEM', 'Humanities'] as const;
 const TITLES: Record<(typeof CATS)[number], string> = {
@@ -84,10 +85,9 @@ export default function StudentHome() {
     patchBooking({ tutor, course: courseFor(tutor) });
     router.push('/b2');
   };
-  const onTab = (key: string) => {
-    // TODO: sessions/profile tabs aren't ported yet — this will 404 until they are.
-    router.replace(`/${key}` as never);
-  };
+  const scrollRef = useRef<ScrollView>(null);
+  // Re-tapping the Search tab clears the category filter back to "For you" + scrolls up.
+  const { active, onTab } = useTabNav({ scrollRef, onReselect: () => setTab(0) });
 
   return (
     <Screen>
@@ -130,7 +130,7 @@ export default function StudentHome() {
         })}
       </View>
 
-      <Body pad={0} contentStyle={styles.bodyContent}>
+      <Body ref={scrollRef} pad={0} contentStyle={styles.bodyContent}>
         <View style={styles.sectionHead}>
           <H2 style={styles.sectionTitle}>{tab === 0 ? 'Popular this week' : cat}</H2>
           <Text onPress={openSearch} style={[styles.seeAll, { color: t.accent }]}>
@@ -170,7 +170,7 @@ export default function StudentHome() {
         </View>
       </Body>
 
-      <TabBar active="student_home" role={role} onTab={onTab} />
+      <TabBar active={active} role={role} onTab={onTab} />
     </Screen>
   );
 }

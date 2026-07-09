@@ -2,13 +2,14 @@
 // ProfileTabTutor). Backend-only actions (the prototype's showToast) become a
 // TODO(api)'d Alert; "Dark mode" is a local visual toggle only (not wired to the real
 // theme yet — that lives in ThemeProvider at the app root).
-import React, { useState } from 'react';
-import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, useTheme, type IconName } from '@noot/ui';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
+import { useTabNav } from '../lib/useTabNav';
 
 // TODO(api): tutor teaching stats (sessions taught, avg rating, hours) — no stats
 // endpoint exists yet; kept as demo values.
@@ -76,7 +77,8 @@ export default function TutorProfile() {
   const meFirst = firstName(me, 'T');
   const meYearMajor = [me?.year, me?.major].filter(Boolean).join(' · ') || '—';
 
-  const onTab = (key: string) => router.replace(`/${key}` as never);
+  const scrollRef = useRef<ScrollView>(null);
+  const { active, onTab } = useTabNav({ scrollRef });
 
   const switchToStudent = () => {
     setRole('student');
@@ -93,7 +95,7 @@ export default function TutorProfile() {
           </Pressable>
         </View>
       </View>
-      <Body pad={20} contentStyle={{ paddingTop: 10 }}>
+      <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 10 }}>
         {/* identity card */}
         <Card style={{ padding: 18 }}>
           <View style={styles.identityRow}>
@@ -187,7 +189,7 @@ export default function TutorProfile() {
         </View>
         <Text style={[styles.footer, { color: t.text3 }]}>noot · v1.0 · Peer tutoring for campus</Text>
       </Body>
-      <TabBar active="tutor_profile" onTab={onTab} role={role} />
+      <TabBar active={active} onTab={onTab} role={role} />
     </Screen>
   );
 }
