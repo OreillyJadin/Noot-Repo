@@ -4,6 +4,7 @@
     "jsx": "react-jsx",
     "moduleResolution": "Bundler",
     "types": [
+      "node",
       "react",
       "react-native"
     ]
