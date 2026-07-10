@@ -20,7 +20,7 @@ you've seen it work.
 
 ## Layout
 
-- `apps/mobile` — Expo (SDK 52) app. Screens read/write through `@noot/core`. Web dev
+- `apps/mobile` — Expo (SDK 54) app. Screens read/write through `@noot/core`. Web dev
   server on **:8081**.
 - `apps/web` — Next.js marketing site (`pnpm web` → :3000). Not where app features live.
 - `packages/core` — the data/auth boundary. **Screens must NEVER import `@supabase/*`

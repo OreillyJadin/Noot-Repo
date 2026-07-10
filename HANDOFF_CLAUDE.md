@@ -1,6 +1,13 @@
 # Handoff — for the next Claude chat
 
-_Updated 2026-07-06. Read this first, then `ARCHITECTURE.md` (authoritative for the whole system)._
+_Updated 2026-07-10. Read this first, then `ARCHITECTURE.md` (authoritative for the whole system)._
+
+> **What changed since 2026-07-06** (details in "Session 2026-07-07→07-10" below): auth is now
+> **password-first** (signup = verify-only → set password; sign-in = email+password), upgraded to
+> **Expo SDK 54**, added a **biometric launch gate** + encrypted session storage, `listPast` (real
+> Past sessions), the `tutors.getAvailability` read endpoint (**not yet wired into any screen**),
+> the `resolve-participants` edge function (real counterparty names), dark mode + Empty/Skeleton
+> states, and the `pnpm tunnel` tmux helper.
 
 ## TL;DR of where we are
 
@@ -132,19 +139,22 @@ bundles all 805 modules with no errors and serves 200. NOT click-tested in a liv
    Still UNWRITTEN: `stripe-webhook`, `complete-session`, `connect-onboarding-link`,
    `approve-tutor`, `award-referral-bonus`, `send-reminders`/`auto-complete` (crons)
    (ARCHITECTURE.md §5). Real Stripe money movement is the big remaining piece.
-2. **Realtime `chat.subscribe`** (websocket) was NOT exercised by the smoke test — only the
+2. **Wire availability read into the UI** — `tutors.getAvailability` exists (added 07-08) but
+   NO screen consumes it yet: booking `b1`/`b3` and `edit_availability.tsx` still show demo
+   slots. Small, high-value: makes the booking calendar honest. Pair with server-side booking
+   validation (scheduled_at inside a window + no overlap), still unenforced.
+3. **Realtime `chat.subscribe`** (websocket) was NOT exercised by the smoke test — only the
    insert/read message flow was. Low risk but unverified.
-3. **Column-level hardening** — RLS can't stop a tutor editing their own
+4. **Column-level hardening** — RLS can't stop a tutor editing their own
    `tutor_profiles.approval_status`; needs a trigger (approval only via `approve-tutor`
    service role). Noted in `0002_rls.sql`.
-4. **Real magic-link auth (SMTP)** — only part (a) remains. (b) is DONE (2026-07-06, see
-   "Magic-link deep-linking" below): the app now sends a real `emailRedirectTo`, has an
-   `/auth-callback` route that exchanges the `?code=` for a session, and routes new vs.
-   returning users. What's LEFT is (a): **cloud SMTP is not configured** so magic-link emails
-   don't deliver to real addresses (see "Cloud auth / SMTP setup" below) + mirroring the
-   redirect allow-list into the cloud dashboard. Local dev sidesteps SMTP via Mailpit.
-5. **Message attachments** — `models.MessageAttachment` exists but no table.
-6. **ESLint guardrail** (ban `@supabase/*` imports outside `packages/core`/`supabase/functions`)
+5. **Cloud SMTP (blocks real signups)** — signup verification + password-reset emails go through
+   Supabase auth email. On cloud that's the built-in sender (members-only, hard rate-limited), so
+   real `.edu` students can't verify yet. Wire a real SMTP provider + mirror the redirect
+   allow-list into the cloud dashboard (see "Cloud auth / SMTP setup" below). The app-side
+   deep-linking (`/auth-callback`, PKCE) is DONE. Local dev sidesteps SMTP via Mailpit.
+6. **Message attachments** — `models.MessageAttachment` exists but no table.
+7. **ESLint guardrail** (ban `@supabase/*` imports outside `packages/core`/`supabase/functions`)
    — verify it's actually configured. `@noot/core` re-exports `getSupabase` from its root,
    which could let a screen bypass the `api`/`auth` wrappers — consider not re-exporting the
    raw client from the package root.
@@ -217,6 +227,43 @@ functions: send → read Mailpit → follow verify link → exchange code → `g
   it there (see SMTP setup step 4).
 - **Cross-device links** break PKCE (verifier is on the sending device). Same-device (the norm)
   works; revisit `token_hash` flow if cross-device is needed.
+
+## Session 2026-07-07→07-10 (what landed after the 07-06 handoff)
+
+Commits `cb1488c … 839b012` on `origin/main`. Highlights:
+
+- **Auth reworked to password-first** (`4184728`, `7d8ba9e`, `9edf0f0`). The magic link is no
+  longer the day-to-day sign-in path:
+  - **Sign-up = verification only.** `signup.tsx` collects name + campus email and calls
+    `auth.sendSignupVerification(email, first, last, redirectTo)` → magic link proves the `.edu`.
+    There is deliberately **no password field at signup**.
+  - **Set password in onboarding.** After `/auth-callback`, a verified-but-new user goes to
+    `set_password.tsx` → `auth.setPassword(pw)`.
+  - **Sign-in = email + password** (`signin.tsx` → `auth.signInWithPassword`). `forgot_password.tsx`
+    → `auth.sendPasswordReset`.
+  - New `@noot/core/auth` exports: `sendSignupVerification`, `signInWithPassword`, `setPassword`,
+    `sendPasswordReset`. `sendMagicLink`/`completeAuthFromUrl`/`devSignIn` still present.
+  - Verified: `scripts/verify_password_auth.mts` (+ `verify_mutations.mts`).
+- **Biometric launch gate + encrypted storage** (`9edf0f0`). `lib/AuthGate.tsx` wraps the root
+  `<Stack>`: on a cold launch with a persisted session and biometric opt-in, it requires Face/Touch
+  ID before revealing the app. `lib/biometrics.ts` + `lib/secureStorage.ts`; opt-in via
+  `enable_faceid.tsx`. **Not device-tested** (Expo Go / no biometric hardware in dev).
+- **Expo SDK 54** (`cb1488c`) — React 19 / RN 0.81. (CLAUDE.md updated from SDK 52.)
+- **Data-layer additions** (`755d90d`, `a5c0eb8`, `033691d`):
+  - `api.listPast()` — real completed/past bookings; wired into `sessions.tsx` "Past" tab.
+  - `tutors.getAvailability(tutorId)` — recurring weekly windows read (RLS allows any auth read).
+    **⚠️ Built but unconsumed:** booking `b1`/`b3` and `edit_availability.tsx` still compute demo
+    slots (`TODO(api)` markers remain in-code). Wiring this is the cleanest next task.
+  - `tutors.search({ course, categoryPrefixes })` — category-prefix filtering for browse tabs.
+- **`resolve-participants` edge function** (`b1993f`, `940f1bc`) — resolves counterparty display
+  names for chat/session lists (killed the hardcoded "Lindsay Thomas"). Deployed; present in
+  `supabase/functions/`. Real student names now show in tutor sessions.
+- **UX polish** (`033691d`, `a5c0eb8`, `1d9ffb4`): dark mode (`lib/themePref.tsx`), shared
+  `packages/ui` `EmptyState` + `Skeleton`, empty/loading states across screens, unified tab-bar nav
+  (`lib/useTabNav.ts` — reselect scrolls to top / soft-resets).
+- **Test infra**: `supabase/seed_test_accounts.mjs` (ambassador/tutor/admin accounts) and the
+  `pnpm tunnel` tmux wrapper (`scripts/tunnel.sh`, `d6a5341`/`98018b4`/`839b012`) — persistent Expo
+  tunnel that survives SSH drops and auto-picks a free Metro port (README documents it).
 
 ## Key schema decision (don't undo without reading)
 

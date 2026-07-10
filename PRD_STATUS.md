@@ -1,6 +1,6 @@
 # Noot — PRD implementation status
 
-_Snapshot 2026-07-06. Maps the product (see `prd-data-models.md` + `ARCHITECTURE.md`) to
+_Snapshot 2026-07-10. Maps the product (see `prd-data-models.md` + `ARCHITECTURE.md`) to
 what's actually built. Made for planning next steps — take it into a chat and ask "what
 should we build next?"_
 
@@ -16,11 +16,18 @@ The big missing pieces are **real money (Stripe)**, the **Ambassador program**, 
 
 ## Auth & onboarding
 
+**Auth model (changed 2026-07-07):** sign-**up** is *verification only* — full name + campus
+email → a magic link that proves the `.edu` address; the user sets a password afterward in
+onboarding (`verified` → `set_password`). Sign-**in** is **email + password**. Magic link is
+now used for signup verification and password reset, **not** as the day-to-day sign-in path.
+
 | Feature | Status | Notes |
 |---|---|---|
 | `.edu` / campus-email gate at signup | ✅ | DB trigger rejects non-campus emails; UA seeded. Verified. |
 | New user → auto-provisioned profile row | ✅ | `handle_new_user` trigger. Verified. |
-| Magic-link sign-in (send + return to app) | 🟢 | Deep-linking built + verified locally (Mailpit). **Cloud needs SMTP** before real students can receive links — see `MANUAL_SETUP.md`. |
+| Signup verification (magic link proves `.edu`) | 🟢 | `sendSignupVerification` → `/auth-callback`. Verified locally (Mailpit). **Cloud needs SMTP** before real students receive links — see `MANUAL_SETUP.md`. |
+| Password sign-in / set / reset | 🟢 | `signInWithPassword`, `setPassword`, `sendPasswordReset` (+ `signin`/`set_password`/`forgot_password` screens). Verified via `scripts/verify_password_auth.mts`. |
+| Biometric launch gate + encrypted session storage | 🟢 | `AuthGate` (Face/Touch ID on cold launch) + `secureStorage`; opt-in via `enable_faceid`. Not device-tested. |
 | Dev sign-in (seeded accounts, password) | ✅ | `__DEV__`-only shortcut; works on cloud. Use this to click through today. |
 | One account / multiple roles, role switch | 🟢 | `user_roles` + `activeRole`; onboarding sets role. |
 | Profile photo upload | 🔴 | `TODO(api)` in `t2`/`edit_personal` — no storage upload wired. |
@@ -33,14 +40,15 @@ The big missing pieces are **real money (Stripe)**, the **Ambassador program**, 
 | Edit personal info / courses | 🟢 | `profile.updatePersonal`, `setCourses`. |
 | Tutor profile (bio, subjects, rates, courses) | 🟢 | `updateTutorProfile`, `updateRates`, `setTutorCourses`. |
 | Set weekly availability (write) | 🟢 | `profile.updateAvailability`. |
-| **Read** availability for booking calendar | 🔴 | No read endpoint — booking screen (`b1`) shows **demo** slots. Gap. |
+| **Read** availability endpoint | 🟢 | `tutors.getAvailability(tutorId)` built in core. |
+| **Read** availability wired into UI | 🔴 | Endpoint exists but **no screen consumes it** — booking `b1`/`b3` and `edit_availability` still show **demo** slots (`TODO(api)` in-code). Next step: wire the calendar. |
 | Tutor transcript upload for approval | 🔴 | PRD wants transcript → admin review. Not built. |
 
 ## Tutor discovery
 
 | Feature | Status | Notes |
 |---|---|---|
-| Search tutors (all / by course) | ✅ | `tutors.search`. Only `approved` tutors shown. Verified. |
+| Search tutors (all / by course / by category) | ✅ | `tutors.search` (`course` + `categoryPrefixes`). Browse tabs filter by category. Only `approved` tutors shown. |
 | Tutor detail | 🟢 | `tutors.getById`. |
 | Save / unsave / list saved | ✅ | Verified (RLS-scoped writes). |
 
@@ -54,7 +62,7 @@ The big missing pieces are **real money (Stripe)**, the **Ambassador program**, 
 | Reschedule (propose/accept, 3-max rule) | 🟢 | `reschedule-booking` deployed + wired; not click-driven yet. |
 | Report no-show (3-strike escalation) | 🟢 | `report-no-show` deployed + wired; not click-driven yet. |
 | Booking validation vs availability/overlap | 🟡 | PRD wants scheduled_at inside an availability window + no overlap. Server doesn't enforce this yet. |
-| Past / completed sessions list | 🔴 | No endpoint — `sessions` "Past" tab is demo data. |
+| Past / completed sessions list | 🟢 | `listPast` built + wired into `sessions.tsx` "Past" tab (real rows). |
 | Auto-complete 24h after session (cron) | 🔴 | Not built. |
 
 ## Payments & money  ⚠️ all simulated
@@ -71,6 +79,7 @@ The big missing pieces are **real money (Stripe)**, the **Ambassador program**, 
 | Feature | Status | Notes |
 |---|---|---|
 | Conversations + send/read messages | 🟢 | `chat.getOrCreateConversation/listMessages/sendMessage/listConversations`. |
+| Counterparty display names | 🟢 | `resolve-participants` edge function (deployed) resolves real names — replaces hardcoded "Lindsay Thomas" in chat/sessions lists. |
 | Realtime message updates | 🟡 | `chat.subscribe` implemented but **never exercised** — unverified. |
 | Attachments (images/files) | 🔴 | No table/upload; `TODO(api)` in `chat`. |
 
@@ -117,8 +126,10 @@ The big missing pieces are **real money (Stripe)**, the **Ambassador program**, 
 1. **Real money (Stripe)** — biggest gap and gates real launch: `create-payment-intent`
    (real held charge), `stripe-webhook`, `complete-session` (capture + payout), Connect
    onboarding. Everything else is simulated until this lands.
-2. **Close the booking loop's honest gaps** — availability **read** endpoint (so the
-   calendar isn't demo data) + server-side booking validation; past-sessions endpoint.
+2. **Close the booking loop's honest gaps** — **wire `tutors.getAvailability` into the
+   booking calendar** (`b1`/`b3`) and `edit_availability` (endpoint exists; UI still demo)
+   + server-side booking validation (scheduled_at inside a window, no overlap).
+   _(Past-sessions endpoint is now DONE.)_
 3. **Admin + tutor approval** — transcript upload + `approve-tutor` so real tutors can go
    live (today they must be seeded pre-approved).
 4. **Ambassador program** — entirely unbuilt; whole feature (API + functions + UI).
