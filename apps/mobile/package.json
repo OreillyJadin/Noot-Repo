@@ -5,6 +5,7 @@
   "main": "expo-router/entry",
   "scripts": {
     "dev": "expo start",
+    "dev:tunnel": "expo start --tunnel",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
@@ -35,6 +36,7 @@
     "react-native-web": "~0.21.2"
   },
   "devDependencies": {
+    "@expo/ngrok": "^4.1.0",
     "@noot/config": "workspace:*",
     "@types/react": "^19.1.17",
     "@types/react-dom": "~19.1.0",
