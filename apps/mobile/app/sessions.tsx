@@ -5,35 +5,20 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Alert, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Badge, Chip, Button, Ic, H1, TabBar, useTheme } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Badge, Chip, Button, Ic, H1, TabBar, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { useTabNav } from '../lib/useTabNav';
 import { api } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS, tutorById, toTutor, type Tutor } from '../lib/data';
+import { TUTORS, toTutor, type Tutor } from '../lib/data';
 
 type SegmentKey = 'upcoming' | 'past' | 'saved';
-
-interface DemoSession {
-  id: string;
-  course: string;
-  when: string;
-  where?: string;
-  soon?: boolean;
-  rated?: boolean;
-}
 
 /** An upcoming booking joined with its resolved tutor (name/rate come from getById). */
 interface UpcomingItem {
   booking: Booking;
   tutor: Tutor | null;
 }
-
-// TODO(api): no past-sessions endpoint — keep demo Past data until one exists.
-const PAST: DemoSession[] = [
-  { id: 'maya', course: 'MGT 300', when: 'Last Tue · 4:00 PM', rated: true },
-  { id: 'alex', course: 'MGT 300', when: 'Last Thu · 1:30 PM', rated: false },
-];
 
 /** Format a booking's scheduledAt into the "Today · 3:00 PM" style the card uses. */
 function formatWhen(iso: string): string {
@@ -73,6 +58,10 @@ export default function Sessions() {
   const [upcoming, setUpcoming] = useState<UpcomingItem[]>([]);
   // Saved: the student's saved-tutors list.
   const [saved, setSaved] = useState<Tutor[]>([]);
+  const [past, setPast] = useState<UpcomingItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [savedLoading, setSavedLoading] = useState(true);
+  const [pastLoading, setPastLoading] = useState(true);
   useEffect(() => {
     let active = true;
     api
@@ -86,7 +75,8 @@ export default function Sessions() {
         );
         if (active) setUpcoming(items);
       })
-      .catch(() => { /* no session / offline → keep empty */ });
+      .catch(() => { /* no session / offline → empty state */ })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
   useEffect(() => {
@@ -94,7 +84,26 @@ export default function Sessions() {
     api.tutors
       .listSaved()
       .then((list) => { if (active) setSaved(list.map(toTutor)); })
-      .catch(() => { /* no session / offline → keep empty */ });
+      .catch(() => { /* no session / offline → empty state */ })
+      .finally(() => { if (active) setSavedLoading(false); });
+    return () => { active = false; };
+  }, []);
+  // Past: real completed/elapsed sessions, each joined to its (approved) tutor.
+  useEffect(() => {
+    let active = true;
+    api
+      .listPast()
+      .then(async (bookings) => {
+        const items = await Promise.all(
+          bookings.map(async (b) => {
+            const summary = await api.tutors.getById(b.tutorId).catch(() => null);
+            return { booking: b, tutor: summary ? toTutor(summary) : null } as UpcomingItem;
+          }),
+        );
+        if (active) setPast(items);
+      })
+      .catch(() => { /* no session / offline → empty state */ })
+      .finally(() => { if (active) setPastLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -103,10 +112,6 @@ export default function Sessions() {
   const message = (tutor: Tutor) => {
     patchBooking({ tutor });
     router.push('/chat');
-  };
-  const bookAgain = (tutor: Tutor, course?: string) => {
-    patchBooking({ tutor, course: course || 'MGT 300', slot: undefined, dayIndex: undefined, tag: undefined, message: '' });
-    router.push('/b3');
   };
   // Change/completion flows act on a real booking id. Upcoming items carry `b.id`;
   // when reached without one (e.g. the dev launcher), we keep the old local behavior so
@@ -151,21 +156,6 @@ export default function Sessions() {
       Alert.alert('Something went wrong', 'Could not open no-show report. Please try again.');
     }
   };
-  const rate = (tutor: Tutor, bookingId?: string) => {
-    // TODO(api): Past items are demo data with no real booking id, so we can't call the
-    // real rating mutation yet — Past needs real booking ids from a past-sessions
-    // endpoint. Until then, keep the current local behavior of just opening /c1.
-    try {
-      if (!bookingId) {
-        router.push('/c1');
-        return;
-      }
-      patchBooking({ tutor, bookingId });
-      router.push('/c1');
-    } catch (e) {
-      Alert.alert('Something went wrong', 'Could not open rating. Please try again.');
-    }
-  };
   const openTutor = (tutor: Tutor, course?: string) => {
     patchBooking({ tutor, course: course || 'MGT 300' });
     router.push('/b2');
@@ -191,6 +181,20 @@ export default function Sessions() {
       </View>
       <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 4 }}>
         {tab === 'saved' ? (
+          savedLoading ? (
+            <View style={{ gap: 10 }}>
+              <Skeleton height={84} radius={16} />
+              <Skeleton height={84} radius={16} />
+            </View>
+          ) : saved.length === 0 ? (
+            <EmptyState
+              icon="bookmark"
+              title="No saved tutors yet"
+              subtitle="Tap the bookmark on any tutor to keep them here for later."
+              actionLabel="Find tutors"
+              onAction={() => router.replace('/student_home')}
+            />
+          ) : (
           <View style={{ gap: 10 }}>
             <Text style={[styles.count, { color: t.text3 }]}>{saved.length} tutors saved for later</Text>
             {saved.map((tutor) => {
@@ -219,7 +223,22 @@ export default function Sessions() {
               );
             })}
           </View>
+          )
         ) : tab === 'upcoming' ? (
+          loading ? (
+            <View style={{ gap: 12 }}>
+              <Skeleton height={150} radius={16} />
+              <Skeleton height={150} radius={16} />
+            </View>
+          ) : upcoming.length === 0 ? (
+            <EmptyState
+              icon="cal"
+              title="No upcoming sessions"
+              subtitle="Book a tutor and your sessions will show up here."
+              actionLabel="Find a tutor"
+              onAction={() => router.replace('/student_home')}
+            />
+          ) : (
           <View style={{ gap: 12 }}>
             {upcoming.map(({ booking: b, tutor: joined }) => {
               const tutor = joined ?? TUTORS[0]!;
@@ -269,35 +288,29 @@ export default function Sessions() {
               );
             })}
           </View>
+          )
+        ) : pastLoading ? (
+          <View style={{ gap: 12 }}>
+            <Skeleton height={90} radius={16} />
+            <Skeleton height={90} radius={16} />
+          </View>
+        ) : past.length === 0 ? (
+          <EmptyState icon="list" title="No past sessions yet" subtitle="Your completed sessions will appear here." />
         ) : (
-          <View style={{ gap: 10 }}>
-            {/* TODO(api): no past-sessions endpoint — Past stays demo data (see PAST above).
-                These items have no real booking id, so the Rate action can't yet run the
-                real rating mutation; a past-sessions endpoint must supply real ids. */}
-            {PAST.map((s, i) => {
-              const tutor = tutorById(s.id) ?? TUTORS[0]!;
+          <View style={{ gap: 12 }}>
+            {past.map(({ booking: b, tutor: joined }) => {
+              const tutor = joined ?? TUTORS[0]!;
               return (
-                <Card key={i} style={{ padding: 14 }}>
+                <Card key={b.id} style={{ padding: 14 }}>
                   <View style={styles.pastHead}>
                     <Avatar size={44} />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.nameSm, { color: t.text }]}>{tutor.name}</Text>
                       <Text style={[styles.sub, { color: t.text3 }]}>
-                        {s.course} · {s.when}
+                        {b.subject} · {formatWhen(b.scheduledAt)}
                       </Text>
                     </View>
-                    {s.rated ? (
-                      <Badge label="✓ Rated" tone="neutral" />
-                    ) : (
-                      // TODO(api): rating submit is wired in the /c1 flow. Past items are
-                      // demo with no real booking id, so rate() falls back to the local
-                      // behavior until real ids exist.
-                      <Button label="Rate" kind="primary" size="sm" onPress={() => rate(tutor)} />
-                    )}
-                  </View>
-                  <View style={styles.btnRow}>
-                    <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
-                    <Button label="Book again" kind="tint" size="sm" iconRight="plus" style={{ flex: 1 }} onPress={() => bookAgain(tutor, s.course)} />
+                    <Button label="Message" kind="secondary" size="sm" iconRight="chat" onPress={() => message(tutor)} />
                   </View>
                 </Card>
               );

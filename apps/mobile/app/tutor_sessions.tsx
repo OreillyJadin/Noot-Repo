@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Card, Avatar, Ic, H2, useTheme } from '@noot/ui';
+import { Body, TabBar, Card, Avatar, Ic, H2, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { tutorById } from '../lib/data';
@@ -27,17 +27,8 @@ function formatWhen(iso: string): string {
 
 interface UpRow { name: string; av: string; course: string; when: string; where: string; pay: string; }
 
-// Demo fallback shown before data loads or when there's no session.
-const UPCOMING_DEMO: UpRow[] = [
-  { name: 'Lindsay Thomas', av: 'L', course: 'MGT 300', when: 'Tomorrow · 3:00 PM', where: 'Gorgas Library, Fl 2', pay: '$28' },
-  { name: 'Marcus B.', av: 'M', course: 'MGT 300', when: 'Thu Jun 25 · 10:30 AM', where: 'Online — Integrated Video', pay: '$28' },
-];
-
-// TODO(api): no read endpoint for past/completed sessions — demo values.
-const PAST: [string, string, string, string, string][] = [
-  ['Priya S.', 'P', 'CH 101', 'Jun 12 · 2:00 PM', '$25'],
-  ['Jordan K.', 'J', 'CH 102', 'Jun 5 · 4:30 PM', '$30'],
-];
+// Upcoming is live (api.listUpcoming, tutor side). Past has no read endpoint yet
+// (Phase 5 gap) so it renders an empty state until one exists.
 
 export default function TutorSessions() {
   const t = useTheme();
@@ -45,14 +36,16 @@ export default function TutorSessions() {
   const { patchBooking, role } = useApp();
   const [tab, setTab] = useState<Tab>('upcoming');
 
-  // Upcoming: live confirmed future sessions for the signed-in tutor; demo fallback otherwise.
-  const [upcoming, setUpcoming] = useState<UpRow[]>(UPCOMING_DEMO);
+  // Upcoming: live confirmed future sessions for the signed-in tutor.
+  const [upcoming, setUpcoming] = useState<UpRow[]>([]);
+  const [past] = useState<UpRow[]>([]); // TODO(api): no past-sessions read endpoint yet (Phase 5 gap)
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
     api
       .listUpcoming()
       .then((bookings) => {
-        if (!active || bookings.length === 0) return; // no upcoming → keep demo fallback
+        if (!active) return;
         setUpcoming(
           bookings.map((b) => {
             // TODO(api): no endpoint to resolve a booking's student name from studentId.
@@ -68,7 +61,8 @@ export default function TutorSessions() {
           }),
         );
       })
-      .catch(() => { /* no session / offline → keep demo fallback */ });
+      .catch(() => { /* no session / offline → empty state */ })
+      .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -107,40 +101,51 @@ export default function TutorSessions() {
 
       <Body ref={scrollRef} contentStyle={{ paddingTop: 14 }}>
         {tab === 'upcoming' ? (
-          <View style={{ gap: 10 }}>
-            {upcoming.map((r, i) => (
-              <Card key={i} onPress={openDetail} style={{ padding: 14 }}>
-                <View style={styles.upcomingRow}>
-                  <Avatar size={44} label={r.av} />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <View style={styles.rowBetween}>
-                      <Text style={[styles.name, { color: t.text }]}>{r.name}</Text>
-                      <Text style={[styles.pay, { color: t.good }]}>{r.pay}</Text>
-                    </View>
-                    <Text style={[styles.meta, { color: t.text3 }]}>
-                      {r.course} · {r.when}
-                    </Text>
-                    <View style={styles.whereRow}>
-                      <Ic name={r.where.startsWith('Online') ? 'video' : 'pin'} size={13} color={t.accent} strokeWidth={1.8} />
-                      <Text style={[styles.whereText, { color: t.text2 }]}>{r.where}</Text>
+          loading ? (
+            <View style={{ gap: 10 }}>
+              <Skeleton height={92} radius={16} />
+              <Skeleton height={92} radius={16} />
+            </View>
+          ) : upcoming.length === 0 ? (
+            <EmptyState icon="cal" title="No upcoming sessions" subtitle="Sessions students book with you will show up here." />
+          ) : (
+            <View style={{ gap: 10 }}>
+              {upcoming.map((r, i) => (
+                <Card key={i} onPress={openDetail} style={{ padding: 14 }}>
+                  <View style={styles.upcomingRow}>
+                    <Avatar size={44} label={r.av} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={styles.rowBetween}>
+                        <Text style={[styles.name, { color: t.text }]}>{r.name}</Text>
+                        <Text style={[styles.pay, { color: t.good }]}>{r.pay}</Text>
+                      </View>
+                      <Text style={[styles.meta, { color: t.text3 }]}>
+                        {r.course} · {r.when}
+                      </Text>
+                      <View style={styles.whereRow}>
+                        <Ic name={r.where.startsWith('Online') ? 'video' : 'pin'} size={13} color={t.accent} strokeWidth={1.8} />
+                        <Text style={[styles.whereText, { color: t.text2 }]}>{r.where}</Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              </Card>
-            ))}
-          </View>
+                </Card>
+              ))}
+            </View>
+          )
+        ) : past.length === 0 ? (
+          <EmptyState icon="list" title="No past sessions yet" subtitle="Your completed sessions will appear here." />
         ) : (
           <View style={{ gap: 10 }}>
-            {PAST.map(([n, av, course, when, pay], i) => (
+            {past.map((r, i) => (
               <Card key={i} style={styles.pastRow}>
-                <Avatar size={44} label={av} />
+                <Avatar size={44} label={r.av} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.name, { color: t.text }]}>{n}</Text>
+                  <Text style={[styles.name, { color: t.text }]}>{r.name}</Text>
                   <Text style={[styles.meta, { color: t.text3 }]}>
-                    {course} · {when}
+                    {r.course} · {r.when}
                   </Text>
                 </View>
-                <Text style={[styles.pastPay, { color: t.text2 }]}>{pay}</Text>
+                <Text style={[styles.pastPay, { color: t.text2 }]}>{r.pay}</Text>
               </Card>
             ))}
           </View>

@@ -11,6 +11,7 @@ import { initSupabase } from '@noot/core';
 import { AppProvider } from '../lib/store';
 import { AuthGate } from '../lib/AuthGate';
 import { largeSecureStore } from '../lib/secureStorage';
+import { ThemePrefProvider, useThemePref } from '../lib/themePref';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -25,17 +26,39 @@ if (url && anonKey) {
   });
 }
 
+// Reads the persisted dark-mode preference and feeds it into the theme + status bar.
+function ThemedApp() {
+  const { dark } = useThemePref();
+  return (
+    <ThemeProvider direction="sage" dark={dark}>
+      <AppProvider>
+        <StatusBar style={dark ? 'light' : 'dark'} />
+        <AuthGate>
+          {/* Tab roots cross-fade instead of the jerky horizontal slide; drill-down
+              screens (booking, edit, etc.) keep the default push animation. */}
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="home" options={{ animation: 'fade' }} />
+            <Stack.Screen name="student_home" options={{ animation: 'fade' }} />
+            <Stack.Screen name="sessions" options={{ animation: 'fade' }} />
+            <Stack.Screen name="saved" options={{ animation: 'fade' }} />
+            <Stack.Screen name="profile" options={{ animation: 'fade' }} />
+            <Stack.Screen name="tutor_home" options={{ animation: 'fade' }} />
+            <Stack.Screen name="tutor_calendar" options={{ animation: 'fade' }} />
+            <Stack.Screen name="tutor_sessions" options={{ animation: 'fade' }} />
+            <Stack.Screen name="tutor_profile" options={{ animation: 'fade' }} />
+          </Stack>
+        </AuthGate>
+      </AppProvider>
+    </ThemeProvider>
+  );
+}
+
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <ThemeProvider direction="sage" dark={false}>
-        <AppProvider>
-          <StatusBar style="auto" />
-          <AuthGate>
-            <Stack screenOptions={{ headerShown: false }} />
-          </AuthGate>
-        </AppProvider>
-      </ThemeProvider>
+      <ThemePrefProvider>
+        <ThemedApp />
+      </ThemePrefProvider>
     </SafeAreaProvider>
   );
 }

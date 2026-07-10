@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, useTheme, type IconName } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { tutorById } from '../lib/data';
@@ -82,7 +82,7 @@ export default function TutorHome() {
   const t = useTheme();
   const router = useRouter();
   const { patchBooking, role } = useApp();
-  const { me } = useMe();
+  const { me, loading } = useMe();
 
   // Next confirmed, future session (as tutor OR student) from the live API.
   const [next, setNext] = useState<Booking | null>(null);
@@ -116,7 +116,7 @@ export default function TutorHome() {
         <View style={styles.welcomeRow}>
           <View>
             <Text style={[styles.welcomeLabel, { color: t.text3 }]}>Tutor dashboard</Text>
-            <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>
+            {loading ? <Skeleton width={150} height={26} /> : <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>}
           </View>
           <Text style={{ fontSize: 40 }}>🦎</Text>
         </View>

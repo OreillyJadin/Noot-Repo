@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Badge, Field, Ic, H2, Muted, TabBar, useTheme } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Badge, Field, Ic, H2, Muted, TabBar, Skeleton, EmptyState, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -63,7 +63,7 @@ export default function StudentHome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { patchBooking, role } = useApp();
-  const { me } = useMe();
+  const { me, loading: meLoading } = useMe();
   const [tab, setTab] = useState(0);
 
   const cat = CATS[tab] ?? CATS[0];
@@ -95,22 +95,33 @@ export default function StudentHome() {
         <View style={styles.headerRow}>
           <View>
             <Muted style={styles.welcome}>Welcome back</Muted>
-            <H2 style={styles.name}>Hey, {firstName(me, 'there')}</H2>
+            {meLoading ? <Skeleton width={140} height={24} /> : <H2 style={styles.name}>Hey, {firstName(me, 'there')}</H2>}
           </View>
           <Avatar size={40} />
         </View>
 
-        {/* Tapping anywhere on the field opens Search (B1); it isn't a live text input here. */}
-        <Pressable onPress={openSearch}>
-          <View pointerEvents="none">
-            <Field
-              placeholder="What class? e.g. MGT 300"
-              value=""
-              prefix={<Ic name="search" size={18} color={t.text3} strokeWidth={1.8} />}
-              suffix={<Ic name="sliders" size={18} color={t.accent} strokeWidth={1.8} />}
-            />
-          </View>
-        </Pressable>
+        {/* Field opens Search (B1); the sliders button opens B1 with its filter sheet
+            (price / availability / gender). Neither is a live text input here. */}
+        <View style={styles.searchRow}>
+          <Pressable style={{ flex: 1 }} onPress={openSearch}>
+            <View pointerEvents="none">
+              <Field
+                placeholder="What class? e.g. MGT 300"
+                value=""
+                prefix={<Ic name="search" size={18} color={t.text3} strokeWidth={1.8} />}
+              />
+            </View>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push('/b1?filters=1')}
+            style={[styles.filterBtn, { backgroundColor: t.surface, borderColor: t.borderStrong }]}
+            accessibilityRole="button"
+            accessibilityLabel="Filters"
+            hitSlop={6}
+          >
+            <Ic name="sliders" size={20} color={t.accent} strokeWidth={1.8} />
+          </Pressable>
+        </View>
       </View>
 
       <View style={[styles.tabs, { borderBottomColor: t.border }]}>
@@ -159,9 +170,13 @@ export default function StudentHome() {
         </View>
         <View style={styles.list}>
           {loading ? (
-            <Muted style={styles.listNote}>Loading tutors…</Muted>
+            <View style={{ gap: 10 }}>
+              <Skeleton height={72} radius={14} />
+              <Skeleton height={72} radius={14} />
+              <Skeleton height={72} radius={14} />
+            </View>
           ) : rows.length === 0 ? (
-            <Muted style={styles.listNote}>No tutors yet.</Muted>
+            <EmptyState icon="search" title="No tutors yet" subtitle="Tutors for your courses will show up here soon." />
           ) : (
             rows.map((tutor) => (
               <TutorRow key={tutor.id} tutor={tutor} onPress={() => openTutor(tutor)} />
@@ -178,6 +193,8 @@ export default function StudentHome() {
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 6, gap: 12 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  filterBtn: { width: 50, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   welcome: { fontSize: 13 },
   name: { fontSize: 22 },
   tabs: { flexDirection: 'row', gap: 18, paddingHorizontal: 20, borderBottomWidth: 1 },

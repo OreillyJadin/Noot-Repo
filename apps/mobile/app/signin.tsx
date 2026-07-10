@@ -81,7 +81,7 @@ export default function SignIn() {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
       <View style={styles.nav}>
-        <Text onPress={() => router.back()} style={[styles.back, { color: t.accent }]}>‹ Back</Text>
+        <Text numberOfLines={1} onPress={() => router.back()} style={[styles.back, { color: t.accent }]}>‹ Back</Text>
         <Text style={[styles.navTitle, { color: t.text }]}>Sign in</Text>
         <View style={{ width: 48 }} />
       </View>
@@ -137,7 +137,7 @@ export default function SignIn() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  back: { fontSize: 16, fontWeight: '600', width: 48 },
+  back: { fontSize: 16, fontWeight: '600', minWidth: 48 },
   navTitle: { fontSize: 16, fontWeight: '700' },
   body: { padding: 20, gap: 16 },
   h1: { fontSize: 26, fontWeight: '700' },

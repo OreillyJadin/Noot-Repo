@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, useTheme, type IconName } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { tutorById, toTutor, type Tutor } from '../lib/data';
@@ -120,7 +120,7 @@ export default function Home() {
   const t = useTheme();
   const router = useRouter();
   const { patchBooking, role } = useApp();
-  const { me } = useMe();
+  const { me, loading } = useMe();
 
   // Next session: live from api.listUpcoming()[0] when there's a session; demo fallback otherwise.
   const sara = tutorById('sara')!;
@@ -185,7 +185,7 @@ export default function Home() {
         <View style={styles.welcomeRow}>
           <View>
             <Text style={[styles.welcomeLabel, { color: t.text3 }]}>Welcome back</Text>
-            <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>
+            {loading ? <Skeleton width={150} height={26} /> : <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>}
           </View>
           <Text style={{ fontSize: 40 }}>🦎</Text>
         </View>

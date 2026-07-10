@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Badge, Ic, H1, TabBar, useTheme } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Badge, Ic, H1, TabBar, EmptyState, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -78,7 +78,13 @@ export default function Saved() {
             </Card>
           ))}
           {!loading && tutors.length === 0 ? (
-            <Text style={[styles.count, { color: t.text3, marginTop: 8 }]}>No saved tutors yet.</Text>
+            <EmptyState
+              icon="bookmark"
+              title="No saved tutors yet"
+              subtitle="Tap the bookmark on any tutor to keep them here."
+              actionLabel="Find tutors"
+              onAction={() => router.replace('/student_home')}
+            />
           ) : null}
         </View>
       </Body>

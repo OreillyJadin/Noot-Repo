@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, Card, Chip, Badge, Avatar, Button, H2, Label, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -61,6 +61,7 @@ export default function B1() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { patchBooking, booking } = useApp();
+  const { filters } = useLocalSearchParams<{ filters?: string }>();
   const course = booking.course ?? 'MGT 300';
 
   const [tutors, setTutors] = useState<Tutor[]>([]);
@@ -76,7 +77,8 @@ export default function B1() {
   }, [course]);
 
   const [sort, setSort] = useState<SortKey>('best');
-  const [filterOpen, setFilterOpen] = useState(false);
+  // Deep-linked from the browse screen's filter button (/b1?filters=1) → open the sheet.
+  const [filterOpen, setFilterOpen] = useState(filters === '1');
   const [maxPrice, setMaxPrice] = useState(MAX_PRICE);
   const [avail, setAvail] = useState<AvailKey>('any');
   const [gender, setGender] = useState<GenderKey>('any');

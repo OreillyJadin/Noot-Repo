@@ -6,9 +6,10 @@ import React, { useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, useTheme, type IconName } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
+import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
 
 // TODO(api): tutor teaching stats (sessions taught, avg rating, hours) — no stats
@@ -70,8 +71,8 @@ export default function TutorProfile() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { role, setRole } = useApp();
-  const { me } = useMe();
-  const [dark, setDark] = useState(false);
+  const { me, loading } = useMe();
+  const { dark, toggle: toggleDark } = useThemePref();
 
   const meName = fullName(me, 'Tutor');
   const meFirst = firstName(me, 'T');
@@ -109,7 +110,7 @@ export default function TutorProfile() {
               </Pressable>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <H2 style={styles.name}>{meName}</H2>
+              {loading ? <Skeleton width={160} height={22} /> : <H2 style={styles.name}>{meName}</H2>}
               <Text style={[styles.sub, { color: t.text3 }]}>
                 {meYearMajor}
               </Text>
@@ -165,7 +166,7 @@ export default function TutorProfile() {
         <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Preferences</Eyebrow>
         <Card style={styles.cardNoPad}>
           <Row icon="bell" label="Notifications" sub="Reminders, messages, offers" onPress={() => notify('Notification settings')} />
-          <Row icon="gear" label="Dark mode" control={<Toggle on={dark} onPress={() => setDark((d) => !d)} />} />
+          <Row icon="gear" label="Dark mode" control={<Toggle on={dark} onPress={toggleDark} />} />
           <Row icon="help" label="Help & support" onPress={() => notify('Help center')} last />
         </Card>
 
