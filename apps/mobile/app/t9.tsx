@@ -5,6 +5,7 @@ import { View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Badge, Avatar, H2, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { useMe } from '../lib/useMe';
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -43,6 +44,9 @@ function StepHead({
 export default function T9() {
   const t = useTheme();
   const router = useRouter();
+  const { me } = useMe();
+  const previewName = me ? `${me.firstName} ${me.lastName ? me.lastName.charAt(0) + '.' : ''}`.trim() : 'Your name';
+  const previewMeta = [me?.year, me?.major].filter(Boolean).join(' · ') || 'Year · Major';
 
   return (
     <Screen>
@@ -55,8 +59,8 @@ export default function T9() {
           <View style={styles.previewHead}>
             <Avatar size={56} />
             <View style={{ flex: 1 }}>
-              <H2 style={{ fontSize: 18 }}>Lindsay T.</H2>
-              <Text style={[styles.previewSub, { color: t.text3 }]}>Junior · Chemistry</Text>
+              <H2 style={{ fontSize: 18 }}>{previewName}</H2>
+              <Text style={[styles.previewSub, { color: t.text3 }]}>{previewMeta}</Text>
               <View style={styles.courseBadges}>
                 <Badge label="CH 101" tone="accentSoft" />
                 <Badge label="CH 102" tone="accentSoft" />

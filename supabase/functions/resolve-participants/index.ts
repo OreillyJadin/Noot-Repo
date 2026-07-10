@@ -46,15 +46,20 @@ Deno.serve(async (req: Request) => {
       if (other && other !== user.id) counterpartyIds.add(other);
     }
 
-    const names: Record<string, { firstName: string; lastName: string }> = {};
+    const names: Record<string, { firstName: string; lastName: string; year: string | null; major: string | null }> = {};
     if (counterpartyIds.size > 0) {
       const { data: users, error: uErr } = await db
         .from('users')
-        .select('id, first_name, last_name')
+        .select('id, first_name, last_name, year, major')
         .in('id', [...counterpartyIds]);
       if (uErr) return Response.json({ error: uErr.message }, { status: 400, headers: cors });
       for (const u of users ?? []) {
-        names[u.id] = { firstName: u.first_name ?? '', lastName: u.last_name ?? '' };
+        names[u.id] = {
+          firstName: u.first_name ?? '',
+          lastName: u.last_name ?? '',
+          year: u.year ?? null,
+          major: u.major ?? null,
+        };
       }
     }
 

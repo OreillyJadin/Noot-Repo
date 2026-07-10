@@ -1,20 +1,27 @@
 // B2 Tutor Profile — ported from design_handoff_noot_app/app/screens-booking.jsx (B2).
-// Shows the tutor selected in B1 (booking.tutor); falls back to TUTORS[0] so this
-// screen never crashes if it's opened directly. "Book a session" carries the tutor
-// (+ chosen course) forward into B3.
+// Shows the tutor selected in B1 (booking.tutor); if opened without one it renders
+// <NoSession/> instead of a fake tutor. "Book a session" carries the tutor
+// (+ chosen course) forward into B3. Reviews load live via reviews.listForTutor.
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Avatar, H1, Sub, Eyebrow, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS, toReview, type Review } from '../lib/data';
+import { toReview, type Review } from '../lib/data';
+import { NoSession } from '../lib/NoSession';
 
 export default function B2() {
+  const { booking } = useApp();
+  if (!booking.tutor) return <NoSession />;
+  return <B2Inner />;
+}
+
+function B2Inner() {
   const t = useTheme();
   const router = useRouter();
   const { booking, patchBooking } = useApp();
-  const tutor = booking.tutor ?? TUTORS[0]!;
+  const tutor = booking.tutor!;
   const minRate = Math.min(...tutor.courses.map((c) => c[2]));
   const activeCourse = booking.course ?? tutor.courses[0]?.[0] ?? '';
 

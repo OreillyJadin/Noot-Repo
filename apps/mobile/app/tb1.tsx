@@ -9,10 +9,8 @@ import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Avatar, Divider, H1, Sub, Ic, useTheme } from '@noot/ui';
 import { useApp, type BookingDraft } from '../lib/store';
 import { DAYS, type Tutor } from '../lib/data';
+import { useCounterpart } from '../lib/useCounterpart';
 
-// TODO(api): no endpoint for a booking's student identity (name/year/major) — a Booking
-// only carries studentId, and there's no generic getUserById. Keep this demo value.
-const STUDENT = { name: 'Lindsay Thomas', first: 'Lindsay', year: 'Sophomore', major: 'Pre-Business' };
 const FEE_RATE = 0.175; // 15–20% platform fee; using 17.5% midpoint
 
 function sessionFacts(booking: BookingDraft, tutor?: Tutor) {
@@ -39,6 +37,8 @@ export default function TB1() {
   const { booking } = useApp();
   // Session + payout come from the booking draft carried through the flow (store).
   const tutor = booking.tutor; // no TUTORS[0] demo fallback — sessionFacts degrades safely.
+  const student = useCounterpart(booking.studentId);
+  const studentMeta = [student.year, student.major].filter(Boolean).join(' · ');
   const f = sessionFacts(booking, tutor);
   const dayWord = f.dayObj.label === 'Today' ? 'today' : f.dayObj.label === 'Tomorrow' ? 'tomorrow' : f.dayObj.label;
 
@@ -58,7 +58,7 @@ export default function TB1() {
           </View>
           <H1 style={{ fontSize: 26, marginTop: 22, textAlign: 'center' }}>You&apos;ve got a session!</H1>
           <Sub style={{ marginTop: 8, maxWidth: 280, textAlign: 'center' }}>
-            <Text style={{ color: t.text, fontWeight: '700' }}>{STUDENT.first}</Text> booked{' '}
+            <Text style={{ color: t.text, fontWeight: '700' }}>{student.first}</Text> booked{' '}
             <Text style={{ color: t.text, fontWeight: '700' }}>{f.course}</Text> with you for {dayWord}.
           </Sub>
         </View>
@@ -66,10 +66,10 @@ export default function TB1() {
         {/* quick recap */}
         <Card style={{ marginTop: 26, padding: 16 }}>
           <View style={styles.row}>
-            <Avatar size={44} label={STUDENT.first[0]} />
+            <Avatar size={44} label={student.first[0]} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.name, { color: t.text }]}>{STUDENT.name}</Text>
-              <Text style={[styles.meta, { color: t.text3 }]}>{STUDENT.year} · {STUDENT.major}</Text>
+              <Text style={[styles.name, { color: t.text }]}>{student.name}</Text>
+              {studentMeta ? <Text style={[styles.meta, { color: t.text3 }]}>{studentMeta}</Text> : null}
             </View>
             <View style={[styles.confirmedPill, { backgroundColor: t.goodWeak }]}>
               <Ic name="check" size={11} color={t.good} strokeWidth={3} />

@@ -24,10 +24,11 @@ export default function C4() {
   const tutor = booking.tutor;
   const tutorFirst = tutor?.name.split(' ')[0] ?? 'your tutor';
 
-  // Net payout is still a client-side demo calc from the draft's rate/length.
-  // TODO(api): read the real net payout for this session (no earnings/payout read endpoint yet).
+  // Net payout is derived from the booking draft's real tutor rate + length (no fake
+  // fallback). TODO(api): read the booking's exact tutor_payout_amount once a
+  // single-booking read exists — this mirrors the server's fee math for now.
   const courseEntry = tutor?.courses.find((c) => c[0] === booking.course) ?? tutor?.courses[0];
-  const rate = courseEntry?.[2] ?? 28;
+  const rate = courseEntry?.[2] ?? 0;
   const lengthHours = (booking.lengthMin ?? 60) / 60;
   const gross = rate * lengthHours;
   const payout = gross - gross * FEE_RATE;
@@ -58,7 +59,7 @@ export default function C4() {
               <Text style={{ fontSize: 14, color: t.text2 }}>Releasing to</Text>
               <View style={styles.releasingTo}>
                 <Ic name="card" size={15} color={t.text2} strokeWidth={1.7} />
-                <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>Stripe · •••• 4242</Text>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>Your Stripe account</Text>
               </View>
             </View>
             <Divider style={{ marginVertical: 12 }} />

@@ -8,7 +8,8 @@ import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Chip, Badge, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS, DAYS, MONTHS } from '../lib/data';
+import { DAYS, MONTHS } from '../lib/data';
+import { NoSession } from '../lib/NoSession';
 
 type Status = 'idle' | 'wallet' | 'processing' | 'declined';
 
@@ -19,12 +20,17 @@ const POLICY_ROWS: [string, string, 'good' | 'neutral'][] = [
 ];
 
 export default function B4() {
+  const { booking } = useApp();
+  if (!booking.tutor) return <NoSession />;
+  return <B4Inner />;
+}
+
+function B4Inner() {
   const t = useTheme();
   const router = useRouter();
   const { booking, patchBooking } = useApp();
 
-  // Fall back to sane defaults — never render undefined if the draft is empty.
-  const tutor = booking.tutor ?? TUTORS[0]!;
+  const tutor = booking.tutor!;
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1] ?? DAYS[0]!;
   const lengthMin = booking.lengthMin ?? 60;
   const lenLabel = lengthMin === 30 ? '30 min' : `${lengthMin / 60} hr`;
@@ -62,7 +68,7 @@ export default function B4() {
       const pm = m[3]!.toUpperCase() === 'PM';
       if (pm && hh !== 12) hh += 12;
       if (!pm && hh === 12) hh = 0;
-      const d = new Date(2026, monthIdx, dayObj.dom, hh, mm, 0, 0); // demo calendar is 2026
+      const d = new Date(dayObj.year, monthIdx, dayObj.dom, hh, mm, 0, 0);
       if (Number.isNaN(d.getTime())) throw new Error('bad date');
       return d.toISOString();
     } catch {

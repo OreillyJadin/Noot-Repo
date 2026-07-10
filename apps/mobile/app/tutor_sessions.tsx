@@ -7,7 +7,6 @@ import { useRouter } from 'expo-router';
 import { Body, TabBar, Card, Avatar, Ic, H2, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { tutorById } from '../lib/data';
 import { useTabNav } from '../lib/useTabNav';
 
 type Tab = 'upcoming' | 'past';
@@ -33,7 +32,7 @@ interface UpRow { name: string; av: string; course: string; when: string; where:
 export default function TutorSessions() {
   const t = useTheme();
   const router = useRouter();
-  const { patchBooking, role } = useApp();
+  const { role } = useApp();
   const [tab, setTab] = useState<Tab>('upcoming');
 
   // Upcoming: live confirmed future sessions for the signed-in tutor.
@@ -73,8 +72,7 @@ export default function TutorSessions() {
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef, onReselect: () => setTab('upcoming') });
   const openDetail = () => {
-    // TODO(api): pass the tapped booking's real tutor/session once detail wiring lands.
-    patchBooking({ tutor: tutorById('sara') });
+    // TODO(api): pass the tapped booking id so tb2 can load this exact session.
     router.push('/tb2');
   };
 

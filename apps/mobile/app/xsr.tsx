@@ -8,7 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@noot/core';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, Divider, Ic, H1, H2, Sub, HeroIcon, useTheme } from '@noot/ui';
 import { useApp, type BookingDraft } from '../lib/store';
-import { TUTORS, DAYS, type Tutor } from '../lib/data';
+import { DAYS, type Tutor } from '../lib/data';
+import { NoSession } from '../lib/NoSession';
 
 function money(n: number): string {
   return '$' + n.toFixed(2).replace('.00', '');
@@ -27,12 +28,20 @@ function sessionFacts(booking: BookingDraft, tutor: Tutor) {
 type Result = 'accepted' | 'declined' | null;
 
 export default function XRescheduleRequest() {
+  const { booking } = useApp();
+  if (!booking.tutor) return <NoSession />;
+  return <XRescheduleRequestInner />;
+}
+
+function XRescheduleRequestInner() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { booking } = useApp();
-  const tutor = booking.tutor ?? TUTORS[0]!;
+  const tutor = booking.tutor!;
   const f = sessionFacts(booking, tutor);
+  // TODO(api): no read exposes a pending reschedule proposal's new time to the student,
+  // so the "New time" shown here is still a placeholder until that endpoint exists.
   const newDay = DAYS[3]!;
   const newSlot = '4:30 PM';
   const [result, setResult] = useState<Result>(null);

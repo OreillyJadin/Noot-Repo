@@ -9,7 +9,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, Card, Chip, Badge, Avatar, Button, H2, Label, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { toTutor, DAYS, slotsFor, type Tutor } from '../lib/data';
+import { toTutor, type Tutor } from '../lib/data';
+import { nextFromWindows } from '../lib/availability';
 
 type SortKey = 'best' | 'sessions' | 'price' | 'soon';
 type AvailKey = 'any' | 'today' | 'week';
@@ -37,18 +38,6 @@ const MAX_PRICE = 40;
 
 type TutorWithAvail = Tutor & { availDayIndex: number; availLabel: string };
 
-/** Demo next-available day/time for a tutor, derived client-side from the mock slot
- * calendar (same seed convention as b3.tsx: `tutor.name.charCodeAt(0) % 5`).
- * TODO(api): no availability-read endpoint yet — replace with real tutor availability. */
-function nextAvailability(tutor: Tutor): { dayIndex: number; label: string } {
-  const slots = slotsFor(tutor.name.charCodeAt(0) % 5);
-  const day = DAYS.find((d) => (slots[d.i]?.length ?? 0) > 0);
-  if (!day) return { dayIndex: 99, label: 'No upcoming availability' };
-  const time = slots[day.i]![0]!;
-  const dayLabel = day.i === 0 ? 'Today' : day.i === 1 ? 'Tomorrow' : day.dow;
-  return { dayIndex: day.i, label: `${dayLabel} ${time}` };
-}
-
 const SORTERS: Record<SortKey, (a: TutorWithAvail, b: TutorWithAvail) => number> = {
   best: (a, b) => b.rating * 10 - b.availDayIndex - (a.rating * 10 - a.availDayIndex),
   sessions: (a, b) => b.sessions - a.sessions,
@@ -65,12 +54,29 @@ export default function B1() {
   const course = booking.course ?? 'MGT 300';
 
   const [tutors, setTutors] = useState<Tutor[]>([]);
+  // Real next-available per tutor: userId -> { dayIndex, label }. Filled after each
+  // tutor's weekly availability loads (used for the "Next available" line + sorting).
+  const [availById, setAvailById] = useState<Record<string, { dayIndex: number; label: string }>>({});
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
+    setAvailById({});
     api.tutors
       .search({ course })
-      .then((list) => { if (active) setTutors(list.map(toTutor)); })
+      .then((list) => {
+        if (!active) return;
+        const mapped = list.map(toTutor);
+        setTutors(mapped);
+        // Fetch each tutor's availability in parallel and fold into availById.
+        mapped.forEach((tt) => {
+          api.tutors
+            .getAvailability(tt.id)
+            .then((windows) => {
+              if (active) setAvailById((prev) => ({ ...prev, [tt.id]: nextFromWindows(windows) }));
+            })
+            .catch(() => {});
+        });
+      })
       .catch(() => {})
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -86,8 +92,8 @@ export default function B1() {
     (maxPrice < MAX_PRICE ? 1 : 0) + (avail !== 'any' ? 1 : 0) + (gender !== 'any' ? 1 : 0);
 
   const withAvail: TutorWithAvail[] = tutors.map((tt) => {
-    const a = nextAvailability(tt);
-    return { ...tt, availDayIndex: a.dayIndex, availLabel: a.label };
+    const a = availById[tt.id];
+    return { ...tt, availDayIndex: a?.dayIndex ?? 99, availLabel: a?.label ?? 'Checking availability…' };
   });
   const filtered = withAvail.filter(
     (tt) =>

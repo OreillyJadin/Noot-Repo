@@ -35,6 +35,22 @@ const TUTORS = [
     [['MGT 300', 'A', 30, 44], ['MGT 486', 'A', 40, 12]]],
 ];
 
+// Recurring weekly availability per tutor (index-aligned with TUTORS above).
+// [dayOfWeek (0=Sun … 6=Sat), startTime "HH:MM", endTime "HH:MM"]. Varied so each
+// tutor's booking calendar looks different, with weekday + weekend coverage.
+const AVAIL = [
+  // Sara — weekday afternoons/evenings + Fri midday
+  [[1, '14:00', '18:00'], [2, '14:00', '18:00'], [3, '16:00', '20:00'], [4, '14:00', '18:00'], [5, '12:00', '16:00']],
+  // Devon — mornings, incl. Saturday
+  [[1, '09:00', '12:00'], [3, '09:00', '12:00'], [5, '09:00', '13:00'], [6, '10:00', '14:00']],
+  // Maya — evenings + Sunday afternoon
+  [[2, '17:00', '21:00'], [4, '17:00', '21:00'], [0, '13:00', '17:00']],
+  // Alex — consistent midday Mon–Fri
+  [[1, '12:00', '15:00'], [2, '12:00', '15:00'], [3, '12:00', '15:00'], [4, '12:00', '15:00'], [5, '12:00', '15:00']],
+  // Nina — weekend-heavy + Wed evening
+  [[0, '10:00', '14:00'], [3, '18:00', '21:00'], [5, '15:00', '19:00'], [6, '09:00', '12:00']],
+];
+
 const DEV_STUDENT = ['student@crimson.ua.edu', 'Lindsay', 'Carter', 'Sophomore', 'Undecided', 'f'];
 
 async function existingIdByEmail() {
@@ -58,7 +74,7 @@ async function ensureUser(email) {
   return data.user.id;
 }
 
-async function seedTutor(row) {
+async function seedTutor(row, idx) {
   const [email, first, last, year, major, gender, bio, grade, rating, sessions, courses] = row;
   const id = await ensureUser(email);
   const chk = (label, { error }) => { if (error) throw new Error(`${email} ${label}: ${error.message}`); };
@@ -72,12 +88,19 @@ async function seedTutor(row) {
   chk('courses', await admin.from('tutor_courses').insert(
     courses.map((c) => ({ tutor_id: id, course_code: c[0], grade: c[1], hourly_rate: c[2], sessions: c[3] })),
   ));
-  console.log(`✅ tutor ${email} (${courses.length} courses)`);
+  await admin.from('tutor_availability').delete().eq('tutor_id', id);
+  const av = AVAIL[idx] ?? [];
+  if (av.length) {
+    chk('availability', await admin.from('tutor_availability').insert(
+      av.map(([dow, st, et]) => ({ tutor_id: id, day_of_week: dow, start_time: st, end_time: et })),
+    ));
+  }
+  console.log(`✅ tutor ${email} (${courses.length} courses, ${av.length} availability windows)`);
 }
 
 const [se, sf, sl, sy, sm, sg] = DEV_STUDENT;
 const sid = await ensureUser(se);
 await admin.from('users').update({ first_name: sf, last_name: sl, year: sy, major: sm, gender: sg }).eq('id', sid);
 console.log(`✅ dev student ${se}`);
-for (const row of TUTORS) await seedTutor(row);
+for (let i = 0; i < TUTORS.length; i++) await seedTutor(TUTORS[i], i);
 console.log(`\nDone. Dev login — student: ${se} · tutor: ${TUTORS[0][0]} · password: ${PASSWORD}`);

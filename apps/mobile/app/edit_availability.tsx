@@ -3,11 +3,12 @@
 // Calendar tab (day-by-day agenda + one-off slot toggles), linked from the intro
 // copy. Wired to @noot/core: the block grid is flattened into weekly windows and
 // persisted via profile.updateAvailability(...).
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
+import { useMe } from '../lib/useMe';
 
 type Day = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
 type BlockId = 'morning' | 'afternoon' | 'evening';
@@ -28,23 +29,52 @@ const BLOCK_TIMES: Record<BlockId, { startTime: string; endTime: string }> = {
   evening: { startTime: '17:00', endTime: '22:00' },
 };
 
-function avInit(): Record<Day, Set<BlockId>> {
+function emptyAv(): Record<Day, Set<BlockId>> {
   const m = {} as Record<Day, Set<BlockId>>;
-  AV_DAYS.forEach((d, i) => {
-    m[d] = new Set<BlockId>(i < 5 ? ['afternoon', 'evening'] : i === 5 ? ['morning'] : []);
-  });
+  AV_DAYS.forEach((d) => { m[d] = new Set<BlockId>(); });
   return m;
+}
+
+/** "HH:MM" → minutes since midnight (tolerates a trailing ":SS"). */
+function hm(s: string): number {
+  const [h, m] = s.split(':').map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
 }
 
 export default function EditAvailability() {
   const t = useTheme();
   const router = useRouter();
-  // TODO(api): needs a getAvailability read (e.g. api.profile.getAvailability(): WeeklyWindow[])
-  // to prefill the grid with the tutor's saved weekly template instead of the hardcoded avInit()
-  // demo defaults. No such read endpoint exists in @noot/core yet (only profile.updateAvailability
-  // writes it), so we keep the demo seed for now.
-  const [av, setAv] = useState<Record<Day, Set<BlockId>>>(avInit);
+  const { me } = useMe();
+  // Prefill the block grid from the tutor's real saved weekly windows: a block is on
+  // for a day if any saved window on that weekday overlaps the block's clock range.
+  const [av, setAv] = useState<Record<Day, Set<BlockId>>>(emptyAv);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!me) return;
+    let active = true;
+    api.tutors
+      .getAvailability(me.id)
+      .then((windows) => {
+        if (!active) return;
+        const grid = emptyAv();
+        for (const day of AV_DAYS) {
+          for (const b of AV_BLOCKS) {
+            const bs = hm(BLOCK_TIMES[b.id].startTime);
+            const be = hm(BLOCK_TIMES[b.id].endTime);
+            const covered = windows.some(
+              (w) => w.dayOfWeek === DAY_OF_WEEK[day] && hm(w.startTime) < be && hm(w.endTime) > bs,
+            );
+            if (covered) grid[day].add(b.id);
+          }
+        }
+        setAv(grid);
+      })
+      .catch(() => {})
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [me]);
 
   const toggle = (day: Day, block: BlockId) =>
     setAv((prev) => {
@@ -130,7 +160,7 @@ export default function EditAvailability() {
         </View>
       </Body>
       <ActionBar>
-        <Button label="Save changes" full onPress={save} disabled={saving} />
+        <Button label={loading ? 'Loading…' : 'Save changes'} full onPress={save} disabled={saving || loading} />
       </ActionBar>
     </Screen>
   );

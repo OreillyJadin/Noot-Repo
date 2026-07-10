@@ -1,11 +1,12 @@
 // T7 Tutor Agreement — ported from screens-tutor.jsx (T7). Independent
 // contractor agreement + e-signature. Step 7 of the tutor application.
 // → T8 Payout setup. "Save & exit" → Landing.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Field, Divider, Eyebrow, Label, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { useMe, fullName } from '../lib/useMe';
 
 const LINE_WIDTHS = [100, 96, 100, 64, 100, 88, 92];
 const ITEMS = ['I have read and agree to the Agreement.', 'I am responsible for my own taxes.', 'I am 18 years or older.'];
@@ -47,8 +48,13 @@ function StepHead({
 export default function T7() {
   const t = useTheme();
   const router = useRouter();
+  const { me } = useMe();
   const [checks, setChecks] = useState<boolean[]>([true, true, false]);
-  const [signature, setSignature] = useState('Lindsay M. Thomas');
+  const [signature, setSignature] = useState('');
+  const [prefilled, setPrefilled] = useState(false);
+  useEffect(() => {
+    if (me && !prefilled) { setSignature(fullName(me, '')); setPrefilled(true); }
+  }, [me, prefilled]);
   const allChecked = checks.every(Boolean);
 
   const toggle = (i: number) => setChecks((c) => c.map((v, ci) => (ci === i ? !v : v)));

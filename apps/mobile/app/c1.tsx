@@ -9,10 +9,10 @@ import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Avatar, Badge, Ic, HeroIcon, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS, DAYS, toTutor } from '../lib/data';
+import { DAYS, toTutor } from '../lib/data';
 import type { Tutor } from '../lib/data';
-
-const STUDENT = { name: 'Lindsay Thomas', first: 'Lindsay' };
+import { NoSession } from '../lib/NoSession';
+import { useCounterpart } from '../lib/useCounterpart';
 
 export default function C1() {
   const t = useTheme();
@@ -39,15 +39,15 @@ export default function C1() {
       active = false;
     };
   }, [booking.tutor]);
-  const tutor = booking.tutor ?? fetchedTutor ?? TUTORS[0]!;
-
-  // TODO(api): tutor-view counterpart is the session's student; the booking draft
-  // carries no student and there's no read for it — keep demo STUDENT for now.
+  // Tutor-view counterpart = the session's student, resolved to a real name.
+  const student = useCounterpart(booking.studentId);
+  const tutor = booking.tutor ?? fetchedTutor;
+  if (!tutor) return <NoSession />;
 
   const course = booking.course || 'MGT 300';
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) || DAYS[1]!;
   const slot = booking.slot || '3:00 PM';
-  const rateTarget = isTutor ? STUDENT.first : tutor.name;
+  const rateTarget = isTutor ? student.first : tutor.name;
 
   return (
     <Screen>
@@ -70,7 +70,7 @@ export default function C1() {
         </Card>
 
         <View style={[styles.rateRow, { backgroundColor: t.surfaceAlt }]}>
-          <Avatar size={42} label={isTutor ? STUDENT.first[0] : undefined} />
+          <Avatar size={42} label={isTutor ? student.first[0] : undefined} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 13, color: t.text3 }}>You&apos;re rating</Text>
             <Text style={{ fontSize: 16, fontWeight: '600', color: t.text }}>{rateTarget}</Text>

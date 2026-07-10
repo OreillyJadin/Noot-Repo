@@ -10,12 +10,10 @@ import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Avatar, Divider, Eyebrow, Button, Ic, useTheme, type IconName } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
-import { DAYS, TUTORS, toTutor, type Tutor } from '../lib/data';
+import { DAYS, toTutor, type Tutor } from '../lib/data';
+import { NoSession } from '../lib/NoSession';
+import { useCounterpart } from '../lib/useCounterpart';
 
-// TODO(api): on a tutor-side session detail the counterpart is the session's student,
-// but the booking draft carries no studentId and a Booking exposes only studentId with
-// no student-name read — so the student's name/year/major stay demo values.
-const STUDENT = { name: 'Lindsay Thomas', first: 'Lindsay', year: 'Sophomore', major: 'Pre-Business' };
 const FEE_RATE = 0.175; // 15–20% platform fee; using 17.5% midpoint
 
 function sessionFacts(booking: BookingDraft, tutor: Tutor) {
@@ -56,18 +54,21 @@ export default function TB2() {
   // Session facts + earnings are derived from the booking draft (store). When the draft
   // is empty (e.g. deep-linked), fetch a real tutor for rate/course data instead of demo.
   const [fetchedTutor, setFetchedTutor] = useState<Tutor | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
   useEffect(() => {
     if (booking.tutor) return; // draft already carries the tutor
     let active = true;
     api.tutors
       .search()
       .then((list) => { if (active && list[0]) setFetchedTutor(toTutor(list[0])); })
-      .catch(() => { /* no session/offline -> keep demo fallback */ });
+      .catch(() => { /* deep-linked with no draft → resolve a real tutor for rates */ });
     return () => { active = false; };
   }, [booking.tutor]);
-  const tutor = booking.tutor ?? fetchedTutor ?? TUTORS[0]!;
+  const student = useCounterpart(booking.studentId);
+  const studentMeta = [student.year, student.major].filter(Boolean).join(' · ');
+  const tutor = booking.tutor ?? fetchedTutor;
+  if (!tutor) return <NoSession />;
   const f = sessionFacts(booking, tutor);
-  const [moreOpen, setMoreOpen] = useState(false);
 
   return (
     <Screen>
@@ -76,10 +77,10 @@ export default function TB2() {
         {/* student */}
         <Card style={{ padding: 16 }}>
           <View style={styles.row}>
-            <Avatar size={48} label={STUDENT.first[0]} />
+            <Avatar size={48} label={student.first[0]} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.name, { color: t.text }]}>{STUDENT.name}</Text>
-              <Text style={[styles.meta, { color: t.text3 }]}>{STUDENT.year} · {STUDENT.major}</Text>
+              <Text style={[styles.name, { color: t.text }]}>{student.name}</Text>
+              {studentMeta ? <Text style={[styles.meta, { color: t.text3 }]}>{studentMeta}</Text> : null}
             </View>
             <View style={[styles.confirmedPill, { backgroundColor: t.goodWeak }]}>
               <Ic name="check" size={11} color={t.good} strokeWidth={3} />
@@ -106,7 +107,7 @@ export default function TB2() {
         {/* student's message + focus */}
         <Card onPress={() => router.push('/chat_tutor')} style={{ marginTop: 12, padding: 16 }}>
           <View style={styles.msgHead}>
-            <Eyebrow style={{ color: t.text3 }}>From {STUDENT.first}</Eyebrow>
+            <Eyebrow style={{ color: t.text3 }}>From {student.first}</Eyebrow>
             {booking.tag ? (
               <View style={[styles.tagPill, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>
                 <Text style={[styles.tagLabel, { color: t.accent }]}>{booking.tag}</Text>
@@ -114,10 +115,10 @@ export default function TB2() {
             ) : null}
           </View>
           <View style={styles.msgRow}>
-            <Avatar size={32} label={STUDENT.first[0]} />
+            <Avatar size={32} label={student.first[0]} />
             <View style={[styles.bubble, { backgroundColor: t.surfaceAlt }]}>
               <Text style={{ fontSize: 14, lineHeight: 21, color: t.text }}>
-                {booking.message || `Hey, I'm ${STUDENT.first}! Looking forward to working through ${f.course} with you.`}
+                {booking.message || `Hey, I'm ${student.first}! Looking forward to working through ${f.course} with you.`}
               </Text>
             </View>
           </View>
@@ -197,7 +198,7 @@ export default function TB2() {
 
           <Card flat style={{ padding: 14, backgroundColor: t.surfaceAlt, marginBottom: 12 }}>
             <Text style={{ fontSize: 13, color: t.text2, lineHeight: 19 }}>
-              This booking is confirmed. Changing it affects {STUDENT.first} and may impact your reliability score.
+              This booking is confirmed. Changing it affects {student.first} and may impact your reliability score.
             </Text>
           </Card>
 
@@ -214,7 +215,7 @@ export default function TB2() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.choiceTitle, { color: t.text }]}>Propose a new time</Text>
-                <Text style={[styles.choiceSub, { color: t.text3 }]}>{STUDENT.first} confirms the change</Text>
+                <Text style={[styles.choiceSub, { color: t.text3 }]}>{student.first} confirms the change</Text>
               </View>
               <Ic name="chevron" size={16} color={t.text3} strokeWidth={2} />
             </View>
@@ -233,7 +234,7 @@ export default function TB2() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.choiceTitle, { color: t.text }]}>Cancel session</Text>
-                <Text style={[styles.choiceSub, { color: t.text3 }]}>{STUDENT.first} is refunded per policy</Text>
+                <Text style={[styles.choiceSub, { color: t.text3 }]}>{student.first} is refunded per policy</Text>
               </View>
               <Ic name="chevron" size={16} color={t.text3} strokeWidth={2} />
             </View>

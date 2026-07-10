@@ -8,7 +8,6 @@ import { useRouter } from 'expo-router';
 import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
-import { tutorById } from '../lib/data';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 
@@ -81,30 +80,47 @@ const ACTIONS: [IconName, string, string][] = [
 export default function TutorHome() {
   const t = useTheme();
   const router = useRouter();
-  const { patchBooking, role } = useApp();
+  const { role } = useApp();
   const { me, loading } = useMe();
 
   // Next confirmed, future session (as tutor OR student) from the live API.
   const [next, setNext] = useState<Booking | null>(null);
+  // Live dashboard numbers + counterparty names + most-recent conversation.
+  const [stats, setStats] = useState<{ sessionsTaught: number; earnedThisWeek: number; avgRating: number | null } | null>(null);
+  const [names, setNames] = useState<Record<string, { firstName: string; lastName: string }>>({});
+  const [recent, setRecent] = useState<{ name: string; preview: string } | null>(null);
   useEffect(() => {
     let active = true;
-    api
-      .listUpcoming()
-      .then((list) => { if (active) setNext(list[0] ?? null); })
-      .catch(() => { /* no session / offline → keep demo fallback */ });
+    api.listUpcoming().then((list) => { if (active) setNext(list[0] ?? null); }).catch(() => {});
+    api.tutorStats().then((s) => { if (active) setStats(s); }).catch(() => {});
+    api.resolveParticipantNames().then((n) => { if (active) setNames(n); }).catch(() => {});
+    api.chat
+      .listConversations()
+      .then((cs) => {
+        if (!active) return;
+        const c = cs[0];
+        if (c) {
+          const nm = `${c.counterpart.firstName} ${c.counterpart.lastName}`.trim() || 'Student';
+          setRecent({ name: nm, preview: c.lastMessage?.content ?? 'Start the conversation' });
+        }
+      })
+      .catch(() => {});
     return () => { active = false; };
   }, []);
 
-  // Countdown to the real session when we have one, else the demo target.
-  const target = useMemo(() => (next ? new Date(next.scheduledAt).getTime() : Date.now() + 20 * 3600000), [next]);
+  // Countdown to the real session when we have one.
+  const target = useMemo(() => (next ? new Date(next.scheduledAt).getTime() : Date.now()), [next]);
+  const studentName = next && names[next.studentId]
+    ? `${names[next.studentId]!.firstName} ${names[next.studentId]!.lastName}`.trim() || 'Your student'
+    : 'Your student';
 
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
   const openChat = () => {
-    patchBooking({ tutor: tutorById('sara') });
     router.push('/chat_tutor');
   };
-  const openEarnings = () => Alert.alert('Earnings history', 'Coming soon — built with backend'); // TODO(api)
+  const openEarnings = () =>
+    Alert.alert('Earnings', stats ? `You've earned $${stats.earnedThisWeek.toFixed(2)} this week.` : 'Loading…');
 
   return (
     <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
@@ -123,38 +139,53 @@ export default function TutorHome() {
       </View>
 
       <Body ref={scrollRef} contentStyle={{ paddingTop: 8 }}>
-        {/* Next session + payout */}
-        <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
-          <Text style={styles.geckoDeco}>🦎</Text>
-          <View style={styles.rowBetween}>
-            <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>YOUR NEXT SESSION</Text>
-            <Badge label={next?.subject ?? 'MGT 300'} tone="ink" />
-          </View>
-          <View style={styles.nextTutorRow}>
-            {/* TODO(api): a Booking exposes only studentId — no student-name lookup, so the student name/avatar stay demo. */}
-            <Avatar size={40} label="L" />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.nextName, { color: t.onAccent }]}>Lindsay Thomas</Text>
-              <Text style={[styles.nextMeta, { color: t.onAccent }]}>
-                {next ? sessionMeta(next.scheduledAt, next.location) : 'Tomorrow · 3:00 PM · Gorgas Library'}
-              </Text>
+        {/* Next session + payout — real upcoming booking, or a CTA when there's none */}
+        {next ? (
+          <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
+            <Text style={styles.geckoDeco}>🦎</Text>
+            <View style={styles.rowBetween}>
+              <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>YOUR NEXT SESSION</Text>
+              <Badge label={next.subject} tone="ink" />
             </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={[styles.payout, { color: t.onAccent }]}>${next ? next.tutorPayoutAmount : 28}</Text>
-              <Text style={[styles.payoutLabel, { color: t.onAccent }]}>payout</Text>
+            <View style={styles.nextTutorRow}>
+              <Avatar size={40} label={studentName.charAt(0) || 'S'} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.nextName, { color: t.onAccent }]}>{studentName}</Text>
+                <Text style={[styles.nextMeta, { color: t.onAccent }]}>
+                  {sessionMeta(next.scheduledAt, next.location)}
+                </Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={[styles.payout, { color: t.onAccent }]}>${next.tutorPayoutAmount}</Text>
+                <Text style={[styles.payoutLabel, { color: t.onAccent }]}>payout</Text>
+              </View>
+            </View>
+            <CountdownPills target={target} />
+            <View style={styles.nextActions}>
+              <Pressable onPress={openChat} style={[styles.nextBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
+                <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />
+                <Text style={[styles.nextBtnLabel, { color: t.onAccent }]}>Message</Text>
+              </Pressable>
+              <Pressable onPress={() => router.push('/tb2')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
+                <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Details</Text>
+              </Pressable>
             </View>
           </View>
-          <CountdownPills target={target} />
-          <View style={styles.nextActions}>
-            <Pressable onPress={openChat} style={[styles.nextBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
-              <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />
-              <Text style={[styles.nextBtnLabel, { color: t.onAccent }]}>Message</Text>
-            </Pressable>
-            <Pressable onPress={() => router.push('/tb2')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
-              <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Details</Text>
-            </Pressable>
+        ) : (
+          <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
+            <Text style={styles.geckoDeco}>🦎</Text>
+            <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>NO UPCOMING SESSIONS</Text>
+            <Text style={[styles.nextName, { color: t.onAccent, marginTop: 8 }]}>You&apos;re all caught up</Text>
+            <Text style={[styles.nextMeta, { color: t.onAccent }]}>
+              Open your availability so students can book you.
+            </Text>
+            <View style={[styles.nextActions, { marginTop: 12 }]}>
+              <Pressable onPress={() => router.push('/edit_availability')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
+                <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Set availability</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
+        )}
 
         {/* This week stats */}
         <View style={styles.sectionHead}>
@@ -163,11 +194,10 @@ export default function TutorHome() {
             Earnings →
           </Text>
         </View>
-        {/* TODO(api): weekly earnings / sessions-taught / rating stats — no tutor-stats endpoint exists yet. */}
         <View style={styles.statsRow}>
-          <StatCard icon="dollar" big="$182" label="Earned this week" />
-          <StatCard icon="cap" big="6" label="Sessions taught" />
-          <StatCard icon="flame" big="4.9" label="Avg rating (noot)" />
+          <StatCard icon="dollar" big={stats ? `$${Math.round(stats.earnedThisWeek)}` : '—'} label="Earned this week" />
+          <StatCard icon="cap" big={stats ? String(stats.sessionsTaught) : '—'} label="Sessions taught" />
+          <StatCard icon="flame" big={stats?.avgRating != null ? stats.avgRating.toFixed(1) : '—'} label="Avg rating (noot)" />
         </View>
 
         {/* Quick actions */}
@@ -184,19 +214,22 @@ export default function TutorHome() {
           ))}
         </View>
 
-        {/* Recent message */}
-        {/* TODO(api): populate from api.chat.listConversations() + latest message (demo for now). */}
-        <Eyebrow style={{ marginTop: 8 }}>Recent message</Eyebrow>
-        <Card onPress={openChat} style={styles.msgRow}>
-          <Avatar size={40} label="L" />
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.msgName, { color: t.text }]}>Lindsay Thomas</Text>
-            <Text numberOfLines={1} style={[styles.msgPreview, { color: t.text3 }]}>
-              That session was super helpful, thank you!
-            </Text>
-          </View>
-          <Ic name="chevR" size={17} color={t.text3} strokeWidth={2} />
-        </Card>
+        {/* Recent message — live from the tutor's most recent conversation */}
+        {recent ? (
+          <>
+            <Eyebrow style={{ marginTop: 8 }}>Recent message</Eyebrow>
+            <Card onPress={openChat} style={styles.msgRow}>
+              <Avatar size={40} label={recent.name.charAt(0) || 'S'} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.msgName, { color: t.text }]}>{recent.name}</Text>
+                <Text numberOfLines={1} style={[styles.msgPreview, { color: t.text3 }]}>
+                  {recent.preview}
+                </Text>
+              </View>
+              <Ic name="chevR" size={17} color={t.text3} strokeWidth={2} />
+            </Card>
+          </>
+        ) : null}
       </Body>
 
       <TabBar active={active} onTab={onTab} role={role} />

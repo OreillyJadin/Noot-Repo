@@ -9,9 +9,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, Ic, H1, Sub, HeroIcon, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
-import { TUTORS, DAYS, type Tutor } from '../lib/data';
-
-const X_STUDENT = { name: 'Lindsay Thomas', first: 'Lindsay' };
+import { DAYS, type Tutor } from '../lib/data';
+import { NoSession } from '../lib/NoSession';
+import { useCounterpart } from '../lib/useCounterpart';
 
 function money(n: number): string {
   return '$' + n.toFixed(2).replace('.00', '');
@@ -32,14 +32,14 @@ function baseCost(booking: BookingDraft, tutor: Tutor): number {
 }
 
 // Recap strip reused across the exceptions screens (inlined per-file — see PORTING_GUIDE).
-function SessionStrip({ booking, tutor, who }: { booking: BookingDraft; tutor: Tutor; who: 'student' | 'tutor' }) {
+function SessionStrip({ booking, tutor, who, studentName }: { booking: BookingDraft; tutor: Tutor; who: 'student' | 'tutor'; studentName: string }) {
   const t = useTheme();
   const f = sessionFacts(booking, tutor);
-  const name = who === 'tutor' ? X_STUDENT.name : tutor.name;
+  const name = who === 'tutor' ? studentName : tutor.name;
   const sub = who === 'tutor' ? f.course : `${f.course} · ${tutor.year}`;
   return (
     <Card flat style={{ padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surfaceAlt }}>
-      <Avatar size={42} label={who === 'tutor' ? X_STUDENT.first[0] : undefined} />
+      <Avatar size={42} label={who === 'tutor' ? studentName[0] : undefined} />
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{name}</Text>
         <Text style={{ fontSize: 13, color: t.text3 }}>{sub}</Text>
@@ -53,11 +53,18 @@ function SessionStrip({ booking, tutor, who }: { booking: BookingDraft; tutor: T
 }
 
 export default function XTutorCancel() {
+  const { booking } = useApp();
+  if (!booking.tutor) return <NoSession />;
+  return <XTutorCancelInner />;
+}
+
+function XTutorCancelInner() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { booking } = useApp();
-  const tutor = booking.tutor ?? TUTORS[0]!;
+  const student = useCounterpart(booking.studentId);
+  const tutor = booking.tutor!;
   const cost = baseCost(booking, tutor);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -88,7 +95,7 @@ export default function XTutorCancel() {
             <HeroIcon name="check" size={72} />
             <H1 style={{ fontSize: 25, marginTop: 20 }}>Session cancelled</H1>
             <Sub style={{ marginTop: 10, maxWidth: 260, textAlign: 'center' }}>
-              {X_STUDENT.first} has been fully refunded {money(cost)}. This counts toward your cancellation rate.
+              {student.first} has been fully refunded {money(cost)}. This counts toward your cancellation rate.
             </Sub>
           </View>
         </Body>
@@ -103,11 +110,11 @@ export default function XTutorCancel() {
     <Screen>
       <NavTop onBack={() => router.back()} title="Cancel session" />
       <Body pad={20}>
-        <SessionStrip booking={booking} tutor={tutor} who="tutor" />
+        <SessionStrip booking={booking} tutor={tutor} who="tutor" studentName={student.name} />
 
         <Card style={{ marginTop: 16, padding: 16 }}>
           <View style={[styles.rowBetween, { marginBottom: 10 }]}>
-            <Text style={{ fontSize: 14, color: t.text2 }}>{X_STUDENT.first} is refunded</Text>
+            <Text style={{ fontSize: 14, color: t.text2 }}>{student.first} is refunded</Text>
             <Text style={{ fontSize: 14, fontWeight: '700', color: t.good }}>{money(cost)} · 100%</Text>
           </View>
           <View style={styles.rowBetween}>
@@ -144,7 +151,7 @@ export default function XTutorCancel() {
       </Body>
       <ActionBar style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
         <Button kind="secondary" full label="Propose a reschedule instead" onPress={() => router.push('/xtr')} />
-        <Button kind="primary" full label={`Cancel & refund ${X_STUDENT.first}`} disabled={busy} onPress={onConfirmCancel} />
+        <Button kind="primary" full label={`Cancel & refund ${student.first}`} disabled={busy} onPress={onConfirmCancel} />
       </ActionBar>
     </Screen>
   );

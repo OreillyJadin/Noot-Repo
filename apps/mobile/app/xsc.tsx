@@ -24,9 +24,8 @@ import {
 } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
-import { TUTORS, DAYS, type Tutor } from '../lib/data';
-
-const X_STUDENT = { name: 'Lindsay Thomas', first: 'Lindsay' };
+import { DAYS, type Tutor } from '../lib/data';
+import { NoSession } from '../lib/NoSession';
 
 function money(n: number): string {
   return '$' + n.toFixed(2).replace('.00', '');
@@ -61,15 +60,15 @@ const TIERS: Tier[] = [
   { id: 'late', label: '< 2 hrs', refundPct: 0, tutorPct: 1.0, note: 'No refund — the full amount goes to your tutor for the held time.' },
 ];
 
-// Recap strip reused across the exceptions screens (inlined per-file — see PORTING_GUIDE).
-function SessionStrip({ booking, tutor, who }: { booking: BookingDraft; tutor: Tutor; who: 'student' | 'tutor' }) {
+// Recap strip — student-side cancel always shows the tutor being cancelled on.
+function SessionStrip({ booking, tutor }: { booking: BookingDraft; tutor: Tutor }) {
   const t = useTheme();
   const f = sessionFacts(booking, tutor);
-  const name = who === 'tutor' ? X_STUDENT.name : tutor.name;
-  const sub = who === 'tutor' ? f.course : `${f.course} · ${tutor.year}`;
+  const name = tutor.name;
+  const sub = `${f.course} · ${tutor.year}`;
   return (
     <Card flat style={{ padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surfaceAlt }}>
-      <Avatar size={42} label={who === 'tutor' ? X_STUDENT.first[0] : undefined} />
+      <Avatar size={42} />
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{name}</Text>
         <Text style={{ fontSize: 13, color: t.text3 }}>{sub}</Text>
@@ -83,11 +82,17 @@ function SessionStrip({ booking, tutor, who }: { booking: BookingDraft; tutor: T
 }
 
 export default function XStudentCancel() {
+  const { booking } = useApp();
+  if (!booking.tutor) return <NoSession />;
+  return <XStudentCancelInner />;
+}
+
+function XStudentCancelInner() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { booking } = useApp();
-  const tutor = booking.tutor ?? TUTORS[0]!;
+  const tutor = booking.tutor!;
   const cost = baseCost(booking, tutor);
   const [tier, setTier] = useState<TierId>('early');
   const [done, setDone] = useState(false);
@@ -150,7 +155,7 @@ export default function XStudentCancel() {
     <Screen>
       <NavTop onBack={() => router.back()} title="Cancel session" />
       <Body pad={20}>
-        <SessionStrip booking={booking} tutor={tutor} who="student" />
+        <SessionStrip booking={booking} tutor={tutor} />
 
         {/* demo: timing selector so all tiers are visible */}
         <View style={styles.demoRow}>

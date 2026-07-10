@@ -2,25 +2,16 @@
 // ProfileTabStudent). Backend-only actions (the prototype's showToast) become a
 // TODO(api)'d Alert; "Dark mode" is a local visual toggle only (not wired to the real
 // theme yet — that lives in ThemeProvider at the app root).
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, Skeleton, useTheme, type IconName } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
-
-// TODO(api): referral credits — no stats/credits endpoint in @noot/core, keep demo value.
-const CREDITS = 10;
-
-// TODO(api): no session-count/hours/saved stats endpoint in @noot/core, keep demo values.
-const STATS: [string, string][] = [
-  ['12', 'Sessions'],
-  ['18', 'Hours'],
-  ['3', 'Saved'],
-];
 
 // TODO(api): backend-only actions from the prototype's showToast() — swap for real
 // navigation/mutations once wired up.
@@ -79,6 +70,23 @@ export default function Profile() {
   const displayName = fullName(me, 'Student');
   const displayFirst = firstName(me, 'Student');
 
+  // Real study stats + saved-tutor count.
+  const [stats, setStats] = useState<{ sessionsCompleted: number; hoursLearned: number } | null>(null);
+  const [savedCount, setSavedCount] = useState<number | null>(null);
+  useEffect(() => {
+    let active = true;
+    api.studentStats().then((s) => { if (active) setStats(s); }).catch(() => {});
+    api.tutors.listSaved().then((l) => { if (active) setSavedCount(l.length); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  const STATS: [string, string][] = [
+    [stats ? String(stats.sessionsCompleted) : '—', 'Sessions'],
+    [stats ? String(Math.round(stats.hoursLearned)) : '—', 'Hours'],
+    [savedCount != null ? String(savedCount) : '—', 'Saved'],
+  ];
+  const coursesSub = me?.courses?.length ? me.courses.join(', ') : 'Add the courses you’re taking';
+
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
 
@@ -126,14 +134,14 @@ export default function Profile() {
           </View>
         </Card>
 
-        {/* referral credit */}
+        {/* referral CTA — the program isn't built yet, so no fabricated credit balance */}
         <Card onPress={() => notify('Referrals')} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
           <View style={[styles.promoIcon, { backgroundColor: t.accent }]}>
             <Ic name="gift" size={20} color={t.onAccent} strokeWidth={1.7} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.promoTitle, { color: t.text }]}>${CREDITS} in credits</Text>
-            <Text style={[styles.promoSub, { color: t.text2 }]}>Invite a classmate, you both get $10</Text>
+            <Text style={[styles.promoTitle, { color: t.text }]}>Invite a classmate</Text>
+            <Text style={[styles.promoSub, { color: t.text2 }]}>When they book their first session, you both get $10</Text>
           </View>
           <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
         </Card>
@@ -142,8 +150,8 @@ export default function Profile() {
         <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Account</Eyebrow>
         <Card style={styles.cardNoPad}>
           <Row icon="user" label="Personal info" sub={me?.email ?? '—'} onPress={() => router.push('/edit_personal')} />
-          <Row icon="cap" label="My courses" sub="MGT 300, EC 110" onPress={() => router.push('/edit_courses')} />
-          <Row icon="card" label="Payment methods" sub="Visa •••• 4242" onPress={() => notify('Payment methods')} />
+          <Row icon="cap" label="My courses" sub={coursesSub} onPress={() => router.push('/edit_courses')} />
+          <Row icon="card" label="Payment methods" sub="No card on file" onPress={() => notify('Payment methods')} />
           <Row icon="doc" label="Booking & payment history" onPress={() => notify('History')} last />
         </Card>
 

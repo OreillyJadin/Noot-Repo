@@ -19,9 +19,12 @@ import {
   useTheme,
   type IconName,
 } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
-import { TUTORS, DAYS, slotsFor } from '../lib/data';
+import { DAYS } from '../lib/data';
+import { slotsFromWindows } from '../lib/availability';
+import { NoSession } from '../lib/NoSession';
 
 const LENGTHS: [number, string][] = [
   [30, '30 min'],
@@ -58,18 +61,26 @@ const IN_PERSON_SPOTS = ['Gorgas Library, Fl 2', 'Bidgood Hall lobby', "Other �
 const ONLINE = 'Online — Integrated Video';
 
 export default function B3() {
+  const { booking } = useApp();
+  if (!booking.tutor) return <NoSession />;
+  return <B3Inner />;
+}
+
+function B3Inner() {
   const t = useTheme();
   const router = useRouter();
   const { booking, patchBooking } = useApp();
   const { me } = useMe();
   const studentFirst = firstName(me, 'there');
 
-  const tutor = booking.tutor ?? TUTORS[0]!;
-  // TODO(api): availability is demo (no tutor availability-read endpoint) — derived from tutor name.
-  const slots = slotsFor(tutor.name.charCodeAt(0) % 5);
+  const tutor = booking.tutor!;
+  // Real availability: the tutor's recurring weekly windows, mapped onto the 14-day
+  // calendar (lib/availability). Empty until loaded / if the tutor has set none.
+  const [slots, setSlots] = useState<Record<number, string[]>>({});
+  const [slotsLoading, setSlotsLoading] = useState(true);
   const availableDays = DAYS.filter((d) => slots[d.i] && slots[d.i]!.length);
 
-  const [day, setDay] = useState<number>(booking.dayIndex ?? availableDays[0]?.i ?? 0);
+  const [day, setDay] = useState<number>(booking.dayIndex ?? 0);
   const [slot, setSlot] = useState<string | null>(booking.slot ?? null);
   const [length, setLength] = useState<number>(booking.lengthMin ?? 60);
   const [course, setCourse] = useState<string>(booking.course ?? tutor.courses[0]![0]);
@@ -85,6 +96,28 @@ export default function B3() {
   const [mode, setMode] = useState<'person' | 'online'>(initOnline ? 'online' : 'person');
   const [spot, setSpot] = useState(initOnline ? IN_PERSON_SPOTS[0]! : booking.location ?? IN_PERSON_SPOTS[0]!);
   const location = mode === 'online' ? ONLINE : spot;
+
+  // Load the tutor's real weekly availability and, once it arrives, snap the picker to
+  // the first day that actually has open slots (unless the student already chose one).
+  useEffect(() => {
+    let active = true;
+    setSlotsLoading(true);
+    api.tutors
+      .getAvailability(tutor.id)
+      .then((windows) => {
+        if (!active) return;
+        const next = slotsFromWindows(windows);
+        setSlots(next);
+        if (booking.dayIndex == null) {
+          const first = DAYS.find((d) => (next[d.i]?.length ?? 0) > 0);
+          if (first) setDay(first.i);
+        }
+      })
+      .catch(() => { if (active) setSlots({}); })
+      .finally(() => { if (active) setSlotsLoading(false); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tutor.id]);
 
   // Pick a focus -> auto-fill the intro message (unless the student already typed their own).
   const pickTag = (newTag: string) => {
@@ -232,6 +265,15 @@ export default function B3() {
               );
             })}
           </View>
+          {daySlots.length === 0 ? (
+            <Text style={{ fontSize: 13, color: t.text3, paddingVertical: 4 }}>
+              {slotsLoading
+                ? 'Loading availability…'
+                : availableDays.length === 0
+                  ? `${tutorFirst} hasn’t opened any times yet.`
+                  : 'No open times this day — try another.'}
+            </Text>
+          ) : null}
         </FieldBlock>
 
         <FieldBlock label="Session length">

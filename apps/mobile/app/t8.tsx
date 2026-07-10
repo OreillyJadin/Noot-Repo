@@ -6,6 +6,7 @@ import { View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Field, H2, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { useMe, fullName } from '../lib/useMe';
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -44,6 +45,7 @@ function StepHead({
 export default function T8() {
   const t = useTheme();
   const router = useRouter();
+  const { me } = useMe();
 
   return (
     <Screen>
@@ -62,13 +64,13 @@ export default function T8() {
           </View>
           <View style={styles.stripeBody}>
             <H2 style={{ fontSize: 16, marginBottom: 14 }}>Verify your identity</H2>
-            <Field label="Legal name" value="Lindsay M. Thomas" />
+            <Field label="Legal name" value={fullName(me, '')} placeholder="Your legal name" />
             <View style={[styles.row, { marginTop: 12 }]}>
               <View style={{ flex: 1 }}>
-                <Field label="Date of birth" value="01/14/2004" />
+                <Field label="Date of birth" placeholder="MM/DD/YYYY" />
               </View>
               <View style={{ flex: 1 }}>
-                <Field label="SSN (last 4)" value="•••• 4521" />
+                <Field label="SSN (last 4)" placeholder="••••" />
               </View>
             </View>
             <View style={{ marginTop: 12 }}>

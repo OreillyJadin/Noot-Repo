@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Field, Avatar, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS } from '../lib/data';
+import { NoSession } from '../lib/NoSession';
 
 const RATING_WORDS = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'];
 const REVIEW_MAX = 500;
@@ -71,10 +71,16 @@ function HappenedToggle({ value, onChange }: { value: Happened; onChange: (v: 'y
 }
 
 export default function C2() {
+  const { booking } = useApp();
+  if (!booking.tutor) return <NoSession />;
+  return <C2Inner />;
+}
+
+function C2Inner() {
   const t = useTheme();
   const router = useRouter();
   const { booking } = useApp();
-  const tutor = booking.tutor ?? TUTORS[0]!;
+  const tutor = booking.tutor!;
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState('');
   const [happened, setHappened] = useState<Happened>(null);

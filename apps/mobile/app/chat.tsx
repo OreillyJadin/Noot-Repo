@@ -20,7 +20,7 @@ import { useRouter } from 'expo-router';
 import { Ic, Avatar, useTheme, type IconName } from '@noot/ui';
 import { api, auth, type Message as ApiMessage } from '@noot/core';
 import { useApp } from '../lib/store';
-import { tutorById } from '../lib/data';
+import { NoSession } from '../lib/NoSession';
 
 type Who = 'student' | 'tutor';
 type AttachKind = 'image' | 'file';
@@ -70,14 +70,21 @@ function fmtSize(b: number): string {
 }
 
 export default function Chat() {
+  const { booking } = useApp();
+  if (!booking.tutor) {
+    return <NoSession title="No conversation yet" subtitle="Open a chat from one of your sessions or a tutor's profile." />;
+  }
+  return <ChatInner />;
+}
+
+function ChatInner() {
   const t = useTheme();
   const router = useRouter();
   const { booking } = useApp();
   const perspective: Who = 'student';
 
-  // Counterpart tutor comes from the booking draft (set by sessions/b5/home before
-  // navigating here); fall back to the demo tutor if we arrived without one.
-  const tutor = booking.tutor ?? tutorById('sara')!;
+  // Counterpart tutor comes from the booking draft (set by sessions/b5/home before navigating here).
+  const tutor = booking.tutor!;
   const tutorId = tutor.id;
   const other = tutor.name;
   const otherSub = `${tutor.year} · ${tutor.major}`;

@@ -1,10 +1,11 @@
 // T2 Tutor Profile — ported from screens-tutor.jsx (T2). Step 2 of the tutor
 // application. → T3 Courses you tutor. "Save & exit" → Landing.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Field, Select, Avatar, Divider, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { useMe } from '../lib/useMe';
 
 const YEAR_OPTIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate Student'];
 
@@ -45,12 +46,23 @@ function StepHead({
 export default function T2() {
   const t = useTheme();
   const router = useRouter();
-  const [first, setFirst] = useState('Lindsay');
-  const [last, setLast] = useState('Thomas');
-  const [year, setYear] = useState('Junior');
-  const [grad, setGrad] = useState('May 2026');
-  const [major, setMajor] = useState('Chemistry');
+  // Prefill from the signed-in user's real profile (empty until loaded / if unset).
+  const { me } = useMe();
+  const [first, setFirst] = useState('');
+  const [last, setLast] = useState('');
+  const [year, setYear] = useState('');
+  const [grad, setGrad] = useState('');
+  const [major, setMajor] = useState('');
   const [bio, setBio] = useState('');
+  const [prefilled, setPrefilled] = useState(false);
+  useEffect(() => {
+    if (!me || prefilled) return;
+    setFirst(me.firstName ?? '');
+    setLast(me.lastName ?? '');
+    setYear(me.year ?? '');
+    setMajor(me.major ?? '');
+    setPrefilled(true);
+  }, [me, prefilled]);
 
   return (
     <Screen>

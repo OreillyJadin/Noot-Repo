@@ -21,7 +21,8 @@ import { useRouter } from 'expo-router';
 import { Ic, Avatar, useTheme, type IconName } from '@noot/ui';
 import { api, auth, type Message as ApiMessage } from '@noot/core';
 import { useApp } from '../lib/store';
-import { tutorById } from '../lib/data';
+import { NoSession } from '../lib/NoSession';
+import { useCounterpart } from '../lib/useCounterpart';
 
 type Who = 'student' | 'tutor';
 type AttachKind = 'image' | 'file';
@@ -40,19 +41,9 @@ interface Message {
   time: string;
 }
 
-// Demo attachments the paperclip button cycles through.
-// TODO(api): replace with a real image/file picker (expo-image-picker / expo-document-picker).
-const DEMO_ATTACHMENTS: Attachment[] = [
-  { name: 'IMG_0192.jpg', kind: 'image', size: 482_000 },
-  { name: 'Practice_Problems.pdf', kind: 'file', size: 154_000 },
-];
-
-// Counterpart (student) identity. The booking draft only carries `tutor`, so no
-// student id/name is available to resolve here — keep the prototype demo value.
-// TODO(api): resolve the real student from the conversation (conv.studentId) via a
-// user lookup once the tutor-side counterpart id is available.
-const OTHER = 'Lindsay Thomas';
-const OTHER_SUB = 'Sophomore · Pre-Business';
+// Attachment source for the paperclip button. Empty until upload is wired.
+// TODO(api): attachment upload — real image/file picker + upload via @noot/core.
+const ATTACHMENTS: Attachment[] = [];
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -81,14 +72,25 @@ function fmtSize(b: number): string {
 }
 
 export default function ChatTutor() {
+  const { booking } = useApp();
+  if (!booking.tutor) {
+    return <NoSession title="No conversation yet" subtitle="Open a chat from one of your sessions." />;
+  }
+  return <ChatTutorInner />;
+}
+
+function ChatTutorInner() {
   const t = useTheme();
   const router = useRouter();
   const { booking } = useApp();
   const perspective: Who = 'tutor';
 
-  // Counterpart comes from the booking draft (set before navigating here); fall
-  // back to the demo tutor so the thread still resolves without one.
-  const tutorId = booking.tutor?.id ?? tutorById('sara')!.id;
+  // Counterpart conversation comes from the booking draft; the student's real name
+  // (header/placeholder) resolves via the resolve-participants edge function.
+  const tutorId = booking.tutor!.id;
+  const student = useCounterpart(booking.studentId);
+  const other = student.name;
+  const otherSub = [student.year, student.major].filter(Boolean).join(' · ');
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
@@ -128,9 +130,10 @@ export default function ChatTutor() {
 
   const canSend = draft.trim().length > 0 || pending.length > 0;
 
-  const addDemoAttachment = () => {
-    // TODO(api): open a real attach sheet (camera roll / files) instead of cycling demo data.
-    const next = DEMO_ATTACHMENTS[pending.length % DEMO_ATTACHMENTS.length]!;
+  const addAttachment = () => {
+    // TODO(api): attachment upload — open a real attach sheet (camera roll / files) and upload.
+    if (ATTACHMENTS.length === 0) return;
+    const next = ATTACHMENTS[pending.length % ATTACHMENTS.length]!;
     setPending((p) => [...p, next]);
   };
 
@@ -169,10 +172,10 @@ export default function ChatTutor() {
             <Ic name="back" size={24} color={t.accent} strokeWidth={2.4} />
           </Pressable>
           <View style={styles.navCenter}>
-            <Avatar size={34} label={OTHER[0]} />
+            <Avatar size={34} label={other[0]} />
             <View style={{ minWidth: 0 }}>
-              <Text numberOfLines={1} style={[styles.navName, { color: t.text }]}>{OTHER}</Text>
-              <Text numberOfLines={1} style={[styles.navSub, { color: t.text3 }]}>{OTHER_SUB}</Text>
+              <Text numberOfLines={1} style={[styles.navName, { color: t.text }]}>{other}</Text>
+              {otherSub ? <Text numberOfLines={1} style={[styles.navSub, { color: t.text3 }]}>{otherSub}</Text> : null}
             </View>
           </View>
           <Pressable onPress={notify} hitSlop={8} style={[styles.navSide, styles.navSideEnd]}>
@@ -188,7 +191,7 @@ export default function ChatTutor() {
           keyboardShouldPersistTaps="handled"
         >
           <Text style={[styles.threadHint, { color: t.text3 }]}>
-            This is your full conversation with {OTHER.split(' ')[0]}.
+            This is your full conversation with {other.split(' ')[0]}.
           </Text>
 
           {messages.map((m, i) => {
@@ -214,7 +217,7 @@ export default function ChatTutor() {
 
         <View style={[styles.composer, { backgroundColor: t.surface, borderTopColor: t.border }]}>
           <Pressable
-            onPress={addDemoAttachment}
+            onPress={addAttachment}
             accessibilityLabel="Attach"
             style={[styles.roundBtn, { backgroundColor: t.surface2 }]}
           >
@@ -225,7 +228,7 @@ export default function ChatTutor() {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              placeholder={`Message ${OTHER.split(' ')[0]}…`}
+              placeholder={`Message ${other.split(' ')[0]}…`}
               placeholderTextColor={t.text3}
               multiline
               style={[styles.input, { color: t.text }]}

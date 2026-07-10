@@ -9,9 +9,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, Eyebrow, Ic, H1, Sub, HeroIcon, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
-import { TUTORS, DAYS, type Tutor } from '../lib/data';
-
-const X_STUDENT = { name: 'Lindsay Thomas', first: 'Lindsay' };
+import { DAYS, type Tutor } from '../lib/data';
+import { NoSession } from '../lib/NoSession';
+import { useCounterpart } from '../lib/useCounterpart';
 
 function money(n: number): string {
   return '$' + n.toFixed(2).replace('.00', '');
@@ -32,14 +32,14 @@ function baseCost(booking: BookingDraft, tutor: Tutor): number {
 }
 
 // Recap strip reused across the exceptions screens (inlined per-file — see PORTING_GUIDE).
-function SessionStrip({ booking, tutor, who }: { booking: BookingDraft; tutor: Tutor; who: 'student' | 'tutor' }) {
+function SessionStrip({ booking, tutor, who, studentName }: { booking: BookingDraft; tutor: Tutor; who: 'student' | 'tutor'; studentName: string }) {
   const t = useTheme();
   const f = sessionFacts(booking, tutor);
-  const name = who === 'tutor' ? X_STUDENT.name : tutor.name;
+  const name = who === 'tutor' ? studentName : tutor.name;
   const sub = who === 'tutor' ? f.course : `${f.course} · ${tutor.year}`;
   return (
     <Card flat style={{ padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surfaceAlt }}>
-      <Avatar size={42} label={who === 'tutor' ? X_STUDENT.first[0] : undefined} />
+      <Avatar size={42} label={who === 'tutor' ? studentName[0] : undefined} />
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{name}</Text>
         <Text style={{ fontSize: 13, color: t.text3 }}>{sub}</Text>
@@ -59,11 +59,18 @@ const STRIKES: [string, string, boolean][] = [
 ];
 
 export default function XNoShow() {
+  const { booking } = useApp();
+  if (!booking.tutor) return <NoSession />;
+  return <XNoShowInner />;
+}
+
+function XNoShowInner() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { booking, role } = useApp();
-  const tutor = booking.tutor ?? TUTORS[0]!;
+  const student = useCounterpart(booking.studentId);
+  const tutor = booking.tutor!;
   const cost = baseCost(booking, tutor);
   const [persona, setPersona] = useState<'student' | 'tutor'>(role === 'tutor' ? 'tutor' : 'student');
   const [done, setDone] = useState(false);
@@ -94,7 +101,7 @@ export default function XNoShow() {
 
           {!studentMarked ? (
             <Card style={{ marginTop: 22, padding: 16 }}>
-              <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>{X_STUDENT.first}&apos;s record · 3-strike policy</Eyebrow>
+              <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>{student.first}&apos;s record · 3-strike policy</Eyebrow>
               {STRIKES.map(([k, v, active], i) => (
                 <View key={k} style={[styles.strikeRow, i < 2 ? { borderBottomWidth: 1, borderBottomColor: t.border } : null]}>
                   <View style={[styles.strikeBadge, { backgroundColor: active ? t.accent : t.surface2 }]}>
@@ -141,7 +148,7 @@ export default function XNoShow() {
     <Screen>
       <NavTop onBack={() => router.back()} title="Report a no-show" />
       <Body pad={20}>
-        <SessionStrip booking={booking} tutor={tutor} who={studentView ? 'student' : 'tutor'} />
+        <SessionStrip booking={booking} tutor={tutor} who={studentView ? 'student' : 'tutor'} studentName={student.name} />
 
         <Card style={{ marginTop: 16, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
           <View style={[styles.clockIcon, { backgroundColor: t.accentWeak }]}>
@@ -149,7 +156,7 @@ export default function XNoShow() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>
-              {studentView ? `${tutor.name.split(' ')[0]!} is 15+ minutes late` : `${X_STUDENT.first} hasn't shown up`}
+              {studentView ? `${tutor.name.split(' ')[0]!} is 15+ minutes late` : `${student.first} hasn't shown up`}
             </Text>
             <Text style={{ fontSize: 13, color: t.text2, marginTop: 4, lineHeight: 19 }}>
               {studentView

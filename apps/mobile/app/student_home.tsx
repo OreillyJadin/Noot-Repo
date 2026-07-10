@@ -1,7 +1,7 @@
 // S3 Search / Browse — ported from screens-student.jsx (StudentHome). Browse-first
 // hub into the booking flow: tappable search bar + category tabs → a "popular"
 // carousel and a detailed tutor list, both opening the tutor profile (B2).
-// Real wiring later: replace TUTORS with @noot/core per-category search results.
+// Tutor lists come live from @noot/core per-category search results (api.tutors.search).
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

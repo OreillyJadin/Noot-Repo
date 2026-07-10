@@ -462,8 +462,70 @@ export const api = {
    * student's row directly — the function only returns genuine booking counterparties,
    * preserving that boundary.
    */
-  resolveParticipantNames(): Promise<Record<string, { firstName: string; lastName: string }>> {
+  resolveParticipantNames(): Promise<
+    Record<string, { firstName: string; lastName: string; year: string | null; major: string | null }>
+  > {
     return invokeFn('resolve-participants');
+  },
+
+  /**
+   * Live dashboard stats for the signed-in tutor, derived from their real bookings
+   * (as tutor). Money reflects the current simulated payouts. `avgRating` comes from
+   * the denormalized profile average (null until they have approved reviews).
+   */
+  async tutorStats(): Promise<{
+    sessionsTaught: number;
+    hoursTaught: number;
+    earnedThisWeek: number;
+    earnedTotal: number;
+    avgRating: number | null;
+    cancelledCount: number;
+    cancelRate: number;
+  }> {
+    const uid = await requireUid();
+    const sb = getSupabase();
+    const { data, error } = await sb
+      .from('bookings')
+      .select('status, scheduled_at, tutor_payout_amount, duration_minutes')
+      .eq('tutor_id', uid);
+    if (error) throw error;
+    const rows = data ?? [];
+    const completed = rows.filter((r) => r.status === 'completed');
+    const cancelled = rows.filter((r) => r.status === 'cancelled');
+    const weekAgo = Date.now() - 7 * 86_400_000;
+    const earnedTotal = completed.reduce((s, r) => s + num(r.tutor_payout_amount), 0);
+    const earnedThisWeek = completed
+      .filter((r) => new Date(r.scheduled_at as string).getTime() >= weekAgo)
+      .reduce((s, r) => s + num(r.tutor_payout_amount), 0);
+    const hoursTaught = completed.reduce((s, r) => s + num(r.duration_minutes) / 60, 0);
+    const { data: prof } = await sb.from('tutor_profiles').select('rating_avg').eq('user_id', uid).maybeSingle();
+    const denom = completed.length + cancelled.length;
+    return {
+      sessionsTaught: completed.length,
+      hoursTaught,
+      earnedThisWeek,
+      earnedTotal,
+      avgRating: prof?.rating_avg != null ? Number(prof.rating_avg) : null,
+      cancelledCount: cancelled.length,
+      cancelRate: denom ? cancelled.length / denom : 0,
+    };
+  },
+
+  /** Live study stats for the signed-in student, derived from their real bookings. */
+  async studentStats(): Promise<{ sessionsCompleted: number; upcomingCount: number; hoursLearned: number }> {
+    const uid = await requireUid();
+    const nowMs = Date.now();
+    const { data, error } = await getSupabase()
+      .from('bookings')
+      .select('status, scheduled_at, duration_minutes')
+      .eq('student_id', uid);
+    if (error) throw error;
+    const rows = data ?? [];
+    const isPast = (r: { scheduled_at: string }) => new Date(r.scheduled_at).getTime() < nowMs;
+    const completed = rows.filter((r) => r.status === 'completed' || (r.status === 'confirmed' && isPast(r as { scheduled_at: string })));
+    const upcoming = rows.filter((r) => r.status === 'confirmed' && !isPast(r as { scheduled_at: string }));
+    const hoursLearned = completed.reduce((s, r) => s + num(r.duration_minutes) / 60, 0);
+    return { sessionsCompleted: completed.length, upcomingCount: upcoming.length, hoursLearned };
   },
 
   /** B4 → held PaymentIntent via the `create-payment-intent` Edge Function. */

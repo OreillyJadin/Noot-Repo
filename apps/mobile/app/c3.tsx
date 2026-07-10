@@ -7,10 +7,10 @@ import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Field, Avatar, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
+import { useCounterpart } from '../lib/useCounterpart';
 
 const RATING_WORDS = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'];
 const REVIEW_MAX = 500;
-const STUDENT = { name: 'Lindsay Thomas', first: 'Lindsay' };
 
 // Interactive 1–5 star rating. Defined locally (not shared) per porting guide.
 function StarRating({ value, onChange, size = 40 }: { value: number; onChange: (n: number) => void; size?: number }) {
@@ -74,6 +74,7 @@ export default function C3() {
   const t = useTheme();
   const router = useRouter();
   const { booking } = useApp();
+  const student = useCounterpart(booking.studentId);
   const [rating, setRating] = useState(0);
   const [review, setReview] = useState('');
   const [happened, setHappened] = useState<Happened>(null);
@@ -108,8 +109,8 @@ export default function C3() {
       <NavTop title="Rate your student" onBack={() => router.back()} />
       <Body pad={20}>
         <View style={styles.header}>
-          <Avatar size={72} label={STUDENT.first[0]} />
-          <Text style={[styles.h2, { color: t.text }]}>{STUDENT.name}</Text>
+          <Avatar size={72} label={student.first[0]} />
+          <Text style={[styles.h2, { color: t.text }]}>{student.name}</Text>
           <Text style={[styles.headerMeta, { color: t.text3 }]}>{booking.course || 'MGT 300'}</Text>
         </View>
 

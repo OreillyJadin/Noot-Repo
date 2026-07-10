@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { tutorById, toTutor, type Tutor } from '../lib/data';
+import { toTutor, type Tutor } from '../lib/data';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 
@@ -79,12 +79,14 @@ function TutorRow({
   meta,
   course,
   rate,
+  sessions,
   onPress,
 }: {
   name: string;
   meta: string;
   course: string;
   rate: string;
+  sessions: number;
   onPress: () => void;
 }) {
   const t = useTheme();
@@ -101,20 +103,14 @@ function TutorRow({
         </View>
         <Text style={[styles.tutorMeta, { color: t.text3 }]}>{meta}</Text>
         <View style={styles.tutorBadges}>
-          <Badge label={course} tone="accentSoft" />
+          {course ? <Badge label={course} tone="accentSoft" /> : null}
           <Badge label="Verified" tone="good" />
-          <Text style={[styles.tutorSessions, { color: t.text3 }]}>— sessions</Text>
+          <Text style={[styles.tutorSessions, { color: t.text3 }]}>{sessions} sessions</Text>
         </View>
       </View>
     </Card>
   );
 }
-
-const POP: [string, string, string, string, string][] = [
-  ['Sara W.', 'sara', 'Senior · Management', 'MGT 300', '$28'],
-  ['Devon R.', 'devon', 'Grad · MBA', 'MGT 300', '$34'],
-  ['Priya N.', 'priya', 'Senior · Chemistry', 'CH 101', '$30'],
-];
 
 export default function Home() {
   const t = useTheme();
@@ -122,54 +118,70 @@ export default function Home() {
   const { patchBooking, role } = useApp();
   const { me, loading } = useMe();
 
-  // Next session: live from api.listUpcoming()[0] when there's a session; demo fallback otherwise.
-  const sara = tutorById('sara')!;
-  const [next, setNext] = useState<{ course: string; when: string; where: string; tutor: Tutor; at: number }>({
-    course: 'MGT 300',
-    when: 'Tomorrow · 3:00 PM',
-    where: 'Gorgas Library',
-    tutor: sara,
-    at: Date.now() + 27 * 3600000,
-  });
+  // Next session: the soonest real upcoming booking, or null → a "find a tutor" CTA.
+  const [next, setNext] = useState<{ course: string; when: string; where: string; tutorName: string; tutor: Tutor | null; at: number } | null>(null);
+  const [nextLoading, setNextLoading] = useState(true);
   useEffect(() => {
     let active = true;
     api
       .listUpcoming()
       .then(async (bookings) => {
         const b = bookings[0];
-        if (!b) return; // no upcoming session → keep demo fallback
-        const summary = await api.tutors.getById(b.tutorId);
+        if (!b) { if (active) setNext(null); return; }
+        const summary = await api.tutors.getById(b.tutorId).catch(() => null);
         if (!active) return;
+        const tutor = summary ? toTutor(summary) : null;
         setNext({
           course: b.subject,
           when: formatWhen(b.scheduledAt),
           where: b.location ?? 'Online',
-          tutor: summary ? toTutor(summary) : sara,
+          tutorName: tutor?.name ?? 'Your tutor',
+          tutor,
           at: new Date(b.scheduledAt).getTime(),
         });
       })
-      .catch(() => { /* no session / offline → keep demo fallback */ });
+      .catch(() => { if (active) setNext(null); })
+      .finally(() => { if (active) setNextLoading(false); });
     return () => { active = false; };
   }, []);
 
-  // TODO(api): no read endpoint for study streak / monthly goal / hours — demo values.
-  const goalDone = 3;
-  const goalTotal = 5;
+  // "Pick up where you left off" — real tutors from search (student's courses drive it).
+  const [popular, setPopular] = useState<Tutor[]>([]);
+  useEffect(() => {
+    let active = true;
+    api.tutors
+      .search({})
+      .then((list) => { if (active) setPopular(list.map(toTutor).slice(0, 3)); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  // Real study stats (sessions completed / hours / upcoming). No streak or monthly-goal
+  // data model exists, so those fabricated numbers are gone — these are honest zeros
+  // for a brand-new student (ARCHITECTURE §7).
+  const [stats, setStats] = useState<{ sessionsCompleted: number; upcomingCount: number; hoursLearned: number } | null>(null);
+  useEffect(() => {
+    let active = true;
+    api.studentStats().then((s) => { if (active) setStats(s); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
 
-  const openTutor = (id: string, course: string) => {
-    patchBooking({ tutor: tutorById(id), course });
+  const openTutor = (tutor: Tutor, course: string) => {
+    patchBooking({ tutor, course });
     router.push('/b2');
   };
   const openChat = () => {
+    if (!next?.tutor) return;
     patchBooking({ tutor: next.tutor });
-    router.push('/chat'); // TODO(api): real chat thread
+    router.push('/chat');
   };
   const grabSlot = () => {
-    patchBooking({ tutor: sara, course: 'MGT 300' });
-    router.push('/b3');
+    const first = popular[0];
+    if (first) openTutor(first, first.courses[0]?.[0] ?? '');
+    else router.replace('/student_home' as any);
   };
   const notify = () => Alert.alert('Notifications', 'Coming soon — built with backend'); // TODO(api)
 
@@ -192,69 +204,76 @@ export default function Home() {
       </View>
 
       <Body ref={scrollRef} contentStyle={{ paddingTop: 8 }}>
-        {/* Next session countdown */}
-        <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
-          <Text style={styles.geckoDeco}>🦎</Text>
-          <View style={styles.rowBetween}>
-            <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>YOUR NEXT SESSION</Text>
-            <Badge label={next.course} tone="ink" />
-          </View>
-          <View style={styles.nextTutorRow}>
-            <Avatar size={40} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.nextName, { color: t.onAccent }]}>{next.tutor.name}</Text>
-              <Text style={[styles.nextMeta, { color: t.onAccent }]}>
-                {next.when} · {next.where}
-              </Text>
+        {/* Next session countdown — real upcoming booking, or a CTA when there's none */}
+        {next ? (
+          <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
+            <Text style={styles.geckoDeco}>🦎</Text>
+            <View style={styles.rowBetween}>
+              <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>YOUR NEXT SESSION</Text>
+              <Badge label={next.course} tone="ink" />
+            </View>
+            <View style={styles.nextTutorRow}>
+              <Avatar size={40} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.nextName, { color: t.onAccent }]}>{next.tutorName}</Text>
+                <Text style={[styles.nextMeta, { color: t.onAccent }]}>
+                  {next.when} · {next.where}
+                </Text>
+              </View>
+            </View>
+            <CountdownPills target={next.at} />
+            <View style={styles.nextActions}>
+              <Pressable onPress={openChat} style={[styles.nextBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
+                <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />
+                <Text style={[styles.nextBtnLabel, { color: t.onAccent }]}>Message</Text>
+              </Pressable>
+              <Pressable onPress={() => router.push('/sessions')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
+                <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Details</Text>
+              </Pressable>
             </View>
           </View>
-          <CountdownPills target={next.at} />
-          <View style={styles.nextActions}>
-            <Pressable onPress={openChat} style={[styles.nextBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
-              <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />
-              <Text style={[styles.nextBtnLabel, { color: t.onAccent }]}>Message</Text>
-            </Pressable>
-            <Pressable onPress={() => router.push('/sessions')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
-              <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Details</Text>
-            </Pressable>
+        ) : (
+          <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
+            <Text style={styles.geckoDeco}>🦎</Text>
+            <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>NO UPCOMING SESSIONS</Text>
+            <Text style={[styles.nextName, { color: t.onAccent, marginTop: 8 }]}>
+              {nextLoading ? 'Loading…' : 'Book your first session'}
+            </Text>
+            <Text style={[styles.nextMeta, { color: t.onAccent, marginBottom: 12 }]}>
+              Find a verified tutor for your courses and lock in a time.
+            </Text>
+            <View style={styles.nextActions}>
+              <Pressable onPress={() => router.replace('/student_home' as any)} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
+                <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Find a tutor</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
+        )}
 
-        {/* Exam radar — course-aware nudge */}
-        {/* TODO(api): no exam-schedule or tutor-availability read endpoint — demo copy. */}
-        <Card flat style={[styles.examCard, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>
-          <View style={[styles.examIcon, { backgroundColor: t.surface }]}>
-            <Ic name="cap" size={20} color={t.accent} strokeWidth={1.8} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.examTitle, { color: t.text }]}>MGT 300 exam in 10 days</Text>
-            <Text style={[styles.examSub, { color: t.text2 }]}>Sara W. has 4 open times</Text>
-          </View>
-          <Pressable onPress={grabSlot} style={[styles.examBtn, { backgroundColor: t.accent }]}>
-            <Text style={[styles.examBtnLabel, { color: t.onAccent }]}>Grab a slot</Text>
-          </Pressable>
-        </Card>
+        {/* Course-aware nudge — driven by the student's real enrolled courses */}
+        {me?.courses?.length ? (
+          <Card flat style={[styles.examCard, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>
+            <View style={[styles.examIcon, { backgroundColor: t.surface }]}>
+              <Ic name="cap" size={20} color={t.accent} strokeWidth={1.8} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.examTitle, { color: t.text }]}>Studying {me.courses[0]}?</Text>
+              <Text style={[styles.examSub, { color: t.text2 }]}>Find a verified tutor who aced it</Text>
+            </View>
+            <Pressable onPress={grabSlot} style={[styles.examBtn, { backgroundColor: t.accent }]}>
+              <Text style={[styles.examBtnLabel, { color: t.onAccent }]}>Find one</Text>
+            </Pressable>
+          </Card>
+        ) : null}
 
-        {/* Streak + goals */}
+        {/* Momentum — real counts from the student's bookings */}
         <View style={styles.sectionHead}>
           <H2 style={{ fontSize: 17 }}>Your momentum</H2>
-          <Text style={{ fontSize: 12.5, color: t.text3 }}>This month</Text>
         </View>
         <View style={styles.statsRow}>
-          <StatCard icon="flame" big="4 wk" label="Study streak — keep it alive!" />
-          <StatCard icon="target" big={`${goalDone}/${goalTotal}`} label="Sessions toward your goal" />
-          <StatCard icon="trophy" big="12h" label="Hours learned" />
-        </View>
-        <View style={[styles.goalBox, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>
-          <View style={styles.rowBetween}>
-            <Text style={[styles.goalLabel, { color: t.text }]}>
-              Monthly goal · {goalDone} of {goalTotal} sessions
-            </Text>
-            <Text style={[styles.goalPct, { color: t.accent }]}>{Math.round((goalDone / goalTotal) * 100)}%</Text>
-          </View>
-          <View style={[styles.goalTrack, { backgroundColor: t.surface2 }]}>
-            <View style={[styles.goalFill, { width: `${(goalDone / goalTotal) * 100}%`, backgroundColor: t.accent }]} />
-          </View>
+          <StatCard icon="cap" big={stats ? String(stats.sessionsCompleted) : '—'} label="Sessions completed" />
+          <StatCard icon="target" big={stats ? String(stats.upcomingCount) : '—'} label="Upcoming booked" />
+          <StatCard icon="trophy" big={stats ? `${Math.round(stats.hoursLearned)}h` : '—'} label="Hours learned" />
         </View>
 
         {/* Continue / popular */}
@@ -265,9 +284,23 @@ export default function Home() {
           </Text>
         </View>
         <View style={{ gap: 10 }}>
-          {POP.map(([n, id, meta, course, rate]) => (
-            <TutorRow key={id} onPress={() => openTutor(id, course)} name={n} meta={meta} course={course} rate={rate} />
-          ))}
+          {popular.map((tt) => {
+            const course = tt.courses[0]?.[0] ?? '';
+            return (
+              <TutorRow
+                key={tt.id}
+                onPress={() => openTutor(tt, course)}
+                name={tt.name}
+                meta={`${tt.year} · ${tt.major}`}
+                course={course}
+                rate={`$${tt.rate}`}
+                sessions={tt.sessions}
+              />
+            );
+          })}
+          {popular.length === 0 ? (
+            <Text style={{ fontSize: 13, color: t.text3 }}>Finding tutors for your courses…</Text>
+          ) : null}
         </View>
       </Body>
 

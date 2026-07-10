@@ -2,23 +2,16 @@
 // ProfileTabTutor). Backend-only actions (the prototype's showToast) become a
 // TODO(api)'d Alert; "Dark mode" is a local visual toggle only (not wired to the real
 // theme yet — that lives in ThemeProvider at the app root).
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, Skeleton, useTheme, type IconName } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
-
-// TODO(api): tutor teaching stats (sessions taught, avg rating, hours) — no stats
-// endpoint exists yet; kept as demo values.
-const STATS: [string, string][] = [
-  ['84', 'Sessions taught'],
-  ['4.9', 'Avg rating'],
-  ['112', 'Hours'],
-];
 
 // TODO(api): backend-only actions from the prototype's showToast() — swap for real
 // navigation/mutations once wired up.
@@ -78,6 +71,27 @@ export default function TutorProfile() {
   const meFirst = firstName(me, 'T');
   const meYearMajor = [me?.year, me?.major].filter(Boolean).join(' · ') || '—';
 
+  // Live teaching stats + the tutor's own courses (for the "Courses & rates" row).
+  const [stats, setStats] = useState<{ sessionsTaught: number; hoursTaught: number; earnedTotal: number; avgRating: number | null; cancelledCount: number } | null>(null);
+  const [coursesSub, setCoursesSub] = useState('Set your rates per course');
+  useEffect(() => {
+    let active = true;
+    api.tutorStats().then((s) => { if (active) setStats(s); }).catch(() => {});
+    if (me) {
+      api.tutors.getById(me.id).then((sum) => {
+        if (!active || !sum || sum.courses.length === 0) return;
+        setCoursesSub(sum.courses.map((c) => `${c.courseCode} · $${c.hourlyRate}/hr`).join(', '));
+      }).catch(() => {});
+    }
+    return () => { active = false; };
+  }, [me]);
+
+  const STATS: [string, string][] = [
+    [stats ? String(stats.sessionsTaught) : '—', 'Sessions taught'],
+    [stats?.avgRating != null ? stats.avgRating.toFixed(1) : '—', 'Avg rating'],
+    [stats ? String(Math.round(stats.hoursTaught)) : '—', 'Hours'],
+  ];
+
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
 
@@ -130,15 +144,16 @@ export default function TutorProfile() {
           </View>
         </Card>
 
-        {/* payout summary */}
-        {/* TODO(api): payout amount / schedule / account — no earnings or payout endpoint; demo values. */}
+        {/* earnings summary — real total from completed bookings (payouts still simulated) */}
         <Card onPress={() => notify('Stripe payouts')} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
           <View style={[styles.promoIcon, { backgroundColor: t.accent }]}>
             <Ic name="dollar" size={20} color={t.onAccent} strokeWidth={1.8} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.promoTitle, { color: t.text }]}>$182 next payout</Text>
-            <Text style={[styles.promoSub, { color: t.text2 }]}>Deposits to •••• 4521 · Fri</Text>
+            <Text style={[styles.promoTitle, { color: t.text }]}>
+              {stats ? `$${stats.earnedTotal.toFixed(2)} earned` : 'Earnings'}
+            </Text>
+            <Text style={[styles.promoSub, { color: t.text2 }]}>Connect Stripe to start receiving payouts</Text>
           </View>
           <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
         </Card>
@@ -147,19 +162,24 @@ export default function TutorProfile() {
         <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Account</Eyebrow>
         <Card style={styles.cardNoPad}>
           <Row icon="user" label="Personal info" sub={me?.email ?? '—'} onPress={() => router.push('/edit_personal')} />
-          <Row icon="cap" label="Courses & rates" sub="CH 101 · $25/hr, CH 102 · $30/hr" onPress={() => router.push('/edit_rates')} />
+          <Row icon="cap" label="Courses & rates" sub={coursesSub} onPress={() => router.push('/edit_rates')} />
           <Row icon="cal" label="Availability" sub="Set your typical week" onPress={() => router.push('/edit_availability')} />
           <Row icon="edit" label="Edit tutor profile" sub="Photo, bio — what students see" onPress={() => router.push('/edit_tutor')} />
-          <Row icon="dollar" label="Payout account" sub="Stripe · •••• 4521" onPress={() => notify('Stripe Connect')} />
+          <Row icon="dollar" label="Payout account" sub="Not connected — set up Stripe" onPress={() => notify('Stripe Connect')} />
           <Row icon="doc" label="Earnings & payment history" onPress={() => notify('Earnings')} last />
         </Card>
 
-        {/* standing */}
-        {/* TODO(api): standing metrics (cancellation rate, response time) — no tutor stats endpoint; demo values. */}
+        {/* standing — cancellation count is real; response time has no data source yet */}
         <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Standing</Eyebrow>
         <Card style={styles.cardNoPad}>
-          <Row icon="shield" label="Cancellation rate" sub="0 in the last 30 days" value="Good" onPress={() => notify('Standing details')} />
-          <Row icon="flame" label="Response time" sub="Usually within 2 hrs" onPress={() => notify('Stats')} last />
+          <Row
+            icon="shield"
+            label="Cancellations"
+            sub={stats ? `${stats.cancelledCount} total` : '—'}
+            value={stats ? (stats.cancelledCount <= 2 ? 'Good' : 'Review') : ''}
+            onPress={() => notify('Standing details')}
+            last
+          />
         </Card>
 
         {/* preferences */}

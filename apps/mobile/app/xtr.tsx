@@ -1,27 +1,29 @@
 // X3 Propose Reschedule (Tutor) — ported from screens-changes.jsx (XReschedulePropose).
 // Day/time picker mirrors B3's day-scroller + slot-grid pattern. Sending a request
 // keeps payment unchanged and hands off to the student's Accept/Decline view (X4).
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Ic, H1, Sub, Label, HeroIcon, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
-import { TUTORS, DAYS, slotsFor, type Tutor } from '../lib/data';
+import { DAYS } from '../lib/data';
+import { slotsFromWindows } from '../lib/availability';
+import { useMe } from '../lib/useMe';
+import { useCounterpart } from '../lib/useCounterpart';
 
-const X_STUDENT = { name: 'Lindsay Thomas', first: 'Lindsay' };
-
-function sessionFacts(booking: BookingDraft, tutor: Tutor) {
+function sessionFacts(booking: BookingDraft) {
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1]!;
   const slot = booking.slot ?? '3:00 PM';
   return { dayObj, slot };
 }
 
 /** Combine a DAYS day-index + slot string ("3:00 PM") into an ISO timestamp.
- * Mirrors buildDays()'s start date (Jun 16 2026) so day indices line up. */
+ * DAYS starts at real today, so day-index N is today + N days. */
 function scheduledAtISO(dayIndex: number, slot: string): string {
-  const d = new Date(2026, 5, 16);
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() + dayIndex);
   const m = slot.match(/(\d+):(\d+)\s*(AM|PM)/i);
   if (m) {
@@ -37,13 +39,32 @@ export default function XReschedulePropose() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { booking } = useApp();
-  const tutor = booking.tutor ?? TUTORS[0]!;
-  const slots = slotsFor(tutor.name.charCodeAt(0) % 5);
+  const { me } = useMe();
+  const student = useCounterpart(booking.studentId);
+  // The tutor proposes a new time from their OWN real weekly availability.
+  const [slots, setSlots] = useState<Record<number, string[]>>({});
   const availableDays = DAYS.filter((d) => slots[d.i] && slots[d.i]!.length);
-  const [day, setDay] = useState<number>(availableDays[1]?.i ?? availableDays[0]?.i ?? 0);
+  const [day, setDay] = useState<number>(0);
   const [slot, setSlot] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
-  const f = sessionFacts(booking, tutor);
+
+  useEffect(() => {
+    if (!me) return;
+    let active = true;
+    api.tutors
+      .getAvailability(me.id)
+      .then((windows) => {
+        if (!active) return;
+        const next = slotsFromWindows(windows);
+        setSlots(next);
+        const first = DAYS.find((d) => (next[d.i]?.length ?? 0) > 0);
+        if (first) setDay(first.i);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [me]);
+
+  const f = sessionFacts(booking);
   const daySlots = slots[day] ?? [];
   const dayObj = DAYS.find((d) => d.i === day) ?? DAYS[0]!;
 
@@ -75,7 +96,7 @@ export default function XReschedulePropose() {
             <HeroIcon name="clock" size={72} />
             <H1 style={{ fontSize: 24, marginTop: 20 }}>Request sent</H1>
             <Sub style={{ marginTop: 10, maxWidth: 260, textAlign: 'center' }}>
-              {X_STUDENT.first} will get a notification to accept or decline your new time. Payment stays unchanged.
+              {student.first} will get a notification to accept or decline your new time. Payment stays unchanged.
             </Sub>
           </View>
           <Card style={{ marginTop: 24, padding: 16 }}>
@@ -162,7 +183,7 @@ export default function XReschedulePropose() {
           kind="primary"
           full
           disabled={!slot}
-          label={slot ? `Send request to ${X_STUDENT.first}` : 'Pick a time'}
+          label={slot ? `Send request to ${student.first}` : 'Pick a time'}
           onPress={send}
         />
       </ActionBar>

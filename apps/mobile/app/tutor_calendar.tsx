@@ -10,7 +10,9 @@ import { useRouter } from 'expo-router';
 import { Screen, Body, TabBar, Card, Avatar, Ic, Label, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { DAYS, MONTHS, slotsFor, tutorById } from '../lib/data';
+import { useMe } from '../lib/useMe';
+import { DAYS, MONTHS } from '../lib/data';
+import { isTimeOpen } from '../lib/availability';
 import { useTabNav } from '../lib/useTabNav';
 
 const CAL_TIMES = ['9:00 AM', '10:30 AM', '12:00 PM', '1:30 PM', '3:00 PM', '4:30 PM', '6:00 PM', '7:30 PM'];
@@ -23,13 +25,6 @@ interface CalSession {
   pay: string;
   len: string;
 }
-
-// Demo booked sessions on the tutor's calendar: DAYS index -> { time -> session }
-// Offline/no-session fallback; replaced by api.listUpcoming() when a session loads.
-const CAL_SESSIONS: Record<number, Record<string, CalSession>> = {
-  1: { '3:00 PM': { name: 'Lindsay Thomas', av: 'L', course: 'MGT 300', where: 'Gorgas Library, Fl 2', pay: '$28', len: '1 hr' } },
-  9: { '10:30 AM': { name: 'Marcus B.', av: 'M', course: 'MGT 300', where: 'Online — Integrated Video', pay: '$28', len: '1 hr' } },
-};
 
 // Format a booking time into the same slot labels the grid renders (CAL_TIMES).
 function slotLabel(d: Date): string {
@@ -58,27 +53,40 @@ const WEEK_TABS: [number, string][] = [
   [1, 'Next week'],
 ];
 
-// Start from the same deterministic availability generator the booking flow uses (T5 calendar)
-function calInitOpen(): Record<number, Set<string>> {
-  const base = slotsFor(1);
-  const map: Record<number, Set<string>> = {};
-  for (let d = 0; d < 14; d++) map[d] = new Set(base[d] || []);
-  return map;
-}
-
 export default function TutorCalendar() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { patchBooking, role } = useApp();
+  const { role } = useApp();
+  const { me } = useMe();
 
   const [week, setWeek] = useState(0); // 0 = this week · 1 = next week
   const [day, setDay] = useState(1); // selected index into DAYS
-  const [open, setOpen] = useState<Record<number, Set<string>>>(calInitOpen);
-  // Booked sessions on the grid: live from api.listUpcoming(); CAL_SESSIONS is the offline fallback.
-  const [sessionsByDay, setSessionsByDay] = useState<Record<number, Record<string, CalSession>>>(CAL_SESSIONS);
+  // Open/closeable slots per day, seeded from the tutor's real weekly availability.
+  // (Per-slot toggling is local-only for now — see TODO on toggle().)
+  const [open, setOpen] = useState<Record<number, Set<string>>>({});
+  // Booked sessions on the grid: live from api.listUpcoming().
+  const [sessionsByDay, setSessionsByDay] = useState<Record<number, Record<string, CalSession>>>({});
 
-  // TODO(api): availability (open/closed slots) has no read endpoint — `open` stays client-derived (calInitOpen).
+  // Seed the open-slot grid from the signed-in tutor's real weekly availability:
+  // for each calendar day, mark the CAL_TIMES that fall inside a saved window.
+  useEffect(() => {
+    if (!me) return;
+    let active = true;
+    api.tutors
+      .getAvailability(me.id)
+      .then((windows) => {
+        if (!active) return;
+        const map: Record<number, Set<string>> = {};
+        for (const d of DAYS) {
+          map[d.i] = new Set(CAL_TIMES.filter((time) => isTimeOpen(windows, d.dowNum, time)));
+        }
+        setOpen(map);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [me]);
+
   useEffect(() => {
     let active = true;
     api
@@ -125,8 +133,9 @@ export default function TutorCalendar() {
     setWeek(w);
     setDay(w * 7);
   };
+  // TODO(api): CalSession carries no booking id yet, so tb2 can't load this exact
+  // session — navigate to the tutor-side detail; it reads real data via listUpcoming.
   const openDetail = () => {
-    patchBooking({ tutor: tutorById('sara') });
     router.push('/tb2' as never);
   };
   const copyToNextWeek = () => {

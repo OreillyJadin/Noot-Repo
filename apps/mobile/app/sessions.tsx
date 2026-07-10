@@ -10,7 +10,7 @@ import { useTabNav } from '../lib/useTabNav';
 import { api } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
-import { TUTORS, toTutor, type Tutor } from '../lib/data';
+import { toTutor, type Tutor } from '../lib/data';
 
 type SegmentKey = 'upcoming' | 'past' | 'saved';
 
@@ -109,48 +109,48 @@ export default function Sessions() {
 
   // Navigation into the mutation flows below is unchanged (read-only pass); each carries
   // the resolved tutor into the target screen via the local booking store.
-  const message = (tutor: Tutor) => {
-    patchBooking({ tutor });
+  const message = (tutor: Tutor | null) => {
+    patchBooking({ tutor: tutor ?? undefined });
     router.push('/chat');
   };
   // Change/completion flows act on a real booking id. Upcoming items carry `b.id`;
   // when reached without one (e.g. the dev launcher), we keep the old local behavior so
   // nothing breaks. The X*/C* screens read booking.bookingId to run the real mutation.
-  const reschedule = (tutor: Tutor, bookingId?: string) => {
+  const reschedule = (tutor: Tutor | null, bookingId?: string) => {
     try {
       if (!bookingId) {
         // Dev launcher / no real booking — keep the current demo behavior.
-        patchBooking({ tutor });
+        patchBooking({ tutor: tutor ?? undefined });
         router.push('/xsr');
         return;
       }
-      patchBooking({ tutor, bookingId });
+      patchBooking({ tutor: tutor ?? undefined, bookingId });
       router.push('/xsr');
     } catch (e) {
       Alert.alert('Something went wrong', 'Could not open reschedule. Please try again.');
     }
   };
-  const cancelSession = (tutor: Tutor, bookingId?: string) => {
+  const cancelSession = (tutor: Tutor | null, bookingId?: string) => {
     try {
       if (!bookingId) {
-        patchBooking({ tutor });
+        patchBooking({ tutor: tutor ?? undefined });
         router.push('/xsc');
         return;
       }
-      patchBooking({ tutor, bookingId });
+      patchBooking({ tutor: tutor ?? undefined, bookingId });
       router.push('/xsc');
     } catch (e) {
       Alert.alert('Something went wrong', 'Could not open cancel. Please try again.');
     }
   };
-  const reportNoShow = (tutor: Tutor, bookingId?: string) => {
+  const reportNoShow = (tutor: Tutor | null, bookingId?: string) => {
     try {
       if (!bookingId) {
-        patchBooking({ tutor });
+        patchBooking({ tutor: tutor ?? undefined });
         router.push('/xns');
         return;
       }
-      patchBooking({ tutor, bookingId });
+      patchBooking({ tutor: tutor ?? undefined, bookingId });
       router.push('/xns');
     } catch (e) {
       Alert.alert('Something went wrong', 'Could not open no-show report. Please try again.');
@@ -240,8 +240,8 @@ export default function Sessions() {
             />
           ) : (
           <View style={{ gap: 12 }}>
-            {upcoming.map(({ booking: b, tutor: joined }) => {
-              const tutor = joined ?? TUTORS[0]!;
+            {upcoming.map(({ booking: b, tutor }) => {
+              const tutorName = tutor?.name ?? 'Your tutor';
               const when = formatWhen(b.scheduledAt);
               const where = formatWhere(b);
               const online = b.sessionType === 'video';
@@ -259,10 +259,10 @@ export default function Sessions() {
                     <View style={styles.upcomingHead}>
                       <Avatar size={46} />
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
+                        <Text style={[styles.name, { color: t.text }]}>{tutorName}</Text>
                         <Text style={[styles.sub, { color: t.text3 }]}>{b.subject}</Text>
                       </View>
-                      <Badge label={tutor.name.split(' ')[0] ?? ''} tone="accentSoft" />
+                      <Badge label={tutorName.split(' ')[0] ?? ''} tone="accentSoft" />
                     </View>
                     <View style={{ gap: 8, marginTop: 12 }}>
                       <View style={styles.metaRow}>
@@ -298,14 +298,13 @@ export default function Sessions() {
           <EmptyState icon="list" title="No past sessions yet" subtitle="Your completed sessions will appear here." />
         ) : (
           <View style={{ gap: 12 }}>
-            {past.map(({ booking: b, tutor: joined }) => {
-              const tutor = joined ?? TUTORS[0]!;
+            {past.map(({ booking: b, tutor }) => {
               return (
                 <Card key={b.id} style={{ padding: 14 }}>
                   <View style={styles.pastHead}>
                     <Avatar size={44} />
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.nameSm, { color: t.text }]}>{tutor.name}</Text>
+                      <Text style={[styles.nameSm, { color: t.text }]}>{tutor?.name ?? 'Your tutor'}</Text>
                       <Text style={[styles.sub, { color: t.text3 }]}>
                         {b.subject} · {formatWhen(b.scheduledAt)}
                       </Text>
