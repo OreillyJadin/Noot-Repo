@@ -14,6 +14,7 @@ import type {
   ConversationSummary,
   Message,
   ReviewSummary,
+  TutorAvailability,
   TutorCourse,
   TutorSummary,
   User,
@@ -72,6 +73,17 @@ function mapTutorCourse(row: any): TutorCourse {
     grade: row.grade ?? null,
     hourlyRate: num(row.hourly_rate),
     sessions: row.sessions ?? 0,
+    createdAt: row.created_at,
+  };
+}
+
+function mapTutorAvailability(row: any): TutorAvailability {
+  return {
+    id: row.id,
+    tutorId: row.tutor_id,
+    dayOfWeek: row.day_of_week,
+    startTime: row.start_time,
+    endTime: row.end_time,
     createdAt: row.created_at,
   };
 }
@@ -313,8 +325,14 @@ export const api = {
 
   // --- tutors (search / browse / saved) ---
   tutors: {
-    /** Approved tutors, optionally filtered to those who teach `course` (b1, student_home). */
-    async search(opts: { course?: string } = {}): Promise<TutorSummary[]> {
+    /**
+     * Approved tutors. Narrow by an exact `course` (b1), or by `categoryPrefixes` —
+     * department code prefixes like ['MGT','FI'] — so the browse tabs (Business/STEM/…)
+     * actually filter instead of all showing the same list. Prefixes are matched
+     * against tutor_courses.course_code with ILIKE `<prefix>*`; they're app-provided
+     * (a fixed category map), not user free-text. Omit both for "everyone".
+     */
+    async search(opts: { course?: string; categoryPrefixes?: string[] } = {}): Promise<TutorSummary[]> {
       const sb = getSupabase();
       let ids: string[] | null = null;
       if (opts.course) {
@@ -325,12 +343,36 @@ export const api = {
         if (error) throw error;
         ids = [...new Set((data ?? []).map((r: { tutor_id: string }) => r.tutor_id))];
         if (ids.length === 0) return [];
+      } else if (opts.categoryPrefixes && opts.categoryPrefixes.length > 0) {
+        // Keep only clean alnum prefixes, then OR together course_code.ilike.<p>*
+        const orExpr = opts.categoryPrefixes
+          .filter((p) => /^[A-Za-z]{1,6}$/.test(p))
+          .map((p) => `course_code.ilike.${p}*`)
+          .join(',');
+        if (orExpr) {
+          const { data, error } = await sb.from('tutor_courses').select('tutor_id').or(orExpr);
+          if (error) throw error;
+          ids = [...new Set((data ?? []).map((r: { tutor_id: string }) => r.tutor_id))];
+          if (ids.length === 0) return [];
+        }
       }
       let q = sb.from('users').select(TUTOR_SELECT).eq('tutor_profiles.approval_status', 'approved');
       if (ids) q = q.in('id', ids);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []).map(mapTutorSummary);
+    },
+
+    /** A tutor's recurring weekly availability. RLS allows any authenticated read. */
+    async getAvailability(tutorId: string): Promise<TutorAvailability[]> {
+      const { data, error } = await getSupabase()
+        .from('tutor_availability')
+        .select('*')
+        .eq('tutor_id', tutorId)
+        .order('day_of_week', { ascending: true })
+        .order('start_time', { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map(mapTutorAvailability);
     },
 
     /** Full tutor detail by user id (tutor profile page). */
@@ -411,6 +453,17 @@ export const api = {
       .order('scheduled_at', { ascending: false });
     if (error) throw error;
     return (data ?? []).map(mapBooking);
+  },
+
+  /**
+   * Names of the people the signed-in user shares a booking with, keyed by user id:
+   * `{ [userId]: { firstName, lastName } }`. Backed by the `resolve-participants`
+   * Edge Function (service role) because users_select RLS won't let a tutor read a
+   * student's row directly — the function only returns genuine booking counterparties,
+   * preserving that boundary.
+   */
+  resolveParticipantNames(): Promise<Record<string, { firstName: string; lastName: string }>> {
+    return invokeFn('resolve-participants');
   },
 
   /** B4 → held PaymentIntent via the `create-payment-intent` Edge Function. */
