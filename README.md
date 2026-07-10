@@ -33,7 +33,8 @@ Requires **Node ≥ 20** and **pnpm ≥ 9** (not yet installed in this environme
 ```bash
 corepack enable            # provides pnpm
 pnpm install               # install the whole workspace
-pnpm mobile                # run the app (iOS/Android/web)
+pnpm mobile                # run the app (iOS/Android/web) — fast, local network
+pnpm mobile-team           # run the app in tunnel mode — teammates can test off-network
 pnpm web                   # run the marketing site
 pnpm typecheck             # typecheck all packages
 pnpm lint                  # lint (enforces the migration-boundary guardrail)
