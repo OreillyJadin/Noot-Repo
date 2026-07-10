@@ -392,6 +392,27 @@ export const api = {
     return (data ?? []).map(mapBooking);
   },
 
+  /**
+   * Past sessions for the signed-in user (as student OR tutor): anything scheduled
+   * before now that wasn't cancelled, newest first. RLS lets a user read their own
+   * bookings (bookings_select), so this needs no new table. Note: resolving the
+   * COUNTERPARTY's name still depends on users_select — a student can read the
+   * (approved) tutor, but a tutor cannot read a student (RLS gap, see notes).
+   */
+  async listPast(): Promise<Booking[]> {
+    const uid = await requireUid();
+    const nowIso = new Date().toISOString();
+    const { data, error } = await getSupabase()
+      .from('bookings')
+      .select('*')
+      .or(`student_id.eq.${uid},tutor_id.eq.${uid}`)
+      .in('status', ['confirmed', 'completed'])
+      .lt('scheduled_at', nowIso)
+      .order('scheduled_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map(mapBooking);
+  },
+
   /** B4 → held PaymentIntent via the `create-payment-intent` Edge Function. */
   createPaymentIntent(
     amountCents: number,
