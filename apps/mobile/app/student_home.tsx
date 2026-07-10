@@ -20,9 +20,14 @@ const TITLES: Record<(typeof CATS)[number], string> = {
   STEM: 'Top in STEM',
   Humanities: 'Top in Humanities',
 };
-// NOTE(api): the demo pool (lib/data TUTORS) currently only covers MGT 300 /
-// business tutors, so every tab draws from the same list — only the section
-// title changes. Swap in real per-department queries once the API exists.
+// Category → department course-code prefixes, passed to api.tutors.search so each
+// tab returns a real, distinct set. 'For you' is unfiltered (everyone).
+const CAT_PREFIXES: Record<(typeof CATS)[number], string[] | undefined> = {
+  'For you': undefined,
+  Business: ['MGT', 'MKT', 'FI', 'AC', 'EC', 'LGS', 'ST', 'GBA'],
+  STEM: ['CH', 'BSC', 'MATH', 'PH', 'CS', 'ME', 'EE', 'BME', 'AEM', 'BIO', 'PHY', 'GEO'],
+  Humanities: ['EN', 'HY', 'PHL', 'PSC', 'SOC', 'ART', 'MUS', 'REL', 'PSY'],
+};
 
 function courseFor(tutor: Tutor): string {
   return tutor.courses[0]?.[0] ?? 'MGT 300';
@@ -67,18 +72,20 @@ export default function StudentHome() {
   const [tab, setTab] = useState(0);
 
   const cat = CATS[tab] ?? CATS[0];
-  // Live tutors from the API (see NOTE(api) above — same pool for every category today).
+  // Live tutors from the API, filtered by the selected category (course-code prefixes).
   const [rows, setRows] = useState<Tutor[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    const prefixes = CAT_PREFIXES[cat];
     api.tutors
-      .search()
+      .search(prefixes ? { categoryPrefixes: prefixes } : {})
       .then((list) => { if (active) setRows(list.map(toTutor)); })
-      .catch(() => { /* no session / no tutors → empty state */ })
+      .catch(() => { if (active) setRows([]); /* no session / no tutors → empty state */ })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [cat]);
 
   const openSearch = () => router.push('/b1');
   const openTutor = (tutor: Tutor) => {

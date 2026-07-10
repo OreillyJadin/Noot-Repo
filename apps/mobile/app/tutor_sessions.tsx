@@ -42,17 +42,21 @@ export default function TutorSessions() {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
-    api
-      .listUpcoming()
-      .then((bookings) => {
+    // Resolve real student names via the edge function (RLS blocks a tutor reading a
+    // student row directly). Falls back to "Student" if it's unavailable.
+    Promise.all([
+      api.listUpcoming(),
+      api.resolveParticipantNames().catch(() => ({} as Record<string, { firstName: string; lastName: string }>)),
+    ])
+      .then(([bookings, names]) => {
         if (!active) return;
         setUpcoming(
           bookings.map((b) => {
-            // TODO(api): no endpoint to resolve a booking's student name from studentId.
-            const name = 'Student';
+            const nm = names[b.studentId];
+            const name = (nm ? `${nm.firstName} ${nm.lastName}`.trim() : '') || 'Student';
             return {
               name,
-              av: name.charAt(0),
+              av: name.charAt(0) || 'S',
               course: b.subject,
               when: formatWhen(b.scheduledAt),
               where: b.sessionType === 'video' ? 'Online — Integrated Video' : b.location ?? 'In person',
