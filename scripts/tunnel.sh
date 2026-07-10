@@ -29,6 +29,25 @@ if ! command -v tmux >/dev/null 2>&1; then
   exit 1
 fi
 
+# Pick the first free Metro port at/after 8081. Expo only shows its interactive
+# "Use port 8082 instead? (Y/n)" prompt when the requested port is busy — and a
+# detached tmux session has no one to answer it, so it hangs forever. By handing
+# Expo a port we know is free, that prompt never fires and startup stays fully
+# hands-off (e.g. when your local `pnpm mobile` already holds 8081).
+find_free_port() {
+  local p=8081
+  while [ "$p" -lt 8099 ]; do
+    if command -v ss >/dev/null 2>&1; then
+      ss -ltn 2>/dev/null | grep -q "[:.]$p " || { echo "$p"; return 0; }
+    else
+      # Fallback: probe via /dev/tcp — a refused connection means the port is free.
+      (exec 3<>"/dev/tcp/127.0.0.1/$p") 2>/dev/null && exec 3>&- || { echo "$p"; return 0; }
+    fi
+    p=$((p + 1))
+  done
+  echo 8081  # give up gracefully; Expo will prompt as before
+}
+
 cmd="${1:-start}"
 
 case "$cmd" in
@@ -51,10 +70,24 @@ case "$cmd" in
     if tmux has-session -t "$SESSION" 2>/dev/null; then
       echo "Tunnel already running — reattaching. (Detach with Ctrl+b then d.)"
     else
-      echo "Starting tunnel in tmux session '$SESSION'..."
-      # Start detached so restarts don't stack, then run the tunnel inside it.
-      tmux new-session -d -s "$SESSION" -c "$REPO_ROOT" \
-        "export PATH=\"$NODE_BIN:\$PATH\"; exec pnpm mobile-team"
+      PORT="$(find_free_port)"
+      echo "Starting tunnel in tmux session '$SESSION' (Metro port $PORT)..."
+      # Pass the free port through the pnpm alias chain so Expo never prompts.
+      # dev:tunnel is `expo start --tunnel`; `-- --port N` appends to it.
+      RUN="pnpm --filter @noot/mobile dev:tunnel -- --port $PORT"
+      # Start detached so restarts don't stack. Run the tunnel, then DROP TO A
+      # SHELL instead of exec — so if the tunnel crashes or exits, the pane (and
+      # its logs) stay alive to inspect when you reattach, and you can just
+      # re-run the command to restart. `exec`-ing the tunnel would take the whole
+      # session down with it, leaving nothing to debug on the road.
+      inner="export PATH=\"$NODE_BIN:\$PATH\"
+$RUN
+ec=\$?
+printf '\n\n=== tunnel exited (code %s) — logs above. Restart: $RUN ===\n\n' \"\$ec\"
+exec \"\$SHELL\""
+      tmux new-session -d -s "$SESSION" -c "$REPO_ROOT" "$inner"
+      # Belt-and-suspenders: keep the pane even if the shell itself ever dies.
+      tmux set-option -t "$SESSION" remain-on-exit on 2>/dev/null || true
     fi
     echo
     echo "  Detach (keep it running):  Ctrl+b  then  d"
