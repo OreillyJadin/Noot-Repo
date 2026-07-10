@@ -8,9 +8,11 @@ should we build next?"_
 🟡 partial / unverified · 🔴 not built
 
 **One-line state:** the core student journey — sign in → find a tutor → message → book →
-see it in Upcoming → cancel/rate — is built and runs against the real cloud database.
-The big missing pieces are **real money (Stripe)**, the **Ambassador program**, the
-**Admin tools**, and **push notifications**. Money is currently *simulated*.
+see it in Upcoming → cancel/rate — is built and runs against the real cloud database, and
+as of **2026-07-10 there is no dummy data left** — every screen reads live `@noot/core`
+data (availability, stats, names all wired), and the cloud is seeded with tutors, students,
+bookings, chats & reviews. The big missing pieces are **real money (Stripe)**, the
+**Ambassador program**, the **Admin tools**, and **push notifications**. Money is *simulated*.
 
 ---
 
@@ -39,9 +41,9 @@ now used for signup verification and password reset, **not** as the day-to-day s
 | Read own profile (`getMe`) | ✅ | |
 | Edit personal info / courses | 🟢 | `profile.updatePersonal`, `setCourses`. |
 | Tutor profile (bio, subjects, rates, courses) | 🟢 | `updateTutorProfile`, `updateRates`, `setTutorCourses`. |
-| Set weekly availability (write) | 🟢 | `profile.updateAvailability`. |
-| **Read** availability endpoint | 🟢 | `tutors.getAvailability(tutorId)` built in core. |
-| **Read** availability wired into UI | 🔴 | Endpoint exists but **no screen consumes it** — booking `b1`/`b3` and `edit_availability` still show **demo** slots (`TODO(api)` in-code). Next step: wire the calendar. |
+| Set weekly availability (write) | 🟢 | `profile.updateAvailability`; `edit_availability` prefills from real saved windows. |
+| **Read** availability endpoint | 🟢 | `tutors.getAvailability(tutorId)` in core. |
+| **Read** availability wired into UI | 🟢 | **DONE (2026-07-10):** `lib/availability.ts` maps windows → real slots; consumed by `b1`/`b3`/`edit_availability`/`tutor_calendar`. Demo `slotsFor()` deleted. |
 | Tutor transcript upload for approval | 🔴 | PRD wants transcript → admin review. Not built. |
 
 ## Tutor discovery
@@ -79,7 +81,7 @@ now used for signup verification and password reset, **not** as the day-to-day s
 | Feature | Status | Notes |
 |---|---|---|
 | Conversations + send/read messages | 🟢 | `chat.getOrCreateConversation/listMessages/sendMessage/listConversations`. |
-| Counterparty display names | 🟢 | `resolve-participants` edge function (deployed) resolves real names — replaces hardcoded "Lindsay Thomas" in chat/sessions lists. |
+| Counterparty display names | 🟢 | `resolve-participants` (now returns year/major, **deployed to cloud 2026-07-10**) + `lib/useCounterpart` resolve real names everywhere "Lindsay Thomas" was hardcoded (tb1/tb2/xtc/xns/xtr/c1/c3/chat_tutor). |
 | Realtime message updates | 🟡 | `chat.subscribe` implemented but **never exercised** — unverified. |
 | Attachments (images/files) | 🔴 | No table/upload; `TODO(api)` in `chat`. |
 
@@ -116,8 +118,9 @@ now used for signup verification and password reset, **not** as the day-to-day s
 
 | Feature | Status | Notes |
 |---|---|---|
-| Earnings / payout figures | 🔴 | No endpoint — `tutor_profile` shows demo values. |
-| Teaching stats (sessions, avg rating, cancel rate) | 🔴 | No stats endpoint — demo values. |
+| Earnings / payout figures | 🟢 | **DONE (2026-07-10):** `api.tutorStats()` (earnedThisWeek/earnedTotal from completed bookings) in `tutor_home`/`tutor_profile`/`c4`. Reflects *simulated* money until real Stripe. |
+| Teaching stats (sessions, avg rating, cancel rate) | 🟢 | **DONE (2026-07-10):** `api.tutorStats()` (sessionsTaught, hoursTaught, avgRating, cancelledCount) wired into `tutor_home`/`tutor_profile`. |
+| Student study stats (sessions/hours/saved) | 🟢 | **DONE (2026-07-10):** `api.studentStats()` + `listSaved` count in `home`/`profile`. Streak/monthly-goal removed (no data model → honest zero-states). |
 
 ---
 
@@ -126,10 +129,9 @@ now used for signup verification and password reset, **not** as the day-to-day s
 1. **Real money (Stripe)** — biggest gap and gates real launch: `create-payment-intent`
    (real held charge), `stripe-webhook`, `complete-session` (capture + payout), Connect
    onboarding. Everything else is simulated until this lands.
-2. **Close the booking loop's honest gaps** — **wire `tutors.getAvailability` into the
-   booking calendar** (`b1`/`b3`) and `edit_availability` (endpoint exists; UI still demo)
-   + server-side booking validation (scheduled_at inside a window, no overlap).
-   _(Past-sessions endpoint is now DONE.)_
+2. **Close the booking loop's remaining honest gap** — **server-side booking validation**
+   (scheduled_at inside an availability window, no overlap with a confirmed booking).
+   _(Availability wiring, past-sessions, and tutor/student stats are all DONE.)_
 3. **Admin + tutor approval** — transcript upload + `approve-tutor` so real tutors can go
    live (today they must be seeded pre-approved).
 4. **Ambassador program** — entirely unbuilt; whole feature (API + functions + UI).

@@ -2,12 +2,20 @@
 
 _Updated 2026-07-10. Read this first, then `ARCHITECTURE.md` (authoritative for the whole system)._
 
+> **Latest (2026-07-10, "kill all dummy data" session — commit `71d9cfb`):** every screen now
+> reads **real database data** — the ported demo constants are deleted. Real tutor availability is
+> wired into the booking calendar; `TUTORS`/`REVIEWS_POOL`/`tutorById` are gone (replaced by a
+> `<NoSession/>` guard); new `@noot/core` `tutorStats()`/`studentStats()` power the dashboards;
+> `resolve-participants` (now +year/major, **deployed to cloud**) resolves real student names;
+> remaining un-backed figures became honest zero-states. **The cloud project is fully seeded**
+> (`supabase/seed_cloud.mjs`: 5 tutors +availability, 4 students, 8 bookings, reviews, chats).
+> Verified 8/8 vs local AND cloud (`scripts/verify_realdata.mts`). Details in the session section below.
+
 > **What changed since 2026-07-06** (details in "Session 2026-07-07→07-10" below): auth is now
 > **password-first** (signup = verify-only → set password; sign-in = email+password), upgraded to
 > **Expo SDK 54**, added a **biometric launch gate** + encrypted session storage, `listPast` (real
-> Past sessions), the `tutors.getAvailability` read endpoint (**not yet wired into any screen**),
-> the `resolve-participants` edge function (real counterparty names), dark mode + Empty/Skeleton
-> states, and the `pnpm tunnel` tmux helper.
+> Past sessions), the `tutors.getAvailability` read endpoint, the `resolve-participants` edge
+> function (real counterparty names), dark mode + Empty/Skeleton states, and the `pnpm tunnel` helper.
 
 ## TL;DR of where we are
 
@@ -139,10 +147,9 @@ bundles all 805 modules with no errors and serves 200. NOT click-tested in a liv
    Still UNWRITTEN: `stripe-webhook`, `complete-session`, `connect-onboarding-link`,
    `approve-tutor`, `award-referral-bonus`, `send-reminders`/`auto-complete` (crons)
    (ARCHITECTURE.md §5). Real Stripe money movement is the big remaining piece.
-2. **Wire availability read into the UI** — `tutors.getAvailability` exists (added 07-08) but
-   NO screen consumes it yet: booking `b1`/`b3` and `edit_availability.tsx` still show demo
-   slots. Small, high-value: makes the booking calendar honest. Pair with server-side booking
-   validation (scheduled_at inside a window + no overlap), still unenforced.
+2. ~~**Wire availability read into the UI**~~ — **DONE 2026-07-10** (`lib/availability.ts`,
+   consumed by `b1`/`b3`/`edit_availability`/`tutor_calendar`). Still open: **server-side booking
+   validation** (scheduled_at inside a window + no overlap with a confirmed booking).
 3. **Realtime `chat.subscribe`** (websocket) was NOT exercised by the smoke test — only the
    insert/read message flow was. Low risk but unverified.
 4. **Column-level hardening** — RLS can't stop a tutor editing their own
@@ -264,6 +271,58 @@ Commits `cb1488c … 839b012` on `origin/main`. Highlights:
 - **Test infra**: `supabase/seed_test_accounts.mjs` (ambassador/tutor/admin accounts) and the
   `pnpm tunnel` tmux wrapper (`scripts/tunnel.sh`, `d6a5341`/`98018b4`/`839b012`) — persistent Expo
   tunnel that survives SSH drops and auto-picks a free Metro port (README documents it).
+
+## Session 2026-07-10 (later) — killed ALL dummy data + populated cloud (`71d9cfb`)
+
+Goal: "get rid of all the dummy data and only use real database data," then populate the cloud
+so nothing renders empty. Every screen now reads live `@noot/core` data.
+
+**Tier 1 — real availability + no fake tutors/reviews:**
+- New `apps/mobile/lib/availability.ts` — `slotsFromWindows` / `nextFromWindows` / `isTimeOpen`
+  map `tutors.getAvailability()` weekly windows onto the 14-day calendar. Consumed by `b1`
+  (next-available per tutor), `b3` (slot picker), `edit_availability` (prefills the block grid),
+  `tutor_calendar` (open-slot grid). The mock `slotsFor()` is deleted.
+- `lib/data.ts`: `DAYS` now starts at **real today** and carries `dowNum` (0-6) + `year`; `b4`'s
+  `computeScheduledAt` uses `dayObj.year` (no more hardcoded 2026). Removed `TUTORS`,
+  `REVIEWS_POOL`, `tutorById`, `reviewsFor`; kept the `toTutor`/`toReview` adapters + `Day`/`Tutor`
+  types. The `?? TUTORS[0]` fallbacks across `b2/b3/b4/c1/c2/xsc/xsr/xtc/xns/xtr/tb2/sessions`
+  became a shared `<NoSession/>` guard (`lib/NoSession.tsx`).
+
+**Tier 2 — new `@noot/core` read endpoints (`api/index.ts`):**
+- `tutorStats()` → `{ sessionsTaught, hoursTaught, earnedThisWeek, earnedTotal, avgRating,
+  cancelledCount, cancelRate }` from the tutor's real bookings + profile rating. Wired into
+  `tutor_home`, `tutor_profile`, `c4`.
+- `studentStats()` → `{ sessionsCompleted, upcomingCount, hoursLearned }`. Wired into `home`
+  (momentum) + `profile` (with a `listSaved` count).
+- `resolveParticipantNames()` + the `resolve-participants` edge function now also return
+  `year`/`major`. New `lib/useCounterpart.ts` resolves the real student (falls back to the first
+  booking counterparty, then "Your student") — replaces the hardcoded `"Lindsay Thomas"` in
+  `tb1/tb2/xtc/xns/xtr/c1/c3/chat_tutor`.
+
+**Tier 3 — honest zero/empty states (ARCHITECTURE §7, "don't port the demo numbers"):**
+- Chat attachments (`chat`/`chat_tutor`) → empty until Storage upload exists. Referral credits
+  (`profile`) → CTA with no fabricated balance. Study streak / monthly goal (`home`) → removed
+  (no data model). Fake saved-card / payout last-4 → "no card on file" / "not connected".
+  Onboarding prefills (`t2/t7/t8/t9`) read from the signed-in user.
+
+**Data + cloud:**
+- `supabase/seed_demo.mjs` now seeds tutor availability. New **`supabase/seed_cloud.mjs`** is the
+  full populate: 5 tutors (+availability +courses), 4 students (`student`/`student1..3`), 8
+  bookings (upcoming+past), 4 approved reviews, 8 conversations + 16 messages. Idempotent.
+- **Cloud** (`nepnxbvseuzuayhxaigo`) seeded via the service role; `resolve-participants` **deployed**
+  to cloud (it was missing from the deployed set — the 6 booking/payment fns were there, it wasn't).
+- `.env` still points at cloud; it's now fully populated. Test accounts are pre-confirmed (admin
+  API), so they sign in with `password123` without SMTP.
+
+**Verification:** `scripts/verify_realdata.mts` (availability→slots, tutorStats, studentStats,
+resolve shape) — **8/8 vs local AND cloud**. `verify_backend.mts` still 14/14. `pnpm -r typecheck`
+clean. `expo export --platform web` bundles 845 modules, no errors. **Not click-tested in a live
+browser** — do a manual pass per the golden rule.
+
+**Known non-dummy TODOs left (missing endpoints/features, not fake data):** chat attachment upload
+(Storage) + `message_attachments` table; the reschedule-proposal time shown on `xsr` (no read for a
+pending proposal); tutor onboarding doesn't persist a draft across `t2→t9`, so `t9`'s preview
+course/rate are illustrative; server-side booking validation (window + overlap) still unenforced.
 
 ## Key schema decision (don't undo without reading)
 
