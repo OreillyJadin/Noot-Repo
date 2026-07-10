@@ -8,13 +8,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { Button, useTheme } from '@noot/ui';
-import { auth, api } from '@noot/core';
-import { useApp } from '../lib/store';
+import { auth } from '@noot/core';
 
 export default function AuthCallback() {
   const t = useTheme();
   const router = useRouter();
-  const { setRole } = useApp();
   const params = useLocalSearchParams();
   const [error, setError] = useState<string | null>(null);
 
@@ -37,22 +35,14 @@ export default function AuthCallback() {
         return;
       }
 
-      // Session established. Onboarded users have a first name — send them home;
-      // everyone else starts the onboarding flow.
-      try {
-        const me = await api.getMe();
-        if (cancelled) return;
-        if (me && me.firstName.trim()) {
-          // Store role is student|tutor; core's Role also has 'ambassador' (no
-          // dedicated home yet) — treat that as a student landing.
-          const isTutor = me.activeRole === 'tutor';
-          setRole(isTutor ? 'tutor' : 'student');
-          router.replace(isTutor ? '/tutor_home' : '/home');
-        } else {
-          router.replace('/verified');
-        }
-      } catch {
-        if (!cancelled) router.replace('/verified');
+      // Session established. This callback is only reached by two flows now (sign-in
+      // is email+password, no magic link): a password RESET → set a new password, or
+      // a sign-up VERIFICATION → onboarding, which starts by setting the password.
+      if (cancelled) return;
+      if (params.flow === 'recovery') {
+        router.replace('/set_password?mode=reset');
+      } else {
+        router.replace('/verified');
       }
     })();
     return () => {

@@ -17,8 +17,8 @@ export default function Landing() {
       <View style={styles.header}>
         <Text style={[styles.wordmark, { color: t.text }]}>noot</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Button label="Log In" kind="ghost" onPress={() => router.push('/signup?mode=login')} />
-          <Button label="Sign Up" onPress={() => router.push('/signup?mode=signup')} />
+          <Button label="Log In" kind="ghost" onPress={() => router.push('/signin')} />
+          <Button label="Sign Up" onPress={() => router.push('/signup')} />
         </View>
       </View>
 
@@ -32,8 +32,8 @@ export default function Landing() {
         </View>
 
         <View style={{ gap: 10 }}>
-          <Button label="Sign up with .edu email" onPress={() => router.push('/signup?mode=signup')} />
-          <Button label="I already have an account" kind="secondary" onPress={() => router.push('/signup?mode=login')} />
+          <Button label="Sign up with .edu email" onPress={() => router.push('/signup')} />
+          <Button label="I already have an account" kind="secondary" onPress={() => router.push('/signin')} />
         </View>
 
         <Text style={[styles.h2, { color: t.text }]}>Popular on campus</Text>

@@ -43,7 +43,7 @@ export default function Verified() {
 
       <View style={styles.actionBar}>
         <Text style={{ color: t.text3, fontSize: 13, textAlign: 'center', marginBottom: 8 }}>About 90 seconds</Text>
-        <Button label="Let's go" onPress={() => router.push('/role')} />
+        <Button label="Let's go" onPress={() => router.push('/set_password')} />
       </View>
     </SafeAreaView>
   );
