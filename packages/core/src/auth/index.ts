@@ -91,10 +91,75 @@ export async function devSignIn(email: string, password: string): Promise<SignIn
   return { ok: true };
 }
 
+// ─── email + password ───────────────────────────────────────────────────────
+// The account model is: sign UP is passwordless (magic-link verification only, so
+// we know the .edu address is real), and the password is set DURING onboarding via
+// setPassword() below. Sign IN is then email+password. The `.edu` gate is a
+// `before insert on auth.users` trigger (migration 0003), enforced for OTP too.
+
+/**
+ * Send a sign-up verification magic link. The user's name is carried in the OTP's
+ * user_metadata so the `handle_new_user` trigger populates public.users.first_name
+ * /last_name on insert (migration 0003). `shouldCreateUser` is true — this is how a
+ * brand-new account is provisioned. `redirectTo` is the app's /auth-callback deep
+ * link (must be on the project's redirect allow-list).
+ */
+export async function sendSignupVerification(
+  email: string,
+  firstName: string,
+  lastName: string,
+  redirectTo?: string,
+): Promise<SignInResult> {
+  const { error } = await getSupabase().auth.signInWithOtp({
+    email: email.trim(),
+    options: {
+      shouldCreateUser: true,
+      data: { first_name: firstName.trim(), last_name: lastName.trim() },
+      ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
+    },
+  });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/** Sign in an existing user with email + password. */
+export async function signInWithPassword(email: string, password: string): Promise<SignInResult> {
+  const { error } = await getSupabase().auth.signInWithPassword({ email: email.trim(), password });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * Set (or change) the current session's password. Works for both flows that land
+ * here with a live session: a newly-verified sign-up choosing their first password
+ * during onboarding, and a `?type=recovery` reset. Requires an active session —
+ * the caller must have completed the magic-link / recovery exchange first.
+ */
+export async function setPassword(password: string): Promise<SignInResult> {
+  const { error } = await getSupabase().auth.updateUser({ password });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * Send a password-reset email. Points back at /auth-callback with a `flow=recovery`
+ * marker so the callback routes into the set-password step (the recovery link
+ * carries `?type=recovery`, handled by completeAuthFromUrl).
+ */
+export async function sendPasswordReset(email: string, redirectTo?: string): Promise<SignInResult> {
+  const { error } = await getSupabase().auth.resetPasswordForEmail(email.trim(), {
+    ...(redirectTo ? { redirectTo } : {}),
+  });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
 export async function signOut(): Promise<void> {
   await getSupabase().auth.signOut();
 }
 
+/**
+ * The current session's user id, or null if signed out. supabase-js persists the
+ * session (encrypted keystore on native — see LargeSecureStore) and auto-refreshes
+ * it, so on a returning launch this resolves without any network round-trip — which
+ * is what lets the biometric layer gate an already-valid session, not re-auth.
+ */
 export async function getSessionUserId(): Promise<string | null> {
   const { data } = await getSupabase().auth.getSession();
   return data.session?.user.id ?? null;
