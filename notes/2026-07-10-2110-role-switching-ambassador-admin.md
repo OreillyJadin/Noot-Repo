@@ -130,3 +130,22 @@ All 6 subtasks done; `pnpm -r typecheck` clean; guard trigger verified on local.
   referral seed. Cloud ambassador dashboard will 500 on `list-referrals` until deployed. Pending user go-ahead.
 - **Deferred (noted, not dummy data):** signup screen doesn't yet collect a referral code (trigger supports
   it); `award-referral-bonus` needs wiring to a real completion flow (Stripe workstream).
+
+### 2026-07-11 00:05 UTC — Phase 1 deployed to cloud + security review
+- Pushed `961e731`+`b39adef` to origin. Cloud: `0008` applied (MCP), `list-referrals` +
+  `award-referral-bonus` deployed, re-seeded. Cloud ambassador flow verified: code `NOOT-DEMO01`,
+  totals `{referrals:3, bonusesEarned:1, totalEarned:5}`, pipeline paid/pending/signed-up.
+- **Security review (Phase 0+1)** — ran against `afe6fdc..HEAD` diff (skill auto-diff was empty since
+  committed). **1 MEDIUM finding, rest clean.**
+  - MEDIUM `broken_access_control` — `award-referral-bonus` had **no caller auth** (deviated from the
+    submit-rating pattern): any authenticated JWT could trigger bonus creation for arbitrary
+    completed+referred bookings. Low impact today (bonuses legit + `pending` + deduped, no real payout),
+    but a financial-mutation endpoint with no authz. **FIXED:** now requires the service-role key as
+    bearer (internal-only); redeployed; verified anon token → 403.
+  - Clear: `0007` active_role trigger, `list-referrals` (caller-scoped), `create_my_ambassador_profile`,
+    `handle_new_user` referral capture (parameterized; self-referral CHECK). Noted low/anti-abuse:
+    referral attribution can be spoofed via signup metadata (gaming, needs a real paid session; not a
+    security vuln) — revisit in an anti-abuse pass.
+  - Admin gating is UI-only by design; no admin WRITE actions exist yet (Phase 2 adds them server-side).
+- **Next:** Phase 2 (Admin panel), starting with schema hardening (the tutor self-approve RLS gap is the
+  critical item) + the tutor approval flow.

@@ -4,8 +4,8 @@
 // complete-session (NOT yet built — the Stripe/completion workstream). Idempotent and
 // fraud-guarded: referral_bonuses.referral_id is UNIQUE (one bonus per referral ever), the
 // booking must be 'completed', and self-referrals are already blocked by a CHECK on
-// referrals (ambassador_id <> referred_user_id). Never callable in a way that lets a client
-// mint bonuses — it re-derives everything from the booking + referral rows with service role.
+// referrals (ambassador_id <> referred_user_id). Access is gated to service-role callers
+// (see the Authorization check below) so an end-user JWT can't trigger bonus creation.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const cors = {
@@ -17,11 +17,21 @@ const cors = {
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    // AUTHORIZATION: this mints financial (bonus) records, so it is INTERNAL-only — the
+    // caller must present the service-role key (i.e. it's invoked server-side by
+    // complete-session, not by an end-user JWT). A normal user/anon token is rejected.
+    const authz = req.headers.get('Authorization') ?? '';
+    const token = authz.startsWith('Bearer ') ? authz.slice(7) : authz;
+    if (token !== serviceKey) {
+      return Response.json({ error: 'forbidden' }, { status: 403, headers: cors });
+    }
+
     const { bookingId } = await req.json().catch(() => ({}));
     if (!bookingId) return Response.json({ error: 'bookingId required' }, { status: 400, headers: cors });
 
     const url = Deno.env.get('SUPABASE_URL')!;
-    const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const db = createClient(url, serviceKey);
 
     const { data: booking, error: bErr } = await db
       .from('bookings')
