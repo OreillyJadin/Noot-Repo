@@ -185,3 +185,14 @@ All 6 subtasks done; `pnpm -r typecheck` clean; guard trigger verified on local.
 - **Admin panel screens:** admin_home → admin_tutors / admin_users / admin_bookings / admin_reviews.
 - **Deferred (noted):** enforcing `users.status` beyond the GoTrue ban (RLS-level) is future; the document
   picker needs a device build to fully validate; `award-referral-bonus` still needs wiring to `complete-session`.
+
+### 2026-07-11 01:45 UTC — Phase 2 security review
+- Reviewed the admin surface (4 write fns, migrations 0009/0010/0011, api.admin reads, transcript upload).
+  **No HIGH/MEDIUM findings.** All admin writes re-verify is_admin server-side (403 otherwise); approval/
+  status column writes are service-role-only by trigger (verified: tutor self-approve blocked); transcripts
+  Storage RLS is folder-scoped (owner) + admin-read via signed URLs.
+- Low/informational (not blockers): users.status enforced via GoTrue ban (real) but not RLS-level — an already-
+  authenticated banned user keeps access until token expiry (~1h); consider a future is_active() RLS pass.
+  No server-side transcript file-type/size cap (DoS-class, out of scope). Phase 1 referral-attribution
+  spoofing remains an anti-abuse item.
+- **Phase 0 + 1 + 2 all COMPLETE, deployed to cloud, and verified.**
