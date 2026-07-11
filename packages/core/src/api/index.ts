@@ -35,6 +35,37 @@ export interface AmbassadorReferrals {
   totals: { referrals: number; bonusesEarned: number; totalEarned: number };
 }
 
+/** A user row for the admin user-management list. */
+export interface AdminUser {
+  id: string;
+  name: string;
+  email: string;
+  roles: string[];
+  status: string;
+}
+/** A pending review for the admin moderation queue. */
+export interface AdminReview {
+  id: string;
+  rating: number;
+  comment: string | null;
+  reviewerName: string;
+  subjectName: string;
+  course: string;
+  createdAt: string;
+}
+/** A booking row for the admin oversight list. */
+export interface AdminBooking {
+  id: string;
+  studentName: string;
+  tutorName: string;
+  subject: string;
+  scheduledAt: string;
+  status: string;
+  price: number;
+  disputeStatus: string;
+  disputeReason: string | null;
+}
+
 /** A tutor awaiting admin approval (admin queue). */
 export interface PendingTutor {
   userId: string;
@@ -663,6 +694,99 @@ export const api = {
     /** Approve or reject a tutor (approve-tutor Edge Function; re-verifies admin server-side). */
     approveTutor(tutorUserId: string, decision: 'approved' | 'rejected'): Promise<{ ok: true; approvalStatus: string }> {
       return invokeFn('approve-tutor', { tutorUserId, decision });
+    },
+
+    /** All accounts with their roles + status (admin RLS). */
+    async listUsers(): Promise<AdminUser[]> {
+      const { data, error } = await getSupabase()
+        .from('users')
+        .select('id, first_name, last_name, email, status, user_roles(role)')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((u: any) => ({
+        id: u.id,
+        name: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || '—',
+        email: u.email,
+        roles: (u.user_roles ?? []).map((r: any) => r.role),
+        status: u.status,
+      }));
+    },
+
+    /** Suspend / ban / reactivate an account (admin-set-user-status Edge Function). */
+    setUserStatus(userId: string, status: 'active' | 'suspended' | 'banned'): Promise<{ ok: true; status: string }> {
+      return invokeFn('admin-set-user-status', { userId, status });
+    },
+
+    /** Reviews awaiting moderation, with reviewer/subject names + course. */
+    async listPendingReviews(): Promise<AdminReview[]> {
+      const sb = getSupabase();
+      const { data, error } = await sb
+        .from('reviews')
+        .select('id, rating, comment, reviewer_id, subject_user_id, booking_id, created_at')
+        .eq('approval_status', 'pending')
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      const rows = data ?? [];
+      if (rows.length === 0) return [];
+      const userIds = [...new Set(rows.flatMap((r) => [r.reviewer_id, r.subject_user_id]))];
+      const bookingIds = [...new Set(rows.map((r) => r.booking_id))];
+      const [{ data: users }, { data: bookings }] = await Promise.all([
+        sb.from('users').select('id, first_name, last_name').in('id', userIds),
+        sb.from('bookings').select('id, subject').in('id', bookingIds),
+      ]);
+      const nameById = new Map((users ?? []).map((u) => [u.id, `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || '—']));
+      const courseById = new Map((bookings ?? []).map((b) => [b.id, b.subject]));
+      return rows.map((r) => ({
+        id: r.id,
+        rating: r.rating,
+        comment: r.comment ?? null,
+        reviewerName: nameById.get(r.reviewer_id) ?? '—',
+        subjectName: nameById.get(r.subject_user_id) ?? '—',
+        course: courseById.get(r.booking_id) ?? '',
+        createdAt: r.created_at,
+      }));
+    },
+
+    /** Approve or reject a pending review (moderate-review Edge Function). */
+    moderateReview(reviewId: string, decision: 'approved' | 'rejected'): Promise<{ ok: true }> {
+      return invokeFn('moderate-review', { reviewId, decision });
+    },
+
+    /** Recent bookings across the platform with party names + dispute state (admin RLS). */
+    async listBookings(): Promise<AdminBooking[]> {
+      const sb = getSupabase();
+      const { data, error } = await sb
+        .from('bookings')
+        .select('id, student_id, tutor_id, subject, scheduled_at, status, price, dispute_status, dispute_reason')
+        .order('scheduled_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      const rows = data ?? [];
+      const ids = [...new Set(rows.flatMap((b) => [b.student_id, b.tutor_id]))];
+      const { data: users } = ids.length
+        ? await sb.from('users').select('id, first_name, last_name').in('id', ids)
+        : { data: [] as any[] };
+      const nameById = new Map((users ?? []).map((u: any) => [u.id, `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || '—']));
+      return rows.map((b) => ({
+        id: b.id,
+        studentName: nameById.get(b.student_id) ?? '—',
+        tutorName: nameById.get(b.tutor_id) ?? '—',
+        subject: b.subject,
+        scheduledAt: b.scheduled_at,
+        status: b.status,
+        price: num(b.price),
+        disputeStatus: b.dispute_status ?? 'none',
+        disputeReason: b.dispute_reason ?? null,
+      }));
+    },
+
+    /** Flag or resolve a booking dispute (resolve-dispute Edge Function). */
+    resolveDispute(
+      bookingId: string,
+      action: 'flag' | 'resolve',
+      opts?: { reason?: string; resolution?: string },
+    ): Promise<{ ok: true; disputeStatus: string }> {
+      return invokeFn('resolve-dispute', { bookingId, action, ...opts });
     },
   },
 

@@ -12,9 +12,9 @@ import { useMe } from '../lib/useMe';
 // [icon, title, subtitle, route | null] — null routes are Phase-2-later stubs.
 const SECTIONS: [IconName, string, string, string | null][] = [
   ['cap', 'Tutor approvals', 'Review transcripts & approve tutors', '/admin_tutors'],
-  ['user', 'User management', 'View accounts, suspend or reactivate', null],
-  ['cal', 'Booking oversight', 'All bookings; flag & resolve disputes', null],
-  ['star', 'Review moderation', 'Approve or reject submitted reviews', null],
+  ['user', 'User management', 'View accounts, suspend or reactivate', '/admin_users'],
+  ['cal', 'Booking oversight', 'All bookings; flag & resolve disputes', '/admin_bookings'],
+  ['star', 'Review moderation', 'Approve or reject submitted reviews', '/admin_reviews'],
 ];
 
 export default function AdminHome() {

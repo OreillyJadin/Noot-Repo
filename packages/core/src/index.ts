@@ -2,5 +2,13 @@
 // package (and supabase/functions) may touch Supabase/Stripe directly.
 export * from './models';
 export * as auth from './auth';
-export { api, type AmbassadorReferrals, type AmbassadorReferralRow, type PendingTutor } from './api';
+export {
+  api,
+  type AmbassadorReferrals,
+  type AmbassadorReferralRow,
+  type PendingTutor,
+  type AdminUser,
+  type AdminReview,
+  type AdminBooking,
+} from './api';
 export { initSupabase, getSupabase, type SupabaseConfig } from './supabase';
