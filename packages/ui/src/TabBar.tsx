@@ -21,17 +21,28 @@ const TUTOR: Tab[] = [
   { label: 'Sessions', icon: 'list', key: 'tutor_sessions' },
   { label: 'Profile', icon: 'user', key: 'tutor_profile' },
 ];
+// Phase 0 shell = Home + Profile; the Referrals tab + screen land in Phase 1.
+const AMBASSADOR: Tab[] = [
+  { label: 'Home', icon: 'home', key: 'ambassador_home' },
+  { label: 'Profile', icon: 'user', key: 'profile' },
+];
 
 export interface TabBarProps {
   active: string;
   onTab: (key: string) => void;
-  role?: 'student' | 'tutor';
+  role?: 'student' | 'tutor' | 'ambassador';
 }
+
+const TAB_SETS: Record<'student' | 'tutor' | 'ambassador', Tab[]> = {
+  student: STUDENT,
+  tutor: TUTOR,
+  ambassador: AMBASSADOR,
+};
 
 export function TabBar({ active, onTab, role = 'student' }: TabBarProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const tabs = role === 'tutor' ? TUTOR : STUDENT;
+  const tabs = TAB_SETS[role] ?? STUDENT;
   return (
     <View style={[styles.bar, { paddingBottom: insets.bottom + 8, backgroundColor: t.surface, borderTopColor: t.border }]}>
       {tabs.map((tab) => {

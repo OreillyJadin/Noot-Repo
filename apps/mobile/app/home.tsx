@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Skeleton, useTheme, type IconName } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Skeleton, ViewingAs, useTheme, type IconName } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -117,6 +117,7 @@ export default function Home() {
   const router = useRouter();
   const { patchBooking, role } = useApp();
   const { me, loading } = useMe();
+  const multiRole = (me?.roles ?? []).filter((r) => r === 'student' || r === 'tutor' || r === 'ambassador').length > 1;
 
   // Next session: the soonest real upcoming booking, or null → a "find a tutor" CTA.
   const [next, setNext] = useState<{ course: string; when: string; where: string; tutorName: string; tutor: Tutor | null; at: number } | null>(null);
@@ -201,6 +202,11 @@ export default function Home() {
           </View>
           <Text style={{ fontSize: 40 }}>🦎</Text>
         </View>
+        {multiRole ? (
+          <View style={{ marginTop: 10 }}>
+            <ViewingAs role="student" />
+          </View>
+        ) : null}
       </View>
 
       <Body ref={scrollRef} contentStyle={{ paddingTop: 8 }}>

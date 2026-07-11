@@ -249,6 +249,26 @@ export const api = {
       if (error) throw error;
     },
 
+    /**
+     * Switch the user's active "mode" (persists to users.active_role). Self-only via RLS;
+     * a DB trigger (0007) additionally rejects a role the user doesn't hold. 'admin' is not
+     * a switchable mode — the app never passes it here.
+     */
+    async setActiveRole(role: 'student' | 'tutor' | 'ambassador'): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase().from('users').update({ active_role: role }).eq('id', uid);
+      if (error) throw error;
+    },
+
+    /** Add a role the user can hold (e.g. "Become a tutor/ambassador"). RLS blocks 'admin'. */
+    async addRole(role: 'tutor' | 'ambassador'): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('user_roles')
+        .upsert({ user_id: uid, role }, { onConflict: 'user_id,role' });
+      if (error) throw error;
+    },
+
     /** Create/update the signed-in user's tutor profile (edit_tutor). Upsert on user_id. */
     async updateTutorProfile(patch: {
       bio?: string;

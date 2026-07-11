@@ -4,7 +4,10 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import type { Tutor } from './data';
 
-export type Role = 'student' | 'tutor';
+// The three switchable "modes" a user can act as. Admin is deliberately NOT here —
+// it's a Noot-team permission (me.roles.includes('admin')) surfaced as its own gated
+// entry point, never a mode toggled in the role switcher.
+export type Role = 'student' | 'tutor' | 'ambassador';
 
 /** The booking object carried B3 → B4 → B5. All optional until built up. */
 export interface BookingDraft {

@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, useTheme, type IconName } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, ViewingAs, useTheme, type IconName } from '@noot/ui';
 import { api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
@@ -82,6 +82,7 @@ export default function TutorHome() {
   const router = useRouter();
   const { role } = useApp();
   const { me, loading } = useMe();
+  const multiRole = (me?.roles ?? []).filter((r) => r === 'student' || r === 'tutor' || r === 'ambassador').length > 1;
 
   // Next confirmed, future session (as tutor OR student) from the live API.
   const [next, setNext] = useState<Booking | null>(null);
@@ -136,6 +137,11 @@ export default function TutorHome() {
           </View>
           <Text style={{ fontSize: 40 }}>🦎</Text>
         </View>
+        {multiRole ? (
+          <View style={{ marginTop: 10 }}>
+            <ViewingAs role="tutor" />
+          </View>
+        ) : null}
       </View>
 
       <Body ref={scrollRef} contentStyle={{ paddingTop: 8 }}>

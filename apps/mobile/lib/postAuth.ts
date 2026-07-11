@@ -23,11 +23,14 @@ export async function routeAfterAuth(router: Router, setRole: (r: Role) => void)
   try {
     const me = await api.getMe();
     if (me && me.firstName.trim()) {
-      // core's Role also has 'ambassador' (no dedicated home yet) — land it as student.
-      const isTutor = me.activeRole === 'tutor';
-      const role: Role = isTutor ? 'tutor' : 'student';
+      // Land on the home for the user's persisted active mode. Admin is not a mode —
+      // an admin still browses as student/tutor, so it falls through to the student home
+      // (the admin panel is a separate gated entry point off Profile).
+      const role: Role =
+        me.activeRole === 'tutor' ? 'tutor' : me.activeRole === 'ambassador' ? 'ambassador' : 'student';
       setRole(role);
-      router.replace(isTutor ? '/tutor_home' : '/home');
+      const home = role === 'tutor' ? '/tutor_home' : role === 'ambassador' ? '/ambassador_home' : '/home';
+      router.replace(home);
       return { role, onboarding: false };
     }
   } catch {

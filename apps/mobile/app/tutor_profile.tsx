@@ -6,12 +6,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, Skeleton, useTheme, type IconName } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
+import { useRoleSwitch } from '../lib/useRoleSwitch';
 
 // TODO(api): backend-only actions from the prototype's showToast() — swap for real
 // navigation/mutations once wired up.
@@ -63,7 +64,7 @@ export default function TutorProfile() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { role, setRole } = useApp();
+  const { role } = useApp();
   const { me, loading } = useMe();
   const { dark, toggle: toggleDark } = useThemePref();
 
@@ -95,9 +96,14 @@ export default function TutorProfile() {
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
 
-  const switchToStudent = () => {
-    setRole('student');
-    router.replace('/home');
+  const { roles, isAdmin, switchTo } = useRoleSwitch();
+  const becomeAmbassador = async () => {
+    try {
+      await api.profile.addRole('ambassador');
+      await switchTo('ambassador');
+    } catch {
+      notify('Could not add role');
+    }
   };
 
   return (
@@ -143,6 +149,13 @@ export default function TutorProfile() {
             ))}
           </View>
         </Card>
+
+        {/* mode switcher — only shows if the user holds 2+ switchable roles */}
+        {roles.length > 1 ? (
+          <View style={{ marginTop: 16 }}>
+            <RoleSwitcher roles={roles} active={role} onSelect={switchTo} />
+          </View>
+        ) : null}
 
         {/* earnings summary — real total from completed bookings (payouts still simulated) */}
         <Card onPress={() => notify('Stripe payouts')} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
@@ -190,17 +203,33 @@ export default function TutorProfile() {
           <Row icon="help" label="Help & support" onPress={() => notify('Help center')} last />
         </Card>
 
-        {/* switch to student mode */}
-        <Card onPress={switchToStudent} style={styles.switchCard}>
-          <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
-            <Ic name="user" size={21} color={t.accent} strokeWidth={1.7} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.switchTitle, { color: t.text }]}>Switch to student mode</Text>
-            <Text style={[styles.switchSub, { color: t.text3 }]}>Book sessions and learn from other tutors</Text>
-          </View>
-          <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
-        </Card>
+        {/* add ambassador role if not held yet (switching between held roles is the switcher above) */}
+        {!roles.includes('ambassador') ? (
+          <Card onPress={becomeAmbassador} style={styles.switchCard}>
+            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
+              <Ic name="gift" size={21} color={t.accent} strokeWidth={1.7} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.switchTitle, { color: t.text }]}>Become an ambassador</Text>
+              <Text style={[styles.switchSub, { color: t.text3 }]}>Share your code, earn $5 per referral</Text>
+            </View>
+            <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
+          </Card>
+        ) : null}
+
+        {/* admin — gated, only for Noot-team accounts; NOT part of the role switcher */}
+        {isAdmin ? (
+          <Card onPress={() => router.push('/admin_home')} style={styles.switchCard}>
+            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
+              <Ic name="shield" size={21} color={t.accent} strokeWidth={1.7} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.switchTitle, { color: t.text }]}>Noot Admin</Text>
+              <Text style={[styles.switchSub, { color: t.text3 }]}>Team tools — approvals, users, disputes</Text>
+            </View>
+            <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
+          </Card>
+        ) : null}
 
         {/* sign out */}
         <View style={{ marginTop: 4 }}>

@@ -46,6 +46,8 @@ function ThemedApp() {
             <Stack.Screen name="tutor_calendar" options={{ animation: 'fade' }} />
             <Stack.Screen name="tutor_sessions" options={{ animation: 'fade' }} />
             <Stack.Screen name="tutor_profile" options={{ animation: 'fade' }} />
+            <Stack.Screen name="ambassador_home" options={{ animation: 'fade' }} />
+            <Stack.Screen name="admin_home" options={{ animation: 'fade' }} />
           </Stack>
         </AuthGate>
       </AppProvider>

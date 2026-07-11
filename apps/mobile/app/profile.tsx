@@ -6,10 +6,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, Skeleton, useTheme, type IconName } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
+import { useRoleSwitch } from '../lib/useRoleSwitch';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
 
@@ -87,6 +88,16 @@ export default function Profile() {
   ];
   const coursesSub = me?.courses?.length ? me.courses.join(', ') : 'Add the courses you’re taking';
 
+  const { roles, isAdmin, switchTo } = useRoleSwitch();
+  const becomeAmbassador = async () => {
+    try {
+      await api.profile.addRole('ambassador');
+      await switchTo('ambassador');
+    } catch {
+      notify('Could not add role');
+    }
+  };
+
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
 
@@ -134,6 +145,13 @@ export default function Profile() {
           </View>
         </Card>
 
+        {/* mode switcher — only shows if the user holds 2+ switchable roles */}
+        {roles.length > 1 ? (
+          <View style={{ marginTop: 16 }}>
+            <RoleSwitcher roles={roles} active={role} onSelect={switchTo} />
+          </View>
+        ) : null}
+
         {/* referral CTA — the program isn't built yet, so no fabricated credit balance */}
         <Card onPress={() => notify('Referrals')} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
           <View style={[styles.promoIcon, { backgroundColor: t.accent }]}>
@@ -163,17 +181,45 @@ export default function Profile() {
           <Row icon="help" label="Help & support" onPress={() => notify('Help center')} last />
         </Card>
 
-        {/* become a tutor */}
-        <Card onPress={() => router.push('/t1')} style={styles.switchCard}>
-          <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
-            <Ic name="cap" size={21} color={t.accent} strokeWidth={1.7} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.switchTitle, { color: t.text }]}>Become a tutor</Text>
-            <Text style={[styles.switchSub, { color: t.text3 }]}>Earn money helping classmates in courses you aced</Text>
-          </View>
-          <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
-        </Card>
+        {/* add roles you don't hold yet */}
+        {!roles.includes('tutor') ? (
+          <Card onPress={() => router.push('/t1')} style={styles.switchCard}>
+            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
+              <Ic name="cap" size={21} color={t.accent} strokeWidth={1.7} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.switchTitle, { color: t.text }]}>Become a tutor</Text>
+              <Text style={[styles.switchSub, { color: t.text3 }]}>Earn money helping classmates in courses you aced</Text>
+            </View>
+            <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
+          </Card>
+        ) : null}
+        {!roles.includes('ambassador') ? (
+          <Card onPress={becomeAmbassador} style={styles.switchCard}>
+            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
+              <Ic name="gift" size={21} color={t.accent} strokeWidth={1.7} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.switchTitle, { color: t.text }]}>Become an ambassador</Text>
+              <Text style={[styles.switchSub, { color: t.text3 }]}>Share your code, earn $5 per referral</Text>
+            </View>
+            <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
+          </Card>
+        ) : null}
+
+        {/* admin — gated, only for Noot-team accounts; NOT part of the role switcher */}
+        {isAdmin ? (
+          <Card onPress={() => router.push('/admin_home')} style={styles.switchCard}>
+            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
+              <Ic name="shield" size={21} color={t.accent} strokeWidth={1.7} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.switchTitle, { color: t.text }]}>Noot Admin</Text>
+              <Text style={[styles.switchSub, { color: t.text3 }]}>Team tools — approvals, users, disputes</Text>
+            </View>
+            <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
+          </Card>
+        ) : null}
 
         {/* sign out */}
         <View style={{ marginTop: 4 }}>
