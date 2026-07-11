@@ -158,8 +158,8 @@ export default function Profile() {
             <Ic name="gift" size={20} color={t.onAccent} strokeWidth={1.7} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.promoTitle, { color: t.text }]}>Invite a classmate</Text>
-            <Text style={[styles.promoSub, { color: t.text2 }]}>When they book their first session, you both get $10</Text>
+            <Text style={[styles.promoTitle, { color: t.text }]}>Refer &amp; earn</Text>
+            <Text style={[styles.promoSub, { color: t.text2 }]}>Become an ambassador to earn $5 for every classmate you refer</Text>
           </View>
           <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
         </Card>

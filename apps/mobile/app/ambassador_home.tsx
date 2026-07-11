@@ -78,7 +78,7 @@ export default function AmbassadorHome() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.ctaTitle, { color: t.text }]}>Share your referral link</Text>
-            <Text style={[styles.ctaSub, { color: t.text2 }]}>Invite classmates — you both get $5</Text>
+            <Text style={[styles.ctaSub, { color: t.text2 }]}>Invite classmates — earn $5 per referral</Text>
           </View>
           <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
         </Card>

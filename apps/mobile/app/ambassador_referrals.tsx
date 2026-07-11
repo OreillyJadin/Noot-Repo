@@ -35,7 +35,7 @@ export default function AmbassadorReferrals() {
     if (!code) return;
     try {
       await Share.share({
-        message: `Join me on noot — verified peer tutoring at UA. Use my code ${code} and we both get $5 after your first session: ${referralLink(code)}`,
+        message: `Join me on noot — verified peer tutoring at UA. Sign up with my code ${code}: ${referralLink(code)}`,
       });
     } catch {
       /* user dismissed the sheet */
@@ -75,7 +75,7 @@ export default function AmbassadorReferrals() {
           {[
             ['user', 'They sign up with your code'],
             ['cap', 'They complete their first paid session'],
-            ['dollar', 'You both get $5 — tracked on your Home tab'],
+            ['dollar', 'You earn $5 once they complete a paid session'],
           ].map(([ic, label], i) => (
             <View key={i} style={styles.step}>
               <View style={[styles.stepIcon, { backgroundColor: t.accentWeak }]}>
