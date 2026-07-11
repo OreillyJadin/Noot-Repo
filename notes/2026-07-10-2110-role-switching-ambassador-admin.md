@@ -149,3 +149,19 @@ All 6 subtasks done; `pnpm -r typecheck` clean; guard trigger verified on local.
   - Admin gating is UI-only by design; no admin WRITE actions exist yet (Phase 2 adds them server-side).
 - **Next:** Phase 2 (Admin panel), starting with schema hardening (the tutor self-approve RLS gap is the
   critical item) + the tutor approval flow.
+
+### 2026-07-11 00:40 UTC — Phase 2 part 1: tutor approval flow (local + cloud)
+- **2.1** migration `0009_tutor_approval_guard.sql` — trigger blocks any non-service-role write to
+  tutor_profiles.approval_status/reviewed_by/reviewed_at (closes the tutor self-approve RLS gap).
+  Applied local + cloud. Verified: tutor changing an approval field → BLOCKED; benign bio edit → allowed.
+- **2.2** edge fn `approve-tutor` (service role; re-verifies caller `is_admin` server-side; only writer of
+  approval fields) + `api.admin.listPendingTutors()` / `approveTutor()`; `PendingTutor` type exported. Deployed to cloud.
+- **2.3** `admin_tutors.tsx` — pending-tutor queue with transcript link + approve/reject; wired from
+  `admin_home` (Tutor approvals row); route registered.
+- **Verified end-to-end on CLOUD:** non-admin `approveTutor` → rejected; admin `listPendingTutors` finds a
+  pending tutor; admin `approveTutor` → `{ok, approvalStatus:'approved'}`. Typecheck clean; web export bundles.
+- **Remaining Phase 2 (next chunk):** user management (`admin-set-user-status` + `admin_users`), booking
+  disputes (`booking_disputes` model + `resolve-dispute` + `admin_bookings`), review moderation
+  (`moderate-review` + `admin_reviews`), transcript upload (Storage bucket + `t6`).
+- **⚠️ security-reviewer (Phase 2 part 1):** `0009` approval-field trigger (service-role-only), `approve-tutor`
+  (server-side is_admin re-check — the pattern for all admin write fns).

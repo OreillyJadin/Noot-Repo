@@ -9,11 +9,12 @@ import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Ic, Eyebrow, useTheme, type IconName } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 
-const SECTIONS: [IconName, string, string][] = [
-  ['cap', 'Tutor approvals', 'Review transcripts & approve tutors'],
-  ['user', 'User management', 'View accounts, suspend or reactivate'],
-  ['cal', 'Booking oversight', 'All bookings; flag & resolve disputes'],
-  ['star', 'Review moderation', 'Approve or reject submitted reviews'],
+// [icon, title, subtitle, route | null] — null routes are Phase-2-later stubs.
+const SECTIONS: [IconName, string, string, string | null][] = [
+  ['cap', 'Tutor approvals', 'Review transcripts & approve tutors', '/admin_tutors'],
+  ['user', 'User management', 'View accounts, suspend or reactivate', null],
+  ['cal', 'Booking oversight', 'All bookings; flag & resolve disputes', null],
+  ['star', 'Review moderation', 'Approve or reject submitted reviews', null],
 ];
 
 export default function AdminHome() {
@@ -35,8 +36,12 @@ export default function AdminHome() {
       <Body pad={20}>
         <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>Team tools</Eyebrow>
         <View style={{ gap: 10 }}>
-          {SECTIONS.map(([icon, title, sub]) => (
-            <Card key={title} onPress={() => Alert.alert(title, 'Built next (Phase 2).')} style={styles.row}>
+          {SECTIONS.map(([icon, title, sub, route]) => (
+            <Card
+              key={title}
+              onPress={() => (route ? router.push(route as never) : Alert.alert(title, 'Built next (Phase 2).'))}
+              style={styles.row}
+            >
               <View style={[styles.icon, { backgroundColor: t.surface2 }]}>
                 <Ic name={icon} size={18} color={t.accent} strokeWidth={1.8} />
               </View>

@@ -35,6 +35,21 @@ export interface AmbassadorReferrals {
   totals: { referrals: number; bonusesEarned: number; totalEarned: number };
 }
 
+/** A tutor awaiting admin approval (admin queue). */
+export interface PendingTutor {
+  userId: string;
+  name: string;
+  email: string;
+  year: string | null;
+  major: string | null;
+  bio: string;
+  subjects: string[];
+  hourlyRate: number;
+  transcriptUrl: string | null;
+  verifiedGrade: string | null;
+  submittedAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
@@ -604,6 +619,50 @@ export const api = {
     /** Referred users + bonus pipeline status + running totals (list-referrals Edge Function). */
     listReferrals(): Promise<AmbassadorReferrals> {
       return invokeFn('list-referrals');
+    },
+  },
+
+  // --- admin (RLS is_admin() already permits these reads; writes go through Edge Functions) ---
+  admin: {
+    /** Tutors awaiting approval (oldest first). Admin-only via RLS. */
+    async listPendingTutors(): Promise<PendingTutor[]> {
+      const sb = getSupabase();
+      const { data: profs, error } = await sb
+        .from('tutor_profiles')
+        .select('user_id, bio, subjects, hourly_rate, transcript_url, verified_grade, created_at')
+        .eq('approval_status', 'pending')
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      const rows = profs ?? [];
+      if (rows.length === 0) return [];
+      const ids = rows.map((r) => r.user_id);
+      const { data: users, error: uErr } = await sb
+        .from('users')
+        .select('id, first_name, last_name, email, year, major')
+        .in('id', ids);
+      if (uErr) throw uErr;
+      const byId = new Map((users ?? []).map((u) => [u.id, u]));
+      return rows.map((r) => {
+        const u = byId.get(r.user_id);
+        return {
+          userId: r.user_id,
+          name: u ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || 'Tutor' : 'Tutor',
+          email: u?.email ?? '',
+          year: u?.year ?? null,
+          major: u?.major ?? null,
+          bio: r.bio ?? '',
+          subjects: r.subjects ?? [],
+          hourlyRate: num(r.hourly_rate),
+          transcriptUrl: r.transcript_url ?? null,
+          verifiedGrade: r.verified_grade ?? null,
+          submittedAt: r.created_at,
+        };
+      });
+    },
+
+    /** Approve or reject a tutor (approve-tutor Edge Function; re-verifies admin server-side). */
+    approveTutor(tutorUserId: string, decision: 'approved' | 'rejected'): Promise<{ ok: true; approvalStatus: string }> {
+      return invokeFn('approve-tutor', { tutorUserId, decision });
     },
   },
 
