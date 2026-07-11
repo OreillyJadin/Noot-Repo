@@ -1,8 +1,20 @@
 # Handoff — for the next Claude chat
 
-_Updated 2026-07-10. Read this first, then `ARCHITECTURE.md` (authoritative for the whole system)._
+_Updated 2026-07-11. Read this first, then `ARCHITECTURE.md` (authoritative for the whole system)._
 
-> **Latest (2026-07-10, "kill all dummy data" session — commit `71d9cfb`):** every screen now
+> **Latest (2026-07-11, roles + ambassador + admin — commits `961e731`…`ad55a6b`):**
+> **Role-switching** shipped — one account can be student + tutor + ambassador and switch mode from
+> Profile (`<RoleSwitcher>` persists `users.active_role`, guard trigger `0007`; "Viewing as" indicator).
+> The full **Ambassador program** (referral share screen + dashboard pipeline/earnings; `list-referrals`
+> + `award-referral-bonus` fns; codes via `create_my_ambassador_profile`). The full **Admin panel**
+> (gated off Profile): tutor approval + **transcript upload** (private `transcripts` Storage bucket,
+> `expo-document-picker`), user management (suspend/ban via GoTrue), booking oversight/disputes, review
+> moderation — each a service-role Edge Function that re-verifies `is_admin`. Migration `0009` closes the
+> **tutor self-approve** RLS gap. Migrations `0007`–`0011` applied local + cloud; all new fns deployed.
+> Security-reviewed after each phase (one finding — unauthenticated `award-referral-bonus` — fixed).
+> Full worklog: `notes/2026-07-10-2110-role-switching-ambassador-admin.md`.
+
+> **Prior (2026-07-10, "kill all dummy data" session — commit `71d9cfb`):** every screen now
 > reads **real database data** — the ported demo constants are deleted. Real tutor availability is
 > wired into the booking calendar; `TUTORS`/`REVIEWS_POOL`/`tutorById` are gone (replaced by a
 > `<NoSession/>` guard); new `@noot/core` `tutorStats()`/`studentStats()` power the dashboards;
@@ -139,22 +151,22 @@ bundles all 805 modules with no errors and serves 200. NOT click-tested in a liv
 
 ## Known TODOs / gaps (roughly prioritized)
 
-1. **Edge Functions** — the booking set is DONE, DEPLOYED to cloud (all ACTIVE), and
-   verified: `create-payment-intent`, `confirm-booking`, `cancel-booking`,
-   `reschedule-booking`, `report-no-show`, `submit-rating`. Booking works end-to-end in the
-   app against cloud (verified 2026-07-06 via `scripts/verify_booking_cloud.mts`);
-   `listUpcoming` returns real rows. **Money is simulated** (`sim_pi_…`, no real charge/payout).
+1. **Edge Functions** — DEPLOYED to cloud (all ACTIVE): booking set (`create-payment-intent`,
+   `confirm-booking`, `cancel-booking`, `reschedule-booking`, `report-no-show`, `submit-rating`,
+   `resolve-participants`) + as of 2026-07-11 the ambassador/admin set (`list-referrals`,
+   `award-referral-bonus`, `approve-tutor`, `moderate-review`, `admin-set-user-status`,
+   `resolve-dispute`). **Money is simulated** (`sim_pi_…`, no real charge/payout).
    Still UNWRITTEN: `stripe-webhook`, `complete-session`, `connect-onboarding-link`,
-   `approve-tutor`, `award-referral-bonus`, `send-reminders`/`auto-complete` (crons)
-   (ARCHITECTURE.md §5). Real Stripe money movement is the big remaining piece.
+   `send-reminders`/`auto-complete` (crons) (ARCHITECTURE.md §5). Real Stripe money movement is
+   the big remaining piece — it also triggers `award-referral-bonus` (built, awaiting `complete-session`).
 2. ~~**Wire availability read into the UI**~~ — **DONE 2026-07-10** (`lib/availability.ts`,
    consumed by `b1`/`b3`/`edit_availability`/`tutor_calendar`). Still open: **server-side booking
    validation** (scheduled_at inside a window + no overlap with a confirmed booking).
 3. **Realtime `chat.subscribe`** (websocket) was NOT exercised by the smoke test — only the
    insert/read message flow was. Low risk but unverified.
-4. **Column-level hardening** — RLS can't stop a tutor editing their own
-   `tutor_profiles.approval_status`; needs a trigger (approval only via `approve-tutor`
-   service role). Noted in `0002_rls.sql`.
+4. ~~**Column-level hardening** — tutor editing their own `tutor_profiles.approval_status`~~ —
+   **DONE 2026-07-11** (migration `0009` trigger: approval fields are service-role-only, so
+   `approve-tutor` is the sole writer). `0010` similarly guards `users.status`. Both verified.
 5. **Cloud SMTP (blocks real signups)** — signup verification + password-reset emails go through
    Supabase auth email. On cloud that's the built-in sender (members-only, hard rate-limited), so
    real `.edu` students can't verify yet. Wire a real SMTP provider + mirror the redirect
