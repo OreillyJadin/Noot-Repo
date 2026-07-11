@@ -21,9 +21,9 @@ const TUTOR: Tab[] = [
   { label: 'Sessions', icon: 'list', key: 'tutor_sessions' },
   { label: 'Profile', icon: 'user', key: 'tutor_profile' },
 ];
-// Phase 0 shell = Home + Profile; the Referrals tab + screen land in Phase 1.
 const AMBASSADOR: Tab[] = [
   { label: 'Home', icon: 'home', key: 'ambassador_home' },
+  { label: 'Referrals', icon: 'gift', key: 'ambassador_referrals' },
   { label: 'Profile', icon: 'user', key: 'profile' },
 ];
 

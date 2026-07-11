@@ -9,6 +9,7 @@
 //     review, award bonus) are NOT here — they're Edge Functions (service role). See §5.
 import { getSupabase } from '../supabase';
 import type {
+  AmbassadorProfile,
   Booking,
   Conversation,
   ConversationSummary,
@@ -19,6 +20,20 @@ import type {
   TutorSummary,
   User,
 } from '../models';
+
+/** A referral row for the ambassador dashboard (from the list-referrals Edge Function). */
+export interface AmbassadorReferralRow {
+  referralId: string;
+  name: string;
+  referredRole: 'student' | 'tutor';
+  status: 'signed_up' | 'bonus_pending' | 'bonus_paid';
+  bonusAmount: number;
+  createdAt: string;
+}
+export interface AmbassadorReferrals {
+  referrals: AmbassadorReferralRow[];
+  totals: { referrals: number; bonusesEarned: number; totalEarned: number };
+}
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -207,6 +222,19 @@ export interface SubmitRatingInput {
 // ---------------------------------------------------------------------------
 // api
 // ---------------------------------------------------------------------------
+
+function mapAmbassadorProfile(row: any): AmbassadorProfile {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    referralCode: row.referral_code,
+    stripeConnectAccountId: row.stripe_connect_account_id ?? null,
+    totalReferrals: row.total_referrals ?? 0,
+    totalEarned: num(row.total_earned),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 
 export const api = {
   // --- users / profiles ---
@@ -546,6 +574,37 @@ export const api = {
     const upcoming = rows.filter((r) => r.status === 'confirmed' && !isPast(r as { scheduled_at: string }));
     const hoursLearned = completed.reduce((s, r) => s + num(r.duration_minutes) / 60, 0);
     return { sessionsCompleted: completed.length, upcomingCount: upcoming.length, hoursLearned };
+  },
+
+  // --- ambassador ---
+  ambassador: {
+    /**
+     * Create (idempotently) the caller's ambassador profile with a unique, server-generated
+     * referral code; returns the code. Backed by the create_my_ambassador_profile() DB
+     * function so the code is never client-chosen.
+     */
+    async ensureProfile(): Promise<string> {
+      const { data, error } = await getSupabase().rpc('create_my_ambassador_profile');
+      if (error) throw error;
+      return data as string;
+    },
+
+    /** The caller's ambassador profile, or null if they haven't become one. RLS: self-only. */
+    async getProfile(): Promise<AmbassadorProfile | null> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('ambassador_profiles')
+        .select('*')
+        .eq('user_id', uid)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? mapAmbassadorProfile(data) : null;
+    },
+
+    /** Referred users + bonus pipeline status + running totals (list-referrals Edge Function). */
+    listReferrals(): Promise<AmbassadorReferrals> {
+      return invokeFn('list-referrals');
+    },
   },
 
   /** B4 → held PaymentIntent via the `create-payment-intent` Edge Function. */

@@ -101,3 +101,32 @@ All 6 subtasks done; `pnpm -r typecheck` clean; guard trigger verified on local.
 - **⚠️ For security-reviewer (Phase 0 surface):** `setActiveRole`/`active_role` guard (0.2), admin entry is
   UI-only gate (0.5) — real enforcement is Phase 2 server-side, `addRole` relies on RLS blocking `admin`.
 - **Next:** Phase 1 (ambassador) — after user confirms Phase 0 + whether to push `0007`/commit.
+
+### 2026-07-10 22:35 UTC — Phase 0 pushed to cloud + committed
+- Migration `0007` applied to **cloud** via MCP `apply_migration`; cloud guard verified (student-only
+  account → `setActiveRole('tutor')` rejected). Committed Phase 0 as `961e731` (local; not pushed to origin).
+
+### 2026-07-10 23:10 UTC — Phase 1 COMPLETE (ambassador program) — local-verified
+- **1.1** migration `0008_ambassador.sql`: self-referral CHECK; `handle_new_user` captures a
+  `referral_code` from signup metadata (silently ignored if bad — never breaks signup);
+  `create_my_ambassador_profile()` (SECURITY DEFINER) generates a unique `NOOT-XXXXXX` code. Applied to local.
+- **1.2** edge fn `list-referrals` (service role) — caller's referrals + referred names + pipeline
+  status (signed_up → bonus_pending → bonus_paid) + totals. Solves the users_select RLS wall like resolve-participants.
+- **1.3** core `api.ambassador.ensureProfile()` (rpc) / `getProfile()` / `listReferrals()` (invoke); new
+  `AmbassadorReferrals`/`AmbassadorReferralRow` types exported from core root.
+- **1.4** `ambassador_referrals.tsx` — code + link + RN `Share` sheet + "how it works". Referrals tab restored to the ambassador set.
+- **1.5** `ambassador_home.tsx` dashboard — total-earned summary + referred-user pipeline (status badges) + empty state.
+- **1.6** edge fn `award-referral-bonus` (service role, idempotent, fraud-guarded) — **ready but NOT
+  triggered yet** (needs the unbuilt `complete-session`); flagged. Seed populates bonuses directly instead.
+- **Seed:** `seed_cloud.mjs` now seeds ambassador@ (code `NOOT-DEMO01`) + 3 referrals with a full
+  pipeline: Riley=paid, Jordan=pending, Priya=signed-up.
+- **Verified (local, after `supabase stop/start` to serve the new fns):** `pnpm -r typecheck` clean;
+  ambassador flow → code `NOOT-DEMO01`, totals `{referrals:3, bonusesEarned:1, totalEarned:5}`,
+  pipeline `Riley:bonus_paid  Jordan:bonus_pending  Priya:signed_up`; web export bundles.
+- **⚠️ security-reviewer (Phase 1 surface):** `handle_new_user` referral capture (auth trigger),
+  self-referral CHECK, `create_my_ambassador_profile` code-gen, `list-referrals` (only returns caller's own),
+  `award-referral-bonus` (unique referral_id = one bonus ever; booking must be completed).
+- **NOT yet on cloud:** migration `0008`, edge fns `list-referrals` + `award-referral-bonus`, and the
+  referral seed. Cloud ambassador dashboard will 500 on `list-referrals` until deployed. Pending user go-ahead.
+- **Deferred (noted, not dummy data):** signup screen doesn't yet collect a referral code (trigger supports
+  it); `award-referral-bonus` needs wiring to a real completion flow (Stripe workstream).

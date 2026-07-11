@@ -203,6 +203,31 @@ async function main() {
   }
 
   console.log(`\n✅ activity: ${bk} bookings · ${rv} reviews · ${Object.keys(convCache).length} conversations · ${msg} messages`);
+
+  // --- ambassador + referrals (populate the ambassador dashboard with a full pipeline) ---
+  const ambId = await ensureUser('ambassador@crimson.ua.edu', existing);
+  chk('ambassador users', await admin.from('users').update({
+    first_name: 'Amara', last_name: 'Bell', year: 'Junior', major: 'Communications', gender: 'f', active_role: 'ambassador',
+  }).eq('id', ambId));
+  chk('ambassador role', await admin.from('user_roles').upsert({ user_id: ambId, role: 'ambassador' }, { onConflict: 'user_id,role' }));
+  const AMB_CODE = 'NOOT-DEMO01';
+  chk('ambassador profile', await admin.from('ambassador_profiles').upsert({ user_id: ambId, referral_code: AMB_CODE }, { onConflict: 'user_id' }));
+
+  const referred = [studentIds.student1, studentIds.student2, studentIds.student3].filter(Boolean);
+  await admin.from('referrals').delete().in('referred_user_id', referred); // cascades to bonuses
+  const { data: refs, error: refErr } = await admin.from('referrals').insert(
+    referred.map((sid) => ({ ambassador_id: ambId, referred_user_id: sid, referred_role: 'student', referral_code_used: AMB_CODE })),
+  ).select('id, referred_user_id');
+  chk('referrals', { error: refErr });
+  const refByStudent = Object.fromEntries((refs ?? []).map((r) => [r.referred_user_id, r.id]));
+  // student1 = bonus paid · student2 = bonus pending · student3 = signed up (no bonus)
+  const bonuses = [];
+  if (refByStudent[studentIds.student1]) bonuses.push({ ambassador_id: ambId, referral_id: refByStudent[studentIds.student1], bonus_amount: 5, status: 'paid', paid_at: new Date().toISOString() });
+  if (refByStudent[studentIds.student2]) bonuses.push({ ambassador_id: ambId, referral_id: refByStudent[studentIds.student2], bonus_amount: 5, status: 'pending' });
+  if (bonuses.length) chk('referral_bonuses', await admin.from('referral_bonuses').insert(bonuses));
+  const paidTotal = bonuses.filter((b) => b.status === 'paid').reduce((s, b) => s + b.bonus_amount, 0);
+  chk('ambassador totals', await admin.from('ambassador_profiles').update({ total_referrals: referred.length, total_earned: paidTotal }).eq('user_id', ambId));
+  console.log(`✅ ambassador ambassador@crimson.ua.edu · code ${AMB_CODE} · ${referred.length} referrals · ${bonuses.length} bonuses ($${paidTotal} paid)`);
   console.log('\nLogins (password: ' + PASSWORD + ')');
   console.log('  students: ' + STUDENTS.map((s) => s[0]).join(', '));
   console.log('  tutors:   ' + TUTORS.map((t) => t[0]).join(', '));
