@@ -343,6 +343,25 @@ export const api = {
       if (error) throw error;
     },
 
+    /**
+     * Upload the tutor's transcript to the private `transcripts` bucket (under {uid}/) and
+     * record the storage path on tutor_profiles.transcript_url. Admins read it via a signed
+     * URL (listPendingTutors) — the file is never public. Returns the storage path.
+     */
+    async uploadTranscript(file: Blob, ext: string): Promise<string> {
+      const uid = await requireUid();
+      const safeExt = (ext || 'pdf').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'pdf';
+      const path = `${uid}/transcript.${safeExt}`;
+      const sb = getSupabase();
+      const { error } = await sb.storage.from('transcripts').upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { error: pErr } = await sb
+        .from('tutor_profiles')
+        .upsert({ user_id: uid, transcript_url: path }, { onConflict: 'user_id' });
+      if (pErr) throw pErr;
+      return path;
+    },
+
     /** Create/update the signed-in user's tutor profile (edit_tutor). Upsert on user_id. */
     async updateTutorProfile(patch: {
       bio?: string;
@@ -673,22 +692,30 @@ export const api = {
         .in('id', ids);
       if (uErr) throw uErr;
       const byId = new Map((users ?? []).map((u) => [u.id, u]));
-      return rows.map((r) => {
-        const u = byId.get(r.user_id);
-        return {
-          userId: r.user_id,
-          name: u ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || 'Tutor' : 'Tutor',
-          email: u?.email ?? '',
-          year: u?.year ?? null,
-          major: u?.major ?? null,
-          bio: r.bio ?? '',
-          subjects: r.subjects ?? [],
-          hourlyRate: num(r.hourly_rate),
-          transcriptUrl: r.transcript_url ?? null,
-          verifiedGrade: r.verified_grade ?? null,
-          submittedAt: r.created_at,
-        };
-      });
+      // Resolve each transcript storage path to a short-lived signed URL (private bucket).
+      return Promise.all(
+        rows.map(async (r) => {
+          let transcriptUrl: string | null = null;
+          if (r.transcript_url) {
+            const { data: signed } = await sb.storage.from('transcripts').createSignedUrl(r.transcript_url, 300);
+            transcriptUrl = signed?.signedUrl ?? null;
+          }
+          const u = byId.get(r.user_id);
+          return {
+            userId: r.user_id,
+            name: u ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || 'Tutor' : 'Tutor',
+            email: u?.email ?? '',
+            year: u?.year ?? null,
+            major: u?.major ?? null,
+            bio: r.bio ?? '',
+            subjects: r.subjects ?? [],
+            hourlyRate: num(r.hourly_rate),
+            transcriptUrl,
+            verifiedGrade: r.verified_grade ?? null,
+            submittedAt: r.created_at,
+          };
+        }),
+      );
     },
 
     /** Approve or reject a tutor (approve-tutor Edge Function; re-verifies admin server-side). */

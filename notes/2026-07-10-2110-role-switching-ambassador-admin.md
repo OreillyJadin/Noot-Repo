@@ -165,3 +165,23 @@ All 6 subtasks done; `pnpm -r typecheck` clean; guard trigger verified on local.
   (`moderate-review` + `admin_reviews`), transcript upload (Storage bucket + `t6`).
 - **⚠️ security-reviewer (Phase 2 part 1):** `0009` approval-field trigger (service-role-only), `approve-tutor`
   (server-side is_admin re-check — the pattern for all admin write fns).
+
+### 2026-07-11 01:30 UTC — Phase 2 COMPLETE (admin panel, all on cloud)
+- **User management:** migration `0010` (users.status self-write guard) + `admin-set-user-status` fn
+  (sets status + real GoTrue ban/unban) + `admin_users` screen. Verified on cloud: suspend/reactivate; non-admin rejected.
+- **Booking oversight:** `0010` dispute fields + `resolve-dispute` fn + `admin_bookings` screen (flag→resolve). Verified on cloud.
+- **Review moderation:** `moderate-review` fn (approve/reject + recompute rating_avg; reviews have no client
+  write policy so it's the sole writer) + `admin_reviews` screen. Verified on cloud (moderate a pending review).
+- **Transcript upload:** migration `0011` private `transcripts` bucket + RLS (owner write/read own folder,
+  admin read); `api.profile.uploadTranscript` + admin signed-URL resolution in `listPendingTutors`;
+  installed `expo-document-picker ~14.0.8`; wired `t6` (pick PDF/image → upload). Verified on cloud:
+  tutor upload → admin signed-URL fetch 200. **⚠️ picker itself device-untested (headless)** — plumbing +
+  bundle verified.
+- **Cloud:** `0010`+`0011` applied (MCP); `admin-set-user-status`/`moderate-review`/`resolve-dispute`/
+  `approve-tutor` deployed. All 5 admin surfaces working on cloud. `pnpm -r typecheck` clean; web export bundles.
+- **⚠️ security-reviewer (Phase 2 pt.2):** `0010` user-status guard, `0011` transcripts Storage RLS
+  (foldername-scoped, admin read), the 3 admin write fns (all re-verify is_admin server-side), signed-URL
+  minting for a private bucket.
+- **Admin panel screens:** admin_home → admin_tutors / admin_users / admin_bookings / admin_reviews.
+- **Deferred (noted):** enforcing `users.status` beyond the GoTrue ban (RLS-level) is future; the document
+  picker needs a device build to fully validate; `award-referral-bonus` still needs wiring to `complete-session`.

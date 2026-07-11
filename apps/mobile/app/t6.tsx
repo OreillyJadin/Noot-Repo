@@ -1,17 +1,14 @@
-// T6 Verify Grades — ported from screens-tutor.jsx (T6). Transcript / grade
-// screenshot upload per course. Step 6 of the tutor application.
-// → T7 Tutor agreement. "Save & exit" → Landing.
-// File picking isn't wired to a backend yet — the dropzone is a no-op.
-import React from 'react';
-import { View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+// T6 Verify Grades — ported from screens-tutor.jsx (T6). Transcript / grade screenshot
+// upload. Step 6 of the tutor application. → T7 Tutor agreement. "Save & exit" → Landing.
+// Wired: the dropzone picks a PDF/image and uploads it to the private `transcripts` bucket
+// via api.profile.uploadTranscript; admins review it (signed URL) in the approval queue.
+import React, { useState } from 'react';
+import { View, Text, Pressable, Alert, ActivityIndicator, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
 import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
-
-const FILES: [string, string, 'pending' | 'verified'][] = [
-  ['CH 101', 'transcript.pdf', 'pending'],
-  ['CH 102', 'ch102-grade.png', 'verified'],
-];
+import { api } from '@noot/core';
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -50,44 +47,78 @@ function StepHead({
 export default function T6() {
   const t = useTheme();
   const router = useRouter();
+  const [uploaded, setUploaded] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const pick = async () => {
+    if (busy) return;
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      setBusy(true);
+      const resp = await fetch(asset.uri);
+      const blob = await resp.blob();
+      const ext = asset.name?.split('.').pop() || 'pdf';
+      await api.profile.uploadTranscript(blob, ext);
+      setUploaded(asset.name ?? `transcript.${ext}`);
+    } catch (e) {
+      Alert.alert('Upload failed', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Screen>
       <StepHead
         step={6}
         title="Verify your grades"
-        sub="Upload a transcript or screenshot per course."
+        sub="Upload a transcript or grade screenshot."
         onBack={() => router.back()}
         onExit={() => router.replace('/')}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
         <Pressable
-          // TODO(api): wire up file picker (PDF/PNG transcript upload)
-          onPress={() => {}}
+          onPress={pick}
+          disabled={busy}
           style={[styles.dropzone, { borderColor: t.accentBorder, backgroundColor: t.accentWeak }]}
         >
-          <Ic name="upload" size={26} color={t.accent} strokeWidth={1.8} />
-          <Text style={[styles.dropTitle, { color: t.accent }]}>Drop transcript or screenshots</Text>
-          <Text style={[styles.dropSub, { color: t.text3 }]}>PDF or PNG · max 10MB</Text>
+          {busy ? (
+            <>
+              <ActivityIndicator color={t.accent} />
+              <Text style={[styles.dropTitle, { color: t.accent }]}>Uploading…</Text>
+            </>
+          ) : (
+            <>
+              <Ic name="upload" size={26} color={t.accent} strokeWidth={1.8} />
+              <Text style={[styles.dropTitle, { color: t.accent }]}>Tap to upload transcript or screenshot</Text>
+              <Text style={[styles.dropSub, { color: t.text3 }]}>PDF or image · max 10MB</Text>
+            </>
+          )}
         </Pressable>
 
-        <Eyebrow style={{ color: t.text3 }}>Coverage</Eyebrow>
-        <View style={{ gap: 8 }}>
-          {FILES.map(([course, file, status]) => (
-            <Card key={course} style={styles.fileCard}>
-              <View style={[styles.fileIcon, { backgroundColor: t.surface2, borderColor: t.border }]}>
-                <Ic name="doc" size={18} color={t.text3} strokeWidth={1.6} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.fileCourse, { color: t.text }]}>{course}</Text>
-                <Text numberOfLines={1} style={[styles.fileName, { color: t.text3 }]}>
-                  {file}
-                </Text>
-              </View>
-              <Badge label={status === 'verified' ? 'Verified' : 'Pending'} tone={status === 'verified' ? 'good' : 'accentSoft'} />
-            </Card>
-          ))}
-        </View>
+        <Eyebrow style={{ color: t.text3 }}>Uploaded</Eyebrow>
+        {uploaded ? (
+          <Card style={styles.fileCard}>
+            <View style={[styles.fileIcon, { backgroundColor: t.surface2, borderColor: t.border }]}>
+              <Ic name="doc" size={18} color={t.accent} strokeWidth={1.6} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={1} style={[styles.fileCourse, { color: t.text }]}>{uploaded}</Text>
+              <Text style={[styles.fileName, { color: t.text3 }]}>Sent for review</Text>
+            </View>
+            <Badge label="Pending" tone="accentSoft" />
+          </Card>
+        ) : (
+          <Text style={[styles.fileName, { color: t.text3, paddingHorizontal: 2 }]}>
+            No transcript uploaded yet.
+          </Text>
+        )}
 
         <Card flat style={[styles.lockCard, { backgroundColor: t.surfaceAlt }]}>
           <Ic name="lock" size={18} color={t.good} strokeWidth={1.7} />
