@@ -159,7 +159,7 @@ export default function Profile() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.promoTitle, { color: t.text }]}>Refer &amp; earn</Text>
-            <Text style={[styles.promoSub, { color: t.text2 }]}>Become an ambassador to earn $5 for every classmate you refer</Text>
+            <Text style={[styles.promoSub, { color: t.text2 }]}>Become an ambassador to earn $5 for every classmate who completes their first paid session</Text>
           </View>
           <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
         </Card>
@@ -201,7 +201,7 @@ export default function Profile() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.switchTitle, { color: t.text }]}>Become an ambassador</Text>
-              <Text style={[styles.switchSub, { color: t.text3 }]}>Share your code, earn $5 per referral</Text>
+              <Text style={[styles.switchSub, { color: t.text3 }]}>Share your code and earn $5 when a classmate completes their first paid session</Text>
             </View>
             <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
           </Card>

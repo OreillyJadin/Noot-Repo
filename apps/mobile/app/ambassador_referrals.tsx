@@ -46,7 +46,7 @@ export default function AmbassadorReferrals() {
     <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
       <View style={styles.header}>
         <H1 style={{ fontSize: 26 }}>Refer & earn</H1>
-        <Sub style={{ marginTop: 4 }}>Earn $5 for every classmate whose first paid session completes.</Sub>
+        <Sub style={{ marginTop: 4 }}>Earn $5 for every classmate who completes their first paid session.</Sub>
       </View>
 
       <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 6 }}>
@@ -75,7 +75,7 @@ export default function AmbassadorReferrals() {
           {[
             ['user', 'They sign up with your code'],
             ['cap', 'They complete their first paid session'],
-            ['dollar', 'You earn $5 once they complete a paid session'],
+            ['dollar', 'You earn $5 once they complete their first paid session'],
           ].map(([ic, label], i) => (
             <View key={i} style={styles.step}>
               <View style={[styles.stepIcon, { backgroundColor: t.accentWeak }]}>
