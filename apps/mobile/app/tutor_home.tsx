@@ -10,6 +10,7 @@ import { api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
+import { GeckoLogo } from '../lib/GeckoLogo';
 
 /** Booking scheduledAt (+ optional location) → "Tomorrow · 3:00 PM · Gorgas Library". */
 function sessionMeta(iso: string, location: string | null): string {
@@ -135,7 +136,7 @@ export default function TutorHome() {
             <Text style={[styles.welcomeLabel, { color: t.text3 }]}>Tutor dashboard</Text>
             {loading ? <Skeleton width={150} height={26} /> : <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>}
           </View>
-          <Text style={{ fontSize: 40 }}>🦎</Text>
+          <GeckoLogo size={40} />
         </View>
         {multiRole ? (
           <View style={{ marginTop: 10 }}>
@@ -148,7 +149,7 @@ export default function TutorHome() {
         {/* Next session + payout — real upcoming booking, or a CTA when there's none */}
         {next ? (
           <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
-            <Text style={styles.geckoDeco}>🦎</Text>
+            <GeckoLogo style={styles.geckoDeco} />
             <View style={styles.rowBetween}>
               <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>YOUR NEXT SESSION</Text>
               <Badge label={next.subject} tone="ink" />
@@ -179,7 +180,7 @@ export default function TutorHome() {
           </View>
         ) : (
           <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
-            <Text style={styles.geckoDeco}>🦎</Text>
+            <GeckoLogo style={styles.geckoDeco} />
             <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>NO UPCOMING SESSIONS</Text>
             <Text style={[styles.nextName, { color: t.onAccent, marginTop: 8 }]}>You&apos;re all caught up</Text>
             <Text style={[styles.nextMeta, { color: t.onAccent }]}>
@@ -252,7 +253,7 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 
   nextCard: { position: 'relative', overflow: 'hidden', borderRadius: 20, padding: 16, marginBottom: 4 },
-  geckoDeco: { position: 'absolute', right: -10, bottom: -18, fontSize: 100, opacity: 0.16, transform: [{ rotate: '10deg' }] },
+  geckoDeco: { position: 'absolute', right: -10, bottom: -18, width: 100, height: 100, opacity: 0.16, transform: [{ rotate: '10deg' }] },
   nextEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1, opacity: 0.9 },
   nextTutorRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 12 },
   nextName: { fontSize: 16, fontWeight: '700' },

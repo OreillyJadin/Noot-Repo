@@ -10,6 +10,7 @@ import { api, type AmbassadorReferrals } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
+import { GeckoLogo } from '../lib/GeckoLogo';
 
 const STATUS: Record<string, { label: string; tone: BadgeTone }> = {
   signed_up: { label: 'Signed up', tone: 'neutral' },
@@ -54,14 +55,14 @@ export default function AmbassadorHome() {
             <Text style={[styles.label, { color: t.text3 }]}>Ambassador</Text>
             <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>
           </View>
-          <Text style={{ fontSize: 40 }}>🦎</Text>
+          <GeckoLogo size={40} />
         </View>
       </View>
 
       <Body ref={scrollRef} contentStyle={{ paddingTop: 8 }}>
         {/* earnings summary */}
         <View style={[styles.summary, { backgroundColor: t.accent }]}>
-          <Text style={styles.geckoDeco}>🦎</Text>
+          <GeckoLogo style={styles.geckoDeco} />
           <Text style={[styles.summaryLabel, { color: t.onAccent }]}>TOTAL EARNED</Text>
           <Text style={[styles.summaryValue, { color: t.onAccent }]}>
             {loading ? '—' : `$${(totals?.totalEarned ?? 0).toFixed(2)}`}
@@ -129,7 +130,7 @@ const styles = StyleSheet.create({
   welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   label: { fontSize: 13 },
   summary: { position: 'relative', overflow: 'hidden', borderRadius: 20, padding: 18, marginBottom: 12 },
-  geckoDeco: { position: 'absolute', right: -10, bottom: -18, fontSize: 100, opacity: 0.16, transform: [{ rotate: '10deg' }] },
+  geckoDeco: { position: 'absolute', right: -10, bottom: -18, width: 100, height: 100, opacity: 0.16, transform: [{ rotate: '10deg' }] },
   summaryLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1, opacity: 0.9 },
   summaryValue: { fontSize: 40, fontWeight: '800', marginTop: 4 },
   summarySub: { fontSize: 12.5, opacity: 0.9, marginTop: 2 },

@@ -13,6 +13,7 @@ import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { DAYS, MONTHS } from '../lib/data';
 import { isTimeOpen } from '../lib/availability';
+import { GeckoLogo } from '../lib/GeckoLogo';
 import { useTabNav } from '../lib/useTabNav';
 
 const CAL_TIMES = ['9:00 AM', '10:30 AM', '12:00 PM', '1:30 PM', '3:00 PM', '4:30 PM', '6:00 PM', '7:30 PM'];
@@ -167,7 +168,7 @@ export default function TutorCalendar() {
       <View style={[styles.top, { paddingTop: insets.top + 12 }]}>
         <View style={styles.titleRow}>
           <Text style={[styles.title, { color: t.text }]}>Calendar</Text>
-          <Text style={{ fontSize: 18 }}>🦎</Text>
+          <GeckoLogo size={18} />
         </View>
 
         {/* week switch */}

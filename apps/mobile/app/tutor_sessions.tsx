@@ -8,6 +8,7 @@ import { Body, TabBar, Card, Avatar, Ic, H2, EmptyState, Skeleton, useTheme } fr
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useTabNav } from '../lib/useTabNav';
+import { GeckoLogo } from '../lib/GeckoLogo';
 
 type Tab = 'upcoming' | 'past';
 
@@ -81,7 +82,7 @@ export default function TutorSessions() {
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <H2 style={{ fontSize: 22 }}>Your sessions</H2>
-          <Text style={{ fontSize: 18 }}>🦎</Text>
+          <GeckoLogo size={18} />
         </View>
         <View style={[styles.segment, { backgroundColor: t.surface2 }]}>
           {(['upcoming', 'past'] as const).map((v) => {
