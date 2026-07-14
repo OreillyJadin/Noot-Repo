@@ -88,7 +88,7 @@ export default function TutorHome() {
   // Next confirmed, future session (as tutor OR student) from the live API.
   const [next, setNext] = useState<Booking | null>(null);
   // Live dashboard numbers + counterparty names + most-recent conversation.
-  const [stats, setStats] = useState<{ sessionsTaught: number; earnedThisWeek: number; avgRating: number | null } | null>(null);
+  const [stats, setStats] = useState<{ sessionsTaught: number; earnedThisWeek: number } | null>(null);
   const [names, setNames] = useState<Record<string, { firstName: string; lastName: string }>>({});
   const [recent, setRecent] = useState<{ name: string; preview: string } | null>(null);
   useEffect(() => {
@@ -204,7 +204,6 @@ export default function TutorHome() {
         <View style={styles.statsRow}>
           <StatCard icon="dollar" big={stats ? `$${Math.round(stats.earnedThisWeek)}` : '—'} label="Earned this week" />
           <StatCard icon="cap" big={stats ? String(stats.sessionsTaught) : '—'} label="Sessions taught" />
-          <StatCard icon="flame" big={stats?.avgRating != null ? stats.avgRating.toFixed(1) : '—'} label="Avg rating (noot)" />
         </View>
 
         {/* Quick actions */}

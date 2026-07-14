@@ -10,14 +10,20 @@ import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Field, Avatar, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
+import { useApp } from '../lib/store';
+import { toTutor, type Tutor } from '../lib/data';
 
 export default function EditTutorProfile() {
   const t = useTheme();
   const router = useRouter();
+  const { patchBooking } = useApp();
   const [displayName, setDisplayName] = useState('');
   const [about, setAbout] = useState('');
   const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // The tutor's own profile, mapped to the same shape B2 renders — lets "Preview"
+  // open B2 with real self data instead of an empty booking draft (NoSession).
+  const [meTutor, setMeTutor] = useState<Tutor | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -29,6 +35,7 @@ export default function EditTutorProfile() {
           const initial = tutor.lastName ? `${tutor.lastName.charAt(0)}.` : '';
           setDisplayName(`${tutor.firstName} ${initial}`.trim());
           setAbout(tutor.bio);
+          setMeTutor(toTutor(tutor));
         }
       })
       .catch(() => {
@@ -45,6 +52,14 @@ export default function EditTutorProfile() {
   const changePhoto = () => {
     // TODO(api): wire photo upload to backend.
     Alert.alert('Change photo', 'Coming soon — built with backend.');
+  };
+
+  // Seed the booking draft with the tutor's own profile (reflecting the currently
+  // edited bio) and open B2 in read-only preview mode.
+  const preview = () => {
+    if (!meTutor) return;
+    patchBooking({ tutor: { ...meTutor, bio: about.trim() || meTutor.bio }, course: meTutor.courses[0]?.[0] });
+    router.push('/b2?preview=1');
   };
 
   const save = async () => {
@@ -95,7 +110,7 @@ export default function EditTutorProfile() {
           hint="What students see on your profile. Mention the professor and how you run sessions."
         />
 
-        <Card onPress={() => router.push('/b2')} style={{ marginTop: 4, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Card onPress={preview} style={{ marginTop: 4, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <View style={[styles.iconBox, { backgroundColor: t.accentWeak }]}>
             <Ic name="search" size={17} color={t.accent} strokeWidth={1.9} />
           </View>

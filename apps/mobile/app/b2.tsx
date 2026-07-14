@@ -1,14 +1,13 @@
 // B2 Tutor Profile — ported from design_handoff_noot_app/app/screens-booking.jsx (B2).
 // Shows the tutor selected in B1 (booking.tutor); if opened without one it renders
 // <NoSession/> instead of a fake tutor. "Book a session" carries the tutor
-// (+ chosen course) forward into B3. Reviews load live via reviews.listForTutor.
-import React, { useEffect, useState } from 'react';
+// (+ chosen course) forward into B3. Ratings/reviews are collected but never shown.
+import React from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Avatar, H1, Sub, Eyebrow, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
-import { toReview, type Review } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 
 export default function B2() {
@@ -21,21 +20,16 @@ function B2Inner() {
   const t = useTheme();
   const router = useRouter();
   const { booking, patchBooking } = useApp();
+  // preview=1 → the tutor is viewing their OWN public profile from "Edit tutor
+  // profile". Same layout students see, but the booking/save actions are hidden.
+  const { preview } = useLocalSearchParams<{ preview?: string }>();
+  const isPreview = preview === '1';
   const tutor = booking.tutor!;
   const minRate = Math.min(...tutor.courses.map((c) => c[2]));
   const activeCourse = booking.course ?? tutor.courses[0]?.[0] ?? '';
 
-  const [reviews, setReviews] = useState<Review[]>([]);
-  useEffect(() => {
-    let active = true;
-    api.reviews
-      .listForTutor(tutor.id)
-      .then((rs) => { if (active) setReviews(rs.map(toReview)); })
-      .catch(() => {});
-    return () => { active = false; };
-  }, [tutor.id]);
-
   const book = (courseCode?: string) => {
+    if (isPreview) return; // read-only self-preview — can't book yourself
     patchBooking({ tutor, course: courseCode ?? activeCourse });
     router.push('/b3');
   };
@@ -52,12 +46,14 @@ function B2Inner() {
   return (
     <Screen>
       <NavTop
-        title=""
+        title={isPreview ? 'Profile preview' : ''}
         onBack={() => router.back()}
         trailing={
-          <Pressable onPress={save} style={[styles.bookmarkBtn, { backgroundColor: t.surface, borderColor: t.border }]}>
-            <Ic name="bookmark" size={17} color={t.text2} strokeWidth={1.8} />
-          </Pressable>
+          isPreview ? undefined : (
+            <Pressable onPress={save} style={[styles.bookmarkBtn, { backgroundColor: t.surface, borderColor: t.border }]}>
+              <Ic name="bookmark" size={17} color={t.text2} strokeWidth={1.8} />
+            </Pressable>
+          )
         }
       />
 
@@ -104,23 +100,6 @@ function B2Inner() {
           </View>
         </Section>
 
-        <Section title="Reviews">
-          <View style={{ gap: 8 }}>
-            {reviews.map((r) => (
-              <Card key={`${r.name}-${r.when}`} flat style={styles.reviewCard}>
-                <View style={styles.reviewHead}>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>{r.name}</Text>
-                  <Stars n={r.rating} />
-                </View>
-                <Text style={{ fontSize: 12, color: t.text3, marginTop: 2 }}>
-                  {r.course} · {r.when}
-                </Text>
-                <Text style={{ fontSize: 13, color: t.text2, lineHeight: 19, marginTop: 6 }}>{r.text}</Text>
-              </Card>
-            ))}
-          </View>
-        </Section>
-
         <Section title="Verified by noot">
           <Card flat style={{ ...styles.verifiedCard, backgroundColor: t.surfaceAlt }}>
             <Ic name="shield" size={18} color={t.good} strokeWidth={1.8} />
@@ -133,14 +112,20 @@ function B2Inner() {
       </Body>
 
       <ActionBar>
-        <View style={{ flexShrink: 0 }}>
-          <Text style={{ fontSize: 12, color: t.text3 }}>From</Text>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: t.text }}>
-            ${minRate}
-            <Text style={{ fontSize: 12, color: t.text3, fontWeight: '500' }}>/hr</Text>
-          </Text>
-        </View>
-        <Button label="Book a session" kind="primary" iconRight="chevron" style={{ flex: 1 }} onPress={() => book(activeCourse)} />
+        {isPreview ? (
+          <Button label="Done" kind="primary" full onPress={() => router.back()} />
+        ) : (
+          <>
+            <View style={{ flexShrink: 0 }}>
+              <Text style={{ fontSize: 12, color: t.text3 }}>From</Text>
+              <Text style={{ fontSize: 20, fontWeight: '700', color: t.text }}>
+                ${minRate}
+                <Text style={{ fontSize: 12, color: t.text3, fontWeight: '500' }}>/hr</Text>
+              </Text>
+            </View>
+            <Button label="Book a session" kind="primary" iconRight="chevron" style={{ flex: 1 }} onPress={() => book(activeCourse)} />
+          </>
+        )}
       </ActionBar>
     </Screen>
   );
@@ -153,16 +138,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <View style={{ marginTop: 24 }}>
       <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>{title}</Eyebrow>
       {children}
-    </View>
-  );
-}
-
-function Stars({ n, size = 13 }: { n: number; size?: number }) {
-  const t = useTheme();
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-      <Ic name="star" size={size + 1} strokeWidth={0} fill={t.accent} color={t.accent} />
-      <Text style={{ fontSize: size, fontWeight: '700', color: t.text }}>{n}</Text>
     </View>
   );
 }
@@ -182,7 +157,5 @@ const styles = StyleSheet.create({
   courseCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
   gradeBox: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   courseMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  reviewCard: { padding: 14 },
-  reviewHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   verifiedCard: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14 },
 });

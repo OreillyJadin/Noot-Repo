@@ -135,10 +135,14 @@ export default function TB2() {
             <Text style={{ fontSize: 14, color: t.text2 }}>{f.lenLabel} × ${f.rate}/hr</Text>
             <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>${f.gross.toFixed(2)}</Text>
           </View>
+          <View style={[styles.earnRow, { marginTop: 10 }]}>
+            <Text style={{ fontSize: 14, color: t.text2 }}>Noot service fee ({(FEE_RATE * 100).toFixed(1)}%)</Text>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: t.text2 }}>−${f.fee.toFixed(2)}</Text>
+          </View>
           <Divider style={{ marginVertical: 13 }} />
           <View style={styles.earnRow}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>You earn</Text>
-            <Text style={{ fontSize: 22, fontWeight: '800', color: t.good }}>${f.gross.toFixed(2)}</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: t.good }}>${f.payout.toFixed(2)}</Text>
           </View>
           <View style={styles.lockRow}>
             <Ic name="lock" size={13} color={t.text3} strokeWidth={1.8} />

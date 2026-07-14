@@ -87,9 +87,9 @@ export default function TutorProfile() {
     return () => { active = false; };
   }, [me]);
 
+  // Ratings are collected but never surfaced in the app — no "Avg rating" stat here.
   const STATS: [string, string][] = [
     [stats ? String(stats.sessionsTaught) : '—', 'Sessions taught'],
-    [stats?.avgRating != null ? stats.avgRating.toFixed(1) : '—', 'Avg rating'],
     [stats ? String(Math.round(stats.hoursTaught)) : '—', 'Hours'],
   ];
 
