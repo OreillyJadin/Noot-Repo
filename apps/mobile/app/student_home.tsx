@@ -3,10 +3,10 @@
 // carousel and a detailed tutor list, both opening the tutor profile (B2).
 // Tutor lists come live from @noot/core per-category search results (api.tutors.search).
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Badge, Field, Ic, H2, Muted, TabBar, Skeleton, EmptyState, useTheme } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Badge, Ic, H2, Muted, TabBar, Skeleton, EmptyState, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -30,13 +30,29 @@ const CAT_PREFIXES: Record<(typeof CATS)[number], string[] | undefined> = {
 };
 
 function courseFor(tutor: Tutor): string {
-  return tutor.courses[0]?.[0] ?? 'MGT 300';
+  return tutor.courses[0]?.[0] ?? '';
+}
+
+/** True if the tutor's name or any course code contains the (trimmed) query.
+ *  Case-insensitive so "mgt" matches "MGT 300". */
+function tutorMatches(tutor: Tutor, query: string): boolean {
+  const q = query.toLowerCase();
+  if (tutor.name.toLowerCase().includes(q)) return true;
+  return tutor.courses.some(([code]) => code.toLowerCase().includes(q));
+}
+
+/** The course to attribute to a tutor for the query — the matched course code if the
+ *  query hit one, else the tutor's first course. */
+function matchCourse(tutor: Tutor, query: string): string {
+  const q = query.toLowerCase();
+  const codes = tutor.courses.map(([code]) => code);
+  return (q && codes.find((c) => c.toLowerCase().includes(q))) || codes[0] || '';
 }
 
 // ── local helper (used only by this screen) ─────────────────────────────────
-function TutorRow({ tutor, onPress }: { tutor: Tutor; onPress: () => void }) {
+function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => void; course?: string }) {
   const t = useTheme();
-  const course = courseFor(tutor);
+  const badgeCourse = course ?? courseFor(tutor);
   return (
     <Card onPress={onPress} style={styles.rowCard}>
       <View style={styles.rowInner}>
@@ -53,7 +69,7 @@ function TutorRow({ tutor, onPress }: { tutor: Tutor; onPress: () => void }) {
             {tutor.year} · {tutor.major}
           </Text>
           <View style={styles.rowFoot}>
-            <Badge label={course} tone="accentSoft" />
+            {badgeCourse ? <Badge label={badgeCourse} tone="accentSoft" /> : null}
             <Badge label="Verified" tone="good" />
             <Text style={[styles.rowSessions, { color: t.text3 }]}>{tutor.sessions} sessions</Text>
           </View>
@@ -70,6 +86,25 @@ export default function StudentHome() {
   const { patchBooking, role } = useApp();
   const { me, loading: meLoading } = useMe();
   const [tab, setTab] = useState(0);
+
+  // Live search query. When non-empty, the browse view (category tabs + carousel) is
+  // replaced by tutors matching the query by name or course code — typing filters
+  // instantly, no per-keystroke round-trip and no fabricated default course.
+  const [query, setQuery] = useState('');
+  const trimmed = query.trim();
+  // All approved tutors, fetched once, filtered client-side against `query`.
+  const [allTutors, setAllTutors] = useState<Tutor[]>([]);
+  const [allLoading, setAllLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    api.tutors
+      .search({})
+      .then((list) => { if (active) setAllTutors(list.map(toTutor)); })
+      .catch(() => { if (active) setAllTutors([]); })
+      .finally(() => { if (active) setAllLoading(false); });
+    return () => { active = false; };
+  }, []);
+  const results = trimmed ? allTutors.filter((tt) => tutorMatches(tt, trimmed)) : [];
 
   const cat = CATS[tab] ?? CATS[0];
   // Live tutors from the API, filtered by the selected category (course-code prefixes).
@@ -88,13 +123,13 @@ export default function StudentHome() {
   }, [cat]);
 
   const openSearch = () => router.push('/b1');
-  const openTutor = (tutor: Tutor) => {
-    patchBooking({ tutor, course: courseFor(tutor) });
+  const openTutor = (tutor: Tutor, course?: string) => {
+    patchBooking({ tutor, course: course ?? courseFor(tutor) });
     router.push('/b2');
   };
   const scrollRef = useRef<ScrollView>(null);
-  // Re-tapping the Search tab clears the category filter back to "For you" + scrolls up.
-  const { active, onTab } = useTabNav({ scrollRef, onReselect: () => setTab(0) });
+  // Re-tapping the Search tab clears the search + category filter and scrolls up.
+  const { active, onTab } = useTabNav({ scrollRef, onReselect: () => { setTab(0); setQuery(''); } });
 
   return (
     <Screen>
@@ -107,18 +142,28 @@ export default function StudentHome() {
           <Avatar size={40} />
         </View>
 
-        {/* Field opens Search (B1); the sliders button opens B1 with its filter sheet
-            (price / availability / gender). Neither is a live text input here. */}
+        {/* Live search input — filters tutors by name/course as you type. The sliders
+            button opens B1 with its filter sheet (price / availability / gender). */}
         <View style={styles.searchRow}>
-          <Pressable style={{ flex: 1 }} onPress={openSearch}>
-            <View pointerEvents="none">
-              <Field
-                placeholder="What class? e.g. MGT 300"
-                value=""
-                prefix={<Ic name="search" size={18} color={t.text3} strokeWidth={1.8} />}
-              />
-            </View>
-          </Pressable>
+          <View style={[styles.searchField, { backgroundColor: t.surface, borderColor: t.borderStrong }]}>
+            <Ic name="search" size={18} color={t.text3} strokeWidth={1.8} />
+            <TextInput
+              style={[styles.searchInput, { color: t.text }]}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="What class? e.g. MGT 300"
+              placeholderTextColor={t.text3}
+              autoCorrect={false}
+              autoCapitalize="characters"
+              returnKeyType="search"
+              accessibilityLabel="Search tutors by course or name"
+            />
+            {trimmed ? (
+              <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
+                <Ic name="x" size={16} color={t.text3} strokeWidth={2} />
+              </Pressable>
+            ) : null}
+          </View>
           <Pressable
             onPress={() => router.push('/b1?filters=1')}
             style={[styles.filterBtn, { backgroundColor: t.surface, borderColor: t.borderStrong }]}
@@ -131,6 +176,37 @@ export default function StudentHome() {
         </View>
       </View>
 
+      {trimmed ? (
+        <Body ref={scrollRef} pad={0} contentStyle={styles.bodyContent}>
+          <View style={[styles.sectionHead, styles.resultsHead]}>
+            <Text style={[styles.resultsCount, { color: t.text3 }]}>
+              <Text style={{ color: t.text2, fontWeight: '700' }}>{results.length}</Text> verified tutor
+              {results.length !== 1 ? 's' : ''} for “{trimmed}”
+            </Text>
+          </View>
+          <View style={styles.list}>
+            {allLoading ? (
+              <View style={{ gap: 10 }}>
+                <Skeleton height={72} radius={14} />
+                <Skeleton height={72} radius={14} />
+                <Skeleton height={72} radius={14} />
+              </View>
+            ) : results.length === 0 ? (
+              <EmptyState icon="search" title="No tutors found" subtitle={`No tutors match “${trimmed}”. Try a course code or name.`} />
+            ) : (
+              results.map((tutor) => (
+                <TutorRow
+                  key={tutor.id}
+                  tutor={tutor}
+                  course={matchCourse(tutor, trimmed)}
+                  onPress={() => openTutor(tutor, matchCourse(tutor, trimmed))}
+                />
+              ))
+            )}
+          </View>
+        </Body>
+      ) : (
+        <>
       <View style={[styles.tabs, { borderBottomColor: t.border }]}>
         {CATS.map((c, i) => {
           const on = i === tab;
@@ -160,7 +236,7 @@ export default function StudentHome() {
             <Card key={tutor.id} onPress={() => openTutor(tutor)} style={styles.miniCard}>
               <Avatar size={40} />
               <Text style={[styles.miniName, { color: t.text }]}>{tutor.name}</Text>
-              <Badge label={courseFor(tutor)} tone="accentSoft" />
+              {courseFor(tutor) ? <Badge label={courseFor(tutor)} tone="accentSoft" /> : null}
               <View style={styles.miniVerified}>
                 <Ic name="check" size={13} color={t.good} strokeWidth={2.6} />
                 <Text style={[styles.miniVerifiedLabel, { color: t.good }]}>Verified</Text>
@@ -191,6 +267,8 @@ export default function StudentHome() {
           )}
         </View>
       </Body>
+        </>
+      )}
 
       <TabBar active={active} role={role} onTab={onTab} />
     </Screen>
@@ -201,6 +279,8 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 6, gap: 12 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  searchField: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, height: 50, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5 },
+  searchInput: { flex: 1, fontSize: 15, fontWeight: '500', padding: 0 },
   filterBtn: { width: 50, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   welcome: { fontSize: 13 },
   name: { fontSize: 22 },
@@ -209,6 +289,8 @@ const styles = StyleSheet.create({
   tabLabel: { fontSize: 15 },
   bodyContent: { paddingTop: 16 },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 20, paddingBottom: 10 },
+  resultsHead: { paddingTop: 4 },
+  resultsCount: { fontSize: 13 },
   sectionHeadSpaced: { paddingTop: 20 },
   sectionTitle: { fontSize: 18 },
   seeAll: { fontSize: 14, fontWeight: '600' },
