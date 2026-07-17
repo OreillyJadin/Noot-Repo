@@ -26,11 +26,12 @@ if (url && anonKey) {
   });
 }
 
-// Reads the persisted dark-mode preference and feeds it into the theme + status bar.
+// Reads the persisted theme preferences and feeds them into the theme + status bar.
+// `school` swaps the accent to University of Alabama crimson (the "school colors" theme).
 function ThemedApp() {
-  const { dark } = useThemePref();
+  const { dark, school } = useThemePref();
   return (
-    <ThemeProvider direction="sage" dark={dark}>
+    <ThemeProvider direction={school ? 'crimson' : 'sage'} dark={dark}>
       <AppProvider>
         <StatusBar style={dark ? 'light' : 'dark'} />
         <AuthGate>

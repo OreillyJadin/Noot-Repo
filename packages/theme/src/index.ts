@@ -7,7 +7,7 @@
 //
 // Brand: sage #78A070 · cream/sand #D0C0A0 · deep charcoal-green #283028.
 
-export type Direction = 'sage' | 'sand' | 'forest';
+export type Direction = 'sage' | 'sand' | 'forest' | 'crimson';
 
 export interface DirectionMeta {
   id: Direction;
@@ -19,6 +19,7 @@ export const DIRECTIONS: DirectionMeta[] = [
   { id: 'sage', name: 'Sage', blurb: 'Calm · natural · the noot default' },
   { id: 'sand', name: 'Sand', blurb: 'Warm · cream-forward · friendly' },
   { id: 'forest', name: 'Forest', blurb: 'Deep green · confident · high-contrast' },
+  { id: 'crimson', name: 'Crimson', blurb: 'School colors · University of Alabama' },
 ];
 
 export const BODY_FONT =
@@ -156,6 +157,39 @@ export const THEMES: Record<Direction, ThemeDirection> = {
       onAccent: '#10180F', good: '#7FC079', goodWeak: 'rgba(127,192,121,0.16)',
       shadow: '0 2px 0 rgba(0,0,0,0.5), 0 14px 34px rgba(0,0,0,0.6)',
       shadowSm: '0 2px 0 rgba(0,0,0,0.5)',
+      statusDark: true,
+    },
+  },
+
+  // ── 4 · CRIMSON (school colors — University of Alabama) ────────────────
+  // Neutral sage surfaces/typography kept for readability; only the brand accent
+  // swaps to UA official crimson (#9E1B32). Success stays green (semantic).
+  crimson: {
+    headingFont: HEADING_FONT,
+    headingWeight: 700,
+    headingTracking: '-0.01em',
+    btnRadius: '14px',
+    chipRadius: '999px',
+    cardRadius: '20px',
+    fieldRadius: '13px',
+    light: {
+      bg: '#F4F2EC', surface: '#FFFFFF', surface2: '#ECEAE1', surfaceAlt: '#FAF8F2',
+      text: '#283028', text2: '#5A6157', text3: '#9AA093',
+      border: 'rgba(40,48,40,0.12)', borderStrong: 'rgba(40,48,40,0.24)',
+      accent: '#9E1B32', accentPress: '#7E1528', accentWeak: '#F7E3E7', accentBorder: 'rgba(158,27,50,0.4)',
+      onAccent: '#FFFFFF', good: '#4F8A4A', goodWeak: '#E5F0E2',
+      shadow: '0 1px 2px rgba(40,48,40,0.05), 0 10px 28px rgba(40,48,40,0.07)',
+      shadowSm: '0 1px 2px rgba(40,48,40,0.06)',
+      statusDark: false,
+    },
+    dark: {
+      bg: '#161C16', surface: '#1F271F', surface2: '#2B332A', surfaceAlt: '#1A201A',
+      text: '#F1F0E8', text2: 'rgba(241,240,232,0.64)', text3: 'rgba(241,240,232,0.4)',
+      border: 'rgba(160,180,150,0.18)', borderStrong: 'rgba(160,180,150,0.34)',
+      accent: '#D8455C', accentPress: '#C23A50', accentWeak: 'rgba(216,69,92,0.16)', accentBorder: 'rgba(216,69,92,0.4)',
+      onAccent: '#FFFFFF', good: '#7FC079', goodWeak: 'rgba(127,192,121,0.16)',
+      shadow: '0 1px 2px rgba(0,0,0,0.4), 0 12px 32px rgba(0,0,0,0.5)',
+      shadowSm: '0 1px 3px rgba(0,0,0,0.45)',
       statusDark: true,
     },
   },

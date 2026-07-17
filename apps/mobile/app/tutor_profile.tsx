@@ -66,7 +66,7 @@ export default function TutorProfile() {
   const insets = useSafeAreaInsets();
   const { role } = useApp();
   const { me, loading } = useMe();
-  const { dark, toggle: toggleDark } = useThemePref();
+  const { dark, toggle: toggleDark, school, toggleSchool } = useThemePref();
 
   const meName = fullName(me, 'Tutor');
   const meFirst = firstName(me, 'T');
@@ -200,6 +200,7 @@ export default function TutorProfile() {
         <Card style={styles.cardNoPad}>
           <Row icon="bell" label="Notifications" sub="Reminders, messages, offers" onPress={() => notify('Notification settings')} />
           <Row icon="gear" label="Dark mode" control={<Toggle on={dark} onPress={toggleDark} />} />
+          <Row icon="flame" label="School colors" sub="University of Alabama — crimson" control={<Toggle on={school} onPress={toggleSchool} />} />
           <Row icon="help" label="Help & support" onPress={() => notify('Help center')} last />
         </Card>
 

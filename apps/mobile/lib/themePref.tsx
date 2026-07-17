@@ -7,24 +7,33 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEY = 'noot.theme.dark';
+const SCHOOL_KEY = 'noot.theme.school';
 
 interface ThemePref {
   dark: boolean;
   setDark: (v: boolean) => void;
   toggle: () => void;
+  /** School-colors theme (University of Alabama crimson) instead of the sage default. */
+  school: boolean;
+  setSchool: (v: boolean) => void;
+  toggleSchool: () => void;
 }
 
 const Ctx = createContext<ThemePref | null>(null);
 
 export function ThemePrefProvider({ children }: { children: React.ReactNode }) {
   const [dark, setDarkState] = useState(false);
+  const [school, setSchoolState] = useState(false);
 
-  // Load the persisted choice once on startup.
+  // Load the persisted choices once on startup.
   useEffect(() => {
     let active = true;
     AsyncStorage.getItem(KEY)
       .then((v) => { if (active && v != null) setDarkState(v === '1'); })
       .catch(() => { /* first run / unavailable → default light */ });
+    AsyncStorage.getItem(SCHOOL_KEY)
+      .then((v) => { if (active && v != null) setSchoolState(v === '1'); })
+      .catch(() => { /* first run / unavailable → default off */ });
     return () => { active = false; };
   }, []);
 
@@ -33,7 +42,22 @@ export function ThemePrefProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(KEY, v ? '1' : '0').catch(() => { /* best-effort persist */ });
   };
 
-  const value = useMemo<ThemePref>(() => ({ dark, setDark, toggle: () => setDark(!dark) }), [dark]);
+  const setSchool = (v: boolean) => {
+    setSchoolState(v);
+    AsyncStorage.setItem(SCHOOL_KEY, v ? '1' : '0').catch(() => { /* best-effort persist */ });
+  };
+
+  const value = useMemo<ThemePref>(
+    () => ({
+      dark,
+      setDark,
+      toggle: () => setDark(!dark),
+      school,
+      setSchool,
+      toggleSchool: () => setSchool(!school),
+    }),
+    [dark, school],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
