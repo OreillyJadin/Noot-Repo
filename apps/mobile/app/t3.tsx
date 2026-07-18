@@ -1,24 +1,19 @@
-// T3 Courses You Tutor — ported from screens-tutor.jsx (T3). Step 3 of the tutor
-// application. → T4 Set your rates. "Save & exit" → Landing. Add/Edit course
-// actions are backend-only in the prototype (showToast) — no-op here for now.
-import React, { useState } from 'react';
+// T3 Courses You Tutor — Step 3 of the tutor application. → T4 Set your rates.
+// Loads the tutor's real courses (api.tutors.getById self), lets them add/remove, and
+// persists via api.profile.setTutorCourses on continue. Rates are set on T4.
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, Field, Select, Badge, Eyebrow, H2, Muted, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { Screen, Body, ActionBar, Button, Card, Field, Select, Badge, Eyebrow, H2, Muted, ProgressDots, H1, Sub, Ic, Skeleton, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 
-const EXISTING: [string, string, string][] = [
-  ['CH 101', 'A', 'Fall 2024'],
-  ['CH 102', 'A-', 'Spring 2025'],
-];
 const GRADE_OPTIONS = ['A', 'A-', 'B+', 'B'];
-const SEMESTER_OPTIONS: string[] = (() => {
-  const out: string[] = [];
-  for (let y = 2025; y >= 2023; y--) {
-    for (const term of ['Fall', 'Summer', 'Spring']) out.push(`${term} ${y}`);
-  }
-  return out;
-})();
+const MAX_COURSES = 10;
+
+/** A course the tutor teaches. hourlyRate/sessions are preserved across saves (rates are
+ *  set on T4); grade + code are what this screen edits. */
+type CourseRow = { courseCode: string; grade: string; hourlyRate: number; sessions: number };
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -57,9 +52,75 @@ function StepHead({
 export default function T3() {
   const t = useTheme();
   const router = useRouter();
+  const [courses, setCourses] = useState<CourseRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [grade, setGrade] = useState('');
-  const [semester, setSemester] = useState('');
+
+  // Load the tutor's existing courses (own profile).
+  useEffect(() => {
+    let active = true;
+    api
+      .getMe()
+      .then((me) => (me ? api.tutors.getById(me.id) : null))
+      .then((tutor) => {
+        if (active && tutor) {
+          setCourses(
+            tutor.courses.map((c) => ({
+              courseCode: c.courseCode,
+              grade: c.grade ?? '',
+              hourlyRate: c.hourlyRate,
+              sessions: c.sessions,
+            })),
+          );
+        }
+      })
+      .catch(() => { /* no session / no courses yet → empty list */ })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  const addCourse = () => {
+    const code = search.trim().toUpperCase().replace(/\s+/g, ' ');
+    if (!code) return Alert.alert('Add a course', 'Enter the course code, e.g. MATH 125.');
+    if (!grade) return Alert.alert('Pick your grade', 'Select the grade you earned in this course.');
+    if (courses.length >= MAX_COURSES) return Alert.alert('Limit reached', `You can add up to ${MAX_COURSES} courses.`);
+    if (courses.some((c) => c.courseCode === code)) return Alert.alert('Already added', `${code} is already in your list.`);
+    setCourses((cs) => [...cs, { courseCode: code, grade, hourlyRate: 0, sessions: 0 }]);
+    setSearch('');
+    setGrade('');
+  };
+
+  const removeCourse = (code: string) =>
+    Alert.alert('Remove course', `Remove ${code} from your list?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => setCourses((cs) => cs.filter((c) => c.courseCode !== code)) },
+    ]);
+
+  const persist = async (): Promise<boolean> => {
+    try {
+      await api.profile.setTutorCourses(courses);
+      return true;
+    } catch {
+      Alert.alert('Could not save', 'Please check your connection and try again.');
+      return false;
+    }
+  };
+
+  const saveAndContinue = async () => {
+    if (saving) return;
+    if (courses.length === 0) return Alert.alert('Add a course', 'Add at least one course you can tutor.');
+    setSaving(true);
+    const ok = await persist();
+    setSaving(false);
+    if (ok) router.push('/t4');
+  };
+
+  const saveAndExit = async () => {
+    await persist();
+    router.replace('/');
+  };
 
   return (
     <Screen>
@@ -68,47 +129,50 @@ export default function T3() {
         title="Courses you tutor"
         sub="Add up to 10. Add the ones you crushed."
         onBack={() => router.back()}
-        onExit={() => router.replace('/')}
+        onExit={saveAndExit}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
         <View style={styles.headRow}>
           <H2 style={{ fontSize: 16 }}>Your courses</H2>
-          <Badge label="2 / 10" tone="neutral" />
+          <Badge label={`${courses.length} / ${MAX_COURSES}`} tone="neutral" />
         </View>
 
-        <View style={{ gap: 10 }}>
-          {EXISTING.map(([course, g, sem]) => (
-            <Card
-              key={course}
-              onPress={() => Alert.alert('Edit ' + course, 'Built with backend') /* TODO(api) */}
-              style={styles.courseCard}
-            >
-              <View style={[styles.gradeChip, { backgroundColor: t.accent }]}>
-                <Text style={[styles.gradeChipText, { color: t.onAccent }]}>{g}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.courseCode, { color: t.text }]}>{course}</Text>
-                <Text style={[styles.courseSem, { color: t.text3 }]}>{sem}</Text>
-              </View>
-              <Ic name="edit" size={18} color={t.text3} strokeWidth={1.7} />
-            </Card>
-          ))}
-        </View>
+        {loading ? (
+          <View style={{ gap: 10 }}>
+            <Skeleton height={62} radius={14} />
+            <Skeleton height={62} radius={14} />
+          </View>
+        ) : courses.length === 0 ? (
+          <Text style={{ fontSize: 13, color: t.text3 }}>No courses yet — add the ones you aced below.</Text>
+        ) : (
+          <View style={{ gap: 10 }}>
+            {courses.map((c) => (
+              <Card key={c.courseCode} onPress={() => removeCourse(c.courseCode)} style={styles.courseCard}>
+                <View style={[styles.gradeChip, { backgroundColor: t.accent }]}>
+                  <Text style={[styles.gradeChipText, { color: t.onAccent }]}>{c.grade || '—'}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.courseCode, { color: t.text }]}>{c.courseCode}</Text>
+                  <Text style={[styles.courseSem, { color: t.text3 }]}>Grade {c.grade || '—'} · tap to remove</Text>
+                </View>
+                <Ic name="x" size={18} color={t.text3} strokeWidth={2} />
+              </Card>
+            ))}
+          </View>
+        )}
 
         <Card flat style={[styles.addingCard, { borderColor: t.borderStrong, backgroundColor: t.surfaceAlt }]}>
           <Eyebrow style={{ marginBottom: 10 }}>Adding</Eyebrow>
           <Field
-            placeholder="Search UA course catalog…"
+            placeholder="Course code, e.g. MATH 125"
             value={search}
             onChangeText={setSearch}
+            autoCapitalize="characters"
             suffix={<Ic name="search" size={18} color={t.text3} strokeWidth={1.8} />}
           />
           <View style={[styles.row, { marginTop: 10 }]}>
             <View style={{ flex: 1 }}>
               <Select placeholder="Grade" value={grade} options={GRADE_OPTIONS} onChange={setGrade} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Select placeholder="Semester" value={semester} options={SEMESTER_OPTIONS} onChange={setSemester} />
             </View>
           </View>
           <Text style={[styles.professorHint, { color: t.text3 }]}>
@@ -117,14 +181,14 @@ export default function T3() {
         </Card>
       </Body>
       <ActionBar>
+        <Button label="+ Add" kind="secondary" size="md" style={{ flex: 1 }} onPress={addCourse} />
         <Button
-          label="+ Add"
-          kind="secondary"
-          size="md"
-          style={{ flex: 1 }}
-          onPress={() => Alert.alert('Add a course you aced', 'Built with backend') /* TODO(api) */}
+          label={saving ? 'Saving…' : 'Save & Continue'}
+          kind="primary"
+          style={{ flex: 1.6 }}
+          disabled={saving}
+          onPress={saveAndContinue}
         />
-        <Button label="Save & Continue" kind="primary" style={{ flex: 1.6 }} onPress={() => router.push('/t4')} />
       </ActionBar>
     </Screen>
   );
