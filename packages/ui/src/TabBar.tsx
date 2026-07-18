@@ -1,11 +1,12 @@
 // TabBar — role-aware bottom nav, ported from app/kit.jsx. `active` is a route key.
 // The prototype used the gecko mark for Home + a lizard-in-magnifier for Search;
-// here Home uses the 🦎 mark (brand image port is TODO) and Search uses the icon.
+// here Home uses the gecko brand image (GeckoMark) and Search uses the icon.
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from './ThemeProvider';
 import { Ic, type IconName } from './Icon';
+import { GeckoMark } from './Gecko';
 
 type Tab = { label: string; icon: IconName | 'home'; key: string };
 
@@ -61,7 +62,7 @@ export function TabBar({ active, onTab, role = 'student' }: TabBarProps) {
             accessibilityHint={on ? 'Scroll to top and reset this page' : `Go to ${tab.label}`}
           >
             {tab.icon === 'home' ? (
-              <Text style={{ fontSize: 20, opacity: on ? 1 : 0.5 }}>🦎</Text>
+              <GeckoMark size={23} style={{ opacity: on ? 1 : 0.5 }} />
             ) : (
               <Ic name={tab.icon} size={23} color={color} strokeWidth={on ? 2.1 : 1.7} />
             )}

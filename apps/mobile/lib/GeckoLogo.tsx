@@ -1,9 +1,5 @@
-import React from 'react';
-import { Image, type ImageStyle, type StyleProp } from 'react-native';
-
-const GECKO = require('../assets/gecko-sage.png');
-
-/** The Noot gecko mark. Replaces the 🦎 emoji used across headers and cards. */
-export function GeckoLogo({ size = 40, style }: { size?: number; style?: StyleProp<ImageStyle> }) {
-  return <Image source={GECKO} style={[{ width: size, height: size, resizeMode: 'contain' }, style]} />;
-}
+// The Noot gecko mark. Thin re-export of @noot/ui's GeckoMark so the brand graphic has a
+// single source of truth (packages/ui/assets/gecko-sage.png) — swapping in Jake's
+// approved asset is a one-file change there. Kept as `GeckoLogo` so existing screen
+// imports stay stable.
+export { GeckoMark as GeckoLogo, type GeckoMarkProps as GeckoLogoProps } from '@noot/ui';

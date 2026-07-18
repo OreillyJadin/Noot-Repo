@@ -17,4 +17,5 @@ export { RoleSwitcher, ViewingAs, type RoleSwitcherProps, type SwitchableRole } 
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { Skeleton, type SkeletonProps } from './Skeleton';
 export { Wordmark, HeroIcon, type WordmarkProps, type HeroIconProps } from './Brand';
+export { GeckoMark, type GeckoMarkProps } from './Gecko';
 export { resolveTheme, DIRECTIONS, type Direction, type Theme } from '@noot/theme';
