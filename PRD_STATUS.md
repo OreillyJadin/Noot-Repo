@@ -1,6 +1,6 @@
 # Noot — PRD implementation status
 
-_Snapshot 2026-07-11. Maps the product (see `prd-data-models.md` + `ARCHITECTURE.md`) to
+_Snapshot 2026-07-18. Maps the product (see `prd-data-models.md` + `ARCHITECTURE.md`) to
 what's actually built. Made for planning next steps — take it into a chat and ask "what
 should we build next?"_
 
@@ -8,12 +8,19 @@ should we build next?"_
 🟡 partial / unverified · 🔴 not built
 
 **One-line state:** the core student journey — sign in → find a tutor → message → book →
-see it in Upcoming → cancel/rate — runs against the real cloud database with **no dummy
-data left**. As of **2026-07-11**, **role-switching** (student + tutor + ambassador,
-switched from Profile), the full **Ambassador program** (referral share + dashboard), and
-the **Admin panel** (tutor approval + transcript upload, user management, booking oversight,
-review moderation) are all **built, deployed to cloud, and verified**. The one big remaining
-piece before launch is **real money (Stripe)**; then **push notifications**. Money is *simulated*.
+see it in Upcoming → cancel/rate — runs against the real database with **no dummy data
+left**. Role-switching, the Ambassador program, and the Admin panel are built + verified.
+As of **2026-07-18**: **profile photo upload** (avatars bucket), an **in-app notification
+center** (triggers on new message/booking), **tutor course editing**, ratings hidden
+app-wide, a transparent tutor pay breakdown, and a School-colors theme are all built +
+backend-verified.
+
+**🚩 MVP gap (the launch blockers):** (1) **real money** — Stripe is still *simulated*;
+needs capture-on-completion (design: tutor taps "Mark complete"), Stripe **Connect** payouts
+for tutors, and real card entry (PaymentSheet or Checkout — TBD). (2) **device push
+delivery** — the in-app center exists but no Expo push token capture / send yet. Everything
+else for a first submission is in place. Prereqs the owner is handling: a **Stripe account +
+test keys + Connect**, and **Supabase transactional email** setup.
 
 ---
 

@@ -1,9 +1,40 @@
-# 👋 PICKUP_HERE — where we left off (2026-07-11)
+# 👋 PICKUP_HERE — where we left off (2026-07-18)
 
 Quick-start for the next session. Full detail lives in `HANDOFF_CLAUDE.md`; product
 status in `PRD_STATUS.md`; your manual/dashboard to-dos in `MANUAL_SETUP.md`.
 
-## Latest (2026-07-11) — role-switching + ambassador + admin (all on cloud)
+## Latest (2026-07-18) — MVP polish + two new features + Stripe plan
+
+App-store MVP push. All shipped to `origin/main`, each typecheck-clean, bundle-clean, and
+backend-verified against the live local stack (browser click-through still owed — this
+session had no browser driver).
+
+**Feature/polish commits:**
+1. **Profile photo upload** (`c9f34aa`) — public `avatars` Storage bucket (`0013`) +
+   `users.avatar_url` + `api.profile.uploadAvatar`; `Avatar` renders a photo; `expo-image-picker`
+   + `lib/avatar.ts` wire every "Change photo" (edit_personal, edit_tutor, profile, tutor_profile,
+   t2). **Own avatar only** — other users' photos (tutor cards, chat) still show initials.
+2. **In-app notification center** (`64b722a`) — `notifications` table + triggers (`0014`): new
+   message → recipient, new booking → tutor. `api.notifications` (list/unreadCount/markAllRead/
+   registerPushToken); `/notifications` screen; `NotificationBell` (unread badge) on student +
+   tutor Home; Profile "Notifications" rows open it. **In-app only — device push NOT built.**
+3. **Tutor course editing** (`45806ff`) — T3 onboarding now loads real courses + add/remove +
+   persists via `setTutorCourses` (was a stub).
+4. Tutor feedback (`5647ef3`) — **ratings hidden everywhere** (still collected), profile-preview
+   bug fixed (B2 `?preview=1`), **transparent pay breakdown** on TB2 (gross − 17.5% fee = payout).
+5. **School colors** theme (`22dab18`) — Alabama crimson accent toggle next to Dark mode
+   (`crimson` direction in `@noot/theme`, persisted `school` pref).
+6. Student **Search tab is a live input** (`5285112`); Search-tab avatar → Profile + dead-button
+   cleanup (`031c28a`); gecko logo image (`6c7bac6`, `8dce2df`).
+
+**Decisions locked for launch:** Full Stripe at launch; session completion = **tutor taps
+"Mark complete"** (triggers capture + payout). Card-entry method (PaymentSheet vs Checkout) and
+Stripe test keys still **TBD — user is setting up Stripe + Supabase emails.**
+
+**⚠️ Not built (the remaining launch work): real money (Stripe capture-on-completion, Connect
+payouts, card entry) and device push delivery.** See PRD_STATUS "MVP gap" + the plan below.
+
+## Prior (2026-07-11) — role-switching + ambassador + admin (all on cloud)
 
 Commits `961e731`…`ad55a6b` on `origin/main`. Built in 3 verified phases; migrations
 `0007`–`0011` applied local + cloud, all new edge functions deployed, security-reviewed.

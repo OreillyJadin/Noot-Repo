@@ -1,8 +1,22 @@
 # Handoff — for the next Claude chat
 
-_Updated 2026-07-11. Read this first, then `ARCHITECTURE.md` (authoritative for the whole system)._
+_Updated 2026-07-18. Read this first, then `ARCHITECTURE.md` (authoritative for the whole system)._
 
-> **Latest (2026-07-11, roles + ambassador + admin — commits `961e731`…`ad55a6b`):**
+> **Latest (2026-07-18, MVP polish + photo upload + notifications — commits `6c7bac6`…`6f36e3c`):**
+> App-store-MVP session. New features: **profile photo upload** (public `avatars` bucket `0013`,
+> `expo-image-picker`, `Avatar` renders `uri`, all "Change photo" wired — own avatar only) and an
+> **in-app notification center** (`notifications` table + triggers `0014`: message→recipient,
+> booking→tutor; `/notifications` + `NotificationBell` badge; `api.notifications`; push token
+> registration stubbed but device push NOT built). Polish: **ratings hidden** app-wide (still
+> collected), B2 self-preview fix (`?preview=1`), **transparent TB2 pay breakdown** (gross − 17.5%
+> fee = payout), **School colors** crimson theme (`@noot/theme` `crimson` direction + `school` pref),
+> student **Search is a live input**, **T3 course editing** wired (`setTutorCourses`), Search-tab
+> avatar → Profile, gecko logo image + `<GeckoMark>` single-source. Each typecheck- + bundle- +
+> backend-verified (no browser click-through this session). **Launch decisions:** Full Stripe at
+> launch; completion = tutor "Mark complete". **Remaining before launch: real money (Stripe) +
+> device push.** User is setting up Stripe + Supabase email themselves.
+
+> **Prior (2026-07-11, roles + ambassador + admin — commits `961e731`…`ad55a6b`):**
 > **Role-switching** shipped — one account can be student + tutor + ambassador and switch mode from
 > Profile (`<RoleSwitcher>` persists `users.active_role`, guard trigger `0007`; "Viewing as" indicator).
 > The full **Ambassador program** (referral share screen + dashboard pipeline/earnings; `list-referrals`
