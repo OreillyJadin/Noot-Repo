@@ -2,8 +2,8 @@
 // Live sort chips + a filter bottom sheet (price/availability/gender) narrow the tutor
 // list for the active course. Tapping a tutor saves it into the booking draft and opens B2.
 // Live data: tutors come from api.tutors.search({ course }) mapped via toTutor.
-import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Modal, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, Card, Chip, Badge, Avatar, Button, H2, Label, Ic, useTheme } from '@noot/ui';
@@ -45,42 +45,49 @@ const SORTERS: Record<SortKey, (a: TutorWithAvail, b: TutorWithAvail) => number>
   soon: (a, b) => a.availDayIndex - b.availDayIndex,
 };
 
+/** True if the tutor's name or any of their course codes contains the (already-trimmed,
+ *  non-empty) query. Case-insensitive so "mgt" matches "MGT 300". */
+function tutorMatches(tutor: Tutor, query: string): boolean {
+  const q = query.toLowerCase();
+  if (tutor.name.toLowerCase().includes(q)) return true;
+  return tutor.courses.some(([code]) => code.toLowerCase().includes(q));
+}
+
+/** The course to attribute to a tutor for the query — the matching course code if the
+ *  query hit one, else the tutor's first course. Never fabricates a default. */
+function matchCourse(tutor: Tutor, query: string): string {
+  const q = query.toLowerCase();
+  const codes = tutor.courses.map(([code]) => code);
+  return (q && codes.find((c) => c.toLowerCase().includes(q))) || codes[0] || '';
+}
+
 export default function B1() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { patchBooking, booking } = useApp();
-  const { filters } = useLocalSearchParams<{ filters?: string }>();
-  const course = booking.course ?? 'MGT 300';
+  const { patchBooking } = useApp();
+  const { filters, q } = useLocalSearchParams<{ filters?: string; q?: string }>();
+  // Live search query. Empty by default (no fabricated course); an optional ?q= seeds it
+  // when another screen deep-links a specific course. Fully editable either way.
+  const [query, setQuery] = useState((q ?? '').toString());
 
+  // All approved tutors, fetched once. The visible list is derived by live-filtering this
+  // set against `query` on the client — typing filters instantly with no per-keystroke
+  // round-trip, and an empty query shows nothing (a search prompt), not a default course.
   const [tutors, setTutors] = useState<Tutor[]>([]);
-  // Real next-available per tutor: userId -> { dayIndex, label }. Filled after each
-  // tutor's weekly availability loads (used for the "Next available" line + sorting).
+  // Real next-available per tutor: userId -> { dayIndex, label }, lazily filled for the
+  // tutors actually shown (used for the "Next available" line + sorting).
   const [availById, setAvailById] = useState<Record<string, { dayIndex: number; label: string }>>({});
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
-    setAvailById({});
     api.tutors
-      .search({ course })
-      .then((list) => {
-        if (!active) return;
-        const mapped = list.map(toTutor);
-        setTutors(mapped);
-        // Fetch each tutor's availability in parallel and fold into availById.
-        mapped.forEach((tt) => {
-          api.tutors
-            .getAvailability(tt.id)
-            .then((windows) => {
-              if (active) setAvailById((prev) => ({ ...prev, [tt.id]: nextFromWindows(windows) }));
-            })
-            .catch(() => {});
-        });
-      })
-      .catch(() => {})
+      .search({})
+      .then((rows) => { if (active) setTutors(rows.map(toTutor)); })
+      .catch(() => { if (active) setTutors([]); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [course]);
+  }, []);
 
   const [sort, setSort] = useState<SortKey>('best');
   // Deep-linked from the browse screen's filter button (/b1?filters=1) → open the sheet.
@@ -91,7 +98,30 @@ export default function B1() {
   const activeFilters =
     (maxPrice < MAX_PRICE ? 1 : 0) + (avail !== 'any' ? 1 : 0) + (gender !== 'any' ? 1 : 0);
 
-  const withAvail: TutorWithAvail[] = tutors.map((tt) => {
+  const trimmed = query.trim();
+  // Tutors whose name or any course code matches the query. Empty query → no matches.
+  const matched = useMemo(
+    () => (trimmed ? tutors.filter((tt) => tutorMatches(tt, trimmed)) : []),
+    [tutors, trimmed],
+  );
+
+  // Lazily load availability for the shown tutors — keyed on their ids so each is fetched
+  // once and this never loops through the sort that reads availById back.
+  const matchedIds = matched.map((tt) => tt.id).join(',');
+  useEffect(() => {
+    let active = true;
+    matched.forEach((tt) => {
+      if (availById[tt.id] !== undefined) return;
+      api.tutors
+        .getAvailability(tt.id)
+        .then((windows) => { if (active) setAvailById((prev) => ({ ...prev, [tt.id]: nextFromWindows(windows) })); })
+        .catch(() => {});
+    });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchedIds]);
+
+  const withAvail: TutorWithAvail[] = matched.map((tt) => {
     const a = availById[tt.id];
     return { ...tt, availDayIndex: a?.dayIndex ?? 99, availLabel: a?.label ?? 'Checking availability…' };
   });
@@ -104,7 +134,7 @@ export default function B1() {
   const list = [...filtered].sort(SORTERS[sort]);
 
   const open = (tutor: Tutor) => {
-    patchBooking({ tutor, course });
+    patchBooking({ tutor, course: matchCourse(tutor, trimmed) });
     router.push('/b2');
   };
 
@@ -117,7 +147,23 @@ export default function B1() {
           </Pressable>
           <View style={[styles.searchField, { backgroundColor: t.surface, borderColor: t.borderStrong }]}>
             <Ic name="search" size={17} color={t.text3} strokeWidth={1.8} />
-            <Text style={[styles.searchText, { color: t.text }]}>{course}</Text>
+            <TextInput
+              style={[styles.searchInput, { color: t.text }]}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search a course or tutor"
+              placeholderTextColor={t.text3}
+              autoFocus={!trimmed}
+              autoCorrect={false}
+              autoCapitalize="characters"
+              returnKeyType="search"
+              accessibilityLabel="Search tutors by course or name"
+            />
+            {trimmed ? (
+              <Pressable onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Clear search">
+                <Ic name="x" size={16} color={t.text3} strokeWidth={2} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </View>
@@ -143,10 +189,12 @@ export default function B1() {
       </View>
 
       <Body pad={16} contentStyle={{ paddingTop: 4 }}>
-        <Text style={{ fontSize: 13, color: t.text3, marginBottom: 12 }}>
-          <Text style={{ color: t.text2, fontWeight: '700' }}>{list.length}</Text> verified tutor
-          {list.length !== 1 ? 's' : ''} for {course}
-        </Text>
+        {trimmed ? (
+          <Text style={{ fontSize: 13, color: t.text3, marginBottom: 12 }}>
+            <Text style={{ color: t.text2, fontWeight: '700' }}>{list.length}</Text> verified tutor
+            {list.length !== 1 ? 's' : ''} for “{trimmed}”
+          </Text>
+        ) : null}
 
         <View style={{ gap: 10 }}>
           {list.map((tt) => (
@@ -172,7 +220,7 @@ export default function B1() {
                   </View>
                   <View style={styles.badgeRow}>
                     <Badge label={`Verified ${tt.verified}`} tone="good" />
-                    <Badge label={course} tone="accentSoft" />
+                    {matchCourse(tt, trimmed) ? <Badge label={matchCourse(tt, trimmed)} tone="accentSoft" /> : null}
                   </View>
                 </View>
               </View>
@@ -191,8 +239,12 @@ export default function B1() {
           {list.length === 0 && (
             <View style={styles.empty}>
               <Ic name="search" size={28} color={t.text3} strokeWidth={1.6} />
-              <Text style={{ marginTop: 10, fontSize: 15, color: t.text3 }}>
-                {loading ? 'Loading tutors…' : 'No tutors match these filters.'}
+              <Text style={{ marginTop: 10, fontSize: 15, color: t.text3, textAlign: 'center' }}>
+                {!trimmed
+                  ? 'Search for a course or a tutor’s name to find tutors.'
+                  : loading
+                    ? 'Loading tutors…'
+                    : `No tutors found for “${trimmed}”.`}
               </Text>
             </View>
           )}
@@ -334,7 +386,7 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     borderWidth: 1.5,
   },
-  searchText: { fontSize: 15, fontWeight: '600' },
+  searchInput: { flex: 1, fontSize: 15, fontWeight: '600', padding: 0 },
   sortBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
   sortScroll: { flexDirection: 'row', gap: 7, flexGrow: 1 },
   filterBtn: {

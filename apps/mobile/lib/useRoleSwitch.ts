@@ -15,7 +15,7 @@ const HOME: Record<Role, string> = {
 
 export function useRoleSwitch() {
   const router = useRouter();
-  const { role, setRole } = useApp();
+  const { role, setRole, lastRouteByRole } = useApp();
   const { me } = useMe();
   // Roles the user actually holds; default to student until loaded. Admin is not switchable.
   const roles = (me?.roles ?? ['student']).filter((r): r is Role => r === 'student' || r === 'tutor' || r === 'ambassador');
@@ -23,14 +23,21 @@ export function useRoleSwitch() {
 
   const switchTo = async (next: Role) => {
     if (next === role) return;
+    const from = role;
     try {
       await api.profile.setActiveRole(next);
     } catch {
       /* the guard trigger rejects roles the user doesn't hold — keep current mode */
       return;
     }
+    // Log the switch for recruitment-rate analytics. Fire-and-forget: never awaited, and
+    // api.analytics.track never throws — tracking can't gate, delay, or fail the switch.
+    void api.analytics.track('role_switch', { from, to: next });
     setRole(next);
-    router.replace(HOME[next] as never);
+    // Return the user to wherever they last were in the target mode; fall back to that
+    // mode's home the first time they enter it.
+    const dest = lastRouteByRole[next] ?? HOME[next];
+    router.replace(dest as never);
   };
 
   return { roles, active: role, isAdmin, switchTo };

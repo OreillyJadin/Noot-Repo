@@ -4,7 +4,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Alert, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, Chip, Button, Ic, H1, TabBar, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { useTabNav } from '../lib/useTabNav';
 import { api } from '@noot/core';
@@ -52,7 +52,11 @@ export default function Sessions() {
   const t = useTheme();
   const router = useRouter();
   const { patchBooking, role } = useApp();
-  const [tab, setTab] = useState<SegmentKey>('upcoming');
+  // Optional deep-link: /sessions?tab=past lands on the Past (completed) segment —
+  // e.g. tapping "Sessions completed" on Home. Defaults to Upcoming.
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const initialTab: SegmentKey = tabParam === 'past' || tabParam === 'saved' ? tabParam : 'upcoming';
+  const [tab, setTab] = useState<SegmentKey>(initialTab);
 
   // Upcoming: confirmed future bookings, each joined to its tutor via getById.
   const [upcoming, setUpcoming] = useState<UpcomingItem[]>([]);
@@ -157,7 +161,7 @@ export default function Sessions() {
     }
   };
   const openTutor = (tutor: Tutor, course?: string) => {
-    patchBooking({ tutor, course: course || 'MGT 300' });
+    patchBooking({ tutor, course: course || '' });
     router.push('/b2');
   };
 

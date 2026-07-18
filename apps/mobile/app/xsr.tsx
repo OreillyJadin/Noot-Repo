@@ -113,7 +113,7 @@ function XRescheduleRequestInner() {
           <Avatar size={48} />
           <View>
             <H2 style={{ fontSize: 18 }}>{tutor.name} wants to reschedule</H2>
-            <Text style={{ fontSize: 13, color: t.text3, marginTop: 2 }}>{booking.course ?? 'MGT 300'}</Text>
+            <Text style={{ fontSize: 13, color: t.text3, marginTop: 2 }}>{booking.course ?? ''}</Text>
           </View>
         </View>
 

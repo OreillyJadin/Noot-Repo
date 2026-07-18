@@ -44,7 +44,7 @@ export default function C1() {
   const tutor = booking.tutor ?? fetchedTutor;
   if (!tutor) return <NoSession />;
 
-  const course = booking.course || 'MGT 300';
+  const course = booking.course || '';
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) || DAYS[1]!;
   const slot = booking.slot || '3:00 PM';
   const rateTarget = isTutor ? student.first : tutor.name;

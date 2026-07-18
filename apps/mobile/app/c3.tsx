@@ -111,7 +111,7 @@ export default function C3() {
         <View style={styles.header}>
           <Avatar size={72} label={student.first[0]} />
           <Text style={[styles.h2, { color: t.text }]}>{student.name}</Text>
-          <Text style={[styles.headerMeta, { color: t.text3 }]}>{booking.course || 'MGT 300'}</Text>
+          <Text style={[styles.headerMeta, { color: t.text3 }]}>{booking.course || ''}</Text>
         </View>
 
         <View style={{ marginTop: 24, marginBottom: 8 }}>

@@ -35,6 +35,11 @@ interface AppState {
   setBooking: (b: BookingDraft) => void;
   /** Merge a partial update into the current booking draft. */
   patchBooking: (patch: Partial<BookingDraft>) => void;
+  /** The last tab-root route the user was on in each mode. Lets a mode switch restore
+   *  the user's place in the target mode instead of dumping them on its cold home. */
+  lastRouteByRole: Partial<Record<Role, string>>;
+  /** Remember `route` as the current tab for `role` (called by tab-root screens). */
+  recordRoute: (role: Role, route: string) => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -42,6 +47,7 @@ const AppContext = createContext<AppState | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<Role>('student');
   const [booking, setBooking] = useState<BookingDraft>({});
+  const [lastRouteByRole, setLastRouteByRole] = useState<Partial<Record<Role, string>>>({});
   const value = useMemo<AppState>(
     () => ({
       role,
@@ -49,8 +55,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       booking,
       setBooking,
       patchBooking: (patch) => setBooking((b) => ({ ...b, ...patch })),
+      lastRouteByRole,
+      recordRoute: (r, route) =>
+        setLastRouteByRole((m) => (m[r] === route ? m : { ...m, [r]: route })),
     }),
-    [role, booking],
+    [role, booking, lastRouteByRole],
   );
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

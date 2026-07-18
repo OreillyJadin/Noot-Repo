@@ -39,7 +39,7 @@ export default function Saved() {
   }, []);
 
   const open = (tutor: Tutor) => {
-    patchBooking({ tutor, course: tutor.courses[0]?.[0] ?? 'MGT 300' });
+    patchBooking({ tutor, course: tutor.courses[0]?.[0] ?? '' });
     router.push('/b2');
   };
 
@@ -69,7 +69,7 @@ export default function Saved() {
                   {tutor.year} · {tutor.major}
                 </Text>
                 <View style={styles.tagsRow}>
-                  <Badge label={tutor.courses[0]?.[0] ?? 'MGT 300'} tone="accentSoft" />
+                  {tutor.courses[0]?.[0] ? <Badge label={tutor.courses[0][0]} tone="accentSoft" /> : null}
                   <Badge label="✓ Verified" tone="good" />
                   <Text style={[styles.sessions, { color: t.text3 }]}>{tutor.sessions} sessions</Text>
                 </View>

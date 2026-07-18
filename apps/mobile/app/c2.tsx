@@ -117,7 +117,7 @@ function C2Inner() {
         <View style={styles.header}>
           <Avatar size={72} />
           <Text style={[styles.h2, { color: t.text }]}>{tutor.name}</Text>
-          <Text style={[styles.headerMeta, { color: t.text3 }]}>{booking.course || 'MGT 300'} · {tutor.year}</Text>
+          <Text style={[styles.headerMeta, { color: t.text3 }]}>{booking.course ? `${booking.course} · ` : ''}{tutor.year}</Text>
         </View>
 
         <View style={{ marginTop: 24, marginBottom: 8 }}>
