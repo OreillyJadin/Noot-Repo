@@ -139,7 +139,9 @@ export default function StudentHome() {
             <Muted style={styles.welcome}>Welcome back</Muted>
             {meLoading ? <Skeleton width={140} height={24} /> : <H2 style={styles.name}>Hey, {firstName(me, 'there')}</H2>}
           </View>
-          <Avatar size={40} />
+          <Pressable onPress={() => router.push('/profile')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Your profile">
+            <Avatar size={40} />
+          </Pressable>
         </View>
 
         {/* Live search input — filters tutors by name/course as you type. The sliders

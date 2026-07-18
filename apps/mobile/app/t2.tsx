@@ -1,7 +1,7 @@
 // T2 Tutor Profile — ported from screens-tutor.jsx (T2). Step 2 of the tutor
 // application. → T3 Courses you tutor. "Save & exit" → Landing.
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Field, Select, Avatar, Divider, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
@@ -79,7 +79,7 @@ export default function T2() {
             <Avatar size={64} />
             <Pressable
               // TODO(api): wire up profile photo upload
-              onPress={() => {}}
+              onPress={() => Alert.alert('Add photo', 'Coming soon — built with backend.')}
               style={[styles.photoBadge, { backgroundColor: t.accent, borderColor: t.bg }]}
             >
               <Ic name="plus" size={13} color={t.onAccent} strokeWidth={2.6} />
