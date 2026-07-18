@@ -121,6 +121,7 @@ function mapUser(row: any): User {
     major: row.major ?? null,
     gender: row.gender ?? null,
     courses: row.courses ?? [],
+    avatarUrl: row.avatar_url ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -360,6 +361,27 @@ export const api = {
         .upsert({ user_id: uid, transcript_url: path }, { onConflict: 'user_id' });
       if (pErr) throw pErr;
       return path;
+    },
+
+    /**
+     * Upload the signed-in user's profile photo to the public `avatars` bucket (under
+     * {uid}/) and record the resolved public URL on users.avatar_url. Returns the public
+     * URL (with a cache-busting query so an overwrite of the same path still refreshes).
+     */
+    async uploadAvatar(file: Blob, ext: string): Promise<string> {
+      const uid = await requireUid();
+      const safeExt = (ext || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
+      const path = `${uid}/avatar.${safeExt}`;
+      const sb = getSupabase();
+      const { error } = await sb.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true, contentType: file.type || `image/${safeExt}` });
+      if (error) throw error;
+      const { data: pub } = sb.storage.from('avatars').getPublicUrl(path);
+      const url = `${pub.publicUrl}?v=${Date.now()}`;
+      const { error: uErr } = await sb.from('users').update({ avatar_url: url }).eq('id', uid);
+      if (uErr) throw uErr;
+      return url;
     },
 
     /** Create/update the signed-in user's tutor profile (edit_tutor). Upsert on user_id. */
@@ -996,6 +1018,24 @@ export const api = {
     /** Submit a rating/review for a completed booking (submit-rating). */
     submit(input: SubmitRatingInput): Promise<{ reviewId: string }> {
       return invokeFn('submit-rating', input as unknown as Record<string, unknown>);
+    },
+  },
+
+  // --- analytics (append-only event log) ---
+  analytics: {
+    /**
+     * Append an analytics event for the signed-in user. Fire-and-forget by contract:
+     * it never throws, so callers invoke it without awaiting and it can never block or
+     * fail the action that produced it (e.g. a role switch). No session / offline / RLS
+     * denial → silent no-op. Persisted to `analytics_events` (0012).
+     */
+    async track(event: string, props: Record<string, unknown> = {}): Promise<void> {
+      try {
+        const uid = await requireUid();
+        await getSupabase().from('analytics_events').insert({ user_id: uid, event, props });
+      } catch {
+        /* analytics must never surface to the user */
+      }
     },
   },
 };

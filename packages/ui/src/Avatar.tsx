@@ -1,6 +1,7 @@
-// Avatar — ported from app/kit.jsx (<Avatar>). Initials or a user glyph.
+// Avatar — ported from app/kit.jsx (<Avatar>). Shows a photo when `uri` is given,
+// else initials (`label`) or a fallback user glyph.
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { useTheme } from './ThemeProvider';
 import { Ic } from './Icon';
 
@@ -8,9 +9,11 @@ export interface AvatarProps {
   size?: number;
   label?: string;
   accent?: boolean;
+  /** Public photo URL. When set, the image replaces the initials/glyph. */
+  uri?: string | null;
 }
 
-export function Avatar({ size = 44, label, accent }: AvatarProps) {
+export function Avatar({ size = 44, label, accent, uri }: AvatarProps) {
   const t = useTheme();
   return (
     <View
@@ -25,7 +28,9 @@ export function Avatar({ size = 44, label, accent }: AvatarProps) {
         },
       ]}
     >
-      {label ? (
+      {uri ? (
+        <Image source={{ uri }} style={{ width: size, height: size }} resizeMode="cover" accessibilityLabel="Profile photo" />
+      ) : label ? (
         <Text style={{ color: accent ? t.onAccent : t.text3, fontWeight: '700', fontSize: size * 0.36 }}>{label}</Text>
       ) : (
         <Ic name="user" size={size * 0.55} color={accent ? t.onAccent : t.text3} strokeWidth={1.6} />

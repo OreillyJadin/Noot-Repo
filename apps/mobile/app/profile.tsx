@@ -13,6 +13,7 @@ import { useMe, fullName, firstName } from '../lib/useMe';
 import { useRoleSwitch } from '../lib/useRoleSwitch';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
+import { pickAndUploadAvatar } from '../lib/avatar';
 
 // TODO(api): backend-only actions from the prototype's showToast() — swap for real
 // navigation/mutations once wired up.
@@ -71,6 +72,14 @@ export default function Profile() {
   const displayName = fullName(me, 'Student');
   const displayFirst = firstName(me, 'Student');
 
+  // Local mirror of the avatar so an upload reflects immediately without a full refetch.
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  useEffect(() => { setAvatarUrl(me?.avatarUrl ?? null); }, [me?.avatarUrl]);
+  const changePhoto = async () => {
+    const url = await pickAndUploadAvatar();
+    if (url) setAvatarUrl(url);
+  };
+
   // Real study stats + saved-tutor count.
   const [stats, setStats] = useState<{ sessionsCompleted: number; hoursLearned: number } | null>(null);
   const [savedCount, setSavedCount] = useState<number | null>(null);
@@ -116,9 +125,9 @@ export default function Profile() {
         <Card style={{ padding: 18 }}>
           <View style={styles.identityRow}>
             <View style={{ position: 'relative' }}>
-              <Avatar size={64} label={displayFirst[0]} />
+              <Avatar size={64} label={displayFirst[0]} uri={avatarUrl} />
               <Pressable
-                onPress={() => notify('Change photo')}
+                onPress={changePhoto}
                 style={[styles.editBadge, { backgroundColor: t.accent, borderColor: t.surface }]}
               >
                 <Ic name="edit" size={11} color={t.onAccent} strokeWidth={2.2} />

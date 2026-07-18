@@ -6,6 +6,7 @@ import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Field, Select, Label, Avatar, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
+import { pickAndUploadAvatar } from '../lib/avatar';
 
 export default function EditPersonal() {
   const t = useTheme();
@@ -15,6 +16,7 @@ export default function EditPersonal() {
   const [year, setYear] = useState('');
   const [major, setMajor] = useState('');
   const [email, setEmail] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [, setLoading] = useState(true);
 
   useEffect(() => {
@@ -27,6 +29,7 @@ export default function EditPersonal() {
           setYear(me.year ?? '');
           setMajor(me.major ?? '');
           setEmail(me.email);
+          setAvatarUrl(me.avatarUrl);
         }
       })
       .catch(() => {})
@@ -34,9 +37,9 @@ export default function EditPersonal() {
     return () => { active = false; };
   }, []);
 
-  const changePhoto = () => {
-    // TODO(api): wire photo upload to backend.
-    Alert.alert('Change photo', 'Coming soon — built with backend.');
+  const changePhoto = async () => {
+    const url = await pickAndUploadAvatar();
+    if (url) setAvatarUrl(url);
   };
 
   const save = async () => {
@@ -60,7 +63,7 @@ export default function EditPersonal() {
       <Body>
         <View style={styles.avatarWrap}>
           <View style={{ position: 'relative' }}>
-            <Avatar size={78} label={firstName.charAt(0).toUpperCase() || 'L'} />
+            <Avatar size={78} label={firstName.charAt(0).toUpperCase() || 'L'} uri={avatarUrl} />
             <Pressable
               onPress={changePhoto}
               style={[styles.avatarEdit, { backgroundColor: t.accent, borderColor: t.surface }]}

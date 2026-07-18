@@ -31,6 +31,8 @@ export interface User {
   gender: 'f' | 'm' | null;
   /** Course codes the student is taking (drives home/search categories). */
   courses: string[];
+  /** Public URL of the profile photo, or null if none uploaded. */
+  avatarUrl: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

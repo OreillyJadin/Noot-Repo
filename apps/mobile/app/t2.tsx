@@ -1,11 +1,12 @@
 // T2 Tutor Profile — ported from screens-tutor.jsx (T2). Step 2 of the tutor
 // application. → T3 Courses you tutor. "Save & exit" → Landing.
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
+import { View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Field, Select, Avatar, Divider, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
+import { pickAndUploadAvatar } from '../lib/avatar';
 
 const YEAR_OPTIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate Student'];
 
@@ -54,6 +55,7 @@ export default function T2() {
   const [grad, setGrad] = useState('');
   const [major, setMajor] = useState('');
   const [bio, setBio] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
   useEffect(() => {
     if (!me || prefilled) return;
@@ -61,8 +63,14 @@ export default function T2() {
     setLast(me.lastName ?? '');
     setYear(me.year ?? '');
     setMajor(me.major ?? '');
+    setAvatarUrl(me.avatarUrl);
     setPrefilled(true);
   }, [me, prefilled]);
+
+  const changePhoto = async () => {
+    const url = await pickAndUploadAvatar();
+    if (url) setAvatarUrl(url);
+  };
 
   return (
     <Screen>
@@ -76,10 +84,9 @@ export default function T2() {
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
         <View style={styles.photoRow}>
           <View style={{ position: 'relative' }}>
-            <Avatar size={64} />
+            <Avatar size={64} uri={avatarUrl} />
             <Pressable
-              // TODO(api): wire up profile photo upload
-              onPress={() => Alert.alert('Add photo', 'Coming soon — built with backend.')}
+              onPress={changePhoto}
               style={[styles.photoBadge, { backgroundColor: t.accent, borderColor: t.bg }]}
             >
               <Ic name="plus" size={13} color={t.onAccent} strokeWidth={2.6} />

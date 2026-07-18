@@ -26,6 +26,12 @@
         {
           "faceIDPermission": "Use Face ID to unlock noot."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow noot to access your photos so you can set a profile picture."
+        }
       ]
     ],
     "experiments": {

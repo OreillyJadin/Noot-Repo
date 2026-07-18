@@ -12,6 +12,7 @@ import { Screen, NavTop, Body, ActionBar, Button, Card, Field, Avatar, Ic, useTh
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
+import { pickAndUploadAvatar } from '../lib/avatar';
 
 export default function EditTutorProfile() {
   const t = useTheme();
@@ -19,6 +20,7 @@ export default function EditTutorProfile() {
   const { patchBooking } = useApp();
   const [displayName, setDisplayName] = useState('');
   const [about, setAbout] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   // The tutor's own profile, mapped to the same shape B2 renders — lets "Preview"
@@ -29,8 +31,10 @@ export default function EditTutorProfile() {
     let active = true;
     api
       .getMe()
-      .then((me) => (me ? api.tutors.getById(me.id) : null))
-      .then((tutor) => {
+      .then(async (me) => {
+        if (!active || !me) return;
+        setAvatarUrl(me.avatarUrl);
+        const tutor = await api.tutors.getById(me.id);
         if (active && tutor) {
           const initial = tutor.lastName ? `${tutor.lastName.charAt(0)}.` : '';
           setDisplayName(`${tutor.firstName} ${initial}`.trim());
@@ -49,9 +53,9 @@ export default function EditTutorProfile() {
     };
   }, []);
 
-  const changePhoto = () => {
-    // TODO(api): wire photo upload to backend.
-    Alert.alert('Change photo', 'Coming soon — built with backend.');
+  const changePhoto = async () => {
+    const url = await pickAndUploadAvatar();
+    if (url) setAvatarUrl(url);
   };
 
   // Seed the booking draft with the tutor's own profile (reflecting the currently
@@ -82,7 +86,7 @@ export default function EditTutorProfile() {
       <Body>
         <View style={styles.avatarWrap}>
           <View style={{ position: 'relative' }}>
-            <Avatar size={78} label="L" />
+            <Avatar size={78} label="L" uri={avatarUrl} />
             <Pressable
               onPress={changePhoto}
               style={[styles.avatarEdit, { backgroundColor: t.accent, borderColor: t.surface }]}
