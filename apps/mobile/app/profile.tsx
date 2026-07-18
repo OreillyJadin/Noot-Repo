@@ -185,7 +185,7 @@ export default function Profile() {
         {/* preferences */}
         <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Preferences</Eyebrow>
         <Card style={styles.cardNoPad}>
-          <Row icon="bell" label="Notifications" sub="Reminders, messages, offers" onPress={() => notify('Notification settings')} />
+          <Row icon="bell" label="Notifications" sub="Reminders, messages, offers" onPress={() => router.push('/notifications')} />
           <Row icon="gear" label="Dark mode" control={<Toggle on={dark} onPress={toggleDark} />} />
           <Row icon="flame" label="School colors" sub="University of Alabama — crimson" control={<Toggle on={school} onPress={toggleSchool} />} />
           <Row icon="help" label="Help & support" onPress={() => notify('Help center')} last />

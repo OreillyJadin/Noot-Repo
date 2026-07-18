@@ -3,7 +3,7 @@
 // left off". This is a tab root (Home tab). No live session store yet — the next
 // session + weekly numbers are demo data, same as the prototype.
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Skeleton, ViewingAs, useTheme, type IconName } from '@noot/ui';
@@ -13,6 +13,7 @@ import { toTutor, type Tutor } from '../lib/data';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { GeckoLogo } from '../lib/GeckoLogo';
+import { NotificationBell } from '../lib/NotificationBell';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
 function formatWhen(iso: string): string {
@@ -62,17 +63,31 @@ function CountdownPills({ target }: { target: number }) {
   );
 }
 
-function StatCard({ icon, big, label }: { icon: IconName; big: string; label: string }) {
+function StatCard({ icon, big, label, onPress }: { icon: IconName; big: string; label: string; onPress?: () => void }) {
   const t = useTheme();
-  return (
-    <View style={[styles.statCard, { backgroundColor: t.surface, borderColor: t.border }]}>
+  const inner = (
+    <>
       <View style={[styles.statIcon, { backgroundColor: t.accentWeak }]}>
         <Ic name={icon} size={16} color={t.accent} strokeWidth={1.9} />
       </View>
       <Text style={[styles.statBig, { color: t.text }]}>{big}</Text>
       <Text style={[styles.statLabel, { color: t.text3 }]}>{label}</Text>
-    </View>
+    </>
   );
+  // The whole card is the tap target (full flex:1 hit area), not just the text.
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={[styles.statCard, { backgroundColor: t.surface, borderColor: t.border }]}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}: ${big}. View sessions`}
+      >
+        {inner}
+      </Pressable>
+    );
+  }
+  return <View style={[styles.statCard, { backgroundColor: t.surface, borderColor: t.border }]}>{inner}</View>;
 }
 
 function TutorRow({
@@ -185,16 +200,13 @@ export default function Home() {
     if (first) openTutor(first, first.courses[0]?.[0] ?? '');
     else router.replace('/student_home' as any);
   };
-  const notify = () => Alert.alert('Notifications', 'Coming soon — built with backend'); // TODO(api)
 
   return (
     <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Wordmark size={22} />
-          <Pressable onPress={notify} style={[styles.bellBtn, { backgroundColor: t.surface, borderColor: t.border }]}>
-            <Ic name="bell" size={19} color={t.text2} strokeWidth={1.7} />
-          </Pressable>
+          <NotificationBell />
         </View>
         <View style={styles.welcomeRow}>
           <View>
@@ -278,7 +290,12 @@ export default function Home() {
           <H2 style={{ fontSize: 17 }}>Your momentum</H2>
         </View>
         <View style={styles.statsRow}>
-          <StatCard icon="cap" big={stats ? String(stats.sessionsCompleted) : '—'} label="Sessions completed" />
+          <StatCard
+            icon="cap"
+            big={stats ? String(stats.sessionsCompleted) : '—'}
+            label="Sessions completed"
+            onPress={() => router.push('/sessions?tab=past')}
+          />
           <StatCard icon="target" big={stats ? String(stats.upcomingCount) : '—'} label="Upcoming booked" />
           <StatCard icon="trophy" big={stats ? `${Math.round(stats.hoursLearned)}h` : '—'} label="Hours learned" />
         </View>
@@ -320,7 +337,6 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
   headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  bellBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   welcomeLabel: { fontSize: 13 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

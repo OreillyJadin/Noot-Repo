@@ -11,6 +11,7 @@ import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { GeckoLogo } from '../lib/GeckoLogo';
+import { NotificationBell } from '../lib/NotificationBell';
 
 /** Booking scheduledAt (+ optional location) → "Tomorrow · 3:00 PM · Gorgas Library". */
 function sessionMeta(iso: string, location: string | null): string {
@@ -129,7 +130,10 @@ export default function TutorHome() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Wordmark size={22} />
-          <Badge label="✓ Verified" tone="good" />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Badge label="✓ Verified" tone="good" />
+            <NotificationBell />
+          </View>
         </View>
         <View style={styles.welcomeRow}>
           <View>

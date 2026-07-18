@@ -14,6 +14,7 @@ import type {
   Conversation,
   ConversationSummary,
   Message,
+  Notification,
   ReviewSummary,
   TutorAvailability,
   TutorCourse,
@@ -1038,4 +1039,64 @@ export const api = {
       }
     },
   },
+
+  // --- notifications (in-app feed; rows created by DB triggers — 0014) ---
+  notifications: {
+    /** The signed-in user's notifications, newest first (capped). RLS: own only. */
+    async list(): Promise<Notification[]> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('notifications')
+        .select('*')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return (data ?? []).map(mapNotification);
+    },
+
+    /** Count of unread notifications — drives the bell badge. */
+    async unreadCount(): Promise<number> {
+      const uid = await requireUid();
+      const { count, error } = await getSupabase()
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', uid)
+        .is('read_at', null);
+      if (error) throw error;
+      return count ?? 0;
+    },
+
+    /** Mark all of the user's unread notifications read (opening the center). */
+    async markAllRead(): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('user_id', uid)
+        .is('read_at', null);
+      if (error) throw error;
+    },
+
+    /** Register an Expo push token for this device (upsert on user_id,token). */
+    async registerPushToken(token: string, platform: 'ios' | 'android'): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('push_tokens')
+        .upsert({ user_id: uid, token, platform }, { onConflict: 'user_id,token' });
+      if (error) throw error;
+    },
+  },
 };
+
+function mapNotification(row: any): Notification {
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    body: row.body ?? '',
+    data: row.data ?? {},
+    readAt: row.read_at ?? null,
+    createdAt: row.created_at,
+  };
+}

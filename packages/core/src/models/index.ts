@@ -97,6 +97,20 @@ export interface ConversationSummary {
   createdAt: Timestamp;
 }
 
+export type NotificationType = 'message' | 'booking' | 'system';
+
+/** An in-app notification in a user's feed (0014). Created by DB triggers on events. */
+export interface Notification {
+  id: UUID;
+  type: NotificationType;
+  title: string;
+  body: string;
+  /** Route hints, e.g. { conversationId } or { bookingId }. */
+  data: Record<string, unknown>;
+  readAt: Timestamp | null;
+  createdAt: Timestamp;
+}
+
 /** An approved review with the reviewer's name and the session's course, for display. */
 export interface ReviewSummary {
   id: UUID;
