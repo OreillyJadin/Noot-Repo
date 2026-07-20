@@ -22,24 +22,17 @@ local email inbox at http://localhost:54324).
 
 ---
 
-## 1. 🚩 Push this session's new migrations to cloud (do this first)
+## 1. ✅ DONE — migrations `0012`–`0014` are on cloud + history reconciled
 
-Migrations `0012`–`0014` were applied to **local only**. Photo upload and notifications
-**will not work on cloud / real phones** until these are on cloud:
+_Done 2026-07-18 via the Supabase MCP._ Cloud now has the analytics log (`0012`), the public
+`avatars` bucket + `users.avatar_url` (`0013`), and the `notifications` table + triggers
+(`0014`) — so photo upload and the notification center work on real phones.
 
-- `0012_analytics_events.sql` — analytics event log
-- `0013_avatars_storage.sql` — public `avatars` Storage bucket + `users.avatar_url` (profile photos)
-- `0014_notifications.sql` — `notifications` table + triggers (in-app notification center)
-
-Claude (or you) can push them:
-
-```bash
-export PATH="$HOME/.local/node-v22.23.1-linux-x64/bin:$PATH"
-supabase db push --project-ref nepnxbvseuzuayhxaigo   # applies pending migrations to cloud
-```
-
-Then re-seed/verify as needed. (This is a write to your real DB — that's why it's a manual
-"go" rather than something done automatically.)
+This also fixed the **Supabase Preview** check, which had failed for a week: the analytics
+migration had been recorded on cloud with a timestamp version (`20260714012030`) instead of
+`0012`, so the remote history didn't match the local files ("Remote migration versions not
+found in local migrations directory"). We relabeled it to `0012` and applied `0013`/`0014`;
+remote history is now `0001…0014`, matching the repo. The check goes green on the next push.
 
 ---
 
