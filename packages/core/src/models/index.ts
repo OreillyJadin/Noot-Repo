@@ -155,7 +155,7 @@ export interface ReferralBonus {
 }
 
 export type SessionType = 'video' | 'in_person';
-export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled';
+export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
 export type RefundStatus = 'not_applicable' | 'refunded' | 'not_refunded';
 
 export interface Booking {

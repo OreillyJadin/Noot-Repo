@@ -34,10 +34,12 @@ Deno.serve(async (req: Request) => {
 
     if (!stripeKey) {
       // No Stripe key configured (local/dev): return a simulated intent, never crash.
-      // TODO(stripe): set STRIPE_SECRET_KEY to create real manual-capture PaymentIntents.
+      // Same shape as the real branch so the client has one code path.
       return Response.json(
         {
-          clientSecret: 'sim_secret_' + crypto.randomUUID(),
+          paymentIntentClientSecret: 'sim_secret_' + crypto.randomUUID(),
+          ephemeralKeySecret: null,
+          customerId: null,
           paymentIntentId: 'sim_pi_' + crypto.randomUUID(),
           simulated: true,
         },
@@ -45,19 +47,37 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Service-role client to read/persist the user's Stripe customer id.
+    const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
     const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
     const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
+
+    // A persistent Stripe Customer per user powers PaymentSheet (saved cards / Link).
+    const { data: urow } = await db.from('users').select('stripe_customer_id').eq('id', user.id).maybeSingle();
+    let customerId = (urow?.stripe_customer_id as string | null | undefined) ?? null;
+    if (!customerId) {
+      const customer = await stripe.customers.create({ email: user.email ?? undefined, metadata: { user_id: user.id } });
+      customerId = customer.id;
+      await db.from('users').update({ stripe_customer_id: customerId }).eq('id', user.id);
+    }
+
+    const ephemeralKey = await stripe.ephemeralKeys.create({ customer: customerId }, { apiVersion: '2024-06-20' });
+
     const intent = await stripe.paymentIntents.create({
       amount: Math.round(amountCents),
       currency: 'usd',
-      capture_method: 'manual', // held until session completion
-      // application_fee_amount: 0, // Free at launch; toggle on later
+      capture_method: 'manual', // held until session completion (captured in complete-session)
+      customer: customerId,
+      automatic_payment_methods: { enabled: true },
       metadata: { user_id: user.id },
     });
 
     return Response.json(
       {
-        clientSecret: intent.client_secret,
+        paymentIntentClientSecret: intent.client_secret,
+        ephemeralKeySecret: ephemeralKey.secret,
+        customerId,
         paymentIntentId: intent.id,
         simulated: false,
       },

@@ -7,6 +7,8 @@ import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider } from '@noot/ui';
+import { StripeProvider } from '@stripe/stripe-react-native';
+import Constants from 'expo-constants';
 import { initSupabase } from '@noot/core';
 import { AppProvider } from '../lib/store';
 import { AuthGate } from '../lib/AuthGate';
@@ -30,10 +32,13 @@ if (url && anonKey) {
 // `school` swaps the accent to University of Alabama crimson (the "school colors" theme).
 function ThemedApp() {
   const { dark, school } = useThemePref();
-  return (
-    <ThemeProvider direction={school ? 'crimson' : 'sage'} dark={dark}>
-      <AppProvider>
-        <StatusBar style={dark ? 'light' : 'dark'} />
+  // @stripe/stripe-react-native's native module isn't in Expo Go, so mounting
+  // StripeProvider there would crash the whole app. Only mount it in a real build
+  // (dev-client / standalone); Expo Go keeps working for everything except PaymentSheet.
+  const inExpoGo = Constants.appOwnership === 'expo';
+  const tree = (
+    <AppProvider>
+      <StatusBar style={dark ? 'light' : 'dark'} />
         <AuthGate>
           {/* Tab roots cross-fade instead of the jerky horizontal slide; drill-down
               screens (booking, edit, etc.) keep the default push animation. */}
@@ -56,7 +61,21 @@ function ThemedApp() {
             <Stack.Screen name="admin_reviews" options={{ animation: 'fade' }} />
           </Stack>
         </AuthGate>
-      </AppProvider>
+    </AppProvider>
+  );
+  return (
+    <ThemeProvider direction={school ? 'crimson' : 'sage'} dark={dark}>
+      {inExpoGo ? (
+        tree
+      ) : (
+        <StripeProvider
+          publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
+          merchantIdentifier="merchant.com.noot.app"
+          urlScheme="noot"
+        >
+          {tree}
+        </StripeProvider>
+      )}
     </ThemeProvider>
   );
 }

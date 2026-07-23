@@ -840,16 +840,26 @@ export const api = {
     },
   },
 
-  /** B4 → held PaymentIntent via the `create-payment-intent` Edge Function. */
+  /**
+   * B4 → held (manual-capture) PaymentIntent via `create-payment-intent`. Returns the
+   * params the client PaymentSheet needs; `simulated` is true when no Stripe key is set
+   * (dev/web) so callers can skip presenting the sheet. Capture happens in complete-session.
+   */
   createPaymentIntent(
     amountCents: number,
-  ): Promise<{ clientSecret: string; paymentIntentId: string; simulated: boolean }> {
+  ): Promise<{
+    paymentIntentClientSecret: string;
+    ephemeralKeySecret: string | null;
+    customerId: string | null;
+    paymentIntentId: string;
+    simulated: boolean;
+  }> {
     return invokeFn('create-payment-intent', { amountCents });
   },
 
   // --- bookings (trust-sensitive writes → Edge Functions, see ARCHITECTURE.md §5) ---
   bookings: {
-    /** Capture the held payment and create the booking + conversation (confirm-booking). */
+    /** Create the booking + conversation with the held PaymentIntent (confirm-booking). */
     confirm(
       input: ConfirmBookingInput,
     ): Promise<{ bookingId: string; conversationId: string }> {

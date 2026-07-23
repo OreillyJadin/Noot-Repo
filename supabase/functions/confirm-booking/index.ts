@@ -62,7 +62,12 @@ Deno.serve(async (req) => {
       new Date(scheduledAt).getTime() - 24 * 60 * 60 * 1000,
     ).toISOString();
 
-    // TODO(stripe): capture the held PaymentIntent on completion.
+    // Noot's cut is 17.5%; the tutor's payout is the remainder. Rounded to cents.
+    // The held PaymentIntent is captured (and this payout transferred) in complete-session.
+    const FEE_RATE = 0.175;
+    const platformFee = Math.round(price * FEE_RATE * 100) / 100;
+    const tutorPayout = Math.round((price - platformFee) * 100) / 100;
+
     const { data: booking, error: bookingError } = await db
       .from('bookings')
       .insert({
@@ -72,8 +77,8 @@ Deno.serve(async (req) => {
         scheduled_at: scheduledAt,
         duration_minutes: durationMinutes,
         price,
-        platform_fee: 0,
-        tutor_payout_amount: price,
+        platform_fee: platformFee,
+        tutor_payout_amount: tutorPayout,
         session_type: sessionType,
         meeting_link: meetingLink ?? null,
         location: location ?? null,

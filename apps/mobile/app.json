@@ -32,7 +32,15 @@
         {
           "photosPermission": "Allow noot to access your photos so you can set a profile picture."
         }
-      ]
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.noot.app",
+          "enableGooglePay": true
+        }
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": false
