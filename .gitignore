@@ -51,3 +51,6 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# local dev credentials (never commit)
+.noot-secrets.local.env

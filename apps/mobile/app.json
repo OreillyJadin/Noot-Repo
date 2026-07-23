@@ -12,7 +12,12 @@
       "bundleIdentifier": "com.noot.app"
     },
     "android": {
-      "package": "com.noot.app"
+      "package": "com.noot.app",
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -44,6 +49,13 @@
     ],
     "experiments": {
       "typedRoutes": false
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "90b65fed-7d81-40a0-8b69-69fa8381ef55"
+      }
+    },
+    "owner": "oreillyjadin"
   }
 }

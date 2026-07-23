@@ -14,6 +14,7 @@ import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
 import { useRoleSwitch } from '../lib/useRoleSwitch';
 import { pickAndUploadAvatar } from '../lib/avatar';
+import * as WebBrowser from 'expo-web-browser';
 
 // TODO(api): backend-only actions from the prototype's showToast() — swap for real
 // navigation/mutations once wired up.
@@ -80,6 +81,26 @@ export default function TutorProfile() {
     if (url) setAvatarUrl(url);
   };
   const meYearMajor = [me?.year, me?.major].filter(Boolean).join(' · ') || '—';
+
+  // Stripe Connect (payout) status → drives the "Payout account" row + earnings promo.
+  const [payouts, setPayouts] = useState<{ connected: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean } | null>(null);
+  const refreshPayouts = () => api.connect.status().then((s) => setPayouts(s)).catch(() => {});
+  useEffect(() => { void refreshPayouts(); }, []);
+  const payoutSub = payouts?.payoutsEnabled
+    ? 'Connected · payouts enabled'
+    : payouts?.connected
+      ? 'Setup incomplete — finish onboarding'
+      : 'Not connected — set up Stripe';
+  const setupPayouts = async () => {
+    try {
+      const { url } = await api.connect.onboardingLink();
+      if (!url) { notify('Payouts'); return; }
+      await WebBrowser.openAuthSessionAsync(url, 'noot://connect-return');
+      void refreshPayouts();
+    } catch {
+      Alert.alert('Could not open payout setup', 'Please try again.');
+    }
+  };
 
   // Live teaching stats + the tutor's own courses (for the "Courses & rates" row).
   const [stats, setStats] = useState<{ sessionsTaught: number; hoursTaught: number; earnedTotal: number; avgRating: number | null; cancelledCount: number } | null>(null);
@@ -167,7 +188,7 @@ export default function TutorProfile() {
         ) : null}
 
         {/* earnings summary — real total from completed bookings (payouts still simulated) */}
-        <Card onPress={() => notify('Stripe payouts')} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
+        <Card onPress={setupPayouts} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
           <View style={[styles.promoIcon, { backgroundColor: t.accent }]}>
             <Ic name="dollar" size={20} color={t.onAccent} strokeWidth={1.8} />
           </View>
@@ -175,7 +196,9 @@ export default function TutorProfile() {
             <Text style={[styles.promoTitle, { color: t.text }]}>
               {stats ? `$${stats.earnedTotal.toFixed(2)} earned` : 'Earnings'}
             </Text>
-            <Text style={[styles.promoSub, { color: t.text2 }]}>Connect Stripe to start receiving payouts</Text>
+            <Text style={[styles.promoSub, { color: t.text2 }]}>
+              {payouts?.payoutsEnabled ? 'Payouts enabled — you’re all set' : 'Connect Stripe to start receiving payouts'}
+            </Text>
           </View>
           <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
         </Card>
@@ -187,7 +210,7 @@ export default function TutorProfile() {
           <Row icon="cap" label="Courses & rates" sub={coursesSub} onPress={() => router.push('/edit_rates')} />
           <Row icon="cal" label="Availability" sub="Set your typical week" onPress={() => router.push('/edit_availability')} />
           <Row icon="edit" label="Edit tutor profile" sub="Photo, bio — what students see" onPress={() => router.push('/edit_tutor')} />
-          <Row icon="dollar" label="Payout account" sub="Not connected — set up Stripe" onPress={() => notify('Stripe Connect')} />
+          <Row icon="dollar" label="Payout account" sub={payoutSub} onPress={setupPayouts} />
           <Row icon="doc" label="Earnings & payment history" onPress={() => notify('Earnings')} last />
         </Card>
 

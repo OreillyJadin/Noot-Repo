@@ -884,6 +884,28 @@ export const api = {
     ): Promise<{ status: string; refundPercent: number }> {
       return invokeFn('report-no-show', input as unknown as Record<string, unknown>);
     },
+
+    /**
+     * Tutor marks a confirmed session complete → captures the held payment and transfers
+     * the tutor's payout to their connected account (complete-session). Idempotent.
+     */
+    complete(
+      bookingId: string,
+    ): Promise<{ status: string; captured: boolean; transferId: string | null }> {
+      return invokeFn('complete-session', { bookingId });
+    },
+  },
+
+  // --- Stripe Connect (tutor payouts, see ARCHITECTURE.md §8) ---
+  connect: {
+    /** Create/reuse the tutor's Express account and return a hosted onboarding URL. */
+    onboardingLink(): Promise<{ url: string | null; accountId?: string; simulated?: boolean }> {
+      return invokeFn('connect-onboarding-link');
+    },
+    /** The tutor's Connect readiness — drives the payout-setup UI. */
+    status(): Promise<{ connected: boolean; chargesEnabled: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean }> {
+      return invokeFn('connect-status');
+    },
   },
 
   // --- chat ---
