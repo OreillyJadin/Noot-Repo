@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
     // Load booking.
     const { data: booking, error: loadError } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, scheduled_at, status')
+      .select('id, student_id, tutor_id, scheduled_at, status, price, stripe_payment_intent_id')
       .eq('id', bookingId)
       .single();
 
@@ -80,7 +80,26 @@ Deno.serve(async (req: Request) => {
 
     const refundStatus = refundPercent > 0 ? 'refunded' : 'not_refunded';
 
-    // TODO(stripe): issue the actual refund / release held funds per tier.
+    // Real money movement on the held (manual-capture) PaymentIntent:
+    //   100% refund → cancel the authorization (nothing captured);
+    //   partial     → capture only the non-refunded portion (the rest auto-releases);
+    //   0% refund   → capture the full amount (late-cancel fee).
+    const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+    const pi = booking.stripe_payment_intent_id as string | null;
+    if (stripeKey && pi && pi.startsWith('pi_')) {
+      const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
+      const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
+      try {
+        if (refundPercent === 100) {
+          await stripe.paymentIntents.cancel(pi, {}, { idempotencyKey: `cancel_${bookingId}` });
+        } else {
+          const captureCents = Math.round(Number(booking.price) * ((100 - refundPercent) / 100) * 100);
+          await stripe.paymentIntents.capture(pi, { amount_to_capture: captureCents }, { idempotencyKey: `cancelcap_${bookingId}` });
+        }
+      } catch (stripeErr) {
+        return Response.json({ error: 'Stripe: ' + String(stripeErr) }, { status: 400, headers: cors });
+      }
+    }
 
     const { error: updateError } = await db
       .from('bookings')

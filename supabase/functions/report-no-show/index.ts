@@ -37,7 +37,7 @@ Deno.serve(async (req: Request) => {
     // Load the booking.
     const { data: booking, error: loadErr } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, status')
+      .select('id, student_id, tutor_id, status, price, stripe_payment_intent_id, tutor_payout_amount')
       .eq('id', bookingId)
       .single();
     if (loadErr || !booking) return Response.json({ error: 'Booking not found' }, { status: 404, headers: cors });
@@ -64,19 +64,58 @@ Deno.serve(async (req: Request) => {
     const refundPercent = tutorNoShow ? 100 : 0;
     const refundStatus = tutorNoShow ? 'refunded' : 'not_refunded';
 
+    // Real money movement on the held PaymentIntent:
+    //   tutor no-show  → cancel the authorization (student charged $0);
+    //   student no-show → capture the full charge + transfer the payout to the tutor.
+    const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+    const pi = booking.stripe_payment_intent_id as string | null;
+    let transferId: string | null = null;
+    let chargeId: string | null = null;
+    if (stripeKey && pi && pi.startsWith('pi_')) {
+      const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
+      const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
+      try {
+        if (tutorNoShow) {
+          await stripe.paymentIntents.cancel(pi, {}, { idempotencyKey: `noshow_cancel_${bookingId}` });
+        } else {
+          const { data: prof } = await db
+            .from('tutor_profiles')
+            .select('stripe_connect_account_id')
+            .eq('user_id', booking.tutor_id)
+            .maybeSingle();
+          const connectId = (prof?.stripe_connect_account_id as string | null | undefined) ?? null;
+          if (!connectId) return Response.json({ error: 'Tutor has no connected payout account.' }, { status: 400, headers: cors });
+          const capped = await stripe.paymentIntents.capture(pi, {}, { idempotencyKey: `noshow_cap_${bookingId}` });
+          chargeId = typeof capped.latest_charge === 'string' ? capped.latest_charge : (capped.latest_charge?.id ?? null);
+          const transfer = await stripe.transfers.create(
+            {
+              amount: Math.round(Number(booking.tutor_payout_amount) * 100),
+              currency: 'usd',
+              destination: connectId,
+              transfer_group: bookingId,
+              metadata: { booking_id: bookingId, reason: 'student_no_show' },
+            },
+            { idempotencyKey: `noshow_transfer_${bookingId}` },
+          );
+          transferId = transfer.id;
+        }
+      } catch (stripeErr) {
+        return Response.json({ error: 'Stripe: ' + String(stripeErr) }, { status: 400, headers: cors });
+      }
+    }
+
     const { error: updateErr } = await db
       .from('bookings')
       .update({
         status: 'no_show',
         refund_percent: refundPercent,
         refund_status: refundStatus,
+        stripe_charge_id: chargeId,
+        stripe_transfer_id: transferId,
       })
       .eq('id', bookingId);
     if (updateErr) return Response.json({ error: updateErr.message }, { status: 400, headers: cors });
 
-    // TODO(stripe): process refund/payout — refund the student's held charge when the
-    // tutor no-shows (100%), or capture/release payout to the tutor when the student
-    // no-shows (0% refund).
     // TODO: 3-strike escalation tracking — accumulate no-show strikes per user and
     // escalate (warn/suspend) once a threshold is reached.
 

@@ -16,7 +16,9 @@
     "mobile": "pnpm --filter @noot/mobile dev",
     "mobile-team": "pnpm --filter @noot/mobile dev:tunnel",
     "tunnel": "bash scripts/tunnel.sh",
-    "web": "pnpm --filter @noot/web dev"
+    "web": "pnpm --filter @noot/web dev",
+    "check:preview": "node scripts/check_supabase_preview.mjs",
+    "hooks:install": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "turbo": "^2.1.3",

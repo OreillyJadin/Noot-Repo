@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Block pushes that would fail the Supabase Preview check (migration drift).
+# Override:  SKIP_SUPABASE_CHECK=1 git push
+[ -n "$SKIP_SUPABASE_CHECK" ] && exit 0
+export PATH="$HOME/.local/node-v22.23.1-linux-x64/bin:$PATH"
+DIR="$(git rev-parse --show-toplevel)"
+if ! node "$DIR/scripts/check_supabase_preview.mjs"; then
+  echo "" >&2
+  echo "✋ Push blocked: local migrations don't match the remote history (Supabase Preview would fail)." >&2
+  echo "   Fix the drift above, or bypass with:  SKIP_SUPABASE_CHECK=1 git push" >&2
+  exit 1
+fi
