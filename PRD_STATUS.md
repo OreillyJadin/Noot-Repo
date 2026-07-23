@@ -1,6 +1,6 @@
 # Noot — PRD implementation status
 
-_Snapshot 2026-07-18. Maps the product (see `prd-data-models.md` + `ARCHITECTURE.md`) to
+_Snapshot 2026-07-22. Maps the product (see `prd-data-models.md` + `ARCHITECTURE.md`) to
 what's actually built. Made for planning next steps — take it into a chat and ask "what
 should we build next?"_
 
@@ -15,12 +15,15 @@ center** (triggers on new message/booking), **tutor course editing**, ratings hi
 app-wide, a transparent tutor pay breakdown, and a School-colors theme are all built +
 backend-verified.
 
-**🚩 MVP gap (the launch blockers):** (1) **real money** — Stripe is still *simulated*;
-needs capture-on-completion (design: tutor taps "Mark complete"), Stripe **Connect** payouts
-for tutors, and real card entry (PaymentSheet or Checkout — TBD). (2) **device push
-delivery** — the in-app center exists but no Expo push token capture / send yet. Everything
-else for a first submission is in place. Prereqs the owner is handling: a **Stripe account +
-test keys + Connect**, and **Supabase transactional email** setup.
+**🚩 MVP gap (updated 2026-07-22):** **Real money is now BUILT** (Stripe test mode) —
+PaymentSheet charge + 17.5% fee, Connect onboarding, `complete-session` (capture → payout →
+referral bonus), cancel/no-show refunds, and `payments-webhook` are all coded, deployed, and
+backend-verified. **Remaining before launch:** (1) **on-device verification** of the paid
+flow (needs the EAS dev build — Android build is done; iOS needs an Apple account); (2)
+**Supabase transactional email** (SMTP) for real `.edu` signup/reset; (3) go-live = swap
+Stripe **test** keys for **live**. Deferred (not required for a first submission): **device
+push delivery** (in-app notification center exists; no Expo push send yet) and reminder/
+auto-complete crons.
 
 ---
 
@@ -40,7 +43,7 @@ now used for signup verification and password reset, **not** as the day-to-day s
 | Biometric launch gate + encrypted session storage | 🟢 | `AuthGate` (Face/Touch ID on cold launch) + `secureStorage`; opt-in via `enable_faceid`. Not device-tested. |
 | Dev sign-in (seeded accounts, password) | ✅ | `__DEV__`-only shortcut; works on cloud. Use this to click through today. |
 | One account / multiple roles, role switch | 🟢 | **DONE (2026-07-11):** `<RoleSwitcher>` on Profile persists `active_role` (guard trigger `0007`: must be a role you hold); "Viewing as" indicator on home headers; ambassador mode + tab set; "Become an ambassador/tutor" add-role. Admin is a separate gated entry, not a mode. |
-| Profile photo upload | 🔴 | `TODO(api)` in `t2`/`edit_personal` — no storage upload wired. (Transcript upload IS wired — see below.) |
+| Profile photo upload | 🟢 | Public `avatars` bucket (0013) + `api.profile.uploadAvatar` + image picker wired into every "Change photo". Own avatar renders; other users' photos still show initials. |
 
 ## Profiles (student & tutor)
 
@@ -75,14 +78,17 @@ now used for signup verification and password reset, **not** as the day-to-day s
 | Past / completed sessions list | 🟢 | `listPast` built + wired into `sessions.tsx` "Past" tab (real rows). |
 | Auto-complete 24h after session (cron) | 🔴 | Not built. |
 
-## Payments & money  ⚠️ all simulated
+## Payments & money  ✅ built (Stripe TEST mode) — needs on-device verification
 
 | Feature | Status | Notes |
 |---|---|---|
-| Charge student at booking | 🔴 | `create-payment-intent` returns a **fake** `sim_pi_…`. No real card charged. |
-| Capture on completion / tutor payout | 🔴 | `complete-session` unwritten. `platform_fee` hardcoded 0, payout = full price. |
-| Stripe Connect onboarding (tutors) | 🔴 | `connect-onboarding-link` unwritten. |
-| Stripe webhook (payment/refund events) | 🔴 | Unwritten. **This is the largest remaining workstream.** |
+| Charge student at booking (PaymentSheet) | 🟢 | `create-payment-intent` makes a real manual-capture hold (verified `pi_…` on cloud); `b4.tsx` uses native `@stripe/stripe-react-native` PaymentSheet. Charge itself needs the dev build to click-test. |
+| 17.5% platform fee split | ✅ | `confirm-booking` computes fee + payout. Verified: $28 → $4.90 / $23.10. |
+| Capture on completion / tutor payout | 🟢 | `complete-session` (tutor "Mark session complete" on the Past tab) captures the hold + transfers payout to the tutor's Connect acct + fires the referral bonus. Sim path verified; real capture/transfer needs a device + onboarded tutor. |
+| Stripe Connect onboarding (tutors) | 🟢 | `connect-onboarding-link` + `connect-status`; tutor_profile "Payout account" opens the hosted form. (Needs Accounts v1 enabled — done.) |
+| Cancel / no-show refunds | 🟢 | `cancel-booking` (tiered release/capture) + `report-no-show` (release or capture+transfer) move real money on the held PI. |
+| Stripe webhook | 🟢 | `payments-webhook` (account.updated, charge.refunded) registered in Stripe + `STRIPE_WEBHOOK_SECRET` set; signature verification confirmed. |
+| Go-live | 🔴 | Currently **test** keys. Swap for `sk_live`/`pk_live` (+ business verification) when ready to take real money. |
 
 ## Messaging
 
@@ -108,7 +114,7 @@ now used for signup verification and password reset, **not** as the day-to-day s
 | Referral share screen | 🟢 | `ambassador_referrals` — code + link + native Share sheet. |
 | Referral dashboard (pipeline + earnings) | 🟢 | `ambassador_home` — referred-user pipeline (signed up → $5 pending → earned) + running total, via the `list-referrals` edge fn. Verified on cloud. |
 | Referral attribution at signup | 🟢 | `handle_new_user` (`0008`) reads `referral_code` from signup metadata + self-referral CHECK. (Signup screen doesn't collect the code yet.) |
-| $5 one-time bonus on first completed session | 🟡 | `award-referral-bonus` edge fn built (idempotent, service-role gated) but **not yet triggered** — needs the unbuilt Stripe `complete-session`. Seed populates bonuses for the demo. |
+| $5 one-time bonus on first completed session | 🟢 | `award-referral-bonus` edge fn (idempotent, service-role gated) is now **triggered by `complete-session`** when a tutor marks a session complete. |
 
 ## Admin  (built 2026-07-11)
 

@@ -1,9 +1,26 @@
-# 👋 PICKUP_HERE — where we left off (2026-07-18)
+# 👋 PICKUP_HERE — where we left off (2026-07-22)
 
 Quick-start for the next session. Full detail lives in `HANDOFF_CLAUDE.md`; product
 status in `PRD_STATUS.md`; your manual/dashboard to-dos in `MANUAL_SETUP.md`.
 
-## Latest (2026-07-18) — MVP polish + two new features + Stripe plan
+## Latest (2026-07-22) — Stripe payments MVP built (TEST mode)
+
+Commits `920fac1`…`7e99c5a`. Real money is coded + deployed + backend-verified:
+- **Charge:** native PaymentSheet in `b4`, manual-capture hold, 17.5% fee (verified $28→$4.90/$23.10).
+- **Payouts:** Connect (Express) onboarding + `complete-session` (capture → transfer payout →
+  referral bonus); tutor taps **"Mark session complete"** on the Past tab.
+- **Refunds:** cancel-booking (tiered) + report-no-show move real money on the held PI.
+- **Webhook:** `payments-webhook` registered in Stripe + secret set (signature verified).
+- Config done: `STRIPE_SECRET_KEY` (test) on cloud, Accounts v1 enabled, migration `0015`.
+- **Android EAS dev build finished** (APK) — install to click-test PaymentSheet (card `4242`).
+
+**Push guardrail:** `pnpm check:preview` + a pre-push hook block pushes that would fail the
+Supabase Preview check (migration drift). Creds persisted in gitignored `.noot-secrets.local.env`.
+
+**⚠️ Still to do:** click-test the paid flow on the dev build; SMTP email; swap test→live keys.
+Deferred: device push send, reminder/auto-complete crons, iOS build (needs Apple acct).
+
+## Prior (2026-07-18) — MVP polish + two new features + Stripe plan
 
 App-store MVP push. All shipped to `origin/main`, each typecheck-clean, bundle-clean, and
 backend-verified against the live local stack (browser click-through still owed — this

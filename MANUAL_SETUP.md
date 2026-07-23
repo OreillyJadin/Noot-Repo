@@ -36,49 +36,34 @@ remote history is now `0001…0014`, matching the repo. The check goes green on 
 
 ---
 
-## 2. 💳 Stripe — real money (the big one)
+## 2. 💳 Stripe — real money ✅ BUILT (test mode)
 
-**Decisions locked:** full Stripe at launch; a session is completed when the **tutor taps
-"Mark complete"** (that captures the held payment + pays the tutor). **Still undecided:** card
-entry method — **PaymentSheet** (native, slick, needs a dev build to test) vs **Checkout**
-(hosted web page, works everywhere, easiest). Tell Claude which when you're ready.
+**Decisions locked + shipped:** native **PaymentSheet** for card entry; a session completes when
+the **tutor taps "Mark session complete"** (Past tab) → captures the held payment + pays the
+tutor via Connect; 17.5% platform fee.
 
-**Cost:** test mode is **free** and uses fake cards — no real money. Live mode only charges
-Stripe's per-transaction fee when you actually get paid.
+**Done for you (2026-07-22):**
+- `STRIPE_SECRET_KEY` (test) set on the Supabase project; `pk_test` in `apps/mobile/.env` + `eas.json`.
+- **Connect (Express)** enabled + **Accounts v1 support** enabled (you did this).
+- Edge functions built + deployed: `create-payment-intent`, `confirm-booking` (fee), `complete-session`,
+  `connect-onboarding-link`, `connect-status`, `cancel-booking`/`report-no-show` (real refunds).
+- `payments-webhook` registered in Stripe + `STRIPE_WEBHOOK_SECRET` set (signature verified).
+- Migration `0015` (Stripe id columns) applied.
 
-### Your steps (Stripe dashboard)
-1. **Create (or open) a Stripe account** at https://dashboard.stripe.com. Stay in **Test mode**
-   (toggle, top-right) for all of the below.
-2. **Get your API keys** — Developers → API keys:
-   - **Publishable key** `pk_test_…` (safe for the app/client)
-   - **Secret key** `sk_test_…` (server only — never commit it)
-3. **Enable Connect** (so tutors can get paid) — Connect → Get started → choose **Express**
-   accounts. Free in test. This is what lets us onboard tutors + send payouts.
-4. **(Later, to go live)** complete Stripe business verification, then repeat with **live**
-   keys (`pk_live_…` / `sk_live_…`). Don't do this until you're ready to take real money.
+**Cost:** test mode is free (fake cards). Live mode only charges per-transaction fees.
 
-### Where the keys go (Claude can run these once you paste the values)
-- **Secret key → Supabase Edge Function secret** (used by `create-payment-intent` and the
-  upcoming capture/Connect functions):
-  ```bash
-  supabase secrets set STRIPE_SECRET_KEY=sk_test_xxx --project-ref nepnxbvseuzuayhxaigo
-  ```
-- **Publishable key → mobile env** (`apps/mobile/.env`, for client card entry once built):
-  ```
-  EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxx
-  ```
-
-### What's already built vs. still to build
-- ✅ `create-payment-intent` already creates a **real manual-capture hold** the moment
-  `STRIPE_SECRET_KEY` is set (it simulates otherwise). So a booking will place a real hold as
-  soon as you set the secret.
-- 🔴 **Not built yet** (Claude builds these once keys exist so they can be verified):
-  capture-on-completion + the tutor "Mark complete" action, **Stripe Connect onboarding** for
-  tutors, payout transfers, and real **card entry** (PaymentSheet or Checkout).
+### ⬜ What YOU still need to do
+1. **Test the paid flow on the Android dev build** (§4) — book → PaymentSheet (`4242 4242 4242 4242`,
+   any future expiry/CVC/ZIP) → charge. As a tutor: Payout account → finish Connect onboarding →
+   "Mark session complete" on a past session → confirm the transfer in your Stripe dashboard.
+2. **Go live when ready:** complete Stripe business verification, then swap to **live** keys
+   (`sk_live`/`pk_live`) — set `STRIPE_SECRET_KEY` in the Supabase dashboard and
+   `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` in `.env`/`eas.json`, and re-point the webhook. Don't do
+   this until you're ready to take real money.
 
 ### Test cards (test mode)
 - Success: `4242 4242 4242 4242`, any future expiry, any CVC, any ZIP.
-- More scenarios: https://stripe.com/docs/testing.
+- More scenarios (declines, 3DS): https://stripe.com/docs/testing.
 
 ---
 

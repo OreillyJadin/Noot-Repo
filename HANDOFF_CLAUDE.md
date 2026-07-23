@@ -1,8 +1,24 @@
 # Handoff — for the next Claude chat
 
-_Updated 2026-07-18. Read this first, then `ARCHITECTURE.md` (authoritative for the whole system)._
+_Updated 2026-07-22. Read this first, then `ARCHITECTURE.md` (authoritative for the whole system)._
 
-> **Latest (2026-07-18, MVP polish + photo upload + notifications — commits `6c7bac6`…`6f36e3c`):**
+> **Latest (2026-07-22, Stripe payments MVP — commits `920fac1`…`7e99c5a`):**
+> **Real money is built** (Stripe TEST mode) across three phases. **P1:** manual-capture hold via
+> native **PaymentSheet** (`@stripe/stripe-react-native`) in `b4`, Stripe Customer + ephemeral key
+> in `create-payment-intent`, **17.5% fee** in `confirm-booking` (verified $28→$4.90/$23.10),
+> `StripeProvider` at root (guarded so **Expo Go still runs** everything else — PaymentSheet needs
+> a dev build). **P2:** `connect-onboarding-link` + `connect-status` + `complete-session` (tutor
+> "Mark session complete" on the Past tab → capture → transfer payout to Connect acct → referral
+> bonus); tutor_profile "Payout account" opens hosted onboarding. **P3:** `payments-webhook`
+> (account.updated, charge.refunded; registered in Stripe + `STRIPE_WEBHOOK_SECRET` set) and real
+> **refunds** in cancel/no-show. Migration `0015` (Stripe id columns) applied cloud+local.
+> `STRIPE_SECRET_KEY` (test) set on cloud; Accounts v1 enabled. **Android EAS dev build done**
+> (APK). **New push guardrail:** `pnpm check:preview` + a pre-push hook fail on migration drift
+> (what breaks the Supabase Preview check); reconciled the sync-engine's stray migration as `0016`.
+> **Remaining:** on-device test of the paid flow, SMTP email, and swapping test→live keys. Creds
+> persisted in gitignored `.noot-secrets.local.env`.
+
+> **Prior (2026-07-18, MVP polish + photo upload + notifications — commits `6c7bac6`…`6f36e3c`):**
 > App-store-MVP session. New features: **profile photo upload** (public `avatars` bucket `0013`,
 > `expo-image-picker`, `Avatar` renders `uri`, all "Change photo" wired — own avatar only) and an
 > **in-app notification center** (`notifications` table + triggers `0014`: message→recipient,
