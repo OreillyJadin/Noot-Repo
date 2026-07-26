@@ -5,6 +5,9 @@
 //   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node supabase/seed_demo.mjs
 //
 // Defaults target the local stack. Dev password for every account: "password123".
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 
 const URL = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -14,6 +17,27 @@ const SERVICE =
 const PASSWORD = 'password123';
 
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
+
+// The UA course catalog. Course pickers (My courses, the tutor's course list, search
+// suggestions) all read `courses`, so without this local dev has no courses to pick and the
+// pickers look broken. This is a real slice of the production catalog — the subjects the demo
+// data uses plus the big intro subjects — not invented codes, so what you pick locally matches
+// what exists in production.
+// NB: resolved via path, not `new URL(...)` — this module shadows the global URL with the
+// Supabase endpoint constant a few lines up.
+const HERE = dirname(fileURLToPath(import.meta.url));
+const COURSES = JSON.parse(readFileSync(join(HERE, 'seed_courses.json'), 'utf8'));
+
+async function seedCourses() {
+  // Chunked: a single 500-row insert is fine, but this keeps the request comfortably small
+  // and gives a useful error if one batch trips a constraint.
+  for (let i = 0; i < COURSES.length; i += 200) {
+    const batch = COURSES.slice(i, i + 200);
+    const { error } = await admin.from('courses').upsert(batch, { onConflict: 'course_id' });
+    if (error) throw new Error(`courses: ${error.message}`);
+  }
+  console.log(`✅ course catalog (${COURSES.length} courses)`);
+}
 
 // [email, first, last, year, major, gender, bio, verifiedGrade, ratingAvg, totalSessions,
 //  courses: [code, grade, rate, sessions][]]
@@ -107,6 +131,8 @@ async function seedTutor(row, idx) {
   }
   console.log(`✅ tutor ${email} (${courses.length} courses, ${av.length} availability windows)`);
 }
+
+await seedCourses();
 
 const [se, sf, sl, sy, sm, sg] = DEV_STUDENT;
 const sid = await ensureUser(se);

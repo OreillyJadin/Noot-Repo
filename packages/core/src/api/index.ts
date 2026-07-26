@@ -11,6 +11,7 @@ import { getSupabase } from '../supabase';
 import type {
   AmbassadorProfile,
   Booking,
+  CatalogCourse,
   ChatParticipant,
   Conversation,
   ConversationSummary,
@@ -300,6 +301,20 @@ function mapConversation(row: any): Conversation {
     studentId: row.student_id ?? null,
     tutorId: row.tutor_id ?? null,
     createdAt: row.created_at,
+  };
+}
+
+/** Columns the catalog picker needs. */
+const CATALOG_SELECT = 'course_code, course_title, subject_code, subject_name, credit_hours, college_name';
+
+function mapCatalogCourse(row: any): CatalogCourse {
+  return {
+    courseCode: row.course_code,
+    courseTitle: row.course_title ?? '',
+    subjectCode: row.subject_code ?? '',
+    subjectName: row.subject_name ?? '',
+    creditHours: row.credit_hours ?? null,
+    collegeName: row.college_name ?? '',
   };
 }
 
@@ -1307,6 +1322,67 @@ export const api = {
           createdAt: c.created_at,
         };
       });
+    },
+  },
+
+  // --- course catalog ---
+  //
+  // The real UA catalog (`courses`, ~3.9k rows, seeded out of band — see migrations 0020/0023).
+  // Course codes used to be free-typed everywhere, so "MATH125", "Math 125" and "MTH 125" were
+  // all storable and none of them matched each other or a tutor's list. These reads let the UI
+  // offer the actual catalog and store a code that provably exists.
+  courses: {
+    /**
+     * Catalog search for a picker. Matches on code, title, or subject name, so "calc",
+     * "MATH 125" and "mathematics" all find the right rows. Ordered by code; capped because
+     * a bare prefix like "M" matches hundreds.
+     */
+    async search(query: string, limit = 25): Promise<CatalogCourse[]> {
+      const q = query.trim();
+      let sel = getSupabase().from('courses').select(CATALOG_SELECT).eq('is_active', true);
+      if (q) {
+        // Commas and parens would be read as PostgREST filter syntax inside or(); strip them.
+        const safe = q.replace(/[,()*]/g, ' ').trim();
+        if (safe) {
+          sel = sel.or(
+            `course_code.ilike.%${safe}%,course_title.ilike.%${safe}%,subject_name.ilike.%${safe}%`,
+          );
+        }
+      }
+      const { data, error } = await sel.order('course_code').limit(limit);
+      if (error) throw error;
+      return (data ?? []).map(mapCatalogCourse);
+    },
+
+    /**
+     * Distinct subject names, for the Major picker. Small and static enough to fetch once and
+     * filter on the client.
+     *
+     * Reads the `course_subjects` VIEW (0025), not `courses`: de-duplicating ~3.9k course rows
+     * client-side hits PostgREST's 1000-row cap, which on production silently returned 31 of
+     * 132 subjects with no error. The view is one row per subject, so there's nothing to cap.
+     */
+    async listSubjects(): Promise<string[]> {
+      const { data, error } = await getSupabase()
+        .from('course_subjects')
+        .select('subject_name')
+        .order('subject_name');
+      if (error) throw error;
+      return [...new Set((data ?? []).map((r) => r.subject_name).filter(Boolean))] as string[];
+    },
+
+    /** Look up exact codes — used to render a saved course with its real title. */
+    async byCodes(codes: string[]): Promise<Record<string, CatalogCourse>> {
+      const list = [...new Set(codes.map((c) => c.trim().toUpperCase()))].filter(Boolean);
+      if (!list.length) return {};
+      const { data, error } = await getSupabase()
+        .from('courses')
+        .select(CATALOG_SELECT)
+        .in('course_code', list);
+      if (error) throw error;
+      const out: Record<string, CatalogCourse> = {};
+      for (const row of data ?? []) out[row.course_code] = mapCatalogCourse(row);
+      return out;
     },
   },
 

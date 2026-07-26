@@ -5,15 +5,16 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, Field, Select, Badge, Eyebrow, H2, Muted, ProgressDots, H1, Sub, Ic, Skeleton, useTheme } from '@noot/ui';
-import { api } from '@noot/core';
+import { Screen, Body, ActionBar, Button, Card, Select, Badge, Eyebrow, H2, Muted, ProgressDots, H1, Sub, Ic, Skeleton, useTheme } from '@noot/ui';
+import { api, type CatalogCourse } from '@noot/core';
+import { CoursePicker } from '../lib/CoursePicker';
 
 const GRADE_OPTIONS = ['A', 'A-', 'B+', 'B'];
 const MAX_COURSES = 10;
 
 /** A course the tutor teaches. hourlyRate/sessions are preserved across saves (rates are
  *  set on T4); grade + code are what this screen edits. */
-type CourseRow = { courseCode: string; grade: string; hourlyRate: number; sessions: number };
+type CourseRow = { courseCode: string; grade: string; hourlyRate: number; sessions: number; title?: string };
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -55,7 +56,8 @@ export default function T3() {
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState('');
+  // The catalog course chosen but not yet committed (a grade is required alongside it).
+  const [picked, setPicked] = useState<CatalogCourse | null>(null);
   const [grade, setGrade] = useState('');
 
   // Load the tutor's existing courses (own profile).
@@ -82,13 +84,19 @@ export default function T3() {
   }, []);
 
   const addCourse = () => {
-    const code = search.trim().toUpperCase().replace(/\s+/g, ' ');
-    if (!code) return Alert.alert('Add a course', 'Enter the course code, e.g. MATH 125.');
+    // The code can only come from the catalog now — no more accepting whatever was typed,
+    // which is what let a tutor store "MATH125" and never match a student's "MATH 125".
+    if (!picked) return Alert.alert('Pick a course', 'Search the catalog and choose your course.');
     if (!grade) return Alert.alert('Pick your grade', 'Select the grade you earned in this course.');
     if (courses.length >= MAX_COURSES) return Alert.alert('Limit reached', `You can add up to ${MAX_COURSES} courses.`);
-    if (courses.some((c) => c.courseCode === code)) return Alert.alert('Already added', `${code} is already in your list.`);
-    setCourses((cs) => [...cs, { courseCode: code, grade, hourlyRate: 0, sessions: 0 }]);
-    setSearch('');
+    if (courses.some((c) => c.courseCode === picked.courseCode)) {
+      return Alert.alert('Already added', `${picked.courseCode} is already in your list.`);
+    }
+    setCourses((cs) => [
+      ...cs,
+      { courseCode: picked.courseCode, grade, hourlyRate: 0, sessions: 0, title: picked.courseTitle },
+    ]);
+    setPicked(null);
     setGrade('');
   };
 
@@ -153,7 +161,9 @@ export default function T3() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.courseCode, { color: t.text }]}>{c.courseCode}</Text>
-                  <Text style={[styles.courseSem, { color: t.text3 }]}>Grade {c.grade || '—'} · tap to remove</Text>
+                  <Text numberOfLines={1} style={[styles.courseSem, { color: t.text3 }]}>
+                    {c.title ? `${c.title} · ` : ''}Grade {c.grade || '—'} · tap to remove
+                  </Text>
                 </View>
                 <Ic name="x" size={18} color={t.text3} strokeWidth={2} />
               </Card>
@@ -163,13 +173,24 @@ export default function T3() {
 
         <Card flat style={[styles.addingCard, { borderColor: t.borderStrong, backgroundColor: t.surfaceAlt }]}>
           <Eyebrow style={{ marginBottom: 10 }}>Adding</Eyebrow>
-          <Field
-            placeholder="Course code, e.g. MATH 125"
-            value={search}
-            onChangeText={setSearch}
-            autoCapitalize="characters"
-            suffix={<Ic name="search" size={18} color={t.text3} strokeWidth={1.8} />}
-          />
+          {picked ? (
+            <View style={[styles.pickedRow, { backgroundColor: t.surface, borderColor: t.accentBorder }]}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.courseCode, { color: t.text }]}>{picked.courseCode}</Text>
+                <Text numberOfLines={1} style={[styles.courseSem, { color: t.text3 }]}>{picked.courseTitle}</Text>
+              </View>
+              <Pressable onPress={() => setPicked(null)} hitSlop={8} accessibilityLabel="Choose a different course">
+                <Ic name="x" size={16} color={t.text3} strokeWidth={2.2} />
+              </Pressable>
+            </View>
+          ) : (
+            <CoursePicker
+              label=""
+              selected={courses.map((c) => c.courseCode)}
+              onSelect={setPicked}
+              placeholder="Search e.g. MATH 125 or calculus"
+            />
+          )}
           <View style={[styles.row, { marginTop: 10 }]}>
             <View style={{ flex: 1 }}>
               <Select placeholder="Grade" value={grade} options={GRADE_OPTIONS} onChange={setGrade} />
@@ -208,6 +229,7 @@ const styles = StyleSheet.create({
   gradeChipText: { fontWeight: '700', fontSize: 15 },
   courseCode: { fontSize: 16, fontWeight: '600' },
   courseSem: { fontSize: 13 },
+  pickedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, paddingVertical: 11, borderRadius: 13, borderWidth: 1.5 },
   addingCard: { marginTop: 12, padding: 16, borderWidth: 1.5, borderStyle: 'dashed' },
   row: { flexDirection: 'row', gap: 10 },
   professorHint: { fontSize: 13, marginTop: 10 },

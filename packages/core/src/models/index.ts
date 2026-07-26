@@ -192,6 +192,20 @@ export interface Conversation {
   createdAt: Timestamp;
 }
 
+/** A row from the real UA course catalog (`courses`), used to pick instead of free-type. */
+export interface CatalogCourse {
+  /** e.g. "MATH 125" — the code stored on users.courses / tutor_courses.course_code. */
+  courseCode: string;
+  /** e.g. "Calculus I". */
+  courseTitle: string;
+  /** e.g. "MATH". */
+  subjectCode: string;
+  /** e.g. "Mathematics". */
+  subjectName: string;
+  creditHours: string | null;
+  collegeName: string;
+}
+
 /** Who sent a message, for group threads where the sender isn't implied by the header. */
 export interface ChatParticipant {
   id: UUID;

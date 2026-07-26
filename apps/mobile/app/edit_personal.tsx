@@ -6,6 +6,7 @@ import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Field, Select, Label, Avatar, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
+import { SubjectField } from '../lib/SubjectField';
 import { pickAndUploadAvatar } from '../lib/avatar';
 
 export default function EditPersonal() {
@@ -87,7 +88,7 @@ export default function EditPersonal() {
 
         <Select label="Year" value={year} options={['Freshman', 'Sophomore', 'Junior', 'Senior', 'Grad']} onChange={setYear} />
 
-        <Field label="Major" value={major} onChangeText={setMajor} />
+        <SubjectField value={major} onChange={setMajor} />
 
         <View>
           <Label style={{ fontSize: 13, marginBottom: 8 }}>Campus email</Label>

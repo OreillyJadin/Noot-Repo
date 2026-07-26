@@ -7,11 +7,12 @@ import { View, Text, ScrollView, Pressable, TextInput, StyleSheet } from 'react-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, Ic, H2, Muted, TabBar, Skeleton, EmptyState, useTheme } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, type CatalogCourse } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
+import { useCourseSuggestions } from '../lib/useCourseSuggestions';
 
 const CATS = ['For you', 'Business', 'STEM', 'Humanities'] as const;
 const TITLES: Record<(typeof CATS)[number], string> = {
@@ -92,6 +93,7 @@ export default function StudentHome() {
   // instantly, no per-keystroke round-trip and no fabricated default course.
   const [query, setQuery] = useState('');
   const trimmed = query.trim();
+  const suggestions = useCourseSuggestions(trimmed);
   // All approved tutors, fetched once, filtered client-side against `query`.
   const [allTutors, setAllTutors] = useState<Tutor[]>([]);
   const [allLoading, setAllLoading] = useState(true);
@@ -153,10 +155,12 @@ export default function StudentHome() {
               style={[styles.searchInput, { color: t.text }]}
               value={query}
               onChangeText={setQuery}
-              placeholder="What class? e.g. MGT 300"
+              placeholder="What class? e.g. MGT 300 or calculus"
               placeholderTextColor={t.text3}
               autoCorrect={false}
-              autoCapitalize="characters"
+              // Course codes match case-insensitively, and forcing caps made typing a
+              // course NAME ("calculus") or a tutor's name feel broken.
+              autoCapitalize="none"
               returnKeyType="search"
               accessibilityLabel="Search tutors by course or name"
             />
@@ -176,6 +180,24 @@ export default function StudentHome() {
             <Ic name="sliders" size={20} color={t.accent} strokeWidth={1.8} />
           </Pressable>
         </View>
+
+        {suggestions.length > 0 ? (
+          <View style={[styles.suggestions, { backgroundColor: t.surface, borderColor: t.border }]}>
+            {suggestions.map((c: CatalogCourse) => (
+              <Pressable
+                key={c.courseCode}
+                onPress={() => setQuery(c.courseCode)}
+                accessibilityRole="button"
+                accessibilityLabel={`Search ${c.courseCode} ${c.courseTitle}`}
+                style={[styles.suggestion, { borderBottomColor: t.border }]}
+              >
+                <Ic name="cap" size={15} color={t.accent} strokeWidth={1.8} />
+                <Text style={[styles.suggestionCode, { color: t.text }]}>{c.courseCode}</Text>
+                <Text numberOfLines={1} style={[styles.suggestionTitle, { color: t.text3 }]}>{c.courseTitle}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
 
       {trimmed ? (
@@ -280,6 +302,10 @@ export default function StudentHome() {
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 6, gap: 12 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  suggestions: { marginTop: 8, borderWidth: 1, borderRadius: 13, overflow: 'hidden' },
+  suggestion: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1 },
+  suggestionCode: { fontSize: 13.5, fontWeight: '700' },
+  suggestionTitle: { flex: 1, fontSize: 12 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   searchField: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, height: 50, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5 },
   searchInput: { flex: 1, fontSize: 15, fontWeight: '500', padding: 0 },
