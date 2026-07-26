@@ -41,10 +41,18 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         getBiometricCapability(),
         isBiometricEnabled(),
       ]);
-      // Fall back to the normal screens unless we have a session + opt-in + hardware.
-      if (!userId || !enabled || !cap.available) return setPhase('open');
-      setPhase('locked');
-      void attemptUnlock();
+      // Logged out → show the normal navigation (landing / sign-in).
+      if (!userId) return setPhase('open');
+      // Opted into biometric + hardware available → lock and prompt Face ID.
+      if (enabled && cap.available) {
+        setPhase('locked');
+        void attemptUnlock();
+        return;
+      }
+      // Authenticated but no biometric lock → skip the marketing landing and go
+      // straight to their home (a returning user shouldn't have to tap "Log in").
+      await routeAfterAuth(router, setRole);
+      setPhase('open');
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -53,8 +61,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     setFailed(false);
     const res = await unlockWithBiometric();
     if (res.ok) {
-      setPhase('open');
+      // Navigate to the home UNDER the overlay first, then lift it — otherwise dropping
+      // the overlay briefly reveals the landing (with its "Log in" button) mid-navigation.
       await routeAfterAuth(router, setRole);
+      setPhase('open');
     } else {
       setFailed(true); // show retry + password fallback (never dead-end)
     }

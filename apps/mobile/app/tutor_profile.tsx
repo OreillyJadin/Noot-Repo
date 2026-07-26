@@ -141,9 +141,6 @@ export default function TutorProfile() {
       <View style={[styles.header, { paddingTop: insets.top + 4, backgroundColor: t.bg }]}>
         <View style={styles.headerRow}>
           <H1 style={styles.headerTitle}>Profile</H1>
-          <Pressable onPress={() => notify('Settings')} style={[styles.gearBtn, { backgroundColor: t.surface, borderColor: t.border }]}>
-            <Ic name="gear" size={19} color={t.text2} strokeWidth={1.7} />
-          </Pressable>
         </View>
       </View>
       <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 10 }}>
@@ -211,7 +208,7 @@ export default function TutorProfile() {
           <Row icon="cal" label="Availability" sub="Set your typical week" onPress={() => router.push('/edit_availability')} />
           <Row icon="edit" label="Edit tutor profile" sub="Photo, bio — what students see" onPress={() => router.push('/edit_tutor')} />
           <Row icon="dollar" label="Payout account" sub={payoutSub} onPress={setupPayouts} />
-          <Row icon="doc" label="Earnings & payment history" onPress={() => notify('Earnings')} last />
+          <Row icon="doc" label="Earnings & payment history" onPress={() => router.push('/history')} last />
         </Card>
 
         {/* standing — cancellation count is real; response time has no data source yet */}
@@ -222,7 +219,7 @@ export default function TutorProfile() {
             label="Cancellations"
             sub={stats ? `${stats.cancelledCount} total` : '—'}
             value={stats ? (stats.cancelledCount <= 2 ? 'Good' : 'Review') : ''}
-            onPress={() => notify('Standing details')}
+            onPress={() => router.push('/standing')}
             last
           />
         </Card>
@@ -233,7 +230,7 @@ export default function TutorProfile() {
           <Row icon="bell" label="Notifications" sub="Reminders, messages, offers" onPress={() => router.push('/notifications')} />
           <Row icon="gear" label="Dark mode" control={<Toggle on={dark} onPress={toggleDark} />} />
           <Row icon="flame" label="School colors" sub="University of Alabama — crimson" control={<Toggle on={school} onPress={toggleSchool} />} />
-          <Row icon="help" label="Help & support" onPress={() => notify('Help center')} last />
+          <Row icon="help" label="Help & support" onPress={() => router.push('/help')} last />
         </Card>
 
         {/* add ambassador role if not held yet (switching between held roles is the switcher above) */}

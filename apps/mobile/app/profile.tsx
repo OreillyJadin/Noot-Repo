@@ -106,6 +106,8 @@ export default function Profile() {
       notify('Could not add role');
     }
   };
+  // Referral CTA: already an ambassador → their referrals dashboard; otherwise sign them up.
+  const openReferrals = () => (roles.includes('ambassador') ? router.push('/ambassador_referrals') : becomeAmbassador());
 
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
@@ -115,9 +117,6 @@ export default function Profile() {
       <View style={[styles.header, { paddingTop: insets.top + 4, backgroundColor: t.bg }]}>
         <View style={styles.headerRow}>
           <H1 style={styles.headerTitle}>Profile</H1>
-          <Pressable onPress={() => notify('Settings')} style={[styles.gearBtn, { backgroundColor: t.surface, borderColor: t.border }]}>
-            <Ic name="gear" size={19} color={t.text2} strokeWidth={1.7} />
-          </Pressable>
         </View>
       </View>
       <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 10 }}>
@@ -162,7 +161,7 @@ export default function Profile() {
         ) : null}
 
         {/* referral CTA — the program isn't built yet, so no fabricated credit balance */}
-        <Card onPress={() => notify('Referrals')} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
+        <Card onPress={openReferrals} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
           <View style={[styles.promoIcon, { backgroundColor: t.accent }]}>
             <Ic name="gift" size={20} color={t.onAccent} strokeWidth={1.7} />
           </View>
@@ -179,7 +178,7 @@ export default function Profile() {
           <Row icon="user" label="Personal info" sub={me?.email ?? '—'} onPress={() => router.push('/edit_personal')} />
           <Row icon="cap" label="My courses" sub={coursesSub} onPress={() => router.push('/edit_courses')} />
           <Row icon="card" label="Payment methods" sub="No card on file" onPress={() => notify('Payment methods')} />
-          <Row icon="doc" label="Booking & payment history" onPress={() => notify('History')} last />
+          <Row icon="doc" label="Booking & payment history" onPress={() => router.push('/history')} last />
         </Card>
 
         {/* preferences */}
@@ -188,7 +187,7 @@ export default function Profile() {
           <Row icon="bell" label="Notifications" sub="Reminders, messages, offers" onPress={() => router.push('/notifications')} />
           <Row icon="gear" label="Dark mode" control={<Toggle on={dark} onPress={toggleDark} />} />
           <Row icon="flame" label="School colors" sub="University of Alabama — crimson" control={<Toggle on={school} onPress={toggleSchool} />} />
-          <Row icon="help" label="Help & support" onPress={() => notify('Help center')} last />
+          <Row icon="help" label="Help & support" onPress={() => router.push('/help')} last />
         </Card>
 
         {/* add roles you don't hold yet */}
