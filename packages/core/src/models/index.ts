@@ -184,9 +184,20 @@ export interface Booking {
 
 export interface Conversation {
   id: UUID;
-  studentId: UUID;
-  tutorId: UUID;
+  /** 'direct' is the 1:1 student↔tutor thread; 'admin' is the single admin team room. */
+  kind: 'direct' | 'admin';
+  /** Null on an 'admin' room — membership there is "holds the admin role", not a column. */
+  studentId: UUID | null;
+  tutorId: UUID | null;
   createdAt: Timestamp;
+}
+
+/** Who sent a message, for group threads where the sender isn't implied by the header. */
+export interface ChatParticipant {
+  id: UUID;
+  firstName: string;
+  lastName: string;
+  avatarUrl: string | null;
 }
 
 export interface Message {

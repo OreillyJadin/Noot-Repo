@@ -11,6 +11,7 @@ import { getSupabase } from '../supabase';
 import type {
   AmbassadorProfile,
   Booking,
+  ChatParticipant,
   Conversation,
   ConversationSummary,
   Message,
@@ -295,9 +296,19 @@ function mapBooking(row: any): Booking {
 function mapConversation(row: any): Conversation {
   return {
     id: row.id,
-    studentId: row.student_id,
-    tutorId: row.tutor_id,
+    kind: row.kind === 'admin' ? 'admin' : 'direct',
+    studentId: row.student_id ?? null,
+    tutorId: row.tutor_id ?? null,
     createdAt: row.created_at,
+  };
+}
+
+function mapParticipant(row: any): ChatParticipant {
+  return {
+    id: row.id,
+    firstName: row.first_name ?? '',
+    lastName: row.last_name ?? '',
+    avatarUrl: row.avatar_url ?? null,
   };
 }
 
@@ -1060,6 +1071,39 @@ export const api = {
       return mapConversation(created);
     },
 
+    /**
+     * The single admin team room (0024). Membership is implicit — RLS returns this row only
+     * to admins, and only admins can read or post in it. Throws for everyone else.
+     */
+    async getAdminRoom(): Promise<Conversation> {
+      const { data, error } = await getSupabase()
+        .from('conversations')
+        .select('*')
+        .eq('kind', 'admin')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('Admin room unavailable.');
+      return mapConversation(data);
+    },
+
+    /**
+     * Sender name + avatar for a group thread, where the header can't imply who's talking.
+     * Reads `users` directly: the users_select policy (0002) already lets an admin see any
+     * row, so this returns nothing useful to a non-admin rather than leaking.
+     */
+    async listParticipants(userIds: string[]): Promise<Record<string, ChatParticipant>> {
+      const ids = [...new Set(userIds)].filter(Boolean);
+      if (!ids.length) return {};
+      const { data, error } = await getSupabase()
+        .from('users')
+        .select('id, first_name, last_name, avatar_url')
+        .in('id', ids);
+      if (error) throw error;
+      const out: Record<string, ChatParticipant> = {};
+      for (const row of data ?? []) out[row.id] = mapParticipant(row);
+      return out;
+    },
+
     async listMessages(conversationId: string): Promise<Message[]> {
       const { data, error } = await getSupabase()
         .from('messages')
@@ -1198,6 +1242,7 @@ export const api = {
       const { data: convos, error } = await sb
         .from('conversations')
         .select('*')
+        .eq('kind', 'direct')
         .or(`student_id.eq.${uid},tutor_id.eq.${uid}`)
         .order('created_at', { ascending: false });
       if (error) throw error;

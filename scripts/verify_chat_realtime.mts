@@ -72,12 +72,15 @@ const { error: rpcErr } = await student.rpc('send_message_with_attachments', {
 });
 if (rpcErr) throw rpcErr;
 
-// Poll rather than sleeping a fixed budget — usually arrives in well under a second.
-for (let i = 0; i < 40 && !received.length; i++) await new Promise((r) => setTimeout(r, 250));
+// Poll rather than sleeping a fixed budget — usually arrives in well under a second. Match on
+// content rather than count: Realtime can replay a short backlog on JOIN, and the app dedupes
+// by message id, so extra events are benign.
+const wanted = () => received.find((r) => r.content === 'live attachment test');
+for (let i = 0; i < 40 && !wanted(); i++) await new Promise((r) => setTimeout(r, 250));
 unsub();
 
-check('subscriber received the message over Realtime', received.length === 1, `${received.length} event(s)`);
-const m = received[0];
+const m = wanted();
+check('subscriber received the message over Realtime', !!m, `${received.length} event(s) seen`);
 check('payload carries the text', m?.content === 'live attachment test');
 check('payload carries attachment_count', m?.attachmentCount === 1, String(m?.attachmentCount));
 check('subscriber resolved the child attachment rows', m?.attachments?.length === 1,

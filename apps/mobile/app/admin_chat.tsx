@@ -1,8 +1,11 @@
-// M1 Chat (Student view) — ported from screens-chat.jsx (Chat, perspective="student").
-// Full conversation thread with a tutor: text + image/file attachments.
-// Wired to @noot/core messaging: the conversation with booking.tutor is
-// loaded/created on mount, messages are fetched + streamed live, and the
-// composer sends text and/or attachments through the API.
+// Admin team chat — the one group thread shared by every admin account.
+// Reached from the gated Admin panel (admin_home). Unlike M1/M2, this is a GROUP thread:
+// there's no single counterpart, so each incoming message carries its sender's avatar and
+// name. Consecutive messages from the same person collapse into one labelled block.
+//
+// Backed by the same conversations/messages/attachments tables as the 1:1 chats (migration
+// 0024 adds conversations.kind='admin'), so attachments, live delivery and RLS all come from
+// the shared plumbing rather than a second implementation.
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -20,15 +23,19 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ic, Avatar, useTheme, type IconName } from '@noot/ui';
-import { api, auth, type Message as ApiMessage, type OutgoingAttachment } from '@noot/core';
-import { useApp } from '../lib/store';
-import { NoSession } from '../lib/NoSession';
+import {
+  api,
+  auth,
+  type ChatParticipant,
+  type Message as ApiMessage,
+  type OutgoingAttachment,
+} from '@noot/core';
+import { useMe } from '../lib/useMe';
 import { pickAndUploadChatAttachment } from '../lib/chatAttachments';
 import { useAttachmentUrls } from '../lib/useAttachmentUrls';
 import { separatorLabel } from '../lib/chatTime';
 import { errText } from '../lib/errText';
 
-type Who = 'student' | 'tutor';
 type AttachKind = 'image' | 'file';
 
 interface Attachment {
@@ -41,18 +48,18 @@ interface Attachment {
 
 interface Message {
   id: string;
-  who: Who;
+  senderId: string;
+  mine: boolean;
   text?: string;
   attach?: Attachment[];
   createdAt: string;
 }
 
-// @noot/core Message → the local bubble shape. `mineWho`/`otherWho` place the
-// bubble on the correct side by comparing the sender to the signed-in user.
-function toLocal(m: ApiMessage, uid: string | null, mineWho: Who, otherWho: Who): Message {
+function toLocal(m: ApiMessage, uid: string | null): Message {
   return {
     id: m.id,
-    who: m.senderId === uid ? mineWho : otherWho,
+    senderId: m.senderId,
+    mine: m.senderId === uid,
     // '' for an attachment-only message — Bubble skips the text bubble entirely.
     text: m.content || undefined,
     attach: m.attachments?.map((a) => ({
@@ -76,68 +83,88 @@ function fmtSize(b: number): string {
   return `${(b / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export default function Chat() {
-  const { booking } = useApp();
-  if (!booking.tutor) {
-    return <NoSession title="No conversation yet" subtitle="Open a chat from one of your sessions or a tutor's profile." />;
-  }
-  return <ChatInner />;
+function displayName(p: ChatParticipant | undefined): string {
+  if (!p) return 'Admin';
+  return `${p.firstName} ${p.lastName}`.trim() || 'Admin';
 }
 
-function ChatInner() {
+export default function AdminChat() {
+  const router = useRouter();
+  const { me, loading } = useMe();
+  const isAdmin = !!me?.roles?.includes('admin');
+
+  // Defense-in-depth, same as admin_home: RLS is the real gate — a non-admin can't read or
+  // post in the room regardless of what the client renders.
+  if (!loading && me && !isAdmin) {
+    router.replace('/home');
+    return null;
+  }
+  return <AdminChatInner />;
+}
+
+function AdminChatInner() {
   const t = useTheme();
   const router = useRouter();
-  const { booking } = useApp();
-  const perspective: Who = 'student';
-
-  // Counterpart tutor comes from the booking draft (set by sessions/b5/home before navigating here).
-  const tutor = booking.tutor!;
-  const tutorId = tutor.id;
-  const other = tutor.name;
-  const otherSub = `${tutor.year} · ${tutor.major}`;
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [people, setPeople] = useState<Record<string, ChatParticipant>>({});
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState<OutgoingAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
-  // Every attachment on screen (sent + staged) needs a signed URL — the bucket is private.
   const urls = useAttachmentUrls([
     ...messages.flatMap((m) => m.attach?.map((a) => a.storagePath) ?? []),
     ...pending.map((a) => a.storagePath),
   ]);
 
-  // Load/create the conversation, fetch its messages, and stream live ones.
+  // Resolve any sender we haven't got a name/avatar for yet (new admin joins the thread,
+  // or a live message arrives from someone not in the initial batch).
+  const learnSenders = React.useCallback(async (ids: string[]) => {
+    setPeople((prev) => {
+      const missing = ids.filter((id) => id && !prev[id]);
+      if (missing.length) {
+        api.chat
+          .listParticipants(missing)
+          .then((found) => setPeople((cur) => ({ ...cur, ...found })))
+          .catch(() => {});
+      }
+      return prev;
+    });
+  }, []);
+
   useEffect(() => {
     let active = true;
     let unsub = () => {};
     (async () => {
       try {
         const me = await auth.getSessionUserId();
-        const conv = await api.chat.getOrCreateConversation(tutorId);
+        const room = await api.chat.getAdminRoom();
         if (!active) return;
         setUid(me);
-        setConvId(conv.id);
-        const initial = await api.chat.listMessages(conv.id);
+        setConvId(room.id);
+
+        const initial = await api.chat.listMessages(room.id);
         if (!active) return;
-        setMessages(initial.map((m) => toLocal(m, me, 'student', 'tutor')));
-        unsub = api.chat.subscribe(conv.id, (m) =>
-          setMessages((prev) =>
-            prev.some((p) => p.id === m.id) ? prev : [...prev, toLocal(m, me, 'student', 'tutor')],
-          ),
-        );
-      } catch {
-        // No session / backend unavailable → gentle empty thread.
+        setMessages(initial.map((m) => toLocal(m, me)));
+        void learnSenders(initial.map((m) => m.senderId));
+
+        unsub = api.chat.subscribe(room.id, (m) => {
+          void learnSenders([m.senderId]);
+          setMessages((prev) => (prev.some((p) => p.id === m.id) ? prev : [...prev, toLocal(m, me)]));
+        });
+      } catch (e) {
+        if (active) setError(errText(e, 'Could not open the admin chat.'));
       }
     })();
     return () => {
       active = false;
       unsub();
     };
-  }, [tutorId]);
+  }, [learnSenders]);
 
   const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading;
 
@@ -162,21 +189,12 @@ function ChatInner() {
     setPending([]);
     try {
       const created = await api.chat.sendMessage(convId, text, attachments);
-      // Append optimistically; the live subscription guards against a duplicate.
-      setMessages((prev) =>
-        prev.some((p) => p.id === created.id) ? prev : [...prev, toLocal(created, uid, 'student', 'tutor')],
-      );
+      setMessages((prev) => (prev.some((p) => p.id === created.id) ? prev : [...prev, toLocal(created, uid)]));
     } catch (e) {
-      // Restore the draft so a failed send doesn't silently discard what they wrote/attached.
       setDraft(text);
       setPending(attachments);
       Alert.alert('Message not sent', errText(e, 'Please try again.'));
     }
-  };
-
-  const notify = () => {
-    // TODO(api): real notification center, backed by @noot/core.
-    Alert.alert('Notifications', 'Built with backend.');
   };
 
   return (
@@ -191,15 +209,17 @@ function ChatInner() {
             <Ic name="back" size={24} color={t.accent} strokeWidth={2.4} />
           </Pressable>
           <View style={styles.navCenter}>
-            <Avatar size={34} label={other[0]} />
+            <View style={[styles.roomIcon, { backgroundColor: t.accentWeak }]}>
+              <Ic name="user" size={18} color={t.accent} strokeWidth={1.9} />
+            </View>
             <View style={{ minWidth: 0 }}>
-              <Text numberOfLines={1} style={[styles.navName, { color: t.text }]}>{other}</Text>
-              <Text numberOfLines={1} style={[styles.navSub, { color: t.text3 }]}>{otherSub}</Text>
+              <Text numberOfLines={1} style={[styles.navName, { color: t.text }]}>Admin team</Text>
+              <Text numberOfLines={1} style={[styles.navSub, { color: t.text3 }]}>
+                Everyone with an admin account
+              </Text>
             </View>
           </View>
-          <Pressable onPress={notify} hitSlop={8} style={[styles.navSide, styles.navSideEnd]}>
-            <Ic name="bell" size={20} color={t.text2} strokeWidth={1.8} />
-          </Pressable>
+          <View style={styles.navSide} />
         </View>
 
         <ScrollView
@@ -209,17 +229,30 @@ function ChatInner() {
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={[styles.threadHint, { color: t.text3 }]}>
-            This is your full conversation with {other.split(' ')[0]}.
-          </Text>
+          {error ? (
+            <Text style={[styles.threadHint, { color: t.text3 }]}>{error}</Text>
+          ) : (
+            <Text style={[styles.threadHint, { color: t.text3 }]}>
+              Private to the admin team. Everyone with an admin account sees this thread.
+            </Text>
+          )}
 
           {messages.map((m, i) => {
-            const mine = m.who === perspective;
-            const label = separatorLabel(m.createdAt, messages[i - 1]?.createdAt);
+            const prev = messages[i - 1];
+            const label = separatorLabel(m.createdAt, prev?.createdAt);
+            // Repeat the sender header only when the speaker changes or a separator broke
+            // the run — a burst from one person reads as a single block.
+            const showSender = !m.mine && (!!label || prev?.senderId !== m.senderId);
             return (
               <React.Fragment key={m.id}>
                 {label && <Text style={[styles.timeLabel, { color: t.text3 }]}>{label}</Text>}
-                <Bubble mine={mine} m={m} urls={urls} />
+                <Row
+                  m={m}
+                  sender={people[m.senderId]}
+                  showSender={showSender}
+                  showAvatar={!m.mine}
+                  urls={urls}
+                />
               </React.Fragment>
             );
           })}
@@ -256,7 +289,7 @@ function ChatInner() {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              placeholder={`Message ${other.split(' ')[0]}…`}
+              placeholder="Message the admin team…"
               placeholderTextColor={t.text3}
               multiline
               style={[styles.input, { color: t.text }]}
@@ -277,23 +310,46 @@ function ChatInner() {
   );
 }
 
-function Bubble({ mine, m, urls }: { mine: boolean; m: Message; urls: Record<string, string> }) {
+// One message row: gutter avatar for other people, bubble column with an optional name label.
+function Row({
+  m,
+  sender,
+  showSender,
+  showAvatar,
+  urls,
+}: {
+  m: Message;
+  sender?: ChatParticipant;
+  showSender: boolean;
+  showAvatar: boolean;
+  urls: Record<string, string>;
+}) {
   const t = useTheme();
+  const name = displayName(sender);
   return (
-    <View style={[styles.bubbleWrap, { alignSelf: mine ? 'flex-end' : 'flex-start', alignItems: mine ? 'flex-end' : 'flex-start' }]}>
-      {m.attach?.map((a, i) => <AttachView key={i} a={a} mine={mine} url={urls[a.storagePath]} />)}
-      {m.text ? (
-        <View
-          style={[
-            styles.bubble,
-            mine
-              ? { borderTopLeftRadius: 16, borderTopRightRadius: 16, borderBottomLeftRadius: 16, borderBottomRightRadius: 4, backgroundColor: t.accent }
-              : { borderTopLeftRadius: 16, borderTopRightRadius: 16, borderBottomLeftRadius: 4, borderBottomRightRadius: 16, backgroundColor: t.surface2 },
-          ]}
-        >
-          <Text style={{ color: mine ? t.onAccent : t.text, fontSize: 15, lineHeight: 21 }}>{m.text}</Text>
+    <View style={[styles.row, { justifyContent: m.mine ? 'flex-end' : 'flex-start' }]}>
+      {showAvatar && (
+        // Keep the gutter even when the avatar is hidden, so a run of messages stays aligned.
+        <View style={styles.gutter}>
+          {showSender && <Avatar size={28} label={name[0]} uri={sender?.avatarUrl} />}
         </View>
-      ) : null}
+      )}
+      <View style={[styles.bubbleWrap, { alignItems: m.mine ? 'flex-end' : 'flex-start' }]}>
+        {showSender && <Text style={[styles.senderName, { color: t.text3 }]}>{name}</Text>}
+        {m.attach?.map((a, i) => <AttachView key={i} a={a} mine={m.mine} url={urls[a.storagePath]} />)}
+        {m.text ? (
+          <View
+            style={[
+              styles.bubble,
+              m.mine
+                ? { borderTopLeftRadius: 16, borderTopRightRadius: 16, borderBottomLeftRadius: 16, borderBottomRightRadius: 4, backgroundColor: t.accent }
+                : { borderTopLeftRadius: 16, borderTopRightRadius: 16, borderBottomLeftRadius: 4, borderBottomRightRadius: 16, backgroundColor: t.surface2 },
+            ]}
+          >
+            <Text style={{ color: m.mine ? t.onAccent : t.text, fontSize: 15, lineHeight: 21 }}>{m.text}</Text>
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -351,16 +407,19 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   nav: { flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingHorizontal: 8, paddingVertical: 6, gap: 4 },
   navSide: { width: 48, justifyContent: 'center' },
-  navSideEnd: { alignItems: 'flex-end' },
   navCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   navName: { fontSize: 15, fontWeight: '700', lineHeight: 18 },
   navSub: { fontSize: 11.5 },
+  roomIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
 
   thread: { flexGrow: 1, padding: 16, paddingTop: 14, paddingBottom: 8, gap: 8 },
   threadHint: { textAlign: 'center', fontSize: 11.5, marginBottom: 6 },
   timeLabel: { textAlign: 'center', fontSize: 11, marginTop: 8, marginBottom: 2 },
 
-  bubbleWrap: { maxWidth: '80%', gap: 5 },
+  row: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  gutter: { width: 28 },
+  bubbleWrap: { maxWidth: '78%', gap: 5 },
+  senderName: { fontSize: 11.5, fontWeight: '600', marginBottom: 1, paddingHorizontal: 2 },
   bubble: { paddingHorizontal: 13, paddingVertical: 9 },
 
   attachView: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 14 },

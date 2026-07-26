@@ -53,6 +53,16 @@ const AVAIL = [
 
 const DEV_STUDENT = ['student@crimson.ua.edu', 'Lindsay', 'Carter', 'Sophomore', 'Undecided', 'f'];
 
+// Admin accounts. Without at least one of these the Admin panel is unreachable locally (the
+// entry point is gated on roles.includes('admin')), and the admin team chat needs two to be
+// worth looking at. The 'admin' role can only be granted with the service role — RLS blocks
+// clients from writing it, which is why it's seeded here rather than in-app.
+// [email, first, last]
+const ADMINS = [
+  ['admin@crimson.ua.edu', 'Jordan', 'Blake'],
+  ['admin2@crimson.ua.edu', 'Riley', 'Chen'],
+];
+
 async function existingIdByEmail() {
   const map = new Map();
   let page = 1;
@@ -103,4 +113,16 @@ const sid = await ensureUser(se);
 await admin.from('users').update({ first_name: sf, last_name: sl, year: sy, major: sm, gender: sg }).eq('id', sid);
 console.log(`✅ dev student ${se}`);
 for (let i = 0; i < TUTORS.length; i++) await seedTutor(TUTORS[i], i);
-console.log(`\nDone. Dev login — student: ${se} · tutor: ${TUTORS[0][0]} · password: ${PASSWORD}`);
+
+for (const [ae, af, al] of ADMINS) {
+  const aid = await ensureUser(ae);
+  const nameRes = await admin.from('users').update({ first_name: af, last_name: al }).eq('id', aid);
+  if (nameRes.error) throw new Error(`${ae} users: ${nameRes.error.message}`);
+  const roleRes = await admin
+    .from('user_roles')
+    .upsert({ user_id: aid, role: 'admin' }, { onConflict: 'user_id,role' });
+  if (roleRes.error) throw new Error(`${ae} role: ${roleRes.error.message}`);
+  console.log(`✅ admin ${ae}`);
+}
+
+console.log(`\nDone. Dev login — student: ${se} · tutor: ${TUTORS[0][0]} · admin: ${ADMINS[0][0]} · password: ${PASSWORD}`);

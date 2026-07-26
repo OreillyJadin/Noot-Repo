@@ -27,6 +27,8 @@ import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
 import { pickAndUploadChatAttachment } from '../lib/chatAttachments';
 import { useAttachmentUrls } from '../lib/useAttachmentUrls';
+import { separatorLabel } from '../lib/chatTime';
+import { errText } from '../lib/errText';
 
 type Who = 'student' | 'tutor';
 type AttachKind = 'image' | 'file';
@@ -44,16 +46,7 @@ interface Message {
   who: Who;
   text?: string;
   attach?: Attachment[];
-  time: string;
-}
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-// Group-header label for a message (mirrors the prototype's per-day dividers).
-function timeLabel(iso: string): string {
-  const d = new Date(iso);
-  if (d.toDateString() === new Date().toDateString()) return 'Today';
-  return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  createdAt: string;
 }
 
 // @noot/core Message → the local bubble shape. `mineWho`/`otherWho` place the
@@ -70,7 +63,7 @@ function toLocal(m: ApiMessage, uid: string | null, mineWho: Who, otherWho: Who)
       size: a.sizeBytes ?? undefined,
       storagePath: a.storagePath,
     })),
-    time: timeLabel(m.createdAt),
+    createdAt: m.createdAt,
   };
 }
 
@@ -180,7 +173,7 @@ function ChatTutorInner() {
       // Restore the draft so a failed send doesn't silently discard what they wrote/attached.
       setDraft(text);
       setPending(attachments);
-      Alert.alert('Message not sent', e instanceof Error ? e.message : 'Please try again.');
+      Alert.alert('Message not sent', errText(e, 'Please try again.'));
     }
   };
 
@@ -225,11 +218,10 @@ function ChatTutorInner() {
 
           {messages.map((m, i) => {
             const mine = m.who === perspective;
-            const prev = messages[i - 1];
-            const showTime = !prev || prev.time !== m.time;
+            const label = separatorLabel(m.createdAt, messages[i - 1]?.createdAt);
             return (
               <React.Fragment key={m.id}>
-                {showTime && <Text style={[styles.timeLabel, { color: t.text3 }]}>{m.time}</Text>}
+                {label && <Text style={[styles.timeLabel, { color: t.text3 }]}>{label}</Text>}
                 <Bubble mine={mine} m={m} urls={urls} />
               </React.Fragment>
             );

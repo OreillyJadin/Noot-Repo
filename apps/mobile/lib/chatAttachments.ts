@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { api, type OutgoingAttachment } from '@noot/core';
 import { readUriBytes } from './bytes';
+import { errText } from './errText';
 
 /** Mirrors the bucket's file_size_limit (migration 0021) — checked here for a kind message. */
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -84,7 +85,7 @@ export async function pickAndUploadChatAttachment(
     }
     return await api.chat.uploadAttachment(conversationId, bytes, picked.name, picked.mimeType);
   } catch (e) {
-    Alert.alert('Attachment failed', e instanceof Error ? e.message : 'Please try again.');
+    Alert.alert('Attachment failed', errText(e, 'Please try again.'));
     return null;
   }
 }
