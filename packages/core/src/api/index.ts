@@ -96,6 +96,95 @@ async function requireUid(): Promise<string> {
   return uid;
 }
 
+/** The signed-in user's id + email, or throw. Storage paths are keyed off both. */
+async function requireUser(): Promise<{ uid: string; email: string }> {
+  const {
+    data: { session },
+  } = await getSupabase().auth.getSession();
+  const uid = session?.user.id;
+  if (!uid) throw new Error('Not authenticated');
+  return { uid, email: session?.user.email ?? '' };
+}
+
+/**
+ * A file name derived from the user's email, so a human browsing the bucket can tell whose
+ * file it is: `sara@crimson.ua.edu` → `sara_at_crimson.ua.edu`. Falls back to "avatar" for
+ * a session with no email (phone-only sign-in).
+ */
+function emailFileName(email: string): string {
+  const slug = email
+    .trim()
+    .toLowerCase()
+    .replace('@', '_at_')
+    .replace(/[^a-z0-9._-]/g, '-')
+    .replace(/^[-._]+|[-._]+$/g, '');
+  return slug || 'avatar';
+}
+
+/** Storage needs an explicit contentType when the body is raw bytes (no Blob.type to read). */
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: 'application/pdf',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+};
+
+/** Bytes in an upload body — used to reject empty files before they hit Storage. */
+function byteLength(data: Blob | ArrayBuffer | Uint8Array): number {
+  if (data instanceof Uint8Array || data instanceof ArrayBuffer) return data.byteLength;
+  return data.size;
+}
+
+/**
+ * Write bytes to `{bucket}/{uid}/{email}.{ext}`, then delete anything else in that folder so
+ * each user keeps exactly one current file per bucket. The `{uid}` folder is load-bearing —
+ * the Storage RLS policies (0013 avatars, 0006 transcripts) authorize writes by comparing it
+ * to auth.uid(); the email is only the file name, to make the object identifiable in Studio.
+ *
+ * `data` must be real bytes. A React Native `Blob` is a handle to a native file, not its
+ * contents, so passing one writes a 0-byte object — callers decode to an ArrayBuffer first.
+ */
+async function putUserFile(
+  bucket: string,
+  data: Blob | ArrayBuffer | Uint8Array,
+  opts: { ext: string; fallbackExt: string; contentType?: string; label: string },
+): Promise<{ uid: string; path: string }> {
+  const { uid, email } = await requireUser();
+  if (!byteLength(data)) {
+    throw new Error(`That ${opts.label} came through empty — please pick it again.`);
+  }
+
+  const safeExt =
+    (opts.ext || opts.fallbackExt).replace(/[^a-z0-9]/gi, '').toLowerCase() || opts.fallbackExt;
+  const fileName = `${emailFileName(email)}.${safeExt}`;
+  const path = `${uid}/${fileName}`;
+  const type =
+    opts.contentType ||
+    (data instanceof Blob ? data.type : '') ||
+    MIME_BY_EXT[safeExt] ||
+    'application/octet-stream';
+
+  const sb = getSupabase();
+  const { error } = await sb.storage.from(bucket).upload(path, data, { upsert: true, contentType: type });
+  if (error) throw error;
+
+  // Drop any earlier file for this user (a legacy fixed name, a previous email, a different
+  // extension) so the folder doesn't accumulate. Best-effort — never fail the upload.
+  try {
+    const { data: existing } = await sb.storage.from(bucket).list(uid);
+    const stale = (existing ?? []).map((o) => o.name).filter((n) => n !== fileName);
+    if (stale.length) await sb.storage.from(bucket).remove(stale.map((n) => `${uid}/${n}`));
+  } catch {
+    /* leftover files are harmless */
+  }
+
+  return { uid, path };
+}
+
 /** numeric(10,2) columns arrive as string|number depending on the driver — normalize. */
 function num(v: unknown): number {
   return v == null ? 0 : Number(v);
@@ -346,18 +435,23 @@ export const api = {
     },
 
     /**
-     * Upload the tutor's transcript to the private `transcripts` bucket (under {uid}/) and
-     * record the storage path on tutor_profiles.transcript_url. Admins read it via a signed
-     * URL (listPendingTutors) — the file is never public. Returns the storage path.
+     * Upload the tutor's transcript to the private `transcripts` bucket as
+     * `{uid}/{email}.{ext}` and record the storage path on tutor_profiles.transcript_url.
+     * Admins read it via a signed URL (listPendingTutors) — the file is never public.
+     * Returns the storage path. `file` must be bytes, not an RN Blob (see putUserFile).
      */
-    async uploadTranscript(file: Blob, ext: string): Promise<string> {
-      const uid = await requireUid();
-      const safeExt = (ext || 'pdf').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'pdf';
-      const path = `${uid}/transcript.${safeExt}`;
-      const sb = getSupabase();
-      const { error } = await sb.storage.from('transcripts').upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { error: pErr } = await sb
+    async uploadTranscript(
+      file: Blob | ArrayBuffer | Uint8Array,
+      ext: string,
+      contentType?: string,
+    ): Promise<string> {
+      const { uid, path } = await putUserFile('transcripts', file, {
+        ext,
+        fallbackExt: 'pdf',
+        contentType,
+        label: 'transcript',
+      });
+      const { error: pErr } = await getSupabase()
         .from('tutor_profiles')
         .upsert({ user_id: uid, transcript_url: path }, { onConflict: 'user_id' });
       if (pErr) throw pErr;
@@ -365,19 +459,25 @@ export const api = {
     },
 
     /**
-     * Upload the signed-in user's profile photo to the public `avatars` bucket (under
-     * {uid}/) and record the resolved public URL on users.avatar_url. Returns the public
-     * URL (with a cache-busting query so an overwrite of the same path still refreshes).
+     * Upload the signed-in user's profile photo to the public `avatars` bucket and record the
+     * resolved public URL on users.avatar_url. Returns the public URL (with a cache-busting
+     * query so an overwrite of the same path still refreshes).
+     *
+     * Path is `{uid}/{email}.{ext}` — e.g. `beb9a0df-…/sara_at_crimson.ua.edu.jpg`. See
+     * putUserFile for why the {uid} folder stays and why `data` must be bytes, not an RN Blob.
      */
-    async uploadAvatar(file: Blob, ext: string): Promise<string> {
-      const uid = await requireUid();
-      const safeExt = (ext || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
-      const path = `${uid}/avatar.${safeExt}`;
+    async uploadAvatar(
+      data: Blob | ArrayBuffer | Uint8Array,
+      ext: string,
+      contentType?: string,
+    ): Promise<string> {
+      const { uid, path } = await putUserFile('avatars', data, {
+        ext,
+        fallbackExt: 'jpg',
+        contentType,
+        label: 'image',
+      });
       const sb = getSupabase();
-      const { error } = await sb.storage
-        .from('avatars')
-        .upload(path, file, { upsert: true, contentType: file.type || `image/${safeExt}` });
-      if (error) throw error;
       const { data: pub } = sb.storage.from('avatars').getPublicUrl(path);
       const url = `${pub.publicUrl}?v=${Date.now()}`;
       const { error: uErr } = await sb.from('users').update({ avatar_url: url }).eq('id', uid);

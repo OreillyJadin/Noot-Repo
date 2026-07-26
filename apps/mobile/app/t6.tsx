@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
+import { readUriBytes } from '../lib/bytes';
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -61,10 +62,12 @@ export default function T6() {
       if (res.canceled || !res.assets?.[0]) return;
       const asset = res.assets[0];
       setBusy(true);
-      const resp = await fetch(asset.uri);
-      const blob = await resp.blob();
+      // Read the actual bytes — `fetch(uri).blob()` yields a file-backed RN Blob that Storage
+      // writes as a 0-byte object.
+      const bytes = await readUriBytes(asset.uri);
+      if (bytes.byteLength === 0) throw new Error('That file came through empty.');
       const ext = asset.name?.split('.').pop() || 'pdf';
-      await api.profile.uploadTranscript(blob, ext);
+      await api.profile.uploadTranscript(bytes, ext, asset.mimeType);
       setUploaded(asset.name ?? `transcript.${ext}`);
     } catch (e) {
       Alert.alert('Upload failed', e instanceof Error ? e.message : 'Please try again.');
