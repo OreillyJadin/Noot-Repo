@@ -66,7 +66,7 @@ export default function Profile() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { role } = useApp();
-  const { me, loading } = useMe();
+  const { me, loading, tutorStatus } = useMe();
   const { dark, toggle: toggleDark, school, toggleSchool } = useThemePref();
 
   const displayName = fullName(me, 'Student');
@@ -97,7 +97,7 @@ export default function Profile() {
   ];
   const coursesSub = me?.courses?.length ? me.courses.join(', ') : 'Add the courses you’re taking';
 
-  const { roles, isAdmin, switchTo } = useRoleSwitch();
+  const { roles, previewRoles, isAdmin, switchTo } = useRoleSwitch();
   const becomeAmbassador = async () => {
     try {
       await api.profile.addRole('ambassador');
@@ -154,9 +154,9 @@ export default function Profile() {
         </Card>
 
         {/* mode switcher — only shows if the user holds 2+ switchable roles */}
-        {roles.length > 1 ? (
+        {roles.length + previewRoles.length > 1 ? (
           <View style={{ marginTop: 16 }}>
-            <RoleSwitcher roles={roles} active={role} onSelect={switchTo} />
+            <RoleSwitcher roles={roles} previewRoles={previewRoles} active={role} onSelect={switchTo} />
           </View>
         ) : null}
 
@@ -191,14 +191,29 @@ export default function Profile() {
         </Card>
 
         {/* add roles you don't hold yet */}
-        {!roles.includes('tutor') ? (
-          <Card onPress={() => router.push('/t1')} style={styles.switchCard}>
+        {tutorStatus !== 'approved' ? (
+          <Card
+            onPress={() => (tutorStatus === 'pending' ? undefined : router.push('/t1'))}
+            style={styles.switchCard}
+          >
             <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
               <Ic name="cap" size={21} color={t.accent} strokeWidth={1.7} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.switchTitle, { color: t.text }]}>Become a tutor</Text>
-              <Text style={[styles.switchSub, { color: t.text3 }]}>Earn money helping classmates in courses you aced</Text>
+              <Text style={[styles.switchTitle, { color: t.text }]}>
+                {tutorStatus === 'pending'
+                  ? 'Tutor application in review'
+                  : tutorStatus === 'rejected'
+                    ? 'Tutor application not approved'
+                    : 'Become a tutor'}
+              </Text>
+              <Text style={[styles.switchSub, { color: t.text3 }]}>
+                {tutorStatus === 'pending'
+                  ? 'We’re verifying your grades — we’ll email you within 24 hours'
+                  : tutorStatus === 'rejected'
+                    ? 'Tap to review your details and apply again'
+                    : 'Earn money helping classmates in courses you aced'}
+              </Text>
             </View>
             <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
           </Card>

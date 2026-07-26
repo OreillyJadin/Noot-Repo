@@ -1,7 +1,12 @@
 // B1 Search Results — ported from design_handoff_noot_app/app/screens-booking.jsx (B1).
-// Live sort chips + a filter bottom sheet (price/availability/gender) narrow the tutor
-// list for the active course. Tapping a tutor saves it into the booking draft and opens B2.
-// Live data: tutors come from api.tutors.search({ course }) mapped via toTutor.
+// Live sort chips + a filter panel (price/availability/gender) narrow the tutor list.
+// Tapping a tutor saves it into the booking draft and opens B2.
+// Live data: tutors come from api.tutors.search({}) mapped via toTutor.
+//
+// Filters apply to the list as they change, and every active one shows as a removable chip
+// under the sort row. Previously the results array was hard-empty until you typed a query, so
+// adjusting a filter appeared to do nothing at all — that was the "filters don't update the
+// results" report, not a broken filter predicate.
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -72,8 +77,8 @@ export default function B1() {
   const [query, setQuery] = useState((q ?? '').toString());
 
   // All approved tutors, fetched once. The visible list is derived by live-filtering this
-  // set against `query` on the client — typing filters instantly with no per-keystroke
-  // round-trip, and an empty query shows nothing (a search prompt), not a default course.
+  // set against `query` + the filter panel on the client — typing filters instantly with no
+  // per-keystroke round-trip, and an empty query browses everyone rather than showing nothing.
   const [tutors, setTutors] = useState<Tutor[]>([]);
   // Real next-available per tutor: userId -> { dayIndex, label }, lazily filled for the
   // tutors actually shown (used for the "Next available" line + sorting).
@@ -95,13 +100,40 @@ export default function B1() {
   const [maxPrice, setMaxPrice] = useState(MAX_PRICE);
   const [avail, setAvail] = useState<AvailKey>('any');
   const [gender, setGender] = useState<GenderKey>('any');
-  const activeFilters =
-    (maxPrice < MAX_PRICE ? 1 : 0) + (avail !== 'any' ? 1 : 0) + (gender !== 'any' ? 1 : 0);
+  const clearFilters = () => {
+    setMaxPrice(MAX_PRICE);
+    setAvail('any');
+    setGender('any');
+  };
+  // One entry per non-default filter, each able to clear just itself.
+  const activeChips: { key: string; label: string; clear: () => void }[] = [
+    ...(maxPrice < MAX_PRICE
+      ? [{ key: 'price', label: `Under $${maxPrice}/hr`, clear: () => setMaxPrice(MAX_PRICE) }]
+      : []),
+    ...(avail !== 'any'
+      ? [{
+          key: 'avail',
+          label: AVAILS.find(([v]) => v === avail)?.[1] ?? 'Availability',
+          clear: () => setAvail('any'),
+        }]
+      : []),
+    ...(gender !== 'any'
+      ? [{
+          key: 'gender',
+          label: GENDERS.find(([v]) => v === gender)?.[1] ?? 'Gender',
+          clear: () => setGender('any'),
+        }]
+      : []),
+  ];
+  const activeFilters = activeChips.length;
 
   const trimmed = query.trim();
-  // Tutors whose name or any course code matches the query. Empty query → no matches.
+  // Tutors whose name or any course code matches the query. An EMPTY query now means
+  // "everyone" rather than "nobody": the filter panel was previously inert because the list
+  // it filters was hard-empty until you typed something, so changing price/availability/
+  // gender visibly did nothing. Browsing with filters only is a real way to search.
   const matched = useMemo(
-    () => (trimmed ? tutors.filter((tt) => tutorMatches(tt, trimmed)) : []),
+    () => (trimmed ? tutors.filter((tt) => tutorMatches(tt, trimmed)) : tutors),
     [tutors, trimmed],
   );
 
@@ -153,10 +185,16 @@ export default function B1() {
               onChangeText={setQuery}
               placeholder="Search a course or tutor"
               placeholderTextColor={t.text3}
-              autoFocus={!trimmed}
+              // Don't steal focus when the user arrived to work the filter panel — popping
+              // the keyboard over the results is the "interrupts the search" complaint.
+              autoFocus={!trimmed && filters !== '1'}
               autoCorrect={false}
-              autoCapitalize="characters"
+              // Matching is case-insensitive (tutorMatches lowercases both sides), so forcing
+              // ALL CAPS only made typing a tutor's name feel broken.
+              autoCapitalize="none"
               returnKeyType="search"
+              submitBehavior="blurAndSubmit"
+              clearButtonMode="never"
               accessibilityLabel="Search tutors by course or name"
             />
             {trimmed ? (
@@ -169,7 +207,14 @@ export default function B1() {
       </View>
 
       <View style={styles.sortBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortScroll}>
+        {/* keyboardShouldPersistTaps: without it the first tap on a sort chip only dismisses
+            the keyboard (the results list already persists taps) — the inconsistency users hit. */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.sortScroll}
+          keyboardShouldPersistTaps="handled"
+        >
           {SORTS.map(([k, l]) => (
             <Chip key={k} label={l} on={sort === k} onPress={() => setSort(k)} />
           ))}
@@ -188,11 +233,42 @@ export default function B1() {
         </Pressable>
       </View>
 
+      {/* Active filters as individually removable chips. The panel itself is a modal, so
+          while it's open you can't watch the list change behind it — these keep every active
+          filter visible and undoable from the results screen, one tap each. */}
+      {activeChips.length > 0 ? (
+        <View style={styles.activeBar}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.activeScroll}
+            keyboardShouldPersistTaps="handled"
+          >
+            {activeChips.map((c) => (
+              <Pressable
+                key={c.key}
+                onPress={c.clear}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove filter ${c.label}`}
+                style={[styles.activeChip, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}
+              >
+                <Text style={[styles.activeChipLabel, { color: t.accent }]}>{c.label}</Text>
+                <Ic name="x" size={12} color={t.accent} strokeWidth={2.6} />
+              </Pressable>
+            ))}
+            <Pressable onPress={clearFilters} accessibilityRole="button" style={styles.clearAll} hitSlop={6}>
+              <Text style={[styles.clearAllLabel, { color: t.text3 }]}>Clear all</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+      ) : null}
+
       <Body pad={16} contentStyle={{ paddingTop: 4 }}>
-        {trimmed ? (
+        {!loading ? (
           <Text style={{ fontSize: 13, color: t.text3, marginBottom: 12 }}>
             <Text style={{ color: t.text2, fontWeight: '700' }}>{list.length}</Text> verified tutor
-            {list.length !== 1 ? 's' : ''} for “{trimmed}”
+            {list.length !== 1 ? 's' : ''}
+            {trimmed ? ` for “${trimmed}”` : activeChips.length ? ' match your filters' : ' available'}
           </Text>
         ) : null}
 
@@ -240,11 +316,13 @@ export default function B1() {
             <View style={styles.empty}>
               <Ic name="search" size={28} color={t.text3} strokeWidth={1.6} />
               <Text style={{ marginTop: 10, fontSize: 15, color: t.text3, textAlign: 'center' }}>
-                {!trimmed
-                  ? 'Search for a course or a tutor’s name to find tutors.'
-                  : loading
-                    ? 'Loading tutors…'
-                    : `No tutors found for “${trimmed}”.`}
+                {loading
+                  ? 'Loading tutors…'
+                  : trimmed
+                    ? `No tutors found for “${trimmed}”.`
+                    : activeFilters
+                      ? 'No tutors match these filters. Try removing one.'
+                      : 'No tutors are available yet.'}
               </Text>
             </View>
           )}
@@ -262,11 +340,7 @@ export default function B1() {
               kind="secondary"
               size="md"
               style={{ flex: 1 }}
-              onPress={() => {
-                setMaxPrice(MAX_PRICE);
-                setAvail('any');
-                setGender('any');
-              }}
+              onPress={clearFilters}
             />
             <Button
               label={`Show ${list.length} tutors`}
@@ -348,7 +422,11 @@ function BottomSheet({
               <Ic name="x" size={16} color={t.text2} strokeWidth={2} />
             </Pressable>
           </View>
-          <ScrollView style={styles.sheetBody} contentContainerStyle={{ paddingBottom: 8 }}>
+          <ScrollView
+            style={styles.sheetBody}
+            contentContainerStyle={{ paddingBottom: 8 }}
+            keyboardShouldPersistTaps="handled"
+          >
             {children}
           </ScrollView>
           {footer ? (
@@ -388,6 +466,12 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 15, fontWeight: '600', padding: 0 },
   sortBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
+  activeBar: { paddingHorizontal: 16, paddingBottom: 6 },
+  activeScroll: { gap: 6, alignItems: 'center', paddingRight: 4 },
+  activeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
+  activeChipLabel: { fontSize: 12.5, fontWeight: '600' },
+  clearAll: { paddingHorizontal: 8, paddingVertical: 6 },
+  clearAllLabel: { fontSize: 12.5, fontWeight: '600', textDecorationLine: 'underline' },
   sortScroll: { flexDirection: 'row', gap: 7, flexGrow: 1 },
   filterBtn: {
     flexDirection: 'row',

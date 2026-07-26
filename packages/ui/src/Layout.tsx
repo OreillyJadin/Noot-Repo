@@ -56,7 +56,11 @@ export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
       ref={ref}
       style={styles.bodyScroll}
       contentContainerStyle={[{ padding: pad, paddingTop: 4, gap: 14 }, contentStyle]}
+      // persistTaps: a control under the keyboard responds on the FIRST tap instead of the
+      // tap being swallowed to dismiss. dismissMode: scrolling the page puts the keyboard
+      // away, so a search list can be browsed without reaching for "done".
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
     >
       {children}
     </ScrollView>

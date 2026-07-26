@@ -11,6 +11,7 @@ import { StripeProvider } from '@stripe/stripe-react-native';
 import Constants from 'expo-constants';
 import { initSupabase } from '@noot/core';
 import { AppProvider } from '../lib/store';
+import { MeProvider } from '../lib/useMe';
 import { AuthGate } from '../lib/AuthGate';
 import { largeSecureStore } from '../lib/secureStorage';
 import { ThemePrefProvider, useThemePref } from '../lib/themePref';
@@ -38,6 +39,7 @@ function ThemedApp() {
   const inExpoGo = Constants.appOwnership === 'expo';
   const tree = (
     <AppProvider>
+      <MeProvider>
       <StatusBar style={dark ? 'light' : 'dark'} />
         <AuthGate>
           {/* Tab roots cross-fade instead of the jerky horizontal slide; drill-down
@@ -61,6 +63,7 @@ function ThemedApp() {
             <Stack.Screen name="admin_reviews" options={{ animation: 'fade' }} />
           </Stack>
         </AuthGate>
+      </MeProvider>
     </AppProvider>
   );
   return (

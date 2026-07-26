@@ -13,7 +13,7 @@ export { Toggle, type ToggleProps } from './Toggle';
 export { Divider, ProgressDots, Stepper, type ProgressDotsProps, type StepperProps } from './Misc';
 export { Screen, NavTop, Body, ActionBar, type NavTopProps, type BodyProps } from './Layout';
 export { TabBar, type TabBarProps } from './TabBar';
-export { RoleSwitcher, ViewingAs, type RoleSwitcherProps, type SwitchableRole } from './RoleSwitcher';
+export { RoleSwitcher, ViewingAs, PreviewBanner, type RoleSwitcherProps, type PreviewBannerProps, type SwitchableRole } from './RoleSwitcher';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { Skeleton, type SkeletonProps } from './Skeleton';
 export { Wordmark, HeroIcon, type WordmarkProps, type HeroIconProps } from './Brand';

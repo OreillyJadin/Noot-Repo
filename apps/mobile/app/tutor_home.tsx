@@ -5,13 +5,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, ViewingAs, useTheme, type IconName } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, ViewingAs, PreviewBanner, useTheme, type IconName } from '@noot/ui';
 import { api, type Booking, type Message } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { GeckoLogo } from '../lib/GeckoLogo';
 import { NotificationBell } from '../lib/NotificationBell';
+import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 
 // Chat-list preview. An attachment-only message has content '' — describe it rather than
 // rendering a blank row.
@@ -92,8 +93,12 @@ export default function TutorHome() {
   const t = useTheme();
   const router = useRouter();
   const { role } = useApp();
-  const { me, loading } = useMe();
+  const { me, loading, tutorStatus } = useMe();
   const multiRole = (me?.roles ?? []).filter((r) => r === 'student' || r === 'tutor' || r === 'ambassador').length > 1;
+  // Reachable before approval (via the switcher, or straight off T10). Branch on the
+  // APPLICATION state, not the role: the tutor role only lands when an admin approves, so a
+  // role check would keep saying "preview" to someone who is already a verified tutor.
+  const previewing = tutorStatus !== 'approved';
 
   // Next confirmed, future session (as tutor OR student) from the live API.
   const [next, setNext] = useState<Booking | null>(null);
@@ -140,7 +145,8 @@ export default function TutorHome() {
         <View style={styles.headerTop}>
           <Wordmark size={22} />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Badge label="✓ Verified" tone="good" />
+            {tutorStatus === 'approved' ? <Badge label="✓ Verified" tone="good" /> : null}
+            {tutorStatus === 'pending' ? <Badge label="In review" tone="accentSoft" /> : null}
             <NotificationBell />
           </View>
         </View>
@@ -151,14 +157,16 @@ export default function TutorHome() {
           </View>
           <GeckoLogo size={40} />
         </View>
-        {multiRole ? (
+        {multiRole || previewing ? (
           <View style={{ marginTop: 10 }}>
-            <ViewingAs role="tutor" />
+            <ViewingAs role="tutor" preview={previewing} />
           </View>
         ) : null}
       </View>
 
       <Body ref={scrollRef} contentStyle={{ paddingTop: 8 }}>
+        {previewing ? <TutorStatusBanner status={tutorStatus} onApply={() => router.push('/t1')} /> : null}
+
         {/* Next session + payout — real upcoming booking, or a CTA when there's none */}
         {next ? (
           <View style={[styles.nextCard, { backgroundColor: t.accent }]}>

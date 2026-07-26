@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, EmptyState, ViewingAs, useTheme, type BadgeTone } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, EmptyState, ViewingAs, PreviewBanner, useTheme, type BadgeTone } from '@noot/ui';
 import { api, type AmbassadorReferrals } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
@@ -40,6 +40,7 @@ export default function AmbassadorHome() {
     return () => { alive = false; };
   }, []);
 
+  const previewing = !(me?.roles ?? []).includes('ambassador');
   const totals = data?.totals;
   const referrals = data?.referrals ?? [];
 
@@ -48,7 +49,7 @@ export default function AmbassadorHome() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Wordmark size={22} />
-          <ViewingAs role="ambassador" />
+          <ViewingAs role="ambassador" preview={previewing} />
         </View>
         <View style={styles.welcomeRow}>
           <View>

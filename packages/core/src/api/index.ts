@@ -525,6 +525,27 @@ export const api = {
       return url;
     },
 
+    /**
+     * Where the signed-in user stands as a tutor. 'none' means they've never applied (no
+     * tutor_profiles row); otherwise it's the review state of their application.
+     *
+     * This — NOT user_roles — is the signal the UI should branch on. The tutor role is only
+     * granted once an admin approves (approve-tutor), so before that a real applicant holds
+     * no tutor role at all and a role check can't tell "never applied" from "in review".
+     * tutor_profiles_select (0002) already lets a user read their own row.
+     */
+    async getTutorStatus(): Promise<'none' | 'pending' | 'approved' | 'rejected'> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('tutor_profiles')
+        .select('approval_status')
+        .eq('user_id', uid)
+        .maybeSingle();
+      if (error) throw error;
+      const s = data?.approval_status;
+      return s === 'approved' || s === 'pending' || s === 'rejected' ? s : 'none';
+    },
+
     /** Create/update the signed-in user's tutor profile (edit_tutor). Upsert on user_id. */
     async updateTutorProfile(patch: {
       bio?: string;

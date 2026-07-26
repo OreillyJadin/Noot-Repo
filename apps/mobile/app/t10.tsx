@@ -6,6 +6,7 @@ import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, HeroIcon, H1, Sub, Eyebrow, Ic, useTheme, type IconName } from '@noot/ui';
+import { useApp } from '../lib/store';
 
 const TASKS: [IconName, string][] = [
   ['user', 'Set notification preferences'],
@@ -17,6 +18,18 @@ export default function T10() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { setRole } = useApp();
+
+  // Enter TUTOR MODE, not just the tutor dashboard route. Without this the app's `role`
+  // stayed 'student' while sitting on /tutor_home, so <TabBar> rendered the STUDENT tab set
+  // (Home -> /home) and the very next tap on Home threw the new tutor back into Student mode.
+  // That was the reported "selecting Home returns you to Student Mode" bug. active_role isn't
+  // persisted here: the tutor role isn't granted until an admin approves the application, and
+  // the 0007 trigger would reject it — so this is a local mode switch until approval lands.
+  const openDashboard = () => {
+    setRole('tutor');
+    router.replace('/tutor_home');
+  };
 
   return (
     <Screen>
@@ -44,7 +57,7 @@ export default function T10() {
         </View>
       </Body>
       <ActionBar>
-        <Button label="Go to dashboard" kind="secondary" full onPress={() => router.replace('/tutor_home')} />
+        <Button label="Go to dashboard" kind="secondary" full onPress={openDashboard} />
       </ActionBar>
     </Screen>
   );

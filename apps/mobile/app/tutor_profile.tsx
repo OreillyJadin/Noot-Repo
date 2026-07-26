@@ -13,6 +13,7 @@ import { useMe, fullName, firstName } from '../lib/useMe';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
 import { useRoleSwitch } from '../lib/useRoleSwitch';
+import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import * as WebBrowser from 'expo-web-browser';
 
@@ -67,7 +68,7 @@ export default function TutorProfile() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { role } = useApp();
-  const { me, loading } = useMe();
+  const { me, loading, tutorStatus } = useMe();
   const { dark, toggle: toggleDark, school, toggleSchool } = useThemePref();
 
   const meName = fullName(me, 'Tutor');
@@ -126,7 +127,10 @@ export default function TutorProfile() {
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
 
-  const { roles, isAdmin, switchTo } = useRoleSwitch();
+  const { roles, previewRoles, isAdmin, switchTo } = useRoleSwitch();
+  // Reachable BEFORE the application is finished — that was the "can only access their tutor
+  // profile after completing the tutor application" report. Keyed on approval, not the role.
+  const previewing = tutorStatus !== 'approved';
   const becomeAmbassador = async () => {
     try {
       await api.profile.addRole('ambassador');
@@ -177,10 +181,16 @@ export default function TutorProfile() {
           </View>
         </Card>
 
-        {/* mode switcher — only shows if the user holds 2+ switchable roles */}
-        {roles.length > 1 ? (
+        {previewing ? (
+          <View style={{ marginTop: 4 }}>
+            <TutorStatusBanner status={tutorStatus} onApply={() => router.push('/t1')} />
+          </View>
+        ) : null}
+
+        {/* mode switcher — every mode, with the ones you haven't joined marked as preview */}
+        {roles.length + previewRoles.length > 1 ? (
           <View style={{ marginTop: 16 }}>
-            <RoleSwitcher roles={roles} active={role} onSelect={switchTo} />
+            <RoleSwitcher roles={roles} previewRoles={previewRoles} active={role} onSelect={switchTo} />
           </View>
         ) : null}
 
