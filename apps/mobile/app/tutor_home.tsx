@@ -6,12 +6,21 @@ import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, ViewingAs, useTheme, type IconName } from '@noot/ui';
-import { api, type Booking } from '@noot/core';
+import { api, type Booking, type Message } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { GeckoLogo } from '../lib/GeckoLogo';
 import { NotificationBell } from '../lib/NotificationBell';
+
+// Chat-list preview. An attachment-only message has content '' — describe it rather than
+// rendering a blank row.
+function messagePreview(m: Message | null | undefined): string {
+  if (!m) return 'Start the conversation';
+  if (m.content) return m.content;
+  if (m.attachmentCount > 0) return `📎 ${m.attachmentCount} attachment${m.attachmentCount > 1 ? 's' : ''}`;
+  return 'Start the conversation';
+}
 
 /** Booking scheduledAt (+ optional location) → "Tomorrow · 3:00 PM · Gorgas Library". */
 function sessionMeta(iso: string, location: string | null): string {
@@ -104,7 +113,7 @@ export default function TutorHome() {
         const c = cs[0];
         if (c) {
           const nm = `${c.counterpart.firstName} ${c.counterpart.lastName}`.trim() || 'Student';
-          setRecent({ name: nm, preview: c.lastMessage?.content ?? 'Start the conversation' });
+          setRecent({ name: nm, preview: messagePreview(c.lastMessage) });
         }
       })
       .catch(() => {});

@@ -193,18 +193,34 @@ export interface Message {
   id: UUID;
   conversationId: UUID;
   senderId: UUID;
+  /** May be '' for an attachment-only message — check `attachmentCount` before treating as empty. */
   content: string;
   readAt: Timestamp | null;
   createdAt: Timestamp;
+  /** Denormalized on the row, so a preview can be rendered without loading `attachments`. */
+  attachmentCount: number;
+  /** Present on reads that embed them (listMessages); absent on lightweight rows. */
   attachments?: MessageAttachment[];
 }
 
 export interface MessageAttachment {
   id: UUID;
   messageId: UUID;
+  /** Key in the private `chat-attachments` bucket — resolve with api.chat.attachmentUrls(). */
   storagePath: string;
   kind: 'image' | 'file';
   filename: string;
+  sizeBytes: number | null;
+  mimeType: string | null;
+}
+
+/** An attachment already uploaded to Storage, ready to be attached to a message. */
+export interface OutgoingAttachment {
+  storagePath: string;
+  kind: 'image' | 'file';
+  filename: string;
+  sizeBytes: number;
+  mimeType: string | null;
 }
 
 /** Admin-moderated — hidden from everyone until approvalStatus=approved. */

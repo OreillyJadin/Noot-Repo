@@ -3,14 +3,16 @@
 // side: bubbles flipped, header shows the student.
 // Wired to @noot/core messaging: the conversation with booking.tutor is
 // loaded/created on mount, messages are fetched + streamed live, and the
-// composer sends through the API. Attachments remain a local demo (TODO(api)).
+// composer sends text and/or attachments through the API.
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TextInput,
   Pressable,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -19,10 +21,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ic, Avatar, useTheme, type IconName } from '@noot/ui';
-import { api, auth, type Message as ApiMessage } from '@noot/core';
+import { api, auth, type Message as ApiMessage, type OutgoingAttachment } from '@noot/core';
 import { useApp } from '../lib/store';
 import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
+import { pickAndUploadChatAttachment } from '../lib/chatAttachments';
+import { useAttachmentUrls } from '../lib/useAttachmentUrls';
 
 type Who = 'student' | 'tutor';
 type AttachKind = 'image' | 'file';
@@ -31,6 +35,8 @@ interface Attachment {
   name: string;
   kind: AttachKind;
   size?: number;
+  /** Key in the private bucket; resolved to a signed URL for display. */
+  storagePath: string;
 }
 
 interface Message {
@@ -40,10 +46,6 @@ interface Message {
   attach?: Attachment[];
   time: string;
 }
-
-// Attachment source for the paperclip button. Empty until upload is wired.
-// TODO(api): attachment upload — real image/file picker + upload via @noot/core.
-const ATTACHMENTS: Attachment[] = [];
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -60,9 +62,21 @@ function toLocal(m: ApiMessage, uid: string | null, mineWho: Who, otherWho: Who)
   return {
     id: m.id,
     who: m.senderId === uid ? mineWho : otherWho,
-    text: m.content,
+    // '' for an attachment-only message — Bubble skips the text bubble entirely.
+    text: m.content || undefined,
+    attach: m.attachments?.map((a) => ({
+      name: a.filename,
+      kind: a.kind,
+      size: a.sizeBytes ?? undefined,
+      storagePath: a.storagePath,
+    })),
     time: timeLabel(m.createdAt),
   };
+}
+
+/** Staged (uploaded, not yet sent) attachment → the local chip shape. */
+function stagedToLocal(a: OutgoingAttachment): Attachment {
+  return { name: a.filename, kind: a.kind, size: a.sizeBytes, storagePath: a.storagePath };
 }
 
 function fmtSize(b: number): string {
@@ -94,10 +108,17 @@ function ChatTutorInner() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
-  const [pending, setPending] = useState<Attachment[]>([]);
+  const [pending, setPending] = useState<OutgoingAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+
+  // Every attachment on screen (sent + staged) needs a signed URL — the bucket is private.
+  const urls = useAttachmentUrls([
+    ...messages.flatMap((m) => m.attach?.map((a) => a.storagePath) ?? []),
+    ...pending.map((a) => a.storagePath),
+  ]);
 
   // Load/create the conversation, fetch its messages, and stream live ones.
   useEffect(() => {
@@ -128,30 +149,38 @@ function ChatTutorInner() {
     };
   }, [tutorId]);
 
-  const canSend = draft.trim().length > 0 || pending.length > 0;
+  const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading;
 
-  const addAttachment = () => {
-    // TODO(api): attachment upload — open a real attach sheet (camera roll / files) and upload.
-    if (ATTACHMENTS.length === 0) return;
-    const next = ATTACHMENTS[pending.length % ATTACHMENTS.length]!;
-    setPending((p) => [...p, next]);
+  const addAttachment = async () => {
+    if (!convId || uploading) return;
+    setUploading(true);
+    try {
+      const uploaded = await pickAndUploadChatAttachment(convId);
+      if (uploaded) setPending((p) => [...p, uploaded]);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const removePending = (i: number) => setPending((p) => p.filter((_, j) => j !== i));
 
   const send = async () => {
     const text = draft.trim();
-    if (!text || !convId) return;
+    const attachments = pending;
+    if ((!text && attachments.length === 0) || !convId) return;
     setDraft('');
     setPending([]);
     try {
-      const created = await api.chat.sendMessage(convId, text);
+      const created = await api.chat.sendMessage(convId, text, attachments);
       // Append optimistically; the live subscription guards against a duplicate.
       setMessages((prev) =>
         prev.some((p) => p.id === created.id) ? prev : [...prev, toLocal(created, uid, 'tutor', 'student')],
       );
-    } catch {
-      // Send failed (no session / offline) — leave the thread unchanged.
+    } catch (e) {
+      // Restore the draft so a failed send doesn't silently discard what they wrote/attached.
+      setDraft(text);
+      setPending(attachments);
+      Alert.alert('Message not sent', e instanceof Error ? e.message : 'Please try again.');
     }
   };
 
@@ -201,7 +230,7 @@ function ChatTutorInner() {
             return (
               <React.Fragment key={m.id}>
                 {showTime && <Text style={[styles.timeLabel, { color: t.text3 }]}>{m.time}</Text>}
-                <Bubble mine={mine} m={m} />
+                <Bubble mine={mine} m={m} urls={urls} />
               </React.Fragment>
             );
           })}
@@ -209,7 +238,12 @@ function ChatTutorInner() {
           {pending.length > 0 && (
             <View style={styles.pendingRow}>
               {pending.map((a, i) => (
-                <AttachChip key={i} a={a} onRemove={() => removePending(i)} />
+                <AttachChip
+                  key={a.storagePath}
+                  a={stagedToLocal(a)}
+                  url={urls[a.storagePath]}
+                  onRemove={() => removePending(i)}
+                />
               ))}
             </View>
           )}
@@ -218,10 +252,15 @@ function ChatTutorInner() {
         <View style={[styles.composer, { backgroundColor: t.surface, borderTopColor: t.border }]}>
           <Pressable
             onPress={addAttachment}
+            disabled={!convId || uploading}
             accessibilityLabel="Attach"
-            style={[styles.roundBtn, { backgroundColor: t.surface2 }]}
+            style={[styles.roundBtn, { backgroundColor: t.surface2, opacity: convId && !uploading ? 1 : 0.5 }]}
           >
-            <Ic name="clip" size={20} color={t.text2} strokeWidth={1.8} />
+            {uploading ? (
+              <ActivityIndicator size="small" color={t.text2} />
+            ) : (
+              <Ic name="clip" size={20} color={t.text2} strokeWidth={1.8} />
+            )}
           </Pressable>
 
           <View style={[styles.inputWrap, { backgroundColor: t.bg, borderColor: t.borderStrong }]}>
@@ -249,11 +288,11 @@ function ChatTutorInner() {
   );
 }
 
-function Bubble({ mine, m }: { mine: boolean; m: Message }) {
+function Bubble({ mine, m, urls }: { mine: boolean; m: Message; urls: Record<string, string> }) {
   const t = useTheme();
   return (
     <View style={[styles.bubbleWrap, { alignSelf: mine ? 'flex-end' : 'flex-start', alignItems: mine ? 'flex-end' : 'flex-start' }]}>
-      {m.attach?.map((a, i) => <AttachView key={i} a={a} mine={mine} />)}
+      {m.attach?.map((a, i) => <AttachView key={i} a={a} mine={mine} url={urls[a.storagePath]} />)}
       {m.text ? (
         <View
           style={[
@@ -270,10 +309,23 @@ function Bubble({ mine, m }: { mine: boolean; m: Message }) {
   );
 }
 
-// Attachment rendered inside a sent message.
-function AttachView({ a, mine }: { a: Attachment; mine: boolean }) {
+// Attachment rendered inside a sent message. Images show inline once their signed URL
+// resolves; everything else (and an image still resolving) stays the icon + name row.
+function AttachView({ a, mine, url }: { a: Attachment; mine: boolean; url?: string }) {
   const t = useTheme();
   const iconName: IconName = a.kind === 'image' ? 'image' : 'doc';
+
+  if (a.kind === 'image' && url) {
+    return (
+      <Image
+        source={{ uri: url }}
+        accessibilityLabel={a.name}
+        resizeMode="cover"
+        style={[styles.attachImage, { backgroundColor: t.surface2 }]}
+      />
+    );
+  }
+
   return (
     <View style={[styles.attachView, { backgroundColor: mine ? t.accent : t.surface2 }]}>
       <Ic name={iconName} size={20} color={mine ? t.onAccent : t.accent} strokeWidth={1.7} />
@@ -287,13 +339,17 @@ function AttachView({ a, mine }: { a: Attachment; mine: boolean }) {
   );
 }
 
-// Staged attachment chip (before send), with a remove button.
-function AttachChip({ a, onRemove }: { a: Attachment; onRemove: () => void }) {
+// Staged attachment chip (uploaded, not yet sent), with a remove button.
+function AttachChip({ a, url, onRemove }: { a: Attachment; url?: string; onRemove: () => void }) {
   const t = useTheme();
   const iconName: IconName = a.kind === 'image' ? 'image' : 'doc';
   return (
     <View style={[styles.attachChip, { backgroundColor: t.surface2, borderColor: t.border }]}>
-      <Ic name={iconName} size={17} color={t.accent} strokeWidth={1.7} />
+      {a.kind === 'image' && url ? (
+        <Image source={{ uri: url }} style={styles.attachChipThumb} resizeMode="cover" />
+      ) : (
+        <Ic name={iconName} size={17} color={t.accent} strokeWidth={1.7} />
+      )}
       <Text numberOfLines={1} style={[styles.attachChipName, { color: t.text }]}>{a.name}</Text>
       <Pressable onPress={onRemove} accessibilityLabel="Remove" style={styles.removeBtn}>
         <Ic name="x" size={11} color="#fff" strokeWidth={2.6} />
@@ -321,10 +377,12 @@ const styles = StyleSheet.create({
   attachView: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 14 },
   attachName: { fontSize: 13.5, fontWeight: '600', maxWidth: 150 },
   attachSize: { fontSize: 11, opacity: 0.75 },
+  attachImage: { width: 200, height: 200, borderRadius: 14 },
 
   pendingRow: { alignSelf: 'flex-end', flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end', maxWidth: '80%' },
   attachChip: { position: 'relative', flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
   attachChipName: { fontSize: 12.5, maxWidth: 110 },
+  attachChipThumb: { width: 22, height: 22, borderRadius: 5 },
   removeBtn: { position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
 
   composer: { flexShrink: 0, flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 12, borderTopWidth: 1 },

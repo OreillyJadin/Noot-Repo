@@ -14,6 +14,8 @@ import type {
   Conversation,
   ConversationSummary,
   Message,
+  MessageAttachment,
+  OutgoingAttachment,
   Notification,
   ReviewSummary,
   TutorAvailability,
@@ -132,6 +134,12 @@ const MIME_BY_EXT: Record<string, string> = {
   heic: 'image/heic',
   heif: 'image/heif',
 };
+
+/** Mirrors the chat-attachments bucket's file_size_limit (0021) so we fail early and kindly. */
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+/** Columns of `messages` — spelled out so embeds can be appended without pulling `*`. */
+const MESSAGE_SELECT = 'id, conversation_id, sender_id, content, read_at, created_at, attachment_count';
 
 /** Bytes in an upload body — used to reject empty files before they hit Storage. */
 function byteLength(data: Blob | ArrayBuffer | Uint8Array): number {
@@ -293,6 +301,23 @@ function mapConversation(row: any): Conversation {
   };
 }
 
+function mapAttachment(row: any): MessageAttachment {
+  return {
+    id: row.id,
+    messageId: row.message_id,
+    storagePath: row.storage_path,
+    kind: row.kind === 'image' ? 'image' : 'file',
+    filename: row.filename,
+    sizeBytes: row.size_bytes == null ? null : Number(row.size_bytes),
+    mimeType: row.mime_type ?? null,
+  };
+}
+
+/** Echo a just-sent attachment back as a MessageAttachment without re-reading the rows. */
+function mapOutgoing(messageId: string, a: OutgoingAttachment, i: number): MessageAttachment {
+  return { id: `${messageId}:${i}`, messageId, ...a };
+}
+
 function mapMessage(row: any): Message {
   return {
     id: row.id,
@@ -301,6 +326,10 @@ function mapMessage(row: any): Message {
     content: row.content,
     readAt: row.read_at ?? null,
     createdAt: row.created_at,
+    attachmentCount: row.attachment_count ?? 0,
+    ...(row.message_attachments
+      ? { attachments: (row.message_attachments as any[]).map(mapAttachment) }
+      : {}),
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -1034,25 +1063,106 @@ export const api = {
     async listMessages(conversationId: string): Promise<Message[]> {
       const { data, error } = await getSupabase()
         .from('messages')
-        .select('*')
+        .select(`${MESSAGE_SELECT}, message_attachments(*)`)
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true });
       if (error) throw error;
       return (data ?? []).map(mapMessage);
     },
 
-    async sendMessage(conversationId: string, content: string): Promise<Message> {
-      const uid = await requireUid();
-      const { data, error } = await getSupabase()
-        .from('messages')
-        .insert({ conversation_id: conversationId, sender_id: uid, content })
-        .select('*')
-        .single();
+    /**
+     * Put one attachment in the private `chat-attachments` bucket, ready to hand to
+     * sendMessage. Keyed `{conversationId}/{unique}-{filename}` — the leading folder is what
+     * the Storage policies (0021) authorize against, so an upload only succeeds for a
+     * conversation the caller is actually in.
+     *
+     * `data` must be bytes, not a React Native Blob (that writes a 0-byte object — see
+     * putUserFile). Returns the descriptor, NOT a message: nothing is visible to the
+     * counterpart until sendMessage commits.
+     */
+    async uploadAttachment(
+      conversationId: string,
+      data: Blob | ArrayBuffer | Uint8Array,
+      filename: string,
+      mimeType?: string | null,
+    ): Promise<OutgoingAttachment> {
+      const size = byteLength(data);
+      if (!size) throw new Error('That file came through empty — please pick it again.');
+      if (size > MAX_ATTACHMENT_BYTES) {
+        throw new Error(`Attachments are limited to ${Math.floor(MAX_ATTACHMENT_BYTES / 1024 / 1024)} MB.`);
+      }
+
+      const safeName = (filename || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
+      const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const storagePath = `${conversationId}/${unique}-${safeName}`;
+      const ext = safeName.split('.').pop()?.toLowerCase() ?? '';
+      const type =
+        mimeType || (data instanceof Blob ? data.type : '') || MIME_BY_EXT[ext] || 'application/octet-stream';
+
+      const { error } = await getSupabase()
+        .storage.from('chat-attachments')
+        .upload(storagePath, data, { contentType: type, upsert: false });
       if (error) throw error;
-      return mapMessage(data);
+
+      return {
+        storagePath,
+        kind: type.startsWith('image/') ? 'image' : 'file',
+        filename: filename || safeName,
+        sizeBytes: size,
+        mimeType: type,
+      };
     },
 
-    /** Live new-message subscription. Returns an unsubscribe fn. */
+    /**
+     * Resolve storage paths to short-lived signed URLs for display. The bucket is private, so
+     * every render of an attachment goes through here; URLs expire and are not shareable.
+     * Returns a path→URL map, omitting any that failed rather than throwing the whole batch.
+     */
+    async attachmentUrls(storagePaths: string[], expiresInSeconds = 3600): Promise<Record<string, string>> {
+      const paths = [...new Set(storagePaths)].filter(Boolean);
+      if (!paths.length) return {};
+      const { data, error } = await getSupabase()
+        .storage.from('chat-attachments')
+        .createSignedUrls(paths, expiresInSeconds);
+      if (error) throw error;
+      const out: Record<string, string> = {};
+      for (const row of data ?? []) {
+        if (row.signedUrl && row.path) out[row.path] = row.signedUrl;
+      }
+      return out;
+    },
+
+    /**
+     * Send a message, optionally with attachments already uploaded via uploadAttachment.
+     * Goes through the send_message_with_attachments RPC (0021) so the message row and its
+     * attachment rows commit together — otherwise a subscriber can receive the message before
+     * the attachments exist and render it with them missing.
+     */
+    async sendMessage(
+      conversationId: string,
+      content: string,
+      attachments: OutgoingAttachment[] = [],
+    ): Promise<Message> {
+      if (!content.trim() && attachments.length === 0) {
+        throw new Error('Nothing to send.');
+      }
+      const { data, error } = await getSupabase().rpc('send_message_with_attachments', {
+        p_conversation_id: conversationId,
+        p_content: content,
+        p_attachments: attachments,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return { ...mapMessage(row), attachments: attachments.map((a, i) => mapOutgoing(row.id, a, i)) };
+    },
+
+    /**
+     * Live new-message subscription. Returns an unsubscribe fn.
+     *
+     * The realtime payload is the `messages` row only — it can't carry the child attachment
+     * rows — so a message that has any triggers one follow-up read. `attachment_count` keeps
+     * the common text-only case at zero extra queries.
+     */
     subscribe(conversationId: string, onMessage: (m: Message) => void): () => void {
       const sb = getSupabase();
       const channel = sb
@@ -1060,7 +1170,20 @@ export const api = {
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
-          (payload) => onMessage(mapMessage(payload.new)),
+          (payload) => {
+            const msg = mapMessage(payload.new);
+            if (msg.attachmentCount === 0) {
+              onMessage(msg);
+              return;
+            }
+            void sb
+              .from('message_attachments')
+              .select('*')
+              .eq('message_id', msg.id)
+              .then(({ data }) => {
+                onMessage({ ...msg, attachments: (data ?? []).map(mapAttachment) });
+              });
+          },
         )
         .subscribe();
       return () => {
