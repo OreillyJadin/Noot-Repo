@@ -22,7 +22,7 @@ initSupabase({ url: URL, anonKey: ANON });
 const anonHits = await api.courses.search('MATH', 5);
 check('anon can search the catalog', anonHits.length > 0, `${anonHits.length} hits`);
 
-const signIn = await auth.devSignIn('student@crimson.ua.edu', 'password123');
+const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
 if (!signIn.ok) throw new Error(signIn.error);
 
 // The three ways a student might look for the same class.

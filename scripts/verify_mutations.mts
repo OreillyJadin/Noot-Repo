@@ -26,8 +26,8 @@ async function check(name: string, fn: () => Promise<unknown>) {
 initSupabase({ url: URL, anonKey: ANON });
 console.log(`target: ${URL}`);
 
-await check('auth.devSignIn(student)', async () => {
-  const r = await auth.devSignIn('student@crimson.ua.edu', 'password123');
+await check('auth.signInWithPassword(student)', async () => {
+  const r = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
   if (!r.ok) throw new Error(r.error);
   return r;
 });

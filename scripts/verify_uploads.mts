@@ -20,7 +20,7 @@ function base64ToArrayBuffer(b64: string): ArrayBuffer {
 initSupabase({ url: URL, anonKey: ANON });
 
 const email = 'student@crimson.ua.edu';
-const signIn = await auth.devSignIn(email, 'password123');
+const signIn = await auth.signInWithPassword(email, 'password123');
 if (!signIn.ok) throw new Error(signIn.error);
 const uid = await auth.getSessionUserId();
 console.log(`signed in as ${email} (${uid})`);
@@ -64,7 +64,7 @@ try {
 
 // --- transcripts (private bucket, tutor session) ---------------------------------------
 const tutorEmail = 'sara@crimson.ua.edu';
-const tutorIn = await auth.devSignIn(tutorEmail, 'password123');
+const tutorIn = await auth.signInWithPassword(tutorEmail, 'password123');
 if (!tutorIn.ok) throw new Error(tutorIn.error);
 const tutorUid = await auth.getSessionUserId();
 console.log(`\nsigned in as ${tutorEmail} (${tutorUid})`);

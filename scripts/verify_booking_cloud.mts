@@ -18,7 +18,7 @@ const step = (n: number, ok: boolean, msg: string) =>
 console.log(`Target: ${SB_URL.includes('127.0.0.1') ? 'LOCAL' : 'CLOUD'} (${SB_URL})`)
 initSupabase({ url: SB_URL, anonKey: ANON })
 
-const signIn = await auth.devSignIn('student@crimson.ua.edu', 'password123')
+const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
 step(1, signIn.ok, signIn.ok ? 'signed in as demo student on cloud' : `sign-in failed: ${signIn.error}`)
 
 const tutors = await api.tutors.search()

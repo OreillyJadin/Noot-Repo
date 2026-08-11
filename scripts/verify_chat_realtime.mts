@@ -29,7 +29,7 @@ const PNG = new Uint8Array([
 
 // Client A = the tutor, watching through @noot/core exactly as the screen does.
 initSupabase({ url: URL, anonKey: ANON });
-const tutorSignIn = await auth.devSignIn('sara@crimson.ua.edu', 'password123');
+const tutorSignIn = await auth.signInWithPassword('sara@crimson.ua.edu', 'password123');
 if (!tutorSignIn.ok) throw new Error(tutorSignIn.error);
 const tutorId = (await auth.getSessionUserId())!;
 

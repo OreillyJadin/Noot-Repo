@@ -29,7 +29,7 @@ const good = await auth.sendSignupVerification(eduEmail, 'Ada', 'Lovelace');
 ok('.edu sign-up verification sends', good.ok, good.error ?? '');
 
 // 3. set-password + password sign-in round-trip via a throwaway .edu account
-const created = await auth.devSignIn(pwEmail, 'password123'); // sign-up + immediate session (local)
+const created = await auth.signInWithPassword(pwEmail, 'password123'); // sign-up + immediate session (local)
 ok('throwaway account has a live session', created.ok && !!(await auth.getSessionUserId()), created.error ?? '');
 
 const setP = await auth.setPassword('newpassword456');

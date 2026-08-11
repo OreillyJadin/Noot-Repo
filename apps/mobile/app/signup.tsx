@@ -30,15 +30,6 @@ export default function SignUp() {
 
   const clearErr = () => { if (error) setError(null); };
 
-  // DEV ONLY — seeded-account shortcuts (supabase/seed_demo.mjs). Stripped by __DEV__.
-  const devLogin = async (kind: 'student' | 'tutor') => {
-    const devEmail = kind === 'student' ? 'student@crimson.ua.edu' : 'sara@crimson.ua.edu';
-    const res = await auth.devSignIn(devEmail, 'password123');
-    if (!res.ok) { setError(res.error ?? 'Dev sign-in failed'); return; }
-    setRole(kind);
-    router.replace(kind === 'student' ? '/home' : '/tutor_home');
-  };
-
   const handleSend = async () => {
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
@@ -114,19 +105,11 @@ export default function SignUp() {
               <Text style={{ fontSize: 40 }}>✉️</Text>
               {/* DEV ONLY — fakes the deep link into onboarding; establishes NO session,
                   so it must never ship. Real magic-link deep-linking replaces it. */}
-              {__DEV__ ? <Button label="Open the link (demo)" onPress={() => router.push('/verified')} /> : null}
               <Text onPress={() => setSent(false)} style={{ color: t.accent, fontWeight: '600' }}>Change details</Text>
             </Card>
           </>
         )}
 
-        {__DEV__ ? (
-          <View style={{ gap: 8, marginTop: 8 }}>
-            <Text style={{ color: t.text3, fontSize: 12, textAlign: 'center' }}>Dev shortcuts (skip verification)</Text>
-            <Button label="Dev: sign in as student" kind="secondary" onPress={() => devLogin('student')} />
-            <Button label="Dev: sign in as tutor" kind="secondary" onPress={() => devLogin('tutor')} />
-          </View>
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

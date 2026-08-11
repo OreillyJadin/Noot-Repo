@@ -37,7 +37,7 @@ await svc.from('user_roles').upsert({ user_id: uid, role: 'student' }, { onConfl
 console.log(`applicant ${EMAIL} (${uid})\n`);
 
 initSupabase({ url: URL, anonKey: ANON });
-const signIn = await auth.devSignIn(EMAIL, PASSWORD);
+const signIn = await auth.signInWithPassword(EMAIL, PASSWORD);
 if (!signIn.ok) throw new Error(signIn.error);
 
 // --- 1. never applied -----------------------------------------------------------------------
@@ -81,8 +81,19 @@ check('approval GRANTS the tutor role', !!meApproved?.roles.includes('tutor'), m
 await api.profile.setActiveRole('tutor');
 check('approved tutor can now persist tutor mode', (await api.getMe())?.activeRole === 'tutor');
 
+// Checked from ANOTHER user's session: search() now excludes the signed-in user, so asking
+// the applicant whether they can see their own card tests the wrong thing (and would fail by
+// design). Sign back in afterwards — the rejection section below acts as the applicant.
+const asOther = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+if (!asOther.ok) throw new Error(asOther.error);
 const afterApproval = await api.tutors.search({});
-check('approved tutor appears in student search', afterApproval.some((t) => t.userId === uid));
+check('approved tutor appears in search FOR A STUDENT', afterApproval.some((t) => t.userId === uid));
+check('…but the tutor does not see their own card',
+  !(await (async () => {
+    const back = await auth.signInWithPassword(EMAIL, PASSWORD);
+    if (!back.ok) throw new Error(back.error);
+    return api.tutors.search({});
+  })()).some((t) => t.userId === uid));
 
 // --- 4. rejection ------------------------------------------------------------------------------
 await svc.from('tutor_profiles').update({ approval_status: 'rejected' }).eq('user_id', uid);
@@ -93,13 +104,23 @@ check('after rejection → "rejected"', (await api.profile.getTutorStatus()) ===
 const meRejected = await api.getMe();
 check('rejection WITHDRAWS the tutor role', !meRejected?.roles.includes('tutor'), meRejected?.roles.join(','));
 check('rejection resets them out of tutor mode', meRejected?.activeRole === 'student', String(meRejected?.activeRole));
+// Again from another user's session, for the same reason.
+const asOther2 = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+if (!asOther2.ok) throw new Error(asOther2.error);
 check('rejected tutor disappears from student search',
   !(await api.tutors.search({})).some((t) => t.userId === uid));
 
 // --- cleanup -------------------------------------------------------------------------------------
+// Two deletes, not one. Migration 0026 detached users from auth.users so that deleting an
+// identity can't cascade away the retained financial record — which also means removing the
+// auth row alone now leaves the app row behind. That is the intended trade-off, so a test
+// that cleans up after itself has to delete both.
 await svc.auth.admin.deleteUser(uid);
+const { data: appRowStillThere } = await svc.from('users').select('id').eq('id', uid).maybeSingle();
+check('app row survives auth deletion (0026 detachment)', !!appRowStillThere);
+await svc.from('users').delete().eq('id', uid);
 const { data: gone } = await svc.from('users').select('id').eq('id', uid).maybeSingle();
-check('throwaway account cleaned up', !gone);
+check('throwaway account fully cleaned up', !gone);
 
 console.log(`\n${fail === 0 ? '✅ all' : `❌ ${fail} failed,`} ${pass} passed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -29,7 +29,7 @@ const PNG = new Uint8Array([
 const NOTES = new TextEncoder().encode('week 3 problem set — show your work\n');
 
 async function signIn(email: string) {
-  const r = await auth.devSignIn(email, 'password123');
+  const r = await auth.signInWithPassword(email, 'password123');
   if (!r.ok) throw new Error(`${email}: ${r.error}`);
   return (await auth.getSessionUserId())!;
 }

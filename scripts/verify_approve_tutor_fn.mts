@@ -46,7 +46,7 @@ check('starts pending with no tutor role', (await roleOf(uid)) === 'student');
 
 // Sign in as a real admin — the function re-verifies is_admin() server-side.
 initSupabase({ url: URL, anonKey: ANON });
-const adminIn = await auth.devSignIn('admin@crimson.ua.edu', 'password123');
+const adminIn = await auth.signInWithPassword('admin@crimson.ua.edu', 'password123');
 if (!adminIn.ok) throw new Error(`admin sign-in: ${adminIn.error}`);
 
 // --- approve ------------------------------------------------------------------------------
@@ -65,7 +65,7 @@ check('function WITHDREW the tutor role', (await roleOf(uid)) === 'student', awa
 check('function reset them out of tutor mode', (await activeRoleOf(uid)) === 'student', String(await activeRoleOf(uid)));
 
 // --- a non-admin must not be able to call it -------------------------------------------------
-const studentIn = await auth.devSignIn('student@crimson.ua.edu', 'password123');
+const studentIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
 if (!studentIn.ok) throw new Error(studentIn.error);
 let refused = false;
 try {
@@ -76,6 +76,8 @@ try {
 check('non-admin cannot approve', refused);
 check('…and no role leaked from the attempt', (await roleOf(uid)) === 'student', await roleOf(uid));
 
+// Both rows — see 0026: auth deletion no longer cascades to public.users.
 await svc.auth.admin.deleteUser(uid);
+await svc.from('users').delete().eq('id', uid);
 console.log(`\n${fail === 0 ? '✅ all' : `❌ ${fail} failed,`} ${pass} passed`);
 process.exit(fail === 0 ? 0 : 1);

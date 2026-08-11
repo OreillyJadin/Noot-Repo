@@ -1,7 +1,11 @@
 // X1 Cancel Session (Student) — ported from screens-changes.jsx (XStudentCancel).
-// Refund tiers by time-to-session; a demo selector switches between the three tiers
-// so all of them are visible without wiring a real countdown. Refund math is live,
-// computed off the session price (tutor's course rate × booked length). Done → Home.
+// Refund tier is derived from the REAL time until the session; the server is authoritative
+// and its refund percent replaces the estimate once the cancellation goes through.
+//
+// This used to render a tap-to-switch "demo" selector that let the student choose their own
+// refund tier so all three were visible. That is fabricated data in a screen about money —
+// it implied a choice that doesn't exist and could show a full refund on a session starting
+// in an hour. The tiers are now a read-only policy list with the applicable one marked.
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -94,13 +98,19 @@ function XStudentCancelInner() {
   const { booking } = useApp();
   const tutor = booking.tutor!;
   const cost = baseCost(booking, tutor);
-  const [tier, setTier] = useState<TierId>('early');
+  // Which tier actually applies, from the booked start time. No session time (an older draft
+  // that never carried one) → no tier is highlighted rather than guessing a favourable one.
+  const hoursUntil = booking.scheduledAt
+    ? (new Date(booking.scheduledAt).getTime() - Date.now()) / 3600000
+    : null;
+  const tier: TierId | null =
+    hoursUntil == null ? null : hoursUntil > 24 ? 'early' : hoursUntil >= 2 ? 'mid' : 'late';
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   // When a real booking is cancelled, the server decides the refund %; prefer it.
   const [serverRefund, setServerRefund] = useState<number | null>(null);
-  const tobj = TIERS.find((x) => x.id === tier)!;
-  const tierRefund = cost * tobj.refundPct;
+  const tobj = TIERS.find((x) => x.id === tier) ?? null;
+  const tierRefund = tobj ? cost * tobj.refundPct : null;
   const refund = serverRefund ?? tierRefund;
 
   const onCancel = async () => {
@@ -133,7 +143,7 @@ function XStudentCancelInner() {
             <HeroIcon name="check" size={72} />
             <H1 style={{ fontSize: 25, marginTop: 20 }}>Session cancelled</H1>
             <Sub style={{ marginTop: 10, maxWidth: 260, textAlign: 'center' }}>
-              {refund > 0 ? (
+              {refund != null && refund > 0 ? (
                 <>
                   A refund of <Text style={{ color: t.text, fontWeight: '700' }}>{money(refund)}</Text> is on its
                   way to your card — typically 5–10 business days via Stripe.
@@ -157,16 +167,23 @@ function XStudentCancelInner() {
       <Body pad={20}>
         <SessionStrip booking={booking} tutor={tutor} />
 
-        {/* demo: timing selector so all tiers are visible */}
         <View style={styles.demoRow}>
-          <Eyebrow style={{ color: t.text3 }}>Time until session</Eyebrow>
-          <Text style={{ fontSize: 11, color: t.text3 }}> · demo</Text>
+          <Eyebrow style={{ color: t.text3 }}>
+            {hoursUntil == null
+              ? 'Cancellation policy'
+              : hoursUntil > 24
+                ? `Cancelling more than 24 hrs ahead`
+                : hoursUntil >= 2
+                  ? `Cancelling ${Math.round(hoursUntil)} hrs before the session`
+                  : 'Cancelling less than 2 hrs before the session'}
+          </Eyebrow>
         </View>
         <View style={[styles.tierTrack, { backgroundColor: t.surface2 }]}>
           {TIERS.map((x) => {
             const on = tier === x.id;
             return (
-              <Pressable key={x.id} onPress={() => setTier(x.id)} style={styles.tierTab}>
+              // Read-only: the tier is a fact about when you're cancelling, not a choice.
+              <View key={x.id} style={styles.tierTab}>
                 <Text
                   style={[
                     styles.tierTabLabel,
@@ -175,7 +192,7 @@ function XStudentCancelInner() {
                 >
                   {x.label}
                 </Text>
-              </Pressable>
+              </View>
             );
           })}
         </View>
@@ -189,21 +206,25 @@ function XStudentCancelInner() {
             </View>
             <View style={styles.rowBetween}>
               <Text style={{ fontSize: 14, color: t.text2 }}>Paid to tutor</Text>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: t.text3 }}>{money(cost * tobj.tutorPct)}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: t.text3 }}>
+                {tobj ? money(cost * tobj.tutorPct) : '—'}
+              </Text>
             </View>
           </View>
           <Divider style={{ marginVertical: 13 }} />
           <View style={[styles.rowBetween, { alignItems: 'baseline' }]}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>Refund to you</Text>
-            <Text style={{ fontSize: 22, fontWeight: '800', color: refund > 0 ? t.good : t.text3 }}>
-              {money(refund)}
+            <Text style={{ fontSize: 22, fontWeight: '800', color: refund && refund > 0 ? t.good : t.text3 }}>
+              {refund == null ? '—' : money(refund)}
             </Text>
           </View>
           <View style={styles.noteRow}>
             <View style={{ marginTop: 1 }}>
               <Ic name="shield" size={15} color={t.text3} strokeWidth={1.8} />
             </View>
-            <Text style={{ fontSize: 12, color: t.text3, lineHeight: 17, flex: 1 }}>{tobj.note}</Text>
+            <Text style={{ fontSize: 12, color: t.text3, lineHeight: 17, flex: 1 }}>
+              {tobj?.note ?? 'Your refund is calculated from how far ahead you cancel; the exact amount is confirmed when you cancel.'}
+            </Text>
           </View>
         </Card>
       </Body>
@@ -215,7 +236,7 @@ function XStudentCancelInner() {
           label={
             submitting
               ? 'Cancelling…'
-              : refund > 0
+              : refund != null && refund > 0
                 ? `Cancel & refund ${money(refund)}`
                 : 'Cancel session'
           }

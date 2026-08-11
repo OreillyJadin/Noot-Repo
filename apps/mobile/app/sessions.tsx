@@ -1,5 +1,5 @@
 // S5 My Sessions — ported from screens-tabs.jsx (SessionsTab). Upcoming / Past / Saved
-// segmented tabs. Upcoming + Saved read live via @noot/core; Past is still demo data
+// segmented tabs. Upcoming, Past and Saved all read live via @noot/core
 // because the backend has no past-sessions endpoint (see TODO(api) below).
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Alert, type ScrollView } from 'react-native';
@@ -134,14 +134,14 @@ export default function Sessions() {
       Alert.alert('Something went wrong', 'Could not open reschedule. Please try again.');
     }
   };
-  const cancelSession = (tutor: Tutor | null, bookingId?: string) => {
+  const cancelSession = (tutor: Tutor | null, bookingId?: string, scheduledAt?: string) => {
     try {
       if (!bookingId) {
         patchBooking({ tutor: tutor ?? undefined });
         router.push('/xsc');
         return;
       }
-      patchBooking({ tutor: tutor ?? undefined, bookingId });
+      patchBooking({ tutor: tutor ?? undefined, bookingId, scheduledAt });
       router.push('/xsc');
     } catch (e) {
       Alert.alert('Something went wrong', 'Could not open cancel. Please try again.');
@@ -283,7 +283,7 @@ export default function Sessions() {
                       <Button label="Reschedule" kind="tint" size="sm" style={{ flex: 1 }} onPress={() => reschedule(tutor, b.id)} />
                     </View>
                     <View style={styles.linkRow}>
-                      <Text onPress={() => cancelSession(tutor, b.id)} style={[styles.link, { color: t.text3 }]}>Cancel session</Text>
+                      <Text onPress={() => cancelSession(tutor, b.id, b.scheduledAt)} style={[styles.link, { color: t.text3 }]}>Cancel session</Text>
                       <Text style={[styles.link, { color: t.text3 }]}>·</Text>
                       <Text onPress={() => reportNoShow(tutor, b.id)} style={[styles.link, { color: t.text3 }]}>Report a no-show</Text>
                     </View>

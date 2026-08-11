@@ -16,7 +16,7 @@ initSupabase({ url: URL, anonKey: ANON })
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } })
 
 // 1) Sign in as the seeded demo student.
-const signIn = await auth.devSignIn('student@crimson.ua.edu', 'password123')
+const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
 step(1, signIn.ok, signIn.ok ? 'signed in as demo student' : `sign-in failed: ${signIn.error}`)
 
 // 2) Pick a real seeded tutor (NOTE: TutorSummary.userId, not .id).

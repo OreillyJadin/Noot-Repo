@@ -2,7 +2,7 @@
   "name": "noot",
   "private": true,
   "version": "0.0.0",
-  "description": "noot — peer-to-peer campus tutoring. Monorepo: iOS/Android/web app (Expo) + marketing site (Next.js).",
+  "description": "noot \u2014 peer-to-peer campus tutoring. Monorepo: iOS/Android/web app (Expo) + marketing site (Next.js).",
   "packageManager": "pnpm@9.12.0",
   "engines": {
     "node": ">=20",
@@ -18,7 +18,8 @@
     "tunnel": "bash scripts/tunnel.sh",
     "web": "pnpm --filter @noot/web dev",
     "check:preview": "node scripts/check_supabase_preview.mjs",
-    "hooks:install": "git config core.hooksPath .githooks"
+    "hooks:install": "git config core.hooksPath .githooks",
+    "check:release": "node scripts/check_release.mjs"
   },
   "devDependencies": {
     "turbo": "^2.1.3",

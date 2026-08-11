@@ -561,6 +561,20 @@ export const api = {
       return s === 'approved' || s === 'pending' || s === 'rejected' ? s : 'none';
     },
 
+    /**
+     * Permanently delete the signed-in user's account (App Store Guideline 5.1.1(v)).
+     *
+     * Server-side only: the Edge Function takes the target from the verified JWT, so there is
+     * no id to tamper with. It revokes the auth identity and de-identifies the app row —
+     * bookings and payouts survive, anonymised, because we must retain financial records
+     * (disclosed in the privacy policy). Rejects with 409 if a live session is still booked.
+     *
+     * The caller must sign out afterwards: the session is dead the moment this returns.
+     */
+    async deleteAccount(): Promise<void> {
+      await invokeFn('delete-account');
+    },
+
     /** Create/update the signed-in user's tutor profile (edit_tutor). Upsert on user_id. */
     async updateTutorProfile(patch: {
       bio?: string;
@@ -668,8 +682,24 @@ export const api = {
           if (ids.length === 0) return [];
         }
       }
-      let q = sb.from('users').select(TUTOR_SELECT).eq('tutor_profiles.approval_status', 'approved');
+      // deleted_at: a tutor who deletes their account keeps an approved tutor_profiles row
+      // (0026 retains the de-identified user for the financial history), so filtering on
+      // approval alone would keep listing them as "Deleted account" — bookable and unreachable.
+      let q = sb
+        .from('users')
+        .select(TUTOR_SELECT)
+        .eq('tutor_profiles.approval_status', 'approved')
+        .is('deleted_at', null);
       if (ids) q = q.in('id', ids);
+      // Never list the signed-in user to themselves. A user can hold both roles, so an
+      // approved tutor browsing as a student would otherwise find their own card, open it,
+      // and be able to book a session with themselves. Excluded here rather than filtered in
+      // each screen so every caller of search() gets it.
+      const meId = await getSupabase()
+        .auth.getSession()
+        .then(({ data }) => data.session?.user.id ?? null)
+        .catch(() => null);
+      if (meId) q = q.neq('id', meId);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []).map(mapTutorSummary);

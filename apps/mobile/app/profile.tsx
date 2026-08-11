@@ -6,11 +6,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, type IconName } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
 import { useRoleSwitch } from '../lib/useRoleSwitch';
+import { errText } from '../lib/errText';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
 import { pickAndUploadAvatar } from '../lib/avatar';
@@ -67,6 +69,7 @@ export default function Profile() {
   const insets = useSafeAreaInsets();
   const { role } = useApp();
   const { me, loading, tutorStatus } = useMe();
+  const [deleting, setDeleting] = useState(false);
   const { dark, toggle: toggleDark, school, toggleSchool } = useThemePref();
 
   const displayName = fullName(me, 'Student');
@@ -107,10 +110,85 @@ export default function Profile() {
     }
   };
   // Referral CTA: already an ambassador → their referrals dashboard; otherwise sign them up.
+  // Legal pages live on the marketing site — App Store Connect needs a public privacy
+  // URL anyway, so the app links the same one rather than duplicating the text.
+  const openLegal = (page: 'privacy' | 'terms') =>
+    WebBrowser.openBrowserAsync(`https://noot.app/${page}`).catch(() => {});
+
   const openReferrals = () => (roles.includes('ambassador') ? router.push('/ambassador_referrals') : becomeAmbassador());
 
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
+
+  // The old handler only navigated — it never called signOut, so the session stayed alive
+
+  // and relaunching the app dropped you straight back in as the same user.
+
+  const signOutNow = async () => {
+
+    try { await auth.signOut(); } catch { /* clear the UI regardless */ }
+
+    router.replace('/');
+
+  };
+
+
+  const confirmDelete = () => {
+
+    Alert.alert(
+
+      'Delete your account?',
+
+      'This permanently deletes your profile, photo, courses and messages, and you will be '
+
+        + 'signed out. It cannot be undone.\n\n'
+
+        + 'Records of completed, paid sessions are kept in anonymised form — we are required to '
+
+        + 'retain them for tax and payment-dispute purposes. They no longer identify you.',
+
+      [
+
+        { text: 'Cancel', style: 'cancel' },
+
+        {
+
+          text: 'Delete account',
+
+          style: 'destructive',
+
+          onPress: async () => {
+
+            setDeleting(true);
+
+            try {
+
+              await api.profile.deleteAccount();
+
+              // The session is dead server-side; clear it locally before leaving.
+
+              try { await auth.signOut(); } catch { /* already invalid */ }
+
+              router.replace('/');
+
+            } catch (e) {
+
+              setDeleting(false);
+
+              Alert.alert('Could not delete your account', errText(e, 'Please try again.'));
+
+            }
+
+          },
+
+        },
+
+      ],
+
+    );
+
+  };
+
 
   return (
     <Screen>
@@ -187,7 +265,9 @@ export default function Profile() {
           <Row icon="bell" label="Notifications" sub="Reminders, messages, offers" onPress={() => router.push('/notifications')} />
           <Row icon="gear" label="Dark mode" control={<Toggle on={dark} onPress={toggleDark} />} />
           <Row icon="flame" label="School colors" sub="University of Alabama — crimson" control={<Toggle on={school} onPress={toggleSchool} />} />
-          <Row icon="help" label="Help & support" onPress={() => router.push('/help')} last />
+          <Row icon="help" label="Help & support" onPress={() => router.push('/help')} />
+          <Row icon="shield" label="Privacy Policy" onPress={() => openLegal('privacy')} />
+          <Row icon="doc" label="Terms of Service" onPress={() => openLegal('terms')} last />
         </Card>
 
         {/* add roles you don't hold yet */}
@@ -245,10 +325,17 @@ export default function Profile() {
           </Card>
         ) : null}
 
-        {/* sign out */}
+        {/* sign out + account deletion (App Store 5.1.1(v) requires an in-app delete route) */}
         <View style={{ marginTop: 4 }}>
           <Card style={styles.cardNoPad}>
-            <Row icon="logout" label="Sign out" danger onPress={() => router.replace('/')} last />
+            <Row icon="logout" label="Sign out" danger onPress={signOutNow} />
+            <Row
+              icon="x"
+              label={deleting ? 'Deleting…' : 'Delete account'}
+              danger
+              onPress={deleting ? undefined : confirmDelete}
+              last
+            />
           </Card>
         </View>
         <Text style={[styles.footer, { color: t.text3 }]}>noot · v1.0 · Peer tutoring for campus</Text>

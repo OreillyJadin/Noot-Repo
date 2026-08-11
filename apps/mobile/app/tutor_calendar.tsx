@@ -93,7 +93,7 @@ export default function TutorCalendar() {
     api
       .listUpcoming()
       .then((bookings) => {
-        if (!active || bookings.length === 0) return; // no sessions / offline → keep demo fallback
+        if (!active || bookings.length === 0) return; // no sessions → grid stays empty (no fallback data)
         const byDay: Record<number, Record<string, CalSession>> = {};
         for (const b of bookings) {
           const at = new Date(b.scheduledAt);
@@ -112,7 +112,7 @@ export default function TutorCalendar() {
         }
         setSessionsByDay(byDay);
       })
-      .catch(() => { /* no session / offline → keep demo fallback */ });
+      .catch(() => { /* offline → grid stays empty rather than showing invented sessions */ });
     return () => { active = false; };
   }, []);
 

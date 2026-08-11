@@ -33,8 +33,8 @@ function slotCount(windows: { dayOfWeek: number; startTime: string; endTime: str
 initSupabase({ url: URL, anonKey: ANON });
 
 // ---- Student side ----
-await check('devSignIn(student)', async () => {
-  const r = await auth.devSignIn('student@crimson.ua.edu', 'password123');
+await check('signIn(student)', async () => {
+  const r = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
   if (!r.ok) throw new Error(r.error);
   return { ok: true };
 });
@@ -65,8 +65,8 @@ await check('studentStats()', async () => {
 });
 
 // ---- Tutor side ----
-await check('devSignIn(tutor sara)', async () => {
-  const r = await auth.devSignIn('sara@crimson.ua.edu', 'password123');
+await check('signIn(tutor sara)', async () => {
+  const r = await auth.signInWithPassword('sara@crimson.ua.edu', 'password123');
   if (!r.ok) throw new Error(r.error);
   return { ok: true };
 });

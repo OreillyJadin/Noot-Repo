@@ -18,6 +18,15 @@ const PASSWORD = 'password123';
 
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 
+// Is this pointed at a local stack, or at a real project? The script accepts SUPABASE_URL, and
+// the demo accounts already exist on production — so it HAS been aimed at a cloud project
+// before. That's fine for demo tutors; it is NOT fine for the admin accounts below.
+const IS_LOCAL = /^https?:\/\/(127\.0\.0\.1|localhost|0\.0\.0\.0|host\.docker\.internal)(:|\/|$)/.test(URL);
+if (!IS_LOCAL) {
+  console.warn(`⚠️  Target is NOT a local stack: ${URL}`);
+  console.warn('   Demo tutors/student will be written to that project.');
+}
+
 // The UA course catalog. Course pickers (My courses, the tutor's course list, search
 // suggestions) all read `courses`, so without this local dev has no courses to pick and the
 // pickers look broken. This is a real slice of the production catalog — the subjects the demo
@@ -140,7 +149,17 @@ await admin.from('users').update({ first_name: sf, last_name: sl, year: sy, majo
 console.log(`✅ dev student ${se}`);
 for (let i = 0; i < TUTORS.length; i++) await seedTutor(TUTORS[i], i);
 
-for (const [ae, af, al] of ADMINS) {
+// ADMIN ACCOUNTS ARE LOCAL-ONLY BY DEFAULT.
+// These are created with the published dev password and granted the 'admin' role, which now
+// also reads the private admin team chat (0024). Creating them on a real project would mint a
+// live admin login with a password that's written down in CLAUDE.md, and would overwrite the
+// name on any existing account at the same address. Local dev needs them (the Admin panel is
+// unreachable without one); production must never get them by accident.
+const seedAdmins = IS_LOCAL || process.env.SEED_ADMINS === '1';
+if (!seedAdmins) {
+  console.log(`⏭️  skipping admin accounts — target is not local (set SEED_ADMINS=1 to force)`);
+}
+for (const [ae, af, al] of seedAdmins ? ADMINS : []) {
   const aid = await ensureUser(ae);
   const nameRes = await admin.from('users').update({ first_name: af, last_name: al }).eq('id', aid);
   if (nameRes.error) throw new Error(`${ae} users: ${nameRes.error.message}`);
@@ -151,4 +170,8 @@ for (const [ae, af, al] of ADMINS) {
   console.log(`✅ admin ${ae}`);
 }
 
-console.log(`\nDone. Dev login — student: ${se} · tutor: ${TUTORS[0][0]} · admin: ${ADMINS[0][0]} · password: ${PASSWORD}`);
+console.log(
+  `\nDone. Dev login — student: ${se} · tutor: ${TUTORS[0][0]}` +
+    (seedAdmins ? ` · admin: ${ADMINS[0][0]}` : '') +
+    ` · password: ${PASSWORD}`,
+);

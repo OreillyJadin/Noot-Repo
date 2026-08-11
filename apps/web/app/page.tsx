@@ -36,6 +36,12 @@ export default function Home() {
       >
         Join the waitlist
       </a>
+      {/* App Store Connect requires a publicly reachable privacy policy URL, and Apple's
+          reviewers open it directly — so it has to be linked, not just deployed. */}
+      <footer style={{ marginTop: 48, display: 'flex', gap: 20, fontSize: 14 }}>
+        <a href="/privacy" style={{ color: t.text2 }}>Privacy Policy</a>
+        <a href="/terms" style={{ color: t.text2 }}>Terms of Service</a>
+      </footer>
     </main>
   );
 }

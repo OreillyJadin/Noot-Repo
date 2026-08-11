@@ -26,7 +26,7 @@ const PNG = new Uint8Array([
 ]);
 
 async function signIn(email: string) {
-  const r = await auth.devSignIn(email, 'password123');
+  const r = await auth.signInWithPassword(email, 'password123');
   if (!r.ok) throw new Error(`${email}: ${r.error}`);
   return (await auth.getSessionUserId())!;
 }
