@@ -4,6 +4,10 @@ Peer-to-peer campus tutoring app. pnpm + Turborepo monorepo. Launching Universit
 Alabama, Fall 2026. Read `ARCHITECTURE.md` (authoritative) and `HANDOFF_CLAUDE.md`
 (current state) before starting work.
 
+**Latest handoff: `HANDOFF_2026-08-11.md`** — App Store readiness state, what's blocking
+submission, and the split between what Jadin must do (§3, needs credentials/domain/device)
+and what a session can pick up unaided (§3.5). Read it before planning work.
+
 ## Golden rule — verify in the live app before committing
 
 **Before committing, open the live local app and manually test that the function we
