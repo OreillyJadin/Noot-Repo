@@ -7,27 +7,31 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "ios": { "simulator": false },
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://nepnxbvseuzuayhxaigo.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lcG54YnZzZXV6dWF5aHhhaWdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxMTIyMTQsImV4cCI6MjA5ODY4ODIxNH0.wT77QuReEt32cC6YC2JKqOBYvP_uFNxUQjhyqk_3Hpc",
         "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51Tq3Mg1nmgmdwQqIr0DBE7mIIZYMIRAeWhfQACiD7VPTegdVT9Y0ifAQ6EcIVCWrzxH0tyOhBKAXOT7FWaosEFG700FLnHkayH"
       }
     },
-
     "preview": {
       "distribution": "internal",
-      "ios": { "simulator": false },
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://nepnxbvseuzuayhxaigo.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lcG54YnZzZXV6dWF5aHhhaWdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxMTIyMTQsImV4cCI6MjA5ODY4ODIxNH0.wT77QuReEt32cC6YC2JKqOBYvP_uFNxUQjhyqk_3Hpc",
         "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51Tq3Mg1nmgmdwQqIr0DBE7mIIZYMIRAeWhfQACiD7VPTegdVT9Y0ifAQ6EcIVCWrzxH0tyOhBKAXOT7FWaosEFG700FLnHkayH"
       }
     },
-
     "production": {
       "autoIncrement": true,
-      "ios": { "simulator": false },
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://nepnxbvseuzuayhxaigo.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5lcG54YnZzZXV6dWF5aHhhaWdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxMTIyMTQsImV4cCI6MjA5ODY4ODIxNH0.wT77QuReEt32cC6YC2JKqOBYvP_uFNxUQjhyqk_3Hpc",
@@ -38,9 +42,9 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "REPLACE_WITH_APPLE_ID_EMAIL",
-        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "REPLACE_WITH_APPLE_TEAM_ID"
+        "appleId": "Oreilyjadin24@gmail.com",
+        "ascAppId": "6803306711",
+        "appleTeamId": "JGY7JSYT5D"
       }
     }
   }
