@@ -73,7 +73,7 @@ function ThemedApp() {
       ) : (
         <StripeProvider
           publishableKey={process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''}
-          merchantIdentifier="merchant.com.noot.app"
+          merchantIdentifier="merchant.com.watchmenventures.app"
           urlScheme="noot"
         >
           {tree}

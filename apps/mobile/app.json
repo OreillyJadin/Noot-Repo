@@ -19,7 +19,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.noot.app",
+      "bundleIdentifier": "com.watchmenventures.app",
       "buildNumber": "1",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "noot needs access to your photos so you can set a profile picture and send images in chat.",
@@ -28,7 +28,7 @@
       }
     },
     "android": {
-      "package": "com.noot.app",
+      "package": "com.watchmenventures.app",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -64,7 +64,7 @@
       [
         "@stripe/stripe-react-native",
         {
-          "merchantIdentifier": "merchant.com.noot.app",
+          "merchantIdentifier": "merchant.com.watchmenventures.app",
           "enableGooglePay": true
         }
       ],
