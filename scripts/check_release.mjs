@@ -85,27 +85,67 @@ else if (placeholders.length) {
   warn(`eas.json submit.production.ios still has placeholders: ${placeholders.map(([k]) => k).join(', ')}`);
 }
 
-// ---------- permissions hygiene ----------
-// Declaring a permission the app never exercises invites a review question on iOS and a
-// data-safety mismatch on Play. expo-image-picker's plugin adds CAMERA + RECORD_AUDIO
-// (and the matching iOS usage strings) unless they are explicitly disabled — so removing
-// them from app.json alone does nothing.
-const androidPerms = app.android?.permissions ?? [];
-for (const p of ['android.permission.RECORD_AUDIO', 'android.permission.CAMERA']) {
-  if (androidPerms.includes(p)) err(`${p} is declared but the app never uses it — remove it`);
+// ---------- iOS purpose strings ----------
+// Apple's binary scan (error 90683) requires a purpose string for every sensitive API
+// referenced by ANY linked code — ours or a dependency's — even if the app never calls it.
+// We originally REMOVED the camera/microphone strings because noot only reads the photo
+// library, and the upload was rejected for it. Privacy hygiene and Apple's static analysis
+// want opposite things here, and Apple wins: declare the string on iOS, and keep Android
+// clean separately via android.blockedPermissions.
+const REQUIRED_IOS_STRINGS = [
+  'NSPhotoLibraryUsageDescription',
+  'NSCameraUsageDescription',
+  'NSMicrophoneUsageDescription',
+  'NSFaceIDUsageDescription',
+];
+const info = app.ios?.infoPlist ?? {};
+for (const k of REQUIRED_IOS_STRINGS) {
+  if (!info[k] || String(info[k]).trim().length < 10) {
+    err(`ios.infoPlist.${k} is missing or too short — Apple rejects the upload with 90683`);
+  }
 }
+// A `false` here deletes the key the plugin would otherwise write, which is what caused the
+// 90683 rejection. It must be a string.
 const picker = (app.plugins ?? []).find((p) => Array.isArray(p) && p[0] === 'expo-image-picker');
 if (picker) {
-  const opts = picker[1] ?? {};
-  if (opts.cameraPermission !== false) {
-    err('expo-image-picker: set "cameraPermission": false — the plugin otherwise adds CAMERA + NSCameraUsageDescription for a camera the app never opens');
-  }
-  if (opts.microphonePermission !== false) {
-    err('expo-image-picker: set "microphonePermission": false — the plugin otherwise adds RECORD_AUDIO + NSMicrophoneUsageDescription');
+  for (const prop of ['cameraPermission', 'microphonePermission', 'photosPermission']) {
+    if ((picker[1] ?? {})[prop] === false) {
+      err(`expo-image-picker: "${prop}": false removes the iOS purpose string and triggers Apple 90683 — use a string`);
+    }
   }
 }
-if (!app.ios?.infoPlist?.NSPhotoLibraryUsageDescription) {
-  err('ios.infoPlist.NSPhotoLibraryUsageDescription is missing — the app reads the photo library');
+
+// ---------- Android permission hygiene ----------
+// Declaring a permission the app never exercises is a Play data-safety mismatch. Since the
+// iOS strings now force the picker plugin to add CAMERA/RECORD_AUDIO on Android, they have to
+// be blocked explicitly rather than simply not requested.
+const blocked = app.android?.blockedPermissions ?? [];
+for (const p of ['android.permission.CAMERA', 'android.permission.RECORD_AUDIO']) {
+  if (!blocked.includes(p)) {
+    warn(`android.blockedPermissions is missing ${p} — the picker plugin adds it, and the app never uses it`);
+  }
+}
+
+// ---------- privacy manifest ----------
+// ITMS-91053 "Missing API declaration" is the most common post-upload rejection email for
+// React Native apps: RN core reads file timestamps, UserDefaults, disk space and boot time,
+// and each needs a declared reason code.
+const declared = (app.ios?.privacyManifests?.NSPrivacyAccessedAPITypes ?? [])
+  .map((e) => e.NSPrivacyAccessedAPIType);
+for (const cat of [
+  'NSPrivacyAccessedAPICategoryFileTimestamp',
+  'NSPrivacyAccessedAPICategoryUserDefaults',
+  'NSPrivacyAccessedAPICategoryDiskSpace',
+  'NSPrivacyAccessedAPICategorySystemBootTime',
+]) {
+  if (!declared.includes(cat)) {
+    warn(`ios.privacyManifests is missing ${cat} — expect an ITMS-91053 email after upload`);
+  }
+}
+
+// Avoids the manual export-compliance question on every single upload.
+if (app.ios?.infoPlist?.ITSAppUsesNonExemptEncryption !== false) {
+  warn('ios.infoPlist.ITSAppUsesNonExemptEncryption is not false — you will be asked the export compliance question on every upload');
 }
 
 // ---------- report ----------
