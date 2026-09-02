@@ -192,6 +192,27 @@ export interface Conversation {
   createdAt: Timestamp;
 }
 
+/** Why something was reported. Mirrors the DB check constraint (0028). */
+export type ReportReason = 'spam' | 'harassment' | 'inappropriate' | 'academic_dishonesty' | 'other';
+
+/** A moderation report, for the admin queue (Guideline 1.2). */
+export interface ContentReport {
+  id: UUID;
+  reporterId: UUID;
+  targetKind: 'message' | 'user' | 'review';
+  targetMessageId: UUID | null;
+  targetUserId: UUID | null;
+  targetReviewId: UUID | null;
+  reason: ReportReason;
+  detail: string | null;
+  status: 'open' | 'actioned' | 'dismissed';
+  createdAt: Timestamp;
+  /** Filled in by the admin queue read, not stored on the row. */
+  reporterName?: string;
+  targetName?: string;
+  messageContent?: string | null;
+}
+
 /** A row from the real UA course catalog (`courses`), used to pick instead of free-type. */
 export interface CatalogCourse {
   /** e.g. "MATH 125" — the code stored on users.courses / tutor_courses.course_code. */

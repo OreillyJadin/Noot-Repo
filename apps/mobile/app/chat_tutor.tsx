@@ -28,6 +28,7 @@ import { useCounterpart } from '../lib/useCounterpart';
 import { pickAndUploadChatAttachment } from '../lib/chatAttachments';
 import { useAttachmentUrls } from '../lib/useAttachmentUrls';
 import { separatorLabel } from '../lib/chatTime';
+import { openSafetyMenu, reportMessage } from '../lib/moderation';
 import { errText } from '../lib/errText';
 
 type Who = 'student' | 'tutor';
@@ -95,6 +96,8 @@ function ChatTutorInner() {
   // Counterpart conversation comes from the booking draft; the student's real name
   // (header/placeholder) resolves via the resolve-participants edge function.
   const tutorId = booking.tutor!.id;
+  // May be absent on an older draft; the safety menu and block check need a definite id.
+  const studentId = booking.studentId ?? null;
   const student = useCounterpart(booking.studentId);
   const other = student.name;
   const otherSub = [student.year, student.major].filter(Boolean).join(' · ');
@@ -105,6 +108,9 @@ function ChatTutorInner() {
   const [uploading, setUploading] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
+  // Blocking is symmetric and enforced by RLS (0028); this only drives the UI so the composer
+  // explains itself instead of failing on send.
+  const [blocked, setBlocked] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   // Every attachment on screen (sent + staged) needs a signed URL — the bucket is private.
@@ -124,6 +130,9 @@ function ChatTutorInner() {
         if (!active) return;
         setUid(me);
         setConvId(conv.id);
+        if (studentId) {
+          api.moderation.isBlocked(studentId).then((b) => { if (active) setBlocked(b); }).catch(() => {});
+        }
         const initial = await api.chat.listMessages(conv.id);
         if (!active) return;
         setMessages(initial.map((m) => toLocal(m, me, 'tutor', 'student')));
@@ -142,7 +151,7 @@ function ChatTutorInner() {
     };
   }, [tutorId]);
 
-  const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading;
+  const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading && !blocked;
 
   const addAttachment = async () => {
     if (!convId || uploading) return;
@@ -200,8 +209,14 @@ function ChatTutorInner() {
               {otherSub ? <Text numberOfLines={1} style={[styles.navSub, { color: t.text3 }]}>{otherSub}</Text> : null}
             </View>
           </View>
-          <Pressable onPress={notify} hitSlop={8} style={[styles.navSide, styles.navSideEnd]}>
-            <Ic name="bell" size={20} color={t.text2} strokeWidth={1.8} />
+          <Pressable
+            onPress={() => studentId && void openSafetyMenu(studentId, other, () => setBlocked(true))}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Report or block this person"
+            style={[styles.navSide, styles.navSideEnd]}
+          >
+            <Ic name="shield" size={20} color={t.text2} strokeWidth={1.8} />
           </Pressable>
         </View>
 
@@ -222,7 +237,7 @@ function ChatTutorInner() {
             return (
               <React.Fragment key={m.id}>
                 {label && <Text style={[styles.timeLabel, { color: t.text3 }]}>{label}</Text>}
-                <Bubble mine={mine} m={m} urls={urls} />
+                <Bubble mine={mine} m={m} urls={urls} onReport={() => void reportMessage(m.id)} />
               </React.Fragment>
             );
           })}
@@ -259,7 +274,8 @@ function ChatTutorInner() {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              placeholder={`Message ${other.split(' ')[0]}…`}
+              editable={!blocked}
+              placeholder={blocked ? 'You can’t message this person' : `Message ${other.split(' ')[0]}…`}
               placeholderTextColor={t.text3}
               multiline
               style={[styles.input, { color: t.text }]}
@@ -280,10 +296,27 @@ function ChatTutorInner() {
   );
 }
 
-function Bubble({ mine, m, urls }: { mine: boolean; m: Message; urls: Record<string, string> }) {
+function Bubble({
+  mine,
+  m,
+  urls,
+  onReport,
+}: {
+  mine: boolean;
+  m: Message;
+  urls: Record<string, string>;
+  onReport: () => void;
+}) {
   const t = useTheme();
   return (
-    <View style={[styles.bubbleWrap, { alignSelf: mine ? 'flex-end' : 'flex-start', alignItems: mine ? 'flex-end' : 'flex-start' }]}>
+    // Long-press to report — Guideline 1.2 wants a route to report the CONTENT, not just the
+    // person. Own messages are excluded: reporting yourself is noise in the queue.
+    <Pressable
+      onLongPress={mine ? undefined : onReport}
+      delayLongPress={400}
+      accessibilityHint={mine ? undefined : 'Long press to report this message'}
+      style={[styles.bubbleWrap, { alignSelf: mine ? 'flex-end' : 'flex-start', alignItems: mine ? 'flex-end' : 'flex-start' }]}
+    >
       {m.attach?.map((a, i) => <AttachView key={i} a={a} mine={mine} url={urls[a.storagePath]} />)}
       {m.text ? (
         <View
@@ -297,7 +330,7 @@ function Bubble({ mine, m, urls }: { mine: boolean; m: Message; urls: Record<str
           <Text style={{ color: mine ? t.onAccent : t.text, fontSize: 15, lineHeight: 21 }}>{m.text}</Text>
         </View>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 

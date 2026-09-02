@@ -266,6 +266,7 @@ export default function Profile() {
           <Row icon="gear" label="Dark mode" control={<Toggle on={dark} onPress={toggleDark} />} />
           <Row icon="flame" label="School colors" sub="University of Alabama — crimson" control={<Toggle on={school} onPress={toggleSchool} />} />
           <Row icon="help" label="Help & support" onPress={() => router.push('/help')} />
+          <Row icon="lock" label="Blocked users" onPress={() => router.push('/blocked_users')} />
           <Row icon="shield" label="Privacy Policy" onPress={() => openLegal('privacy')} />
           <Row icon="doc" label="Terms of Service" onPress={() => openLegal('terms')} last />
         </Card>

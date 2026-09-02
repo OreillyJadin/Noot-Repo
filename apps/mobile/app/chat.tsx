@@ -26,6 +26,7 @@ import { NoSession } from '../lib/NoSession';
 import { pickAndUploadChatAttachment } from '../lib/chatAttachments';
 import { useAttachmentUrls } from '../lib/useAttachmentUrls';
 import { separatorLabel } from '../lib/chatTime';
+import { openSafetyMenu, reportMessage } from '../lib/moderation';
 import { errText } from '../lib/errText';
 
 type Who = 'student' | 'tutor';
@@ -102,6 +103,9 @@ function ChatInner() {
   const [uploading, setUploading] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(null);
+  // Blocking is symmetric and enforced by RLS (0028); this only drives the UI so the composer
+  // explains itself instead of failing on send.
+  const [blocked, setBlocked] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   // Every attachment on screen (sent + staged) needs a signed URL — the bucket is private.
@@ -121,6 +125,7 @@ function ChatInner() {
         if (!active) return;
         setUid(me);
         setConvId(conv.id);
+        api.moderation.isBlocked(tutorId).then((b) => { if (active) setBlocked(b); }).catch(() => {});
         const initial = await api.chat.listMessages(conv.id);
         if (!active) return;
         setMessages(initial.map((m) => toLocal(m, me, 'student', 'tutor')));
@@ -139,7 +144,7 @@ function ChatInner() {
     };
   }, [tutorId]);
 
-  const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading;
+  const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading && !blocked;
 
   const addAttachment = async () => {
     if (!convId || uploading) return;
@@ -197,8 +202,14 @@ function ChatInner() {
               <Text numberOfLines={1} style={[styles.navSub, { color: t.text3 }]}>{otherSub}</Text>
             </View>
           </View>
-          <Pressable onPress={notify} hitSlop={8} style={[styles.navSide, styles.navSideEnd]}>
-            <Ic name="bell" size={20} color={t.text2} strokeWidth={1.8} />
+          <Pressable
+            onPress={() => void openSafetyMenu(tutorId, other, () => setBlocked(true))}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Report or block this person"
+            style={[styles.navSide, styles.navSideEnd]}
+          >
+            <Ic name="shield" size={20} color={t.text2} strokeWidth={1.8} />
           </Pressable>
         </View>
 
@@ -219,7 +230,7 @@ function ChatInner() {
             return (
               <React.Fragment key={m.id}>
                 {label && <Text style={[styles.timeLabel, { color: t.text3 }]}>{label}</Text>}
-                <Bubble mine={mine} m={m} urls={urls} />
+                <Bubble mine={mine} m={m} urls={urls} onReport={() => void reportMessage(m.id)} />
               </React.Fragment>
             );
           })}
@@ -256,7 +267,8 @@ function ChatInner() {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              placeholder={`Message ${other.split(' ')[0]}…`}
+              editable={!blocked}
+              placeholder={blocked ? 'You can’t message this person' : `Message ${other.split(' ')[0]}…`}
               placeholderTextColor={t.text3}
               multiline
               style={[styles.input, { color: t.text }]}
@@ -277,10 +289,27 @@ function ChatInner() {
   );
 }
 
-function Bubble({ mine, m, urls }: { mine: boolean; m: Message; urls: Record<string, string> }) {
+function Bubble({
+  mine,
+  m,
+  urls,
+  onReport,
+}: {
+  mine: boolean;
+  m: Message;
+  urls: Record<string, string>;
+  onReport: () => void;
+}) {
   const t = useTheme();
   return (
-    <View style={[styles.bubbleWrap, { alignSelf: mine ? 'flex-end' : 'flex-start', alignItems: mine ? 'flex-end' : 'flex-start' }]}>
+    // Long-press to report — Guideline 1.2 wants a route to report the CONTENT, not just the
+    // person. Own messages are excluded: reporting yourself is noise in the queue.
+    <Pressable
+      onLongPress={mine ? undefined : onReport}
+      delayLongPress={400}
+      accessibilityHint={mine ? undefined : 'Long press to report this message'}
+      style={[styles.bubbleWrap, { alignSelf: mine ? 'flex-end' : 'flex-start', alignItems: mine ? 'flex-end' : 'flex-start' }]}
+    >
       {m.attach?.map((a, i) => <AttachView key={i} a={a} mine={mine} url={urls[a.storagePath]} />)}
       {m.text ? (
         <View
@@ -294,7 +323,7 @@ function Bubble({ mine, m, urls }: { mine: boolean; m: Message; urls: Record<str
           <Text style={{ color: mine ? t.onAccent : t.text, fontSize: 15, lineHeight: 21 }}>{m.text}</Text>
         </View>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 

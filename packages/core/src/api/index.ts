@@ -12,6 +12,8 @@ import type {
   AmbassadorProfile,
   Booking,
   CatalogCourse,
+  ContentReport,
+  ReportReason,
   ChatParticipant,
   Conversation,
   ConversationSummary,
@@ -700,6 +702,13 @@ export const api = {
         .then(({ data }) => data.session?.user.id ?? null)
         .catch(() => null);
       if (meId) q = q.neq('id', meId);
+      // Blocking must remove them from search too, not only from chat — otherwise you keep
+      // seeing and can still book someone you blocked.
+      if (meId) {
+        const { data: blocks } = await sb.from('user_blocks').select('blocked_id').eq('blocker_id', meId);
+        const ids = (blocks ?? []).map((b) => b.blocked_id as string);
+        if (ids.length) q = q.not('id', 'in', `(${ids.join(',')})`);
+      }
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []).map(mapTutorSummary);
@@ -1009,6 +1018,46 @@ export const api = {
     },
 
     /** Recent bookings across the platform with party names + dispute state (admin RLS). */
+    /**
+     * The open moderation queue (Guideline 1.2 — "timely response"). Admin-only by RLS, so a
+     * non-admin gets an empty list rather than an error.
+     */
+    async listReports(): Promise<ContentReport[]> {
+      const { data, error } = await getSupabase()
+        .from('content_reports')
+        .select('*, reporter:users!reporter_id(first_name,last_name), target:users!target_user_id(first_name,last_name), message:messages!target_message_id(content)')
+        .eq('status', 'open')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      return (data ?? []).map((r: any): ContentReport => ({
+        id: r.id,
+        reporterId: r.reporter_id,
+        targetKind: r.target_kind,
+        targetMessageId: r.target_message_id ?? null,
+        targetUserId: r.target_user_id ?? null,
+        targetReviewId: r.target_review_id ?? null,
+        reason: r.reason,
+        detail: r.detail ?? null,
+        status: r.status,
+        createdAt: r.created_at,
+        reporterName: `${r.reporter?.first_name ?? ''} ${r.reporter?.last_name ?? ''}`.trim() || 'Someone',
+        targetName: r.target ? `${r.target.first_name ?? ''} ${r.target.last_name ?? ''}`.trim() : undefined,
+        messageContent: r.message?.content ?? null,
+      }));
+      /* eslint-enable @typescript-eslint/no-explicit-any */
+    },
+
+    /** Close a report. RLS restricts the update to admins. */
+    async resolveReport(reportId: string, status: 'actioned' | 'dismissed'): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('content_reports')
+        .update({ status, reviewed_by: uid, reviewed_at: new Date().toISOString() })
+        .eq('id', reportId);
+      if (error) throw error;
+    },
+
     async listBookings(): Promise<AdminBooking[]> {
       const sb = getSupabase();
       const { data, error } = await sb
@@ -1352,6 +1401,80 @@ export const api = {
           createdAt: c.created_at,
         };
       });
+    },
+  },
+
+  // --- moderation (App Store Guideline 1.2) ---
+  //
+  // Blocking is enforced in the DATABASE, not here: the messages_insert policy (0028) refuses
+  // a write when either party has blocked the other, so a hostile client cannot bypass it by
+  // skipping these helpers. The reads below additionally hide blocked people from the UI.
+  moderation: {
+    /** Report a chat message. */
+    async reportMessage(messageId: string, reason: ReportReason, detail?: string): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase().from('content_reports').insert({
+        reporter_id: uid, target_kind: 'message', target_message_id: messageId,
+        reason, detail: detail?.trim() || null,
+      });
+      if (error) throw error;
+    },
+
+    /** Report a user (their conduct rather than one message). */
+    async reportUser(userId: string, reason: ReportReason, detail?: string): Promise<void> {
+      const uid = await requireUid();
+      if (userId === uid) throw new Error('You cannot report yourself.');
+      const { error } = await getSupabase().from('content_reports').insert({
+        reporter_id: uid, target_kind: 'user', target_user_id: userId,
+        reason, detail: detail?.trim() || null,
+      });
+      if (error) throw error;
+    },
+
+    /**
+     * Block a user. Symmetric by design — neither of you can message the other afterwards, so
+     * blocking someone doesn't leave you able to keep contacting them.
+     */
+    async blockUser(userId: string): Promise<void> {
+      const uid = await requireUid();
+      if (userId === uid) throw new Error('You cannot block yourself.');
+      const { error } = await getSupabase()
+        .from('user_blocks')
+        .upsert({ blocker_id: uid, blocked_id: userId }, { onConflict: 'blocker_id,blocked_id' });
+      if (error) throw error;
+    },
+
+    async unblockUser(userId: string): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('user_blocks').delete().eq('blocker_id', uid).eq('blocked_id', userId);
+      if (error) throw error;
+    },
+
+    /** User ids the signed-in user has blocked. Used to hide them from lists. */
+    async blockedIds(): Promise<string[]> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('user_blocks').select('blocked_id').eq('blocker_id', uid);
+      if (error) throw error;
+      return (data ?? []).map((r) => r.blocked_id as string);
+    },
+
+    /** The people you've blocked, with names, for the unblock screen. */
+    async listBlocked(): Promise<ChatParticipant[]> {
+      const ids = await this.blockedIds();
+      if (!ids.length) return [];
+      const map = await api.chat.listParticipants(ids);
+      return ids.map((id) => map[id]).filter(Boolean) as ChatParticipant[];
+    },
+
+    /** True if either party has blocked the other — the composer disables on this. */
+    async isBlocked(otherUserId: string): Promise<boolean> {
+      const { data, error } = await getSupabase().rpc('is_blocked_between', {
+        a: await requireUid(), b: otherUserId,
+      });
+      if (error) throw error;
+      return !!data;
     },
   },
 

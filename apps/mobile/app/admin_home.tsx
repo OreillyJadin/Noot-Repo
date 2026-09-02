@@ -16,6 +16,7 @@ const SECTIONS: [IconName, string, string, string | null][] = [
   ['user', 'User management', 'View accounts, suspend or reactivate', '/admin_users'],
   ['cal', 'Booking oversight', 'All bookings; flag & resolve disputes', '/admin_bookings'],
   ['star', 'Review moderation', 'Approve or reject submitted reviews', '/admin_reviews'],
+  ['alert', 'Reports', 'Reported messages and users — clear daily', '/admin_reports'],
 ];
 
 export default function AdminHome() {
