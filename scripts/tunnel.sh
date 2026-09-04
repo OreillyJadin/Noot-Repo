@@ -13,11 +13,13 @@
 #
 # Inside the session:
 #   detach (leave it running):  Ctrl+b  then  d
-#   reattach later:             ./scripts/tunnel.sh   (or: tmux attach -t noot-tunnel)
+#   reattach later:             ./scripts/tunnel.sh   (or: tmux attach -t noot-team)
+#
+# Runs in Expo Go mode (--go) so teammates just scan the QR and it opens in Expo Go.
 
 set -euo pipefail
 
-SESSION="noot-tunnel"
+SESSION="noot-team"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # `node` is not on PATH by default on this box (see CLAUDE.md).
@@ -73,14 +75,17 @@ case "$cmd" in
       PORT="$(find_free_port)"
       echo "Starting tunnel in tmux session '$SESSION' (Metro port $PORT)..."
       # Pass the free port through the pnpm alias chain so Expo never prompts.
-      # dev:tunnel is `expo start --tunnel`; `-- --port N` appends to it.
-      RUN="pnpm --filter @noot/mobile dev:tunnel -- --port $PORT"
+      # dev:tunnel is `expo start --tunnel`; `-- --port N --go` appends to it.
+      # --go forces Expo Go mode (the project has expo-dev-client, which would otherwise
+      # default to a dev-build QR that needs a keypress to switch — no good when detached).
+      RUN="pnpm --filter @noot/mobile dev:tunnel -- --port $PORT --go"
       # Start detached so restarts don't stack. Run the tunnel, then DROP TO A
       # SHELL instead of exec — so if the tunnel crashes or exits, the pane (and
       # its logs) stay alive to inspect when you reattach, and you can just
       # re-run the command to restart. `exec`-ing the tunnel would take the whole
       # session down with it, leaving nothing to debug on the road.
       inner="export PATH=\"$NODE_BIN:\$PATH\"
+set -a; . \"$REPO_ROOT/.noot-secrets.local.env\" 2>/dev/null || true; set +a
 $RUN
 ec=\$?
 printf '\n\n=== tunnel exited (code %s) — logs above. Restart: $RUN ===\n\n' \"\$ec\"
