@@ -1,9 +1,81 @@
-# 👋 PICKUP_HERE — where we left off (2026-07-22)
+# 👋 PICKUP_HERE — where we left off (2026-09-04)
 
 Quick-start for the next session. Full detail lives in `HANDOFF_CLAUDE.md`; product
 status in `PRD_STATUS.md`; your manual/dashboard to-dos in `MANUAL_SETUP.md`.
 
-## Latest (2026-07-22) — Stripe payments MVP built (TEST mode)
+## Latest (2026-09-04) — Expo SDK 54 → 57 upgrade (DONE, merged to `main`)
+
+**Why:** Expo Go on the App Store auto-updated to SDK 57 and refuses to open an SDK 54
+project ("upgrade to 57 or use an iOS simulator"). Expo Go ships one SDK at a time, so
+matching it is the only way to keep QR-scan testing on a real phone.
+
+**Scope decision: mobile (iOS + Android) only. Web is out of scope** — see CLAUDE.md
+"Current scope". The mobile app's `platform=web` bundle is **broken** and we chose not to
+chase it (details in "Known broken" below).
+
+### Status: shipped and device-verified
+
+- ✅ **Opened in Expo Go (SDK 57) on a real phone over the tunnel — confirmed working.**
+  Golden rule satisfied.
+- ✅ `pnpm typecheck` — clean across all 5 packages.
+- ✅ `expo-doctor` — **21/21 checks pass.**
+- ✅ **iOS bundle** (HTTP 200, 8.4 MB) and **Android bundle** (HTTP 200, 9.0 MB) build off the
+  Metro dev server; manifest serves `sdkVersion: 57.0.0` / `runtimeVersion: exposdk:57.0.0`.
+
+### What the upgrade actually required (beyond bumping `expo`)
+
+`pnpm add expo@^57` is **not** sufficient — it bumps one package and leaves RN/React/all
+`expo-*` at SDK 54. The real entry point is `npx expo install expo@^57.0.0 --fix`, plus:
+
+1. **Version realignment:** react 19.1.0→19.2.3, react-native 0.81.5→**0.86.3**, all 12
+   `expo-*`→57.x, safe-area-context→`~5.7.0`, screens→`~4.26.0`, svg→15.15.4,
+   `@stripe/stripe-react-native` 0.50.3→**0.64.0**, `@expo/metro-runtime`→`~57.0.15`.
+2. **Monorepo drift `--fix` misses:** `packages/ui` and `apps/web` pin react/react-native in
+   their *own* package.jsons; `--fix` only rewrites `apps/mobile`. Left alone you get duplicate
+   React (worse with `auto-install-peers=true`). Both were updated by hand.
+3. **New peer deps:** SDK 57's `expo-modules-core` + `@expo/ui` need `react-native-worklets`.
+   Auto-install-peers grabbed 0.12.1 + reanimated 4.6.0; SDK 57 supports **0.10.1 / 4.5.1**.
+   Added as explicit pins (plus `@react-native/metro-config` 0.86.3) — **do not delete them.**
+4. **app.json breaking changes (from SDK 55):**
+   - `newArchEnabled` is no longer a valid key — removed (New Arch is mandatory now).
+   - The top-level `splash` block was **removed from the config schema**. Migrated into the
+     `expo-splash-screen` plugin (image/resizeMode/backgroundColor/dark preserved verbatim) and
+     added `expo-splash-screen` as a dependency. expo-doctor rejects the config otherwise.
+5. **Two source-level API renames:**
+   - `StyleSheet.absoluteFillObject` was removed in RN 0.86 → `StyleSheet.absoluteFill`
+     (now a plain frozen object, so spreading still works) — `app/b1.tsx:495`.
+   - `expo-router` no longer exports the `Router` type → `ImperativeRouter`
+     (what `useRouter()` returns) — `lib/postAuth.ts:5`.
+6. **metro.config.js simplified to `getDefaultConfig(__dirname)`.** SDK 55+ resolves pnpm
+   workspaces itself (`autolinkingModuleResolution` on by default) and expo-doctor now flags
+   the old `watchFolders`/`nodeModulesPaths`/`disableHierarchicalLookup` overrides as harmful.
+7. **TypeScript → `~6.0.3`** across all six package.jsons (SDK 57 expects it). Typechecks clean.
+
+### Known broken (accepted, do not chase)
+
+- **Mobile app's web bundle (`platform=web`) fails to resolve:**
+  `ReactDevToolsSettingsManager` from `react-native/Libraries/Core/setUpReactDevTools.js`.
+  That module only ships `.android.js`/`.ios.js` — there is no web variant — and Expo's metro
+  config injects `Libraries/Core/InitializeCore` as a pre-module for *every* platform, which
+  drags it into the web graph. **Undiagnosed:** we never confirmed whether the simplified
+  metro.config.js contributes or whether it's inherent to RN 0.86 + Expo's web resolver.
+  Out of scope — web is not a target.
+- **`pnpm lint` fails in all 5 packages — PRE-EXISTING, unrelated to the upgrade.** ESLint 8
+  can't resolve the `@noot/config` preset and `packages/config/node_modules` is empty. No
+  eslint config was touched by this upgrade and there's no CI running lint.
+
+### Still owed (not blockers for the upgrade itself)
+
+- **New EAS dev build required** (SDK 57 native runtime) before PaymentSheet / Face ID work
+  again — the existing Android APK dev build is SDK 54 and will not load this JS. Expo Go
+  covers everything *except* those native modules (`_layout.tsx` guards `StripeProvider`
+  behind an `appOwnership === 'expo'` check, so Expo Go doesn't crash — PaymentSheet is
+  just absent).
+- Re-check the App Store submission state in `HANDOFF_2026-08-11.md` /
+  `ASC_SUBMISSION_CHECKLIST.md`: this bumps the native runtime under a build that was being
+  prepped for review, so the iOS `buildNumber` and a fresh production build need revisiting.
+
+## Prior (2026-07-22) — Stripe payments MVP built (TEST mode)
 
 Commits `920fac1`…`7e99c5a`. Real money is coded + deployed + backend-verified:
 - **Charge:** native PaymentSheet in `b4`, manual-capture hold, 17.5% fee (verified $28→$4.90/$23.10).

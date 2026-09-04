@@ -12,14 +12,14 @@
   "dependencies": {
     "@noot/theme": "workspace:*",
     "next": "^15.5.23",
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@noot/config": "workspace:*",
     "@types/node": "^20.16.11",
-    "@types/react": "^19.1.17",
-    "@types/react-dom": "^19.1.11",
-    "typescript": "^5.6.3"
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "typescript": "~6.0.3"
   }
 }

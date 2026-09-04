@@ -2,7 +2,7 @@
 // (magic-link callback, email+password, or biometric unlock). Keeping this in one
 // place means every auth path lands users in the same spot: onboarded users go to
 // their role's home, brand-new users start the onboarding flow.
-import type { Router } from 'expo-router';
+import type { ImperativeRouter } from 'expo-router';
 import { api } from '@noot/core';
 import type { Role } from './store';
 
@@ -19,7 +19,7 @@ export interface RouteAfterAuthResult {
  * lookup failure falls back to onboarding, which is the safe default for a fresh
  * account. Uses router.replace so auth screens don't linger in the back stack.
  */
-export async function routeAfterAuth(router: Router, setRole: (r: Role) => void): Promise<RouteAfterAuthResult> {
+export async function routeAfterAuth(router: ImperativeRouter, setRole: (r: Role) => void): Promise<RouteAfterAuthResult> {
   try {
     const me = await api.getMe();
     if (me && me.firstName.trim()) {

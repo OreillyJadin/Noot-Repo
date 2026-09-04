@@ -4,9 +4,25 @@ Peer-to-peer campus tutoring app. pnpm + Turborepo monorepo. Launching Universit
 Alabama, Fall 2026. Read `ARCHITECTURE.md` (authoritative) and `HANDOFF_CLAUDE.md`
 (current state) before starting work.
 
+**Newest state: `PICKUP_HERE.md`** — the Expo **SDK 54→57** upgrade (done, on `main`,
+device-verified in Expo Go): what changed, the gotchas, and what still needs a new EAS build.
+
 **Latest handoff: `HANDOFF_2026-08-11.md`** — App Store readiness state, what's blocking
 submission, and the split between what Jadin must do (§3, needs credentials/domain/device)
 and what a session can pick up unaided (§3.5). Read it before planning work.
+
+## Current scope — mobile only, no web (2026-09-04)
+
+**We are only working on the mobile app (iOS + Android) right now. Web is out of scope.**
+That means both:
+
+- **`apps/web`** (the Next.js marketing site) — don't touch it, don't feature-work it.
+- **The mobile app's own web target** (`platform=web` / react-native-web at :8081) — not a
+  supported surface right now. **Its Metro bundle is currently broken on SDK 57** (see
+  `PICKUP_HERE.md`). Do not spend time fixing it unless asked; do not treat a web bundle
+  failure as a blocker for mobile work.
+
+iOS and Android are the only targets that must build and run.
 
 ## Golden rule — verify in the live app before committing
 
@@ -15,8 +31,13 @@ just worked on actually works.** Don't rely on typecheck or unit checks alone �
 the real flow in the running app and confirm the behavior end-to-end. Only commit once
 you've seen it work.
 
-- The tutoring functions live in the **mobile app** → **http://localhost:8081**
-  (`pnpm mobile`, then press `w`, or `pnpm --filter @noot/mobile web`).
+- The tutoring functions live in the **mobile app**. Verify on **iOS or Android** —
+  `pnpm mobile`, then scan the QR with **Expo Go** (needs Expo Go on **SDK 57**), or use
+  the EAS dev build for anything needing native modules (PaymentSheet, Face ID).
+- **Do NOT verify at http://localhost:8081.** That was the old habit and it no longer
+  works — the mobile app's web bundle is broken on SDK 57 and web is out of scope
+  (see "Current scope" above). If you have no device, say the flow is unverified rather
+  than substituting the web target.
 - Backend is live locally via Supabase (see below); inspect data in Studio at
   http://localhost:54323.
 - For a fast backend-only smoke test of the `@noot/core` data layer:
@@ -24,9 +45,10 @@ you've seen it work.
 
 ## Layout
 
-- `apps/mobile` — Expo (SDK 54) app. Screens read/write through `@noot/core`. Web dev
-  server on **:8081**.
-- `apps/web` — Next.js marketing site (`pnpm web` → :3000). Not where app features live.
+- `apps/mobile` — Expo (**SDK 57**, RN 0.86, React 19.2) app. Screens read/write through
+  `@noot/core`. iOS + Android only; the :8081 web dev server is not a supported surface.
+- `apps/web` — Next.js marketing site (`pnpm web` → :3000). Not where app features live,
+  and **out of scope right now**.
 - `packages/core` — the data/auth boundary. **Screens must NEVER import `@supabase/*`
   directly** — everything goes through `@noot/core` (ARCHITECTURE.md §10).
 - `packages/ui`, `packages/theme`, `packages/config`.
@@ -41,6 +63,12 @@ you've seen it work.
 - Dev sign-in (local only): `student@crimson.ua.edu` / tutor `sara@crimson.ua.edu`,
   password `password123`. Re-seed with `node supabase/seed_demo.mjs`.
 - `apps/mobile/.env` points at the local stack (`EXPO_PUBLIC_SUPABASE_*`).
+- **Don't remove the explicit `react-native-worklets` (0.10.1) and `react-native-reanimated`
+  (4.5.1) pins in `apps/mobile/package.json`.** They aren't imported by our code — they're
+  peers of `expo-modules-core`/`@expo/ui`, and `.npmrc`'s `auto-install-peers=true` otherwise
+  resolves them *ahead* of what SDK 57 supports (0.12.x / 4.6.x) and the install warns.
+- After any dependency change run **`npx expo-doctor@latest`** from `apps/mobile` — it catches
+  app.json schema drift and SDK version mismatches that typecheck can't see.
 
 ## Conventions
 

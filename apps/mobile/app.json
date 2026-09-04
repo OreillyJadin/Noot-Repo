@@ -6,17 +6,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F4F2EC",
-      "dark": {
-        "image": "./assets/splash-icon.png",
-        "backgroundColor": "#161C16"
-      }
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.watchmenventures.noot",
@@ -81,6 +71,18 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F4F2EC",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#161C16"
+          }
+        }
+      ],
       "expo-secure-store",
       [
         "expo-local-authentication",

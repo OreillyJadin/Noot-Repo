@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
   stepBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
-  sheetScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheetScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.45)' },
   sheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, maxHeight: '82%' },
   sheetHandleWrap: { paddingTop: 10, paddingBottom: 4, alignItems: 'center' },
   sheetHandle: { width: 38, height: 5, borderRadius: 3 },

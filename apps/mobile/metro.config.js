@@ -1,19 +1,8 @@
 // Metro config for an Expo app inside a pnpm monorepo.
-// Watches the workspace root so @noot/* packages resolve, and points Metro at
-// both the app-local and root node_modules.
+// SDK 55+ resolves workspace packages and monorepo node_modules on its own
+// (expo.experiments.autolinkingModuleResolution is on by default), so the old
+// watchFolders / nodeModulesPaths / disableHierarchicalLookup overrides we
+// carried through SDK 54 are gone — expo-doctor flags them as harmful now.
 const { getDefaultConfig } = require('expo/metro-config');
-const path = require('path');
 
-const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '../..');
-
-const config = getDefaultConfig(projectRoot);
-
-config.watchFolders = [workspaceRoot];
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, 'node_modules'),
-  path.resolve(workspaceRoot, 'node_modules'),
-];
-config.resolver.disableHierarchicalLookup = true;
-
-module.exports = config;
+module.exports = getDefaultConfig(__dirname);
