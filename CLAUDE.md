@@ -56,7 +56,18 @@ you've seen it work.
 
 ## Local environment gotchas
 
-- **`node` is not on PATH by default.** Add it first:
+- **Start every session with `source scripts/dev-env.sh`.** It puts `node` on PATH *and*
+  exports the credentials from `.noot-secrets.local.env` (Supabase PAT, Expo token, Stripe
+  keys), then prints which are set — names and lengths only, never values. Do that instead of
+  exporting PATH by hand and re-sourcing the secrets file ad hoc.
+  - `.noot-secrets.local.env` is **gitignored and chmod 600**; the values never enter git.
+    `.noot-secrets.local.env.example` (committed, empty) documents every key and where to get
+    it. `dev-env.sh` re-tightens the file to 600 if it ever drifts.
+  - The production `service_role` key is deliberately **not** stored — `SUPABASE_ACCESS_TOKEN`
+    can read it from the Management API when needed, so there's no second copy of the most
+    dangerous key sitting on disk. The *local* `service_role` key is a published dev constant
+    and is already inline in `scripts/verify_*.mts`.
+- **`node` is not on PATH by default** if you skip the above:
   `export PATH="$HOME/.local/node-v22.23.1-linux-x64/bin:$PATH"`
 - Supabase local stack: `supabase start` / `supabase status`. API :54321, Studio :54323,
   Mailpit :54324, DB :54322. Migrations 0001–0005 apply on `supabase db reset`.
