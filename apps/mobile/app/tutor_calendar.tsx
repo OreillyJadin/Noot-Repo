@@ -4,7 +4,7 @@
 // This is a tutor tab root (TabBar persists across tutor_home/tutor_calendar/
 // tutor_sessions/tutor_profile).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, type ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, TabBar, Card, Avatar, Ic, Label, useTheme } from '@noot/ui';
@@ -64,7 +64,6 @@ export default function TutorCalendar() {
   const [week, setWeek] = useState(0); // 0 = this week · 1 = next week
   const [day, setDay] = useState(1); // selected index into DAYS
   // Open/closeable slots per day, seeded from the tutor's real weekly availability.
-  // (Per-slot toggling is local-only for now — see TODO on toggle().)
   const [open, setOpen] = useState<Record<number, Set<string>>>({});
   // Booked sessions on the grid: live from api.listUpcoming().
   const [sessionsByDay, setSessionsByDay] = useState<Record<number, Record<string, CalSession>>>({});
@@ -105,7 +104,9 @@ export default function TutorCalendar() {
             name: 'Student',
             av: 'S',
             course: b.subject,
-            where: online ? 'Online — Integrated Video' : (b.location ?? 'In person'),
+            // Plain "Online": noot hosts no video, and video sessions aren't sold at
+            // launch (T14). Only pre-existing rows can be 'video'.
+            where: online ? 'Online' : (b.location ?? 'In person'),
             pay: `$${Math.round(b.tutorPayoutAmount)}`,
             len: lenLabel(b.durationMinutes),
           };
@@ -121,14 +122,11 @@ export default function TutorCalendar() {
   const openSet = open[day] || new Set<string>();
   const dayObj = DAYS.find((d) => d.i === day) || DAYS[0]!;
 
-  const toggle = (time: string) => {
-    // TODO(api): persist availability open/close (no write endpoint yet — local-only).
-    setOpen((prev) => {
-      const next = { ...prev, [day]: new Set(prev[day]) };
-      if (next[day]!.has(time)) next[day]!.delete(time);
-      else next[day]!.add(time);
-      return next;
-    });
+  // This grid is a read-only view of the tutor's recurring availability. Editing it here
+  // used to be local-only and was silently lost on reload, so it now routes to
+  // edit_availability, which persists through api.profile.updateAvailability().
+  const editAvailability = () => {
+    router.push('/edit_availability' as never);
   };
   const pickWeek = (w: number) => {
     setWeek(w);
@@ -139,10 +137,7 @@ export default function TutorCalendar() {
   const openDetail = () => {
     router.push('/tb2' as never);
   };
-  const copyToNextWeek = () => {
-    // TODO(api): persist availability copy server-side.
-    Alert.alert('Availability copied to next week');
-  };
+
   const scrollRef = useRef<ScrollView>(null);
   // Re-tapping Calendar snaps back to this-week / default day + scrolls to top.
   const { active, onTab } = useTabNav({
@@ -232,8 +227,8 @@ export default function TutorCalendar() {
             <Text style={[styles.summaryStrong, { color: t.text }]}>{stats.b}</Text> booked ·{' '}
             <Text style={[styles.summaryStrong, { color: t.text }]}>{stats.o}</Text> open this week
           </Text>
-          <Text onPress={copyToNextWeek} style={[styles.copyLink, { color: t.accent }]}>
-            Copy to next week
+          <Text onPress={editAvailability} style={[styles.copyLink, { color: t.accent }]}>
+            Edit availability
           </Text>
         </View>
       </View>
@@ -275,7 +270,7 @@ export default function TutorCalendar() {
                   </Card>
                 ) : (
                   <Pressable
-                    onPress={() => toggle(time)}
+                    onPress={editAvailability}
                     style={[
                       styles.openSlot,
                       {

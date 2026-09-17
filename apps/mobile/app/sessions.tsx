@@ -2,7 +2,7 @@
 // segmented tabs. Upcoming, Past and Saved all read live via @noot/core
 // because the backend has no past-sessions endpoint (see TODO(api) below).
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Alert, type ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Alert, Pressable, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, Chip, Button, Ic, H1, TabBar, EmptyState, Skeleton, useTheme } from '@noot/ui';
@@ -34,7 +34,9 @@ function formatWhen(iso: string): string {
 
 /** Where a booking happens — meeting link for video, location for in-person. */
 function formatWhere(b: Booking): string {
-  if (b.sessionType === 'video') return b.meetingLink ? 'Online · Zoom' : 'Online';
+  // "Zoom" was never true — nothing sets meeting_link, and video isn't sold at launch
+  // (T14). Existing 'video' rows just read "Online".
+  if (b.sessionType === 'video') return 'Online';
   return b.location ?? 'In person';
 }
 
@@ -65,6 +67,18 @@ export default function Sessions() {
   const [past, setPast] = useState<UpcomingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [savedLoading, setSavedLoading] = useState(true);
+
+  /** Remove a saved tutor. Optimistic, restoring the row if the write fails. */
+  const unsaveTutor = async (tutorId: string) => {
+    const previous = saved;
+    setSaved((list) => list.filter((x) => x.id !== tutorId));
+    try {
+      await api.tutors.unsave(tutorId);
+    } catch {
+      setSaved(previous);
+      Alert.alert('Could not remove that tutor', 'Please try again.');
+    }
+  };
   const [pastLoading, setPastLoading] = useState(true);
   useEffect(() => {
     let active = true;
@@ -204,7 +218,6 @@ export default function Sessions() {
             {saved.map((tutor) => {
               return (
                 <Card key={tutor.id} onPress={() => openTutor(tutor)} style={styles.savedRow}>
-                  {/* TODO(api): un-save handler (remove from saved tutors) — write action, not wired this pass. */}
                   <Avatar size={46} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <View style={styles.rowHead}>
@@ -222,7 +235,14 @@ export default function Sessions() {
                       <Text style={[styles.sessions, { color: t.text3 }]}>{tutor.sessions} sessions</Text>
                     </View>
                   </View>
-                  <Ic name="bookmark" size={19} color={t.accent} strokeWidth={1.6} fill={t.accent} />
+                  {/* Its own Pressable, and hitSlop'd, so it doesn't just open the profile. */}
+                  <Pressable
+                    onPress={() => unsaveTutor(tutor.id)}
+                    hitSlop={10}
+                    accessibilityLabel={`Remove ${tutor.name} from saved tutors`}
+                  >
+                    <Ic name="bookmark" size={19} color={t.accent} strokeWidth={1.6} fill={t.accent} />
+                  </Pressable>
                 </Card>
               );
             })}
