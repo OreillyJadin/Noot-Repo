@@ -13,7 +13,8 @@ interface ThemePref {
   dark: boolean;
   setDark: (v: boolean) => void;
   toggle: () => void;
-  /** School-colors theme (University of Alabama crimson) instead of the sage default. */
+  /** School-colors theme (a crimson accent) instead of the sage default. Just a colour —
+   *  noot is not affiliated with any university (see APP_REVIEW_REPLY_DRAFT.md §6). */
   school: boolean;
   setSchool: (v: boolean) => void;
   toggleSchool: () => void;

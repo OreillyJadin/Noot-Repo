@@ -30,7 +30,8 @@ if (url && anonKey) {
 }
 
 // Reads the persisted theme preferences and feeds them into the theme + status bar.
-// `school` swaps the accent to University of Alabama crimson (the "school colors" theme).
+// `school` swaps the accent to crimson (the "school colors" theme) — a colour choice, not
+// a university mark.
 function ThemedApp() {
   const { dark, school } = useThemePref();
   // @stripe/stripe-react-native's native module isn't in Expo Go, so mounting
