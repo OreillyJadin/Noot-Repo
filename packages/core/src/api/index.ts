@@ -371,10 +371,44 @@ const TUTOR_SELECT = `
   tutor_courses ( id, tutor_id, course_code, grade, hourly_rate, sessions, created_at )
 `;
 
-/** Invoke a Supabase Edge Function (server-only logic — see ARCHITECTURE.md §5). */
+/**
+ * An Edge Function that answered with a non-2xx status. `message` is the server's own
+ * `error` string, so it can be shown to the user; `status` is the HTTP status.
+ */
+export class FunctionError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'FunctionError';
+    this.status = status;
+  }
+}
+
+/**
+ * Invoke a Supabase Edge Function (server-only logic — see ARCHITECTURE.md §5).
+ *
+ * supabase-js turns any non-2xx into a FunctionsHttpError whose `.message` is the generic
+ * "Edge Function returned a non-2xx status code" and leaves the body unread — so our
+ * functions' careful error copy (the deletion 409, the content filter, the pricing
+ * rejections) never reached the user. Read the body and rethrow a FunctionError carrying it.
+ */
 async function invokeFn<T>(name: string, body?: Record<string, unknown>): Promise<T> {
   const { data, error } = await getSupabase().functions.invoke<T>(name, { body });
-  if (error) throw error;
+  if (error) {
+    const res = (error as { context?: Response }).context;
+    if (res && typeof res.json === 'function') {
+      try {
+        const parsed = await res.clone().json();
+        const serverMessage = typeof parsed?.error === 'string' ? parsed.error : null;
+        if (serverMessage) throw new FunctionError(serverMessage, res.status);
+      } catch (e) {
+        // A FunctionError is the message we want; anything else means the body wasn't
+        // the JSON shape we expected, so fall through to the original error.
+        if (e instanceof FunctionError) throw e;
+      }
+    }
+    throw error;
+  }
   return data as T;
 }
 
@@ -382,17 +416,31 @@ async function invokeFn<T>(name: string, body?: Record<string, unknown>): Promis
 // write-method inputs (Edge Function bodies)
 // ---------------------------------------------------------------------------
 
+/**
+ * Note there is deliberately no `price` here. The server derives it from
+ * tutor_courses.hourly_rate and checks the held PaymentIntent against it (T5) — a
+ * client-supplied price was a cash-out hole, since complete-session transfers the
+ * resulting payout out of the platform balance.
+ */
 export interface ConfirmBookingInput {
   tutorId: string;
-  subject: string;
+  /** Must match a tutor_courses row for this tutor — it selects the rate. */
+  courseCode: string;
   scheduledAt: string;
   durationMinutes: number;
   sessionType: 'video' | 'in_person';
   location?: string;
   meetingLink?: string;
-  price: number;
   message?: string;
   paymentIntentId?: string;
+}
+
+/** The booking being paid for. The server derives the amount from these (T5). */
+export interface CreatePaymentIntentInput {
+  tutorId: string;
+  courseCode: string;
+  durationMinutes: number;
+  scheduledAt: string;
 }
 
 export interface RescheduleBookingInput {
@@ -461,6 +509,25 @@ export const api = {
       if (patch.gender !== undefined) row.gender = patch.gender;
       if (Object.keys(row).length === 0) return;
       const { error } = await getSupabase().from('users').update(row).eq('id', uid);
+      if (error) throw error;
+    },
+
+    /**
+     * Record that the user accepted the Terms of Use during onboarding (T9, Guideline 1.2).
+     * Called from set_password.tsx, where accepting is required to continue. Keep
+     * TERMS_VERSION in step with the "updated" date on trynoot.com/privacy.
+     */
+    async acceptTerms(version: string): Promise<void> {
+      const uid = await requireUid();
+      // .select().single() on purpose: a bare update that matches no row (the users row
+      // can lag a fresh sign-up) returns no error, and onboarding would continue with
+      // terms_accepted_at still null — a silently unrecorded consent.
+      const { error } = await getSupabase()
+        .from('users')
+        .update({ terms_accepted_at: new Date().toISOString(), terms_version: version })
+        .eq('id', uid)
+        .select('id')
+        .single();
       if (error) throw error;
     },
 
@@ -1097,19 +1164,23 @@ export const api = {
 
   /**
    * B4 → held (manual-capture) PaymentIntent via `create-payment-intent`. Returns the
-   * params the client PaymentSheet needs; `simulated` is true when no Stripe key is set
-   * (dev/web) so callers can skip presenting the sheet. Capture happens in complete-session.
+   * params the client PaymentSheet needs, plus the server-computed amount; `simulated` is
+   * true when no Stripe key is set (dev/web) so callers can skip presenting the sheet.
+   * Capture happens in complete-session. The amount is the server's, never the caller's.
    */
   createPaymentIntent(
-    amountCents: number,
+    input: CreatePaymentIntentInput,
   ): Promise<{
     paymentIntentClientSecret: string;
     ephemeralKeySecret: string | null;
     customerId: string | null;
     paymentIntentId: string;
+    /** Authoritative, server-computed. Show this, don't recompute it. */
+    amountCents: number;
+    price: number;
     simulated: boolean;
   }> {
-    return invokeFn('create-payment-intent', { amountCents });
+    return invokeFn('create-payment-intent', input as unknown as Record<string, unknown>);
   },
 
   // --- bookings (trust-sensitive writes → Edge Functions, see ARCHITECTURE.md §5) ---
