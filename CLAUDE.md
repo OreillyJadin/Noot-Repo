@@ -4,6 +4,12 @@ Peer-to-peer campus tutoring app. pnpm + Turborepo monorepo. Launching Universit
 Alabama, Fall 2026. Read `ARCHITECTURE.md` (authoritative) and `HANDOFF_CLAUDE.md`
 (current state) before starting work.
 
+**Current priority: `APP_REVIEW_START_HERE.md`** — Apple returned **Guideline 2.1 Information
+Needed** on the first submission. That file has the rules for this push, Apple's message verbatim,
+and the verification loop; `APP_REVIEW_TICKETS.md` is the work list, `APP_REVIEW_REPLY_DRAFT.md`
+the reply whose every claim must be true in code, and `APP_REVIEW_AUDITOR.md` the adversarial
+audit prompt to run before calling a ticket done. **Read it before doing App Review work.**
+
 **Newest state: `PICKUP_HERE.md`** — the Expo **SDK 54→57** upgrade (done, on `main`,
 device-verified in Expo Go): what changed, the gotchas, and what still needs a new EAS build.
 
