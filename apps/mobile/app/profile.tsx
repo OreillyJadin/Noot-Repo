@@ -6,7 +6,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -16,6 +15,7 @@ import { errText } from '../lib/errText';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
 import { pickAndUploadAvatar } from '../lib/avatar';
+import { openLegal } from '../lib/legal';
 
 // TODO(api): backend-only actions from the prototype's showToast() — swap for real
 // navigation/mutations once wired up.
@@ -110,10 +110,6 @@ export default function Profile() {
     }
   };
   // Referral CTA: already an ambassador → their referrals dashboard; otherwise sign them up.
-  // Legal pages live on the marketing site — App Store Connect needs a public privacy
-  // URL anyway, so the app links the same one rather than duplicating the text.
-  const openLegal = (page: 'privacy' | 'terms') =>
-    WebBrowser.openBrowserAsync(`https://noot.app/${page}`).catch(() => {});
 
   const openReferrals = () => (roles.includes('ambassador') ? router.push('/ambassador_referrals') : becomeAmbassador());
 

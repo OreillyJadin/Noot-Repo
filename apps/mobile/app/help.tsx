@@ -4,8 +4,9 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, Linking, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Eyebrow, Ic, useTheme } from '@noot/ui';
+import { SUPPORT_EMAIL } from '../lib/legal';
 
-const SUPPORT_EMAIL = 'support@noot.app';
+
 
 const FAQ: [string, string][] = [
   ['How do payments work?', 'You pay when you book — the charge is held securely and only released to your tutor after the session is marked complete. Cancel 24h+ ahead for a full refund.'],

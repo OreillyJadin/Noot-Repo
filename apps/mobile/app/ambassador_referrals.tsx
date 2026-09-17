@@ -10,7 +10,7 @@ import { useApp } from '../lib/store';
 import { useTabNav } from '../lib/useTabNav';
 
 function referralLink(code: string): string {
-  return `https://noot.app/join?ref=${encodeURIComponent(code)}`;
+  return `https://trynoot.com/join?ref=${encodeURIComponent(code)}`;
 }
 
 export default function AmbassadorReferrals() {
