@@ -32,8 +32,14 @@ enabled = true
 # Where the magic-link redirect returns. Expo dev server default; add prod/app URLs later.
 site_url = "http://localhost:8081"
 # Magic-link returns to /auth-callback; the ** globs let any path/params through.
+# `noot://**` is the one that matters in production — the app passes the deep link as
+# emailRedirectTo, and if it isn't allow-listed GoTrue silently falls back to site_url.
 # Cloud mirrors this in Dashboard → Auth → URL Configuration (separate from this file).
-additional_redirect_urls = ["http://localhost:8081", "http://localhost:8081/**", "noot://", "noot://**"]
+additional_redirect_urls = [
+  "http://localhost:8081", "http://localhost:8081/**",
+  "noot://", "noot://**",
+  "https://trynoot.com", "https://trynoot.com/**",
+]
 jwt_expiry = 3600
 enable_signup = true
 
@@ -41,3 +47,25 @@ enable_signup = true
 enable_signup = true
 # Local: no click-to-confirm; the magic-link OTP itself is the verification.
 enable_confirmations = false
+
+# Branded templates, kept as files so local and cloud can't drift. The cloud project is
+# updated from these same files by `scripts/push_auth_templates.mts`.
+[auth.email.template.confirmation]
+subject = "Confirm your email address"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Your Noot sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.recovery]
+subject = "Reset your Noot password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.invite]
+subject = "You've been invited to Noot"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your new email address"
+content_path = "./supabase/templates/email_change.html"

@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+  <body style="margin:0;padding:24px;background:#F6F5F1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1C1C1A;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;margin:0 auto;background:#FFFFFF;border-radius:16px;padding:32px;">
+      <tr><td>
+        <div style="font-size:22px;font-weight:700;color:#78A070;letter-spacing:-0.4px;">noot</div>
+        <h1 style="font-size:20px;font-weight:700;margin:20px 0 8px;">Reset your password</h1>
+        <p style="font-size:15px;line-height:22px;color:#4A4A46;margin:0;">We received a request to reset your Noot password. Tap below to choose a new one.</p><p style="margin:24px 0;"><a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#78A070;color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:600;padding:13px 24px;border-radius:12px;">Choose a new password</a></p><p style="font-size:13px;line-height:20px;color:#4A4A46;margin:0;">Or enter this code in the app:</p><p style="font-size:26px;font-weight:700;letter-spacing:4px;margin:8px 0 0;">{{ .Token }}</p><p style="font-size:12.5px;line-height:18px;color:#8A8A85;margin:20px 0 0;word-break:break-all;">Button not working? Paste this into your browser:<br>{{ .ConfirmationURL }}</p>
+        <p style="font-size:12.5px;line-height:18px;color:#8A8A85;margin:28px 0 0;">
+          If you didn't request this, you can safely ignore this email.<br>
+          Questions? <a href="mailto:admin@trynoot.com" style="color:#78A070;">admin@trynoot.com</a>
+        </p>
+        <p style="font-size:12px;color:#A8A8A2;margin:16px 0 0;">
+          Noot &middot; peer tutoring at the University of Alabama &middot;
+          <a href="https://trynoot.com/privacy" style="color:#A8A8A2;">Privacy &amp; Terms</a>
+        </p>
+      </td></tr>
+    </table>
+  </body>
+</html>
