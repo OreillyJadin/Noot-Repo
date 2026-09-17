@@ -1,0 +1,19 @@
+-- 0035_cloud_only_seed_app_review_accounts.sql — placeholder for the cloud-only migration recorded as version 20260905012006
+-- ("seed_app_review_accounts").
+--
+-- WHY THIS FILE IS EMPTY OF DDL
+-- The App Review preparation work on 2026-09-05 was applied directly to the cloud project,
+-- so the remote `supabase_migrations.schema_migrations` table has a timestamp-versioned row
+-- with no local file. That is the exact condition that turns the "Supabase Preview" GitHub
+-- check red (see CLAUDE.md > Conventions and `pnpm check:preview`). This file exists so
+-- local and remote migration history agree after the remote row is relabeled to 0035:
+--
+--   update supabase_migrations.schema_migrations set version='0035' where version='20260905012006';
+--
+-- It deliberately does NOT reproduce the original SQL:
+--   * that statement creates the reviewer demo accounts and CONTAINS PASSWORD MATERIAL.
+--     `APP_REVIEW_START_HERE.md` forbids reviewer credentials in the repo, so the SQL must
+--     never be copied here. Re-seed via the cloud project, or locally with
+--     `node supabase/seed_demo.mjs`.
+--
+-- Intentionally a no-op on every database. Safe to apply locally and on preview branches.

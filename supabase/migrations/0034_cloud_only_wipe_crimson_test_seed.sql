@@ -1,0 +1,18 @@
+-- 0034_cloud_only_wipe_crimson_test_seed.sql — placeholder for the cloud-only migration recorded as version 20260905011847
+-- ("wipe_crimson_test_seed").
+--
+-- WHY THIS FILE IS EMPTY OF DDL
+-- The App Review preparation work on 2026-09-05 was applied directly to the cloud project,
+-- so the remote `supabase_migrations.schema_migrations` table has a timestamp-versioned row
+-- with no local file. That is the exact condition that turns the "Supabase Preview" GitHub
+-- check red (see CLAUDE.md > Conventions and `pnpm check:preview`). This file exists so
+-- local and remote migration history agree after the remote row is relabeled to 0034:
+--
+--   update supabase_migrations.schema_migrations set version='0034' where version='20260905011847';
+--
+-- It deliberately does NOT reproduce the original SQL:
+--   * that statement DELETES seeded test accounts and their data from the cloud project.
+--     Re-running destructive cleanup against any other database (local, preview) could
+--     destroy data that is not test data. Never replay it.
+--
+-- Intentionally a no-op on every database. Safe to apply locally and on preview branches.

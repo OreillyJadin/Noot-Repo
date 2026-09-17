@@ -1,0 +1,18 @@
+-- 0033_cloud_only_add_watchmenventures_campus_domain.sql — placeholder for the cloud-only migration recorded as version 20260905011827
+-- ("add_watchmenventures_campus_domain").
+--
+-- WHY THIS FILE IS EMPTY OF DDL
+-- The App Review preparation work on 2026-09-05 was applied directly to the cloud project,
+-- so the remote `supabase_migrations.schema_migrations` table has a timestamp-versioned row
+-- with no local file. That is the exact condition that turns the "Supabase Preview" GitHub
+-- check red (see CLAUDE.md > Conventions and `pnpm check:preview`). This file exists so
+-- local and remote migration history agree after the remote row is relabeled to 0033:
+--
+--   update supabase_migrations.schema_migrations set version='0033' where version='20260905011827';
+--
+-- It deliberately does NOT reproduce the original SQL:
+--   * that statement adds an allowed campus email domain used for App Review sign-in. It is
+--     an environment-specific data row, not schema, and re-applying it locally would let a
+--     non-.edu domain through the dev sign-up gate.
+--
+-- Intentionally a no-op on every database. Safe to apply locally and on preview branches.

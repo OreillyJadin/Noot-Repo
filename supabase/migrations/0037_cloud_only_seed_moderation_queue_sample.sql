@@ -1,0 +1,17 @@
+-- 0037_cloud_only_seed_moderation_queue_sample.sql — placeholder for the cloud-only migration recorded as version 20260905012108
+-- ("seed_moderation_queue_sample").
+--
+-- WHY THIS FILE IS EMPTY OF DDL
+-- The App Review preparation work on 2026-09-05 was applied directly to the cloud project,
+-- so the remote `supabase_migrations.schema_migrations` table has a timestamp-versioned row
+-- with no local file. That is the exact condition that turns the "Supabase Preview" GitHub
+-- check red (see CLAUDE.md > Conventions and `pnpm check:preview`). This file exists so
+-- local and remote migration history agree after the remote row is relabeled to 0037:
+--
+--   update supabase_migrations.schema_migrations set version='0037' where version='20260905012108';
+--
+-- It deliberately does NOT reproduce the original SQL:
+--   * that statement seeds sample rows in the moderation/report queue so the admin panel has
+--     something to show a reviewer. Demo data, not schema.
+--
+-- Intentionally a no-op on every database. Safe to apply locally and on preview branches.
