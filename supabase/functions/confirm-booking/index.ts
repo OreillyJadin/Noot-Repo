@@ -1,11 +1,18 @@
 // Edge Function: confirm-booking.
 // The caller (user.id) is the STUDENT. Creates a confirmed booking, ensures a
 // conversation exists between student and tutor, and optionally posts an opening
-// message. Money movement is out of scope (see TODO(stripe) below).
+// message.
+//
+// Body: { tutorId, courseCode, scheduledAt, durationMinutes, sessionType, location,
+//         meetingLink, message, paymentIntentId }. The price is NOT accepted from the
+// client — resolveBooking() re-derives it from tutor_courses.hourly_rate and the held
+// PaymentIntent is retrieved and checked against it (T5). Before that check existed, an
+// inflated `price` against a small hold became a real transfer in complete-session.
 //
 // Self-contained: SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY
 // are auto-injected by the runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { BookingError, resolveBooking } from '../_shared/booking.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -28,64 +35,106 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
 
     const {
-      tutorId,
-      subject,
-      scheduledAt,
-      durationMinutes,
+      courseCode,
       sessionType,
       location,
       meetingLink,
-      price,
       message,
       paymentIntentId,
     } = body as {
-      tutorId?: string;
-      subject?: string;
-      scheduledAt?: string;
-      durationMinutes?: number;
+      courseCode?: string;
       sessionType?: string;
       location?: string;
       meetingLink?: string;
-      price?: number;
       message?: string;
       paymentIntentId?: string;
     };
 
-    if (!tutorId || !subject || !scheduledAt || !durationMinutes || !sessionType || price == null) {
-      return Response.json({ error: 'Missing required fields' }, { status: 400, headers: cors });
+    // Only in-person sessions are sold at launch: noot has no video provider, so a video
+    // booking would leave the student with no way to attend (T14). Existing 'video' rows
+    // still render; we just don't create new ones.
+    if (sessionType !== 'in_person') {
+      return Response.json(
+        { error: "Only in-person sessions can be booked right now (sessionType must be 'in_person')." },
+        { status: 400, headers: cors },
+      );
     }
 
     // The caller is the student and must be a party to the booking they create.
     const studentId = user.id;
 
-    const cancellationDeadline = new Date(
-      new Date(scheduledAt).getTime() - 24 * 60 * 60 * 1000,
-    ).toISOString();
+    // Single source of truth for price, fee, payout and tutor eligibility. This also
+    // rejects blocked pairs, which the service-role inserts below would otherwise bypass.
+    const resolved = await resolveBooking(db, {
+      studentId,
+      tutorId: body?.tutorId,
+      courseCode,
+      durationMinutes: body?.durationMinutes,
+      scheduledAt: body?.scheduledAt,
+    });
 
-    // Noot's cut is 17.5%; the tutor's payout is the remainder. Rounded to cents.
-    // The held PaymentIntent is captured (and this payout transferred) in complete-session.
-    const FEE_RATE = 0.175;
-    const platformFee = Math.round(price * FEE_RATE * 100) / 100;
-    const tutorPayout = Math.round((price - platformFee) * 100) / 100;
+    // Verify the held PaymentIntent really covers this booking. Without this the amount
+    // Stripe authorized and the amount we pay the tutor are unrelated numbers.
+    const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+    let storedPaymentIntentId: string;
+    if (stripeKey) {
+      if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
+        return Response.json({ error: 'A completed payment is required' }, { status: 400, headers: cors });
+      }
+      const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
+      const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
+      const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+      if (pi.metadata?.user_id !== studentId) {
+        return Response.json({ error: 'That payment belongs to someone else' }, { status: 403, headers: cors });
+      }
+      if (pi.metadata?.tutor_id !== resolved.tutorId || pi.metadata?.course_code !== resolved.courseCode) {
+        return Response.json({ error: 'That payment was for a different session' }, { status: 400, headers: cors });
+      }
+      if (pi.amount !== resolved.amountCents) {
+        return Response.json({ error: 'The payment amount does not match this session' }, { status: 400, headers: cors });
+      }
+      // Manual capture: the hold is authorized and waiting to be captured.
+      if (pi.status !== 'requires_capture') {
+        return Response.json({ error: 'The payment has not been authorized yet' }, { status: 400, headers: cors });
+      }
+      // One hold, one booking.
+      const { data: reused } = await db
+        .from('bookings')
+        .select('id')
+        .eq('stripe_payment_intent_id', paymentIntentId)
+        .limit(1);
+      if ((reused ?? []).length > 0) {
+        return Response.json({ error: 'That payment has already been used' }, { status: 409, headers: cors });
+      }
+      storedPaymentIntentId = paymentIntentId;
+    } else {
+      // No Stripe configured (local/dev) — create-payment-intent returned a simulated id.
+      storedPaymentIntentId = paymentIntentId ?? 'sim_pi_' + crypto.randomUUID();
+    }
+
+    const cancellationDeadline = new Date(
+      new Date(resolved.scheduledAt).getTime() - 24 * 60 * 60 * 1000,
+    ).toISOString();
 
     const { data: booking, error: bookingError } = await db
       .from('bookings')
       .insert({
         student_id: studentId,
-        tutor_id: tutorId,
-        subject,
-        scheduled_at: scheduledAt,
-        duration_minutes: durationMinutes,
-        price,
-        platform_fee: platformFee,
-        tutor_payout_amount: tutorPayout,
+        tutor_id: resolved.tutorId,
+        subject: resolved.courseCode,
+        scheduled_at: resolved.scheduledAt,
+        duration_minutes: resolved.durationMinutes,
+        price: resolved.price,
+        platform_fee: resolved.platformFee,
+        tutor_payout_amount: resolved.tutorPayout,
         session_type: sessionType,
         meeting_link: meetingLink ?? null,
         location: location ?? null,
         status: 'confirmed',
         cancellation_deadline: cancellationDeadline,
         refund_status: 'not_applicable',
-        stripe_payment_intent_id: paymentIntentId ?? ('sim_pi_' + crypto.randomUUID()),
+        stripe_payment_intent_id: storedPaymentIntentId,
       })
       .select('id')
       .single();
@@ -95,7 +144,7 @@ Deno.serve(async (req) => {
     const { data: conversation, error: conversationError } = await db
       .from('conversations')
       .upsert(
-        { student_id: studentId, tutor_id: tutorId },
+        { student_id: studentId, tutor_id: resolved.tutorId },
         { onConflict: 'student_id,tutor_id' },
       )
       .select('id')
@@ -113,10 +162,18 @@ Deno.serve(async (req) => {
     }
 
     return Response.json(
-      { bookingId: booking.id, conversationId: conversation.id },
+      { bookingId: booking.id, conversationId: conversation.id, price: resolved.price },
       { headers: cors },
     );
   } catch (e) {
-    return Response.json({ error: String(e) }, { status: 400, headers: cors });
+    if (e instanceof BookingError) {
+      return Response.json({ error: e.message }, { status: e.status, headers: cors });
+    }
+    // Deliberately generic — see the note in create-payment-intent.
+    console.error('confirm-booking failed', JSON.stringify(e), e);
+    return Response.json(
+      { error: 'Something went wrong confirming that booking. Please try again.' },
+      { status: 400, headers: cors },
+    );
   }
 });

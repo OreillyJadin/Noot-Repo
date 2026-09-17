@@ -4,6 +4,7 @@
 // status='completed', then fires award-referral-bonus (non-fatal). Idempotent: a booking
 // already 'completed' is a no-op. Simulated bookings (sim_pi_…) just flip to completed.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { BookingError, assertPayoutReady, assertSessionElapsed } from '../_shared/booking.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -28,7 +29,7 @@ Deno.serve(async (req: Request) => {
     const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const { data: booking } = await db
       .from('bookings')
-      .select('id, tutor_id, status, stripe_payment_intent_id, tutor_payout_amount')
+      .select('id, tutor_id, status, scheduled_at, duration_minutes, stripe_payment_intent_id, tutor_payout_amount')
       .eq('id', bookingId)
       .maybeSingle();
     if (!booking) return Response.json({ error: 'booking not found' }, { status: 404, headers: cors });
@@ -37,6 +38,10 @@ Deno.serve(async (req: Request) => {
     if (booking.status !== 'confirmed') {
       return Response.json({ error: `Cannot complete a ${booking.status} session` }, { status: 400, headers: cors });
     }
+
+    // A session can only be completed once it's actually over. Without this a tutor could
+    // capture the hold for a session days away.
+    assertSessionElapsed(booking.scheduled_at as string, Number(booking.duration_minutes));
 
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
     const pi = booking.stripe_payment_intent_id as string | null;
@@ -52,28 +57,48 @@ Deno.serve(async (req: Request) => {
         .eq('user_id', booking.tutor_id)
         .maybeSingle();
       const connectId = (prof?.stripe_connect_account_id as string | null | undefined) ?? null;
-      if (!connectId) {
-        return Response.json({ error: 'Set up payouts before completing — no connected Stripe account.' }, { status: 400, headers: cors });
-      }
 
       const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
       const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
+
+      // Check the destination BEFORE capturing. Capture-then-fail used to leave the
+      // student charged, the tutor unpaid and the booking still 'confirmed'.
+      await assertPayoutReady(stripe, connectId);
 
       const capturedPi = await stripe.paymentIntents.capture(pi, {}, { idempotencyKey: `capture_${bookingId}` });
       captured = true;
       chargeId = typeof capturedPi.latest_charge === 'string' ? capturedPi.latest_charge : (capturedPi.latest_charge?.id ?? null);
 
-      const transfer = await stripe.transfers.create(
-        {
-          amount: Math.round(Number(booking.tutor_payout_amount) * 100),
-          currency: 'usd',
-          destination: connectId,
-          transfer_group: bookingId,
-          metadata: { booking_id: bookingId },
-        },
-        { idempotencyKey: `transfer_${bookingId}` },
-      );
-      transferId = transfer.id;
+      try {
+        const transfer = await stripe.transfers.create(
+          {
+            amount: Math.round(Number(booking.tutor_payout_amount) * 100),
+            currency: 'usd',
+            destination: connectId!,
+            transfer_group: bookingId,
+            metadata: { booking_id: bookingId },
+          },
+          { idempotencyKey: `transfer_${bookingId}` },
+        );
+        transferId = transfer.id;
+      } catch (transferErr) {
+        // The money IS captured at this point, so record that fact and flag the booking
+        // rather than throwing and leaving the row looking untouched. Both ids are
+        // idempotency-keyed, so a retry resumes safely.
+        await db
+          .from('bookings')
+          .update({ status: 'completed', stripe_charge_id: chargeId, payout_failed_at: new Date().toISOString() })
+          .eq('id', bookingId);
+        console.error('complete-session: captured but transfer failed', bookingId, String(transferErr));
+        return Response.json(
+          {
+            error: 'The payment was taken but the payout to the tutor failed. Our team has been notified and will complete it.',
+            captured: true,
+            payoutFailed: true,
+          },
+          { status: 502, headers: cors },
+        );
+      }
     }
 
     const { error: upErr } = await db
@@ -96,6 +121,14 @@ Deno.serve(async (req: Request) => {
 
     return Response.json({ status: 'completed', captured, transferId }, { headers: cors });
   } catch (err) {
-    return Response.json({ error: String(err) }, { status: 400, headers: cors });
+    if (err instanceof BookingError) {
+      return Response.json({ error: err.message }, { status: err.status, headers: cors });
+    }
+    // Generic on purpose: Stripe error strings can embed a partially-redacted API key.
+    console.error('complete-session failed', JSON.stringify(err), err);
+    return Response.json(
+      { error: 'Something went wrong completing that session. Please try again.' },
+      { status: 400, headers: cors },
+    );
   }
 });

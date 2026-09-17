@@ -6,6 +6,12 @@
 //  - student no-show -> tutor still paid  (refund_percent=0,   refund_status='not_refunded')
 // Self-contained; SUPABASE_* env vars are auto-injected by the runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  BookingError,
+  NO_SHOW_WINDOW_HOURS,
+  assertPayoutReady,
+  assertSessionElapsed,
+} from '../_shared/booking.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -37,7 +43,7 @@ Deno.serve(async (req: Request) => {
     // Load the booking.
     const { data: booking, error: loadErr } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, status, price, stripe_payment_intent_id, tutor_payout_amount')
+      .select('id, student_id, tutor_id, status, scheduled_at, duration_minutes, price, stripe_payment_intent_id, tutor_payout_amount')
       .eq('id', bookingId)
       .single();
     if (loadErr || !booking) return Response.json({ error: 'Booking not found' }, { status: 404, headers: cors });
@@ -58,6 +64,22 @@ Deno.serve(async (req: Request) => {
         { status: 403, headers: cors },
       );
     }
+
+    // Only a live booking can become a no-show — not one already cancelled, completed or
+    // reported. `status` was being selected and never checked.
+    if (booking.status !== 'confirmed') {
+      return Response.json(
+        { error: `Cannot report a no-show on a ${booking.status} session` },
+        { status: 409, headers: cors },
+      );
+    }
+
+    // And only after the session was actually due. Without this a tutor could tap
+    // "Report a no-show" on an UPCOMING session (sessions.tsx shows the link there) and
+    // capture the full hold days early, for a session that never happened.
+    assertSessionElapsed(booking.scheduled_at as string, Number(booking.duration_minutes), {
+      withinHours: NO_SHOW_WINDOW_HOURS,
+    });
 
     // Determine refund outcome.
     const tutorNoShow = party === 'tutor';
@@ -84,23 +106,56 @@ Deno.serve(async (req: Request) => {
             .eq('user_id', booking.tutor_id)
             .maybeSingle();
           const connectId = (prof?.stripe_connect_account_id as string | null | undefined) ?? null;
-          if (!connectId) return Response.json({ error: 'Tutor has no connected payout account.' }, { status: 400, headers: cors });
+          // Check the destination before capturing, as in complete-session.
+          await assertPayoutReady(stripe, connectId);
           const capped = await stripe.paymentIntents.capture(pi, {}, { idempotencyKey: `noshow_cap_${bookingId}` });
           chargeId = typeof capped.latest_charge === 'string' ? capped.latest_charge : (capped.latest_charge?.id ?? null);
-          const transfer = await stripe.transfers.create(
-            {
-              amount: Math.round(Number(booking.tutor_payout_amount) * 100),
-              currency: 'usd',
-              destination: connectId,
-              transfer_group: bookingId,
-              metadata: { booking_id: bookingId, reason: 'student_no_show' },
-            },
-            { idempotencyKey: `noshow_transfer_${bookingId}` },
-          );
-          transferId = transfer.id;
+          try {
+            const transfer = await stripe.transfers.create(
+              {
+                amount: Math.round(Number(booking.tutor_payout_amount) * 100),
+                currency: 'usd',
+                destination: connectId!,
+                transfer_group: bookingId,
+                metadata: { booking_id: bookingId, reason: 'student_no_show' },
+              },
+              { idempotencyKey: `noshow_transfer_${bookingId}` },
+            );
+            transferId = transfer.id;
+          } catch (transferErr) {
+            // Captured but not paid out — record it and flag for a manual payout rather
+            // than returning an error that makes the row look untouched.
+            await db
+              .from('bookings')
+              .update({
+                status: 'no_show',
+                refund_percent: refundPercent,
+                refund_status: refundStatus,
+                stripe_charge_id: chargeId,
+                payout_failed_at: new Date().toISOString(),
+              })
+              .eq('id', bookingId);
+            console.error('report-no-show: captured but transfer failed', bookingId, String(transferErr));
+            return Response.json(
+              {
+                error: 'The charge went through but the payout failed. Our team has been notified and will complete it.',
+                captured: true,
+                payoutFailed: true,
+              },
+              { status: 502, headers: cors },
+            );
+          }
         }
       } catch (stripeErr) {
-        return Response.json({ error: 'Stripe: ' + String(stripeErr) }, { status: 400, headers: cors });
+        if (stripeErr instanceof BookingError) {
+          return Response.json({ error: stripeErr.message }, { status: stripeErr.status, headers: cors });
+        }
+        // Never surface a raw Stripe message — it can embed a redacted API key.
+        console.error('report-no-show: stripe failed', JSON.stringify(stripeErr), stripeErr);
+        return Response.json(
+          { error: 'The payment step failed. Please try again.' },
+          { status: 400, headers: cors },
+        );
       }
     }
 
@@ -121,6 +176,13 @@ Deno.serve(async (req: Request) => {
 
     return Response.json({ status: 'no_show', refundPercent }, { headers: cors });
   } catch (e) {
-    return Response.json({ error: String(e) }, { status: 400, headers: cors });
+    if (e instanceof BookingError) {
+      return Response.json({ error: e.message }, { status: e.status, headers: cors });
+    }
+    console.error('report-no-show failed', JSON.stringify(e), e);
+    return Response.json(
+      { error: 'Something went wrong reporting that no-show. Please try again.' },
+      { status: 400, headers: cors },
+    );
   }
 });

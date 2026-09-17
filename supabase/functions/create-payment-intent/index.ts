@@ -2,10 +2,13 @@
 // B4 → create a Stripe PaymentIntent with MANUAL capture (held payment), released
 // to the tutor on session completion. Deno runtime.
 //
-// Body: { amountCents }. If STRIPE_SECRET_KEY is set we create a real manual-capture
-// PaymentIntent; otherwise we return a simulated intent so local/dev never crashes.
-// This is one of the two allowed places to import Stripe directly.
+// Body: { tutorId, courseCode, durationMinutes, scheduledAt }. The amount is NOT accepted
+// from the client — it is derived from tutor_courses.hourly_rate by resolveBooking(), which
+// also asserts the tutor is bookable (T5). If STRIPE_SECRET_KEY is set we create a real
+// manual-capture PaymentIntent; otherwise we return a simulated intent so local/dev never
+// crashes. This is one of the two allowed places to import Stripe directly.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { BookingError, resolveBooking } from '../_shared/booking.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -24,11 +27,18 @@ Deno.serve(async (req: Request) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401, headers: cors });
 
+    // Service-role client: resolveBooking must see rows RLS hides from the student
+    // (a deleted tutor, the other direction of user_blocks).
+    const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
     const body = await req.json().catch(() => ({}));
-    const amountCents = Number(body?.amountCents);
-    if (!Number.isFinite(amountCents) || amountCents <= 0) {
-      return Response.json({ error: 'amountCents must be a positive number' }, { status: 400, headers: cors });
-    }
+    const resolved = await resolveBooking(db, {
+      studentId: user.id,
+      tutorId: body?.tutorId,
+      courseCode: body?.courseCode,
+      durationMinutes: body?.durationMinutes,
+      scheduledAt: body?.scheduledAt,
+    });
 
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
 
@@ -41,21 +51,31 @@ Deno.serve(async (req: Request) => {
           ephemeralKeySecret: null,
           customerId: null,
           paymentIntentId: 'sim_pi_' + crypto.randomUUID(),
+          amountCents: resolved.amountCents,
+          price: resolved.price,
           simulated: true,
         },
         { headers: cors },
       );
     }
 
-    // Service-role client to read/persist the user's Stripe customer id.
-    const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-
     const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
     const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
 
     // A persistent Stripe Customer per user powers PaymentSheet (saved cards / Link).
+    // A stored id can be from the other Stripe mode (T10), so treat resource_missing as
+    // "make a new one" rather than failing the booking.
     const { data: urow } = await db.from('users').select('stripe_customer_id').eq('id', user.id).maybeSingle();
     let customerId = (urow?.stripe_customer_id as string | null | undefined) ?? null;
+    if (customerId) {
+      try {
+        const existing = await stripe.customers.retrieve(customerId);
+        if ((existing as { deleted?: boolean }).deleted) customerId = null;
+      } catch (err) {
+        if ((err as { code?: string })?.code === 'resource_missing') customerId = null;
+        else throw err;
+      }
+    }
     if (!customerId) {
       const customer = await stripe.customers.create({ email: user.email ?? undefined, metadata: { user_id: user.id } });
       customerId = customer.id;
@@ -65,12 +85,20 @@ Deno.serve(async (req: Request) => {
     const ephemeralKey = await stripe.ephemeralKeys.create({ customer: customerId }, { apiVersion: '2024-06-20' });
 
     const intent = await stripe.paymentIntents.create({
-      amount: Math.round(amountCents),
+      amount: resolved.amountCents,
       currency: 'usd',
       capture_method: 'manual', // held until session completion (captured in complete-session)
       customer: customerId,
       automatic_payment_methods: { enabled: true },
-      metadata: { user_id: user.id },
+      // confirm-booking re-derives the price and checks it against this metadata, so a
+      // PaymentIntent can't be reused for a different tutor, course, or duration.
+      metadata: {
+        user_id: user.id,
+        tutor_id: resolved.tutorId,
+        course_code: resolved.courseCode,
+        duration_minutes: String(resolved.durationMinutes),
+        scheduled_at: resolved.scheduledAt,
+      },
     });
 
     return Response.json(
@@ -79,11 +107,23 @@ Deno.serve(async (req: Request) => {
         ephemeralKeySecret: ephemeralKey.secret,
         customerId,
         paymentIntentId: intent.id,
+        amountCents: resolved.amountCents,
+        price: resolved.price,
         simulated: false,
       },
       { headers: cors },
     );
   } catch (err) {
-    return Response.json({ error: String(err) }, { status: 400, headers: cors });
+    if (err instanceof BookingError) {
+      return Response.json({ error: err.message }, { status: err.status, headers: cors });
+    }
+    // Deliberately generic: anything reaching here is an internal fault, and Stripe's
+    // own error strings can embed a partially-redacted API key. User-facing copy comes
+    // from BookingError and the explicit checks above.
+    console.error('create-payment-intent failed', JSON.stringify(err), err);
+    return Response.json(
+      { error: 'Something went wrong setting up that booking. Please try again.' },
+      { status: 400, headers: cors },
+    );
   }
 });

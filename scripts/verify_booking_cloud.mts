@@ -27,14 +27,18 @@ step(2, !!tutor?.userId, tutor ? `found tutor ${tutor.firstName} ${tutor.lastNam
 
 let bookingId = ''
 try {
-  const { paymentIntentId } = await api.createPaymentIntent(60 * 60)
+  // The server derives the price (T5), so we must name a course this tutor teaches.
+  const courseCode = tutor.courses?.[0]?.courseCode ?? tutor.courses?.[0]?.[0]
+  const scheduledAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+  const { paymentIntentId } = await api.createPaymentIntent({
+    tutorId: tutor.userId, courseCode, durationMinutes: 60, scheduledAt,
+  })
   const res = await api.bookings.confirm({
     tutorId: tutor.userId,
-    subject: 'MATH 125',
-    scheduledAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+    courseCode,
+    scheduledAt,
     durationMinutes: 60,
-    sessionType: 'video',
-    price: 60,
+    sessionType: 'in_person',
     message: '[automated verify — will cancel]',
     paymentIntentId,
   })

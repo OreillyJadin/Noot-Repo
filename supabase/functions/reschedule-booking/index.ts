@@ -1,8 +1,12 @@
 // Edge Function: reschedule-booking (ARCHITECTURE.md §5).
 // Two-party reschedule flow for a confirmed booking. One party proposes a new time;
 // the counterparty accepts (applies it) or declines (clears the proposal).
-// Deno runtime. Self-contained (no _shared import). Money movement is out of scope.
+// Deno runtime. No money moves here, but the new time still governs money later: the
+// cancellation refund tier is computed from it, and the held PaymentIntent must be
+// captured before its ~7-day authorization lapses. So the same window and clash rules as
+// booking apply (APP_REVIEW_TICKETS.md T19).
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { BOOKING_HORIZON_DAYS, BookingError } from '../_shared/booking.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -45,7 +49,7 @@ Deno.serve(async (req: Request) => {
     const { data: booking, error: loadErr } = await db
       .from('bookings')
       .select(
-        'id, student_id, tutor_id, status, scheduled_at, reschedule_proposed_at, reschedule_proposed_by',
+        'id, student_id, tutor_id, status, scheduled_at, duration_minutes, reschedule_proposed_at, reschedule_proposed_by',
       )
       .eq('id', bookingId)
       .single();
@@ -72,6 +76,45 @@ Deno.serve(async (req: Request) => {
       if (isNaN(when.getTime())) {
         return Response.json({ error: 'Invalid newScheduledAt' }, { status: 400, headers: cors });
       }
+
+      // The proposed time is subject to the same rules as an original booking. Without
+      // these a party could move a session into the past and then "late cancel" it for a
+      // 0% refund, or push it months out so the hold lapsed and the tutor went unpaid.
+      const now = Date.now();
+      if (when.getTime() <= now) {
+        return Response.json({ error: 'Pick a time in the future.' }, { status: 400, headers: cors });
+      }
+      if (when.getTime() > now + BOOKING_HORIZON_DAYS * 24 * 60 * 60 * 1000) {
+        return Response.json(
+          { error: `Sessions can only be moved up to ${BOOKING_HORIZON_DAYS} days ahead.` },
+          { status: 400, headers: cors },
+        );
+      }
+
+      // Don't propose a slot the tutor already has taken.
+      const durationMinutes = Number(booking.duration_minutes ?? 0);
+      const startMs = when.getTime();
+      const endMs = startMs + durationMinutes * 60 * 1000;
+      const { data: clashes, error: clashErr } = await db
+        .from('bookings')
+        .select('id, scheduled_at, duration_minutes')
+        .eq('tutor_id', booking.tutor_id)
+        .neq('id', bookingId)
+        .in('status', ['pending', 'confirmed'])
+        .gte('scheduled_at', new Date(startMs - 8 * 60 * 60 * 1000).toISOString())
+        .lte('scheduled_at', new Date(endMs).toISOString());
+      if (clashErr) throw clashErr;
+      for (const b of clashes ?? []) {
+        const bStart = new Date(b.scheduled_at as string).getTime();
+        const bEnd = bStart + Number(b.duration_minutes ?? 0) * 60 * 1000;
+        if (bStart < endMs && startMs < bEnd) {
+          return Response.json(
+            { error: 'That time is already booked. Please pick another.' },
+            { status: 409, headers: cors },
+          );
+        }
+      }
+
       // TODO: enforce the 3-reschedule auto-refund rule.
       const { error } = await db
         .from('bookings')
@@ -90,8 +133,25 @@ Deno.serve(async (req: Request) => {
       return Response.json({ error: 'No pending reschedule proposal' }, { status: 409, headers: cors });
     }
 
+    // ...and must come from the OTHER party. This is a two-party flow; accepting your own
+    // proposal made it a one-sided rewrite of the session time, which is how the past-date
+    // and far-future attacks above were reachable at all.
+    if (booking.reschedule_proposed_by === user.id) {
+      return Response.json(
+        { error: 'Only the other person can respond to your proposal.' },
+        { status: 403, headers: cors },
+      );
+    }
+
     if (action === 'accept') {
       const newTime = new Date(booking.reschedule_proposed_at);
+      // A proposal can sit unanswered until its time has passed — re-check on the way in.
+      if (newTime.getTime() <= Date.now()) {
+        return Response.json(
+          { error: 'That proposed time has already passed. Ask for a new time.' },
+          { status: 409, headers: cors },
+        );
+      }
       // New cancellation deadline is 24h before the new session time.
       const deadline = new Date(newTime.getTime() - 24 * 60 * 60 * 1000);
       const { error } = await db
@@ -119,6 +179,13 @@ Deno.serve(async (req: Request) => {
     if (error) throw error;
     return Response.json({ ok: true }, { headers: cors });
   } catch (e) {
-    return Response.json({ error: String(e) }, { status: 400, headers: cors });
+    if (e instanceof BookingError) {
+      return Response.json({ error: e.message }, { status: e.status, headers: cors });
+    }
+    console.error('reschedule-booking failed', JSON.stringify(e), e);
+    return Response.json(
+      { error: 'Something went wrong rescheduling that session. Please try again.' },
+      { status: 400, headers: cors },
+    );
   }
 });
