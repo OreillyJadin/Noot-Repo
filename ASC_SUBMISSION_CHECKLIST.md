@@ -19,7 +19,7 @@ not having the feature.
 
 **Minimum to satisfy 1.2:** a "Report" action on a chat message and on a user, a "Block" action
 that stops that user contacting you, and a visible contact route for complaints
-(`support@noot.app` already appears on both legal pages).
+(the in-app Help & support screen and the auth-email footers both point at `admin@trynoot.com`).
 
 ---
 
@@ -53,7 +53,8 @@ Answers that match what the app actually does:
 
 ## 4. App Privacy
 
-- **Privacy Policy URL: `https://noot.app/privacy`** — must be live and public. Reviewers open
+- **Privacy Policy URL: `https://trynoot.com/privacy`** — live and public as of 2026-09-17, and
+  also serves as the Terms document (there is no `/terms` page). Reviewers open
   it directly; a 404 stalls review.
 - **Data used to track you: No.** No ad SDKs, no third-party analytics, no IDFA — so no App
   Tracking Transparency prompt is needed.
@@ -75,7 +76,7 @@ Apple cross-checks this against the policy text, so keep the two in step if eith
 - **Description** (4000 chars)
 - **Keywords** (100 chars total, comma-separated) — e.g.
   `tutor,tutoring,study,campus,college,homework,exam,peer,alabama,student`
-- **Support URL** — required. `https://noot.app` will do
+- **Support URL** — required. `https://trynoot.com` will do (live, returns 200)
 - Marketing URL — optional
 - **Copyright** — e.g. `2026 Watchmen Ventures LLC`
 - **Build** — select the iOS build (currently expecting build 3)
@@ -128,7 +129,7 @@ Apple cross-checks this against the policy text, so keep the two in step if eith
 |---|---|
 | Report & block (Guideline 1.2) | **not built** — and the Terms claim it exists |
 | SMTP | not configured → reviewer demo account is mandatory |
-| `noot.app` | not resolving → privacy + support URLs both dead |
+| ~~`noot.app`~~ | superseded by **`trynoot.com`**, live 2026-09-17 → privacy + support URLs resolve |
 | Stripe | test keys → a reviewer's real card is declined (Guideline 2.1) |
 | Screenshots / description / keywords | none written |
 | The app on a device | still never used |
