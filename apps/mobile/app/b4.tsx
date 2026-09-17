@@ -41,7 +41,6 @@ function B4Inner() {
   const course = booking.course ?? tutor.courses[0]![0];
   const rate = (tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!)[2];
   const cost = ((rate * lengthMin) / 60).toFixed(2).replace(/\.00$/, '');
-  const repeatWeekly = booking.repeat === 'weekly';
 
   const rows: [string, string][] = [
     ['Tutor', tutor.name],
@@ -49,7 +48,6 @@ function B4Inner() {
     ['Date', dayObj.label],
     ['Time', `${slot} · ${lenLabel}`],
     ['Location', location],
-    ...(repeatWeekly ? ([['Repeats', 'Weekly · same time']] as [string, string][]) : []),
   ];
 
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
@@ -87,9 +85,15 @@ function B4Inner() {
     if (!booking.tutor) { setTimeout(() => router.push('/b5'), 600); return; }
     setStatus('processing');
     try {
-      const price = (rate * lengthMin) / 60;
-      const amountCents = Math.round(price * 100);
-      const pi = await api.createPaymentIntent(amountCents);
+      // The server derives the amount from the tutor's rate for this course (T5) — we
+      // send only what identifies the session. `rate`/`cost` above are display only.
+      const scheduledAt = computeScheduledAt();
+      const pi = await api.createPaymentIntent({
+        tutorId: booking.tutor.id,
+        courseCode: course,
+        durationMinutes: lengthMin,
+        scheduledAt,
+      });
 
       if (!pi.simulated) {
         // PaymentSheet needs the native SDK — absent in Expo Go. Guide the user to the dev build.
@@ -104,7 +108,8 @@ function B4Inner() {
           customerId: pi.customerId ?? undefined,
           customerEphemeralKeySecret: pi.ephemeralKeySecret ?? undefined,
           applePay: { merchantCountryCode: 'US' },
-          googlePay: { merchantCountryCode: 'US', testEnv: true },
+          // testEnv must be false in a release build or Google Pay stays in test mode.
+          googlePay: { merchantCountryCode: 'US', testEnv: __DEV__ },
           returnURL: 'noot://stripe-redirect',
         });
         if (initErr) throw new Error(initErr.message);
@@ -115,16 +120,18 @@ function B4Inner() {
         }
       }
 
-      const sessionType: 'video' | 'in_person' = location.startsWith('Online') ? 'video' : 'in_person';
+      // Set explicitly in B3, which only offers in-person for launch. The old code
+      // re-derived this from the location's display string, which broke as soon as that
+      // copy changed. Existing 'video' rows still render — we just don't sell them.
+      const sessionType: 'video' | 'in_person' = booking.sessionType ?? 'in_person';
       const { bookingId } = await api.bookings.confirm({
         tutorId: booking.tutor.id,
-        subject: course,
-        scheduledAt: computeScheduledAt(),
+        courseCode: course,
+        scheduledAt,
         durationMinutes: lengthMin,
         sessionType,
         location,
         meetingLink: undefined,
-        price,
         message: booking.message,
         paymentIntentId: pi.paymentIntentId,
       });
@@ -157,14 +164,9 @@ function B4Inner() {
           </View>
           <Divider style={{ marginVertical: 14 }} />
           <View style={styles.rowBetween}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>Total{repeatWeekly ? ' · per session' : ''}</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>Total</Text>
             <Text style={{ fontSize: 22, fontWeight: '800', color: t.accent }}>${cost}</Text>
           </View>
-          {repeatWeekly ? (
-            <Text style={{ fontSize: 11.5, color: t.text3, marginTop: 8, lineHeight: 16 }}>
-              Weekly sessions are charged one at a time — this payment covers your first session only.
-            </Text>
-          ) : null}
         </Card>
 
         <Eyebrow style={{ color: t.text3, marginTop: 24, marginBottom: 12 }}>Payment</Eyebrow>

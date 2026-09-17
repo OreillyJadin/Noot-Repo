@@ -1,7 +1,7 @@
 // S6 My Profile (student) — ported from screens-tabs.jsx (ProfileTab, role-locked as
-// ProfileTabStudent). Backend-only actions (the prototype's showToast) become a
-// TODO(api)'d Alert; "Dark mode" is a local visual toggle only (not wired to the real
-// theme yet — that lives in ThemeProvider at the app root).
+// ProfileTabStudent). Every row here now leads to a real screen or mutation; the old
+// stub-Alert helper is gone (APP_REVIEW_TICKETS.md T12). "Dark mode" is a local visual
+// toggle only (not wired to the real theme yet — that lives in ThemeProvider at the app root).
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,12 +16,6 @@ import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import { openLegal } from '../lib/legal';
-
-// TODO(api): backend-only actions from the prototype's showToast() — swap for real
-// navigation/mutations once wired up.
-function notify(label: string) {
-  Alert.alert(label, 'Built with backend — coming soon.');
-}
 
 function Row({
   icon,
@@ -106,7 +100,7 @@ export default function Profile() {
       await api.profile.addRole('ambassador');
       await switchTo('ambassador');
     } catch {
-      notify('Could not add role');
+      Alert.alert('Could not join the ambassador program', 'Please try again in a moment.');
     }
   };
   // Referral CTA: already an ambassador → their referrals dashboard; otherwise sign them up.
@@ -251,7 +245,6 @@ export default function Profile() {
         <Card style={styles.cardNoPad}>
           <Row icon="user" label="Personal info" sub={me?.email ?? '—'} onPress={() => router.push('/edit_personal')} />
           <Row icon="cap" label="My courses" sub={coursesSub} onPress={() => router.push('/edit_courses')} />
-          <Row icon="card" label="Payment methods" sub="No card on file" onPress={() => notify('Payment methods')} />
           <Row icon="doc" label="Booking & payment history" onPress={() => router.push('/history')} last />
         </Card>
 
@@ -260,7 +253,10 @@ export default function Profile() {
         <Card style={styles.cardNoPad}>
           <Row icon="bell" label="Notifications" sub="Reminders, messages, offers" onPress={() => router.push('/notifications')} />
           <Row icon="gear" label="Dark mode" control={<Toggle on={dark} onPress={toggleDark} />} />
-          <Row icon="flame" label="School colors" sub="University of Alabama — crimson" control={<Toggle on={school} onPress={toggleSchool} />} />
+          {/* Names the colour, not the university. The reply to App Review answers
+              Apple's IP question with "no university trademarks", and naming a specific
+              school as a product feature contradicted it (APP_REVIEW_TICKETS.md T22). */}
+          <Row icon="flame" label="School colors" sub="Crimson accent" control={<Toggle on={school} onPress={toggleSchool} />} />
           <Row icon="help" label="Help & support" onPress={() => router.push('/help')} />
           <Row icon="lock" label="Blocked users" onPress={() => router.push('/blocked_users')} />
           <Row icon="shield" label="Privacy Policy" onPress={() => openLegal('privacy')} />

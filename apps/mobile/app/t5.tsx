@@ -1,21 +1,58 @@
-// T5 Set Availability — ported from screens-tutor.jsx (T5). Paintable weekly
-// grid + common locations + online toggle. Step 5 of the tutor application.
-// → T6 Verify grades. "Save & exit" → Landing.
+// T5 Set Availability — ported from screens-tutor.jsx (T5). Paintable weekly grid +
+// common locations. Step 5 of the tutor application. → T6 Verify grades.
+// "Save & exit" → Landing.
+//
+// The grid PERSISTS through api.profile.updateAvailability(). It used to be pure local
+// state that "Save & Continue" silently discarded — a tutor filled it in, moved on, and
+// their availability was never saved (APP_REVIEW_TICKETS.md T21). It starts empty for the
+// same reason: the old pre-filled INIT_GRID invented hours the tutor never chose.
+//
+// The "Common locations" editor was removed with it. There is nowhere to store a
+// per-tutor location — `tutoring_locations` (0027) is a read-only campus list maintained
+// out of band, and B3's spot picker has its own list — so the field only ever discarded
+// what the tutor typed.
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, Divider, Eyebrow, Toggle, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { Screen, Body, ActionBar, Button, Eyebrow, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const ROW_LABELS = ['8a', '11a', '2p', '5p', '8p'];
-const INIT_GRID: number[][] = [
-  [0, 1, 1, 0, 1, 0, 0],
-  [0, 0, 0, 1, 0, 0, 0],
-  [1, 1, 1, 1, 1, 0, 0],
-  [1, 0, 1, 0, 1, 0, 1],
-  [0, 0, 0, 0, 0, 1, 1],
-];
+/** Each row is a 3-hour block; index matches ROW_LABELS. */
+const ROW_START_HOUR = [8, 11, 14, 17, 20];
+const BLOCK_HOURS = 3;
+/** Column 0 is Monday, but the DB stores day_of_week with Sunday = 0. */
+const COL_TO_DOW = [1, 2, 3, 4, 5, 6, 0];
+const EMPTY_GRID: number[][] = ROW_LABELS.map(() => DAY_LABELS.map(() => 0));
+
+const hhmm = (h: number) => `${String(h).padStart(2, '0')}:00`;
+
+/**
+ * Turn the painted grid into the weekly windows the DB stores, merging vertically
+ * adjacent blocks on the same day into one window (8a+11a → 08:00-14:00) so we don't
+ * write three rows where one will do.
+ */
+function windowsFromGrid(grid: number[][]) {
+  const out: { dayOfWeek: number; startTime: string; endTime: string }[] = [];
+  for (let col = 0; col < DAY_LABELS.length; col++) {
+    let runStart: number | null = null;
+    for (let row = 0; row <= grid.length; row++) {
+      const on = row < grid.length && grid[row]![col] === 1;
+      if (on && runStart === null) runStart = row;
+      if (!on && runStart !== null) {
+        out.push({
+          dayOfWeek: COL_TO_DOW[col]!,
+          startTime: hhmm(ROW_START_HOUR[runStart]!),
+          endTime: hhmm(ROW_START_HOUR[row - 1]! + BLOCK_HOURS),
+        });
+        runStart = null;
+      }
+    }
+  }
+  return out;
+}
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -54,14 +91,31 @@ function StepHead({
 export default function T5() {
   const t = useTheme();
   const router = useRouter();
-  const [grid, setGrid] = useState<number[][]>(INIT_GRID);
-  const [online, setOnline] = useState(true);
-  const [locs, setLocs] = useState<string[]>(['Gorgas Library, Fl 2', 'Bidgood Hall lobby']);
+  const [grid, setGrid] = useState<number[][]>(EMPTY_GRID);
+  const [saving, setSaving] = useState(false);
 
   const toggle = (r: number, c: number) => {
     setGrid((g) => g.map((row, ri) => (ri === r ? row.map((v, ci) => (ci === c ? (v ? 0 : 1) : v)) : row)));
   };
-  const total = grid.flat().reduce((a, b) => a + b, 0) * 3; // 3h per block, demo
+  const total = grid.flat().reduce((a, b) => a + b, 0) * BLOCK_HOURS;
+
+  const saveAndContinue = async () => {
+    if (saving) return;
+    const windows = windowsFromGrid(grid);
+    if (windows.length === 0) {
+      Alert.alert('Pick some hours', 'Tap the grid to mark when you can tutor.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.profile.updateAvailability(windows);
+      router.push('/t6');
+    } catch {
+      Alert.alert('Could not save your availability', 'Please check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <Screen>
@@ -96,40 +150,16 @@ export default function T5() {
         </View>
         <Text style={[styles.gridHint, { color: t.text3 }]}>Tap cells to paint your availability.</Text>
 
-        <Divider style={{ marginVertical: 18 }} />
-        <Eyebrow style={{ color: t.text3, marginBottom: 10 }}>Common locations (up to 3)</Eyebrow>
-        <View style={{ gap: 8 }}>
-          {locs.map((l, i) => (
-            <Card key={i} style={styles.locCard}>
-              <Ic name="pin" size={18} color={t.accent} strokeWidth={1.8} />
-              <TextInput
-                value={l}
-                placeholder="e.g. Gorgas Library, Fl 2"
-                placeholderTextColor={t.text3}
-                onChangeText={(v) => setLocs((ls) => ls.map((old, vi) => (vi === i ? v : old)))}
-                style={[styles.locInput, { color: t.text }]}
-              />
-              <Pressable onPress={() => setLocs((ls) => ls.filter((_, vi) => vi !== i))} hitSlop={8}>
-                <Ic name="x" size={15} color={t.text3} strokeWidth={2} />
-              </Pressable>
-            </Card>
-          ))}
-          <Pressable onPress={() => setLocs((l) => [...l, ''])} style={[styles.addLoc, { borderColor: t.borderStrong }]}>
-            <Ic name="plus" size={16} color={t.text3} strokeWidth={2} />
-            <Text style={{ color: t.text3, fontSize: 15 }}>Add a location</Text>
-          </Pressable>
-        </View>
 
-        <View style={styles.onlineRow}>
-          <View>
-            <Text style={[styles.onlineTitle, { color: t.text }]}>Offer online sessions</Text>
-            <Text style={[styles.onlineSub, { color: t.text3 }]}>Over video, anywhere</Text>
-          </View>
-          <Toggle on={online} onPress={() => setOnline((o) => !o)} />
-        </View>
       </Body>
       <ActionBar>
-        <Button label="Save & Continue" kind="primary" full onPress={() => router.push('/t6')} />
+        <Button
+          label={saving ? 'Saving…' : 'Save & Continue'}
+          kind="primary"
+          full
+          disabled={saving}
+          onPress={saveAndContinue}
+        />
       </ActionBar>
     </Screen>
   );
@@ -151,10 +181,4 @@ const styles = StyleSheet.create({
   gridDay: { flex: 1, fontSize: 12, fontWeight: '600', textAlign: 'center' },
   gridCell: { flex: 1, height: 30, borderRadius: 7, borderWidth: 1 },
   gridHint: { fontSize: 12, marginTop: 8 },
-  locCard: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14 },
-  locInput: { flex: 1, fontSize: 15, padding: 0 },
-  addLoc: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed' },
-  onlineRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 },
-  onlineTitle: { fontSize: 16 },
-  onlineSub: { fontSize: 13 },
 });

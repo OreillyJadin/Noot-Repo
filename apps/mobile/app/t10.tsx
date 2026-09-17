@@ -2,16 +2,18 @@
 // of the tutor application; no StepHead (matches source, which just pads for the
 // safe area). → Tutor Home (dashboard tab root).
 import React from 'react';
-import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, HeroIcon, H1, Sub, Eyebrow, Ic, useTheme, type IconName } from '@noot/ui';
 import { useApp } from '../lib/store';
 
-const TASKS: [IconName, string][] = [
-  ['user', 'Set notification preferences'],
-  ['edit', 'Add a bio (recommended)'],
-  ['star', 'Refer a tutor — earn $10'],
+// These used to be Alert-only stubs, which read as unfinished on the very first screen a
+// new tutor sees. Each now goes to the screen that actually does the thing.
+const TASKS: [IconName, string, string][] = [
+  ['user', 'Set notification preferences', '/notifications'],
+  ['edit', 'Add a bio (recommended)', '/edit_tutor'],
+  ['star', 'Refer a tutor — earn $10', '/ambassador_referrals'],
 ];
 
 export default function T10() {
@@ -45,8 +47,8 @@ export default function T10() {
 
         <Eyebrow style={{ color: t.text3, marginTop: 14, marginBottom: 12 }}>While you wait</Eyebrow>
         <View style={{ gap: 8 }}>
-          {TASKS.map(([ic, label]) => (
-            <Card key={label} onPress={() => Alert.alert(label) /* TODO(api) */} style={styles.taskCard}>
+          {TASKS.map(([ic, label, href]) => (
+            <Card key={label} onPress={() => router.push(href as never)} style={styles.taskCard}>
               <View style={[styles.taskIcon, { backgroundColor: t.accentWeak }]}>
                 <Ic name={ic} size={17} color={t.accent} strokeWidth={1.8} />
               </View>

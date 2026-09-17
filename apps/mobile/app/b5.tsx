@@ -31,13 +31,10 @@ export default function B5() {
     ['cal', `${dayObj.label} · ${slot}`],
     [location.startsWith('Online') ? 'video' : 'pin', location],
     ['clock', `${lenLabel} session`],
-    ...(booking.repeat === 'weekly' ? ([['repeat', 'Repeats weekly — skip or cancel anytime']] as [IconName, string][]) : []),
   ];
 
   // TODO(api): chat.tsx isn't ported yet — this still follows the nav contract (go('chat')).
   const openChat = () => router.push('/chat');
-  // TODO(api): showToast('Added to your calendar') in the prototype was a backend/device action.
-  const addToCalendar = () => Alert.alert('Added to your calendar');
 
   return (
     <Screen>
@@ -53,8 +50,8 @@ export default function B5() {
           </View>
           <H1 style={{ fontSize: 26, marginTop: 22, textAlign: 'center' }}>Deal locked in.</H1>
           <Text style={[styles.sub, { color: t.text2 }]}>
-            You&apos;re set with <Text style={{ fontWeight: '700', color: t.text }}>{tutorName}</Text> {dayWord}. We&apos;ve
-            emailed the details to you both.
+            You&apos;re set with <Text style={{ fontWeight: '700', color: t.text }}>{tutorName}</Text> {dayWord}.
+            You&apos;ll find it under Sessions, and you can message them any time.
           </Text>
         </View>
 
@@ -72,8 +69,10 @@ export default function B5() {
         </Card>
 
         <View style={styles.actionRow}>
+          {/* "Add to calendar" was removed: it only ever showed a success alert, with no
+              expo-calendar integration behind it (APP_REVIEW_TICKETS.md T21). */}
           <Button label="Message" kind="secondary" size="md" style={{ flex: 1 }} onPress={openChat} />
-          <Button label="Add to calendar" kind="secondary" size="md" style={{ flex: 1 }} onPress={addToCalendar} />
+          <Button label="View session" kind="secondary" size="md" style={{ flex: 1 }} onPress={() => router.replace('/sessions')} />
         </View>
 
         <Card flat style={{ ...styles.noteCard, backgroundColor: t.surfaceAlt }}>

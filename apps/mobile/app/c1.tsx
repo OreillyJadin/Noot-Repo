@@ -86,9 +86,6 @@ export default function C1() {
           iconRight="chevron"
           onPress={() => router.push(isTutor ? '/c3' : '/c2')}
         />
-        <Text onPress={() => router.push(isTutor ? '/c2' : '/c3')} style={[styles.preview, { color: t.text3 }]}>
-          Demo: preview the {isTutor ? 'student' : 'tutor'} side →
-        </Text>
       </ActionBar>
     </Screen>
   );

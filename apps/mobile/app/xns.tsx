@@ -178,12 +178,6 @@ function XNoShowInner() {
           label={studentView ? "Tutor didn't show" : "Student didn't show"}
           onPress={submit}
         />
-        <Text
-          onPress={() => setPersona(studentView ? 'tutor' : 'student')}
-          style={{ fontSize: 12.5, color: t.text3, textAlign: 'center' }}
-        >
-          Demo: preview the {studentView ? 'tutor' : 'student'} side →
-        </Text>
       </ActionBar>
     </Screen>
   );

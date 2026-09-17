@@ -25,9 +25,10 @@ export interface BookingDraft {
   slot?: string;
   lengthMin?: number;
   location?: string;
+  /** Set explicitly by B3 — B4 must not re-infer it from the location label. */
+  sessionType?: 'video' | 'in_person';
   tag?: string;
   message?: string;
-  repeat?: 'once' | 'weekly';
 }
 
 interface AppState {

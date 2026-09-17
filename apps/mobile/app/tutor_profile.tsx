@@ -1,7 +1,7 @@
 // TP Tutor Profile — ported from screens-tabs.jsx (ProfileTab, role-locked as
-// ProfileTabTutor). Backend-only actions (the prototype's showToast) become a
-// TODO(api)'d Alert; "Dark mode" is a local visual toggle only (not wired to the real
-// theme yet — that lives in ThemeProvider at the app root).
+// ProfileTabTutor). Every row here now leads to a real screen or mutation; the old
+// stub-Alert helper is gone (APP_REVIEW_TICKETS.md T12). "Dark mode" is a local visual
+// toggle only (not wired to the real theme yet — that lives in ThemeProvider at the app root).
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,12 +16,6 @@ import { useRoleSwitch } from '../lib/useRoleSwitch';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import * as WebBrowser from 'expo-web-browser';
-
-// TODO(api): backend-only actions from the prototype's showToast() — swap for real
-// navigation/mutations once wired up.
-function notify(label: string) {
-  Alert.alert(label, 'Built with backend — coming soon.');
-}
 
 function Row({
   icon,
@@ -95,7 +89,13 @@ export default function TutorProfile() {
   const setupPayouts = async () => {
     try {
       const { url } = await api.connect.onboardingLink();
-      if (!url) { notify('Payouts'); return; }
+      if (!url) {
+        Alert.alert(
+          'Payout setup unavailable',
+          'We could not start Stripe payout setup just now. Please try again in a few minutes.',
+        );
+        return;
+      }
       await WebBrowser.openAuthSessionAsync(url, 'noot://connect-return');
       void refreshPayouts();
     } catch {
@@ -136,7 +136,7 @@ export default function TutorProfile() {
       await api.profile.addRole('ambassador');
       await switchTo('ambassador');
     } catch {
-      notify('Could not add role');
+      Alert.alert('Could not join the ambassador program', 'Please try again in a moment.');
     }
   };
 
@@ -239,7 +239,10 @@ export default function TutorProfile() {
         <Card style={styles.cardNoPad}>
           <Row icon="bell" label="Notifications" sub="Reminders, messages, offers" onPress={() => router.push('/notifications')} />
           <Row icon="gear" label="Dark mode" control={<Toggle on={dark} onPress={toggleDark} />} />
-          <Row icon="flame" label="School colors" sub="University of Alabama — crimson" control={<Toggle on={school} onPress={toggleSchool} />} />
+          {/* Names the colour, not the university. The reply to App Review answers
+              Apple's IP question with "no university trademarks", and naming a specific
+              school as a product feature contradicted it (APP_REVIEW_TICKETS.md T22). */}
+          <Row icon="flame" label="School colors" sub="Crimson accent" control={<Toggle on={school} onPress={toggleSchool} />} />
           <Row icon="help" label="Help & support" onPress={() => router.push('/help')} last />
         </Card>
 

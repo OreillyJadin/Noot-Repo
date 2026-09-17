@@ -1,6 +1,6 @@
 // B3 Select Session — ported from screens-booking2.jsx (B3).
 // Course, day/time, length, a required focus tag, an auto-drafted intro message,
-// meeting mode + spot, and repeat cadence. Saves the draft into useApp().booking
+// meeting spot. Saves the draft into useApp().booking
 // and continues to payment.
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TextInput, Pressable, Modal, StyleSheet } from 'react-native';
@@ -22,7 +22,7 @@ import {
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
-import { DAYS } from '../lib/data';
+import { BOOKABLE_DAYS } from '../lib/data';
 import { slotsFromWindows } from '../lib/availability';
 import { NoSession } from '../lib/NoSession';
 
@@ -58,7 +58,6 @@ function focusMessage(tag: string | null, course: string, me = 'there'): string 
 }
 
 const IN_PERSON_SPOTS = ['Gorgas Library, Fl 2', 'Bidgood Hall lobby', "Other — I'll suggest"];
-const ONLINE = 'Online — Integrated Video';
 
 export default function B3() {
   const { booking } = useApp();
@@ -78,7 +77,7 @@ function B3Inner() {
   // calendar (lib/availability). Empty until loaded / if the tutor has set none.
   const [slots, setSlots] = useState<Record<number, string[]>>({});
   const [slotsLoading, setSlotsLoading] = useState(true);
-  const availableDays = DAYS.filter((d) => slots[d.i] && slots[d.i]!.length);
+  const availableDays = BOOKABLE_DAYS.filter((d) => slots[d.i] && slots[d.i]!.length);
 
   const [day, setDay] = useState<number>(booking.dayIndex ?? 0);
   const [slot, setSlot] = useState<string | null>(booking.slot ?? null);
@@ -87,15 +86,16 @@ function B3Inner() {
   const [courseOpen, setCourseOpen] = useState(false);
   const [spotOpen, setSpotOpen] = useState(false);
   const [tag, setTag] = useState<string | null>(booking.tag ?? null);
-  const [repeat, setRepeat] = useState<'once' | 'weekly'>(booking.repeat ?? 'once');
   const [msg, setMsg] = useState(booking.message ?? '');
   const [msgEdited, setMsgEdited] = useState(!!booking.message);
   const tutorFirst = tutor.name.split(' ')[0];
 
-  const initOnline = (booking.location ?? '').startsWith('Online');
-  const [mode, setMode] = useState<'person' | 'online'>(initOnline ? 'online' : 'person');
-  const [spot, setSpot] = useState(initOnline ? IN_PERSON_SPOTS[0]! : booking.location ?? IN_PERSON_SPOTS[0]!);
-  const location = mode === 'online' ? ONLINE : spot;
+  // In-person only for launch: noot has no video provider, so a "Virtual" option would
+  // sell a session with no way to meet. See APP_REVIEW_TICKETS.md T14.
+  const [spot, setSpot] = useState(
+    (booking.location ?? '').startsWith('Online') ? IN_PERSON_SPOTS[0]! : booking.location ?? IN_PERSON_SPOTS[0]!,
+  );
+  const location = spot;
 
   // Load the tutor's real weekly availability and, once it arrives, snap the picker to
   // the first day that actually has open slots (unless the student already chose one).
@@ -109,7 +109,7 @@ function B3Inner() {
         const next = slotsFromWindows(windows);
         setSlots(next);
         if (booking.dayIndex == null) {
-          const first = DAYS.find((d) => (next[d.i]?.length ?? 0) > 0);
+          const first = BOOKABLE_DAYS.find((d) => (next[d.i]?.length ?? 0) > 0);
           if (first) setDay(first.i);
         }
       })
@@ -137,7 +137,7 @@ function B3Inner() {
   const cost = ((rate * length) / 60).toFixed(2).replace(/\.00$/, '');
   const daySlots = slots[day] ?? [];
   const ready = !!slot && !!tag && msg.trim().length > 0;
-  const dayObj = DAYS.find((d) => d.i === day) ?? DAYS[0]!;
+  const dayObj = BOOKABLE_DAYS.find((d) => d.i === day) ?? BOOKABLE_DAYS[0]!;
 
   const continueToPayment = () => {
     if (!ready) return;
@@ -148,8 +148,8 @@ function B3Inner() {
       slot: slot ?? undefined,
       lengthMin: length,
       location,
+      sessionType: 'in_person',
       tag: tag ?? undefined,
-      repeat,
       message: msg.trim(),
     });
     router.push('/b4');
@@ -209,7 +209,7 @@ function B3Inner() {
 
         <FieldBlock label="Pick a day">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRow}>
-            {DAYS.map((d) => {
+            {BOOKABLE_DAYS.map((d) => {
               const has = !!(slots[d.i] && slots[d.i]!.length);
               const on = day === d.i;
               return (
@@ -292,82 +292,13 @@ function B3Inner() {
           </View>
         </FieldBlock>
 
-        <FieldBlock label="Repeats">
-          <View style={[styles.segment, { backgroundColor: t.surface2 }]}>
-            {(
-              [
-                ['once', 'Just once'],
-                ['weekly', 'Weekly'],
-              ] as const
-            ).map(([v, l]) => {
-              const on = repeat === v;
-              return (
-                <Pressable
-                  key={v}
-                  onPress={() => setRepeat(v)}
-                  style={[styles.segmentItemRow, on && { backgroundColor: t.surface }]}
-                >
-                  {v === 'weekly' ? <Ic name="repeat" size={15} color={on ? t.accent : t.text3} strokeWidth={1.8} /> : null}
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: on ? t.text : t.text3 }}>{l}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {repeat === 'weekly' ? (
-            <Card flat style={{ ...styles.noteCard, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
-              <View style={{ marginTop: 2 }}>
-                <Ic name="repeat" size={16} color={t.accent} strokeWidth={1.9} />
-              </View>
-              <Text style={{ flex: 1, fontSize: 12.5, color: t.text2, lineHeight: 18 }}>
-                Locks this time with {tutorFirst} every week. You&apos;re charged per session — skip or cancel anytime.
-              </Text>
-            </Card>
-          ) : null}
-        </FieldBlock>
-
-        <FieldBlock label="How you'll meet">
-          <View style={[styles.segment, { backgroundColor: t.surface2 }]}>
-            {(
-              [
-                ['person', 'In person', 'pin'],
-                ['online', 'Virtual', 'video'],
-              ] as [string, string, IconName][]
-            ).map(([v, l, ic]) => {
-              const on = mode === v;
-              return (
-                <Pressable
-                  key={v}
-                  onPress={() => setMode(v as 'person' | 'online')}
-                  style={[styles.segmentItemRow, on && { backgroundColor: t.surface }]}
-                >
-                  <Ic name={ic} size={17} color={on ? t.accent : t.text3} strokeWidth={1.8} />
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: on ? t.text : t.text3 }}>{l}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          {mode === 'person' ? (
-            <View style={{ marginTop: 10 }}>
-              <Selectable
-                onPress={() => setSpotOpen(true)}
-                value={spot}
-                icon="pin"
-                sub={spot.startsWith('Other') ? "You'll propose a spot in chat" : `${tutorFirst}'s agreed meeting spot`}
-              />
-            </View>
-          ) : (
-            <Card flat style={{ ...styles.videoCard, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
-              <View style={[styles.videoIcon, { backgroundColor: t.surface }]}>
-                <Ic name="video" size={20} color={t.accent} strokeWidth={1.8} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>Integrated video call</Text>
-                <Text style={{ fontSize: 12, color: t.text2, marginTop: 2, lineHeight: 17 }}>
-                  A secure link appears here 10 minutes before the session — no app needed.
-                </Text>
-              </View>
-            </Card>
-          )}
+        <FieldBlock label="Where you'll meet">
+          <Selectable
+            onPress={() => setSpotOpen(true)}
+            value={spot}
+            icon="pin"
+            sub={spot.startsWith('Other') ? "You'll propose a spot in chat" : `${tutorFirst}'s agreed meeting spot`}
+          />
         </FieldBlock>
 
         <FieldBlock label={`Message to ${tutorFirst}`}>
@@ -539,8 +470,6 @@ const styles = StyleSheet.create({
   segmentItem: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 11 },
   segmentItemRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 11 },
   noteCard: { marginTop: 10, flexDirection: 'row', gap: 10, padding: 12, borderWidth: 1 },
-  videoCard: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1 },
-  videoIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   msgBox: { minHeight: 96, borderRadius: 13, borderWidth: 1.5, padding: 13, fontSize: 14.5, lineHeight: 20, textAlignVertical: 'top' },
   msgFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
   msgFooterLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },

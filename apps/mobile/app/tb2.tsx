@@ -150,7 +150,8 @@ export default function TB2() {
           </View>
         </Card>
 
-        {/* primary CTAs */}
+        {/* primary CTA. "Add to calendar" was removed: it only showed a success alert,
+            with no expo-calendar integration behind it (APP_REVIEW_TICKETS.md T21). */}
         <View style={styles.ctaRow}>
           <Button
             label="Message"
@@ -159,17 +160,6 @@ export default function TB2() {
             iconRight="chat"
             style={{ flex: 1 }}
             onPress={() => router.push('/chat_tutor')}
-          />
-          <Button
-            label="Add to calendar"
-            kind="secondary"
-            size="md"
-            iconRight="cal"
-            style={{ flex: 1 }}
-            onPress={() => {
-              // TODO(api): wire up real device-calendar integration.
-              Alert.alert('Added to your calendar');
-            }}
           />
         </View>
 
