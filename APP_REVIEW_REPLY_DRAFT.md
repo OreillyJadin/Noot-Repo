@@ -21,7 +21,8 @@
 > - [ ] A fresh **SDK 57** production build is in TestFlight. The recording comes from that build, **not Expo Go** — Expo Go has no PaymentSheet.
 > - [ ] Recorded on a physical iPhone on the latest public iOS release, starting from a cold launch.
 >
-> **Code (`APP_REVIEW_TICKETS.md`)** — status as of 2026-09-10, all local-verified, none deployed
+> **Code (`APP_REVIEW_TICKETS.md`)** — **deployed to production 2026-09-17** (migrations
+> 0029-0032 and the five changed Edge Functions); previously local-only
 > - [ ] T1 — Deletion-test account exists with no upcoming sessions *(the 409 copy now reaches the user — T13 done)*
 > - [ ] T3 — Report is discoverable (not long-press only); Blocked-users row on the tutor profile
 > - [x] T4 — Server-side content filter is live *(migrations 0029 + 0032; `verify_filter` 16/16)*
@@ -32,7 +33,11 @@
 > - [x] T9 — Terms (zero tolerance) accepted at sign-up *(`verify_terms` 6/6)*
 > - [x] T14 — Video sessions removed; this reply no longer claims them
 > - [ ] **T16 — `pnpm check:preview` is failing** (5 remote-only migrations). Blocks pushing.
-> - [ ] **Edge Functions deployed** — every function changed above is still local only
+> - [x] **Edge Functions deployed** (2026-09-17) — create-payment-intent, confirm-booking,
+>       complete-session, report-no-show, reschedule-booking. Migrations 0029-0032 applied by
+>       the GitHub integration on push; the content filter was verified working on production.
+>       **Note:** the new create-payment-intent no longer accepts a client amount, so build 4
+>       (what Apple has) can no longer book. The recording must come from build 5 or later.
 > - [ ] Every `[BRACKET]` is filled in, and the privacy nutrition label matches item 4
 
 ---

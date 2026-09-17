@@ -12,6 +12,19 @@ original DB-only guesses. Three problems the DB audit couldn't see were added as
 
 Status: `[ ]` todo · `[~]` in progress · `[x]` done and verified
 
+**Deployed to production 2026-09-17.** Migrations `0029`-`0032` were applied by the Supabase
+GitHub integration on push to `main` (verified: `blocked_terms` has 18 rows, all 6 filter
+triggers exist, `users.terms_accepted_at` and `bookings.payout_failed_at` exist, and
+`contains_blocked_term()` matches a slur while leaving "Scunthorpe" alone). The five changed
+Edge Functions were deployed with the CLI and each returns its own `Not authenticated` JSON,
+confirming the `_shared/booking.ts` bundle imports cleanly.
+
+**Breaking change to note:** `create-payment-intent` now takes
+`{tutorId, courseCode, durationMinutes, scheduledAt}` and ignores `amountCents`, so **build 4
+can no longer create a booking.** That was the point of T5 — the old path was a cash-out hole —
+but it means the review build and the recording must be build 5 or later. Rollback if ever
+needed is `git revert` plus a redeploy of the five functions.
+
 ---
 
 ## T0 — External blockers (Jadin; no code) — these gate everything
