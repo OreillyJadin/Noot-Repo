@@ -20,19 +20,28 @@ export function fmtSlot(min: number): string {
 }
 
 /**
- * Map weekly windows onto the fixed 14-day DAYS window, producing hourly start
- * times inside each window: { dayIndex -> ["12:00 PM", "1:00 PM", …] }. Days with
- * no matching window are omitted (so the picker can grey them out).
+ * Map weekly windows onto the DAYS window, producing hourly start times inside each
+ * window: { dayIndex -> ["12:00 PM", "1:00 PM", …] }. Days with no matching window are
+ * omitted (so the picker can grey them out).
+ *
+ * Slots earlier than now on day 0 ("Today") are dropped: the booking picker defaults to
+ * a day, so offering a time that has already passed sends the student all the way to
+ * payment before the server refuses it with "That time is in the past".
  */
 export function slotsFromWindows(windows: TutorAvailability[]): Record<number, string[]> {
   const map: Record<number, string[]> = {};
+  const now = new Date();
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
   for (const d of DAYS) {
     const dayWindows = windows.filter((w) => w.dayOfWeek === d.dowNum);
     if (dayWindows.length === 0) continue;
     const starts = new Set<number>();
     for (const w of dayWindows) {
       const end = parseHM(w.endTime);
-      for (let m = parseHM(w.startTime); m < end; m += 60) starts.add(m);
+      for (let m = parseHM(w.startTime); m < end; m += 60) {
+        if (d.i === 0 && m <= minutesNow) continue; // already passed today
+        starts.add(m);
+      }
     }
     if (starts.size) map[d.i] = [...starts].sort((a, b) => a - b).map(fmtSlot);
   }

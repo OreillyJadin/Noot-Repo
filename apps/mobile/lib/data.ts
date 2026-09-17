@@ -1,6 +1,7 @@
 // Shape + adapter layer between @noot/core and the ported UI. Live screens fetch via
 // @noot/core and map into the UI Tutor/Review shapes with the adapters at the bottom.
-// DAYS is the real 14-day booking window (from today); per-tutor availability slots come
+// DAYS is a 14-day window from today (BOOKABLE_DAYS is the shorter slice a student may
+// actually book); per-tutor availability slots come
 // from api.tutors.getAvailability(...) via lib/availability.ts (no more mock generator).
 import type { ReviewSummary, TutorSummary } from '@noot/core';
 
@@ -18,6 +19,18 @@ export interface Day {
   year: number;
   label: string;
 }
+
+/**
+ * How far ahead a session may be *booked*, in days. Payment is a manual-capture hold and
+ * card authorizations lapse after about 7 days, so a session booked further out than this
+ * could not be captured and the tutor would go unpaid (APP_REVIEW_TICKETS.md T6).
+ * Must stay in step with BOOKING_HORIZON_DAYS in supabase/functions/_shared/booking.ts,
+ * which rejects anything beyond it server-side.
+ *
+ * This is deliberately NOT the length of DAYS: the tutor calendar shows two weeks of
+ * their own sessions. Booking screens use BOOKABLE_DAYS instead.
+ */
+export const BOOKING_HORIZON_DAYS = 6;
 
 function buildDays(): Day[] {
   const start = new Date();
@@ -39,7 +52,20 @@ function buildDays(): Day[] {
   return out;
 }
 
+/** Two weeks from today. For *viewing* (the tutor calendar pages this in weeks of 7). */
 export const DAYS = buildDays();
+
+/**
+ * The subset a student may actually book. Use this in any day picker that leads to a
+ * payment; the server rejects anything past it.
+ *
+ * Note the slice length is BOOKING_HORIZON_DAYS, not +1: the server's check is
+ * `scheduled_at <= now + 6 days` measured in real time, not calendar days. Offering the
+ * 7th day (today + 6) would surface slots whose clock time is later in the day than
+ * "now", which the server refuses only AFTER the student has filled in the whole form.
+ * Six entries — today through today+5 — are always strictly inside the window.
+ */
+export const BOOKABLE_DAYS = DAYS.slice(0, BOOKING_HORIZON_DAYS);
 
 export interface Review {
   name: string;
