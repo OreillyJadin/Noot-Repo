@@ -6,13 +6,14 @@
 // Requires an active session (the magic-link / recovery exchange already ran in
 // /auth-callback); setPassword() operates on that session via updateUser.
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Button, Field, useTheme } from '@noot/ui';
-import { auth } from '@noot/core';
+import { Button, Field, Ic, useTheme } from '@noot/ui';
+import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { routeAfterAuth } from '../lib/postAuth';
+import { TERMS_VERSION, openLegal } from '../lib/legal';
 
 const MIN_LEN = 8;
 
@@ -27,10 +28,15 @@ export default function SetPassword() {
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Guideline 1.2 requires agreeing to terms with zero tolerance for objectionable
+  // content before a user can post any. Onboarding only — someone resetting a forgotten
+  // password accepted them when they signed up.
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const handleSubmit = async () => {
     if (password.length < MIN_LEN) { setError(`Use at least ${MIN_LEN} characters.`); return; }
     if (password !== confirm) { setError("Passwords don't match."); return; }
+    if (!isReset && !acceptedTerms) { setError('Please accept the Terms of Use to continue.'); return; }
     setBusy(true); setError(null);
     try {
       const res = await auth.setPassword(password);
@@ -42,6 +48,15 @@ export default function SetPassword() {
         // Existing user; already authenticated via the recovery session → into the app.
         await routeAfterAuth(router, setRole);
       } else {
+        // Record the acceptance before moving on, so no account can reach the rest of the
+        // app without one. A failure here is not fatal to sign-up — surface it and let
+        // them retry rather than trapping a user with a valid password on this screen.
+        try {
+          await api.profile.acceptTerms(TERMS_VERSION);
+        } catch {
+          setError("Couldn't record your agreement. Please tap continue again.");
+          return;
+        }
         // New user → offer Face ID, then continue onboarding (role → profile).
         router.replace('/enable_faceid');
       }
@@ -79,11 +94,44 @@ export default function SetPassword() {
           secureTextEntry
         />
 
+        {isReset ? null : (
+          <Pressable
+            onPress={() => { setAcceptedTerms((v) => !v); if (error) setError(null); }}
+            style={styles.termsRow}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: acceptedTerms }}
+            accessibilityLabel="Accept the Terms of Use and Privacy Policy"
+          >
+            <View
+              style={[
+                styles.box,
+                {
+                  backgroundColor: acceptedTerms ? t.accent : 'transparent',
+                  borderColor: acceptedTerms ? t.accent : t.borderStrong,
+                },
+              ]}
+            >
+              {acceptedTerms ? <Ic name="check" size={13} color={t.onAccent} strokeWidth={3} /> : null}
+            </View>
+            <Text style={[styles.termsText, { color: t.text2 }]}>
+              I agree to noot&apos;s{' '}
+              <Text onPress={() => openLegal('terms')} style={{ color: t.accent, fontWeight: '600' }}>
+                Terms of Use
+              </Text>{' '}
+              and{' '}
+              <Text onPress={() => openLegal('privacy')} style={{ color: t.accent, fontWeight: '600' }}>
+                Privacy Policy
+              </Text>
+              . noot has zero tolerance for objectionable content and abusive behavior.
+            </Text>
+          </Pressable>
+        )}
+
         {error ? <Text style={{ color: '#C0392B', fontSize: 14 }}>{error}</Text> : null}
 
         <Button
           label={busy ? 'Saving…' : isReset ? 'Update password' : 'Set password & continue'}
-          disabled={busy}
+          disabled={busy || (!isReset && !acceptedTerms)}
           onPress={handleSubmit}
         />
       </ScrollView>
@@ -96,4 +144,7 @@ const styles = StyleSheet.create({
   body: { padding: 20, gap: 16, paddingTop: 40 },
   h1: { fontSize: 26, fontWeight: '700' },
   sub: { fontSize: 15, lineHeight: 21 },
+  termsRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginTop: 4 },
+  box: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
+  termsText: { flex: 1, fontSize: 13.5, lineHeight: 19 },
 });
