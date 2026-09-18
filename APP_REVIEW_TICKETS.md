@@ -151,7 +151,41 @@ and `sessionType` is now explicit rather than sniffed from a display string.
       being refused, hold reuse (409), and another user's hold (403).
 - [ ] Both functions are deployed to cloud with the version bumped. **← still to do**
 
-### T8 — Review demo data `[ ]`
+### T8 — Review demo data `[~]` (worse than first described)
+
+**Re-audited 2026-09-18. The seeded data had rotted three ways at once**, and one of them
+was turned into a hard failure by the T18 guard deployed on 2026-09-17:
+
+1. **Every seeded booking was in the past** (latest `2026-09-11`). The reviewer's Upcoming
+   tab was empty, while `ASC_SUBMISSION_CHECKLIST.md` asks for the student account to have
+   an upcoming session.
+2. **Every demo tutor's `stripe_connect_account_id` was a fake string** (`acct_demo_tutor1`,
+   `acct_demo_tutorreview`, …). Stripe returns `account_invalid` for all of them, but
+   `tutor_profiles.stripe_charges_enabled` said `true`, so `resolveBooking` let the booking
+   through. A reviewer could book and have a real hold placed on their card, and then
+   `complete-session:53` would enter its Stripe branch and `assertPayoutReady` (T18) would
+   refuse: *"This payout account is no longer valid."* **The session could never be
+   completed.** The existing seeded rows were safe only because their
+   `stripe_payment_intent_id` is null, which skips the Stripe branch entirely.
+3. **Every row was `session_type = 'video'`** with a `meet.example.com` link — but T14
+   removed video sessions, so they render as "Online" with no way to meet. That is the exact
+   complaint Apple raised.
+
+**Fixed by `supabase/seed_app_review.mjs`** (2026-09-18) — idempotent, credential-free,
+dry-run by default, and dates relative to run time so re-running before a submission
+refreshes them. It derives every price from `tutor_courses.hourly_rate` exactly as
+`resolveBooking()` does, so demo prices cannot disagree with server-computed ones, and it
+repoints the demo tutors at `acct_1TwADu1nmgWvUthV` (the one working sandbox Connect
+account). All six planned bookings were validated against production read-only: every
+account and course pair resolves and the derived prices match.
+
+**Done when:**
+- [x] A repeatable seed script exists and its plan is validated against production.
+- [ ] `node supabase/seed_app_review.mjs --apply` has been run against the cloud project.
+      ← **needs Jadin** (the session was blocked from reading the prod service_role key)
+- [ ] A deletion-test account with no live bookings exists (T1) — still not created.
+
+**Original ticket:**
 **Found:**
 - One `watchmenventures.com` tutor profile has `stripe_charges_enabled = false`, and it's the only
   tutor for EC 470 / "CS100".
@@ -210,6 +244,34 @@ Terms and Privacy document — since `trynoot.com/terms` doesn't exist.
 - [ ] Onboarding can't be completed without accepting, verified on device. **← needs a device**
 
 ### T10 — Stripe test → live cutover `[ ]` (do together with T0's live keys)
+
+**Investigated 2026-09-18 — the keys are a SANDBOX, not test mode on a live account.**
+`.noot-secrets.local.env` and the production project both point at:
+
+```
+acct_1Tq3Mg1nmgmdwQqI   "Watchmen  sandbox"   jadin.oreilly@watchmenventures.com
+business url: https://accessible.stripe.com   (Stripe's placeholder default)
+```
+
+Evidence it is the same account in production: the Connect accounts created by the prod
+`connect-onboarding-link` (`acct_1TxbPL…`) are visible under these local sandbox keys.
+
+**A Stripe Sandbox cannot be promoted to live.** The cutover is not "flip a switch" — it
+needs a separate, activated business account, new `sk_live_`/`pk_live_` keys, a new
+`STRIPE_WEBHOOK_SECRET`, and re-onboarding every tutor's Connect account, because Connect
+ids do not cross accounts. That is also what makes `acct_demo_*` and the stale ids in T18's
+notes dangerous.
+
+**Also found:** Jadin's own Connect onboarding was never finished — five accounts exist
+(`acct_1TxbPJ…` through `acct_1TxbPL…`), all `details_submitted: false`, created seconds
+apart. `connect-onboarding-link` appears to mint a fresh account per tap instead of reusing
+an incomplete one. Worth a ticket of its own.
+
+The only Connect account on the sandbox that actually works is `acct_1TwADu1nmgWvUthV`
+(`charges` ✓, `payouts` ✓, `transfers` capability active, no requirements due) — which is
+what T8's seed now points the demo tutors at.
+
+**Original ticket:**
 **Found:** 2 users have a `stripe_customer_id`, and 5 tutor profiles have a
 `stripe_connect_account_id`, all created under test keys. With live keys:
 - `create-payment-intent` reuses the stored customer and fails with "No such customer". That
