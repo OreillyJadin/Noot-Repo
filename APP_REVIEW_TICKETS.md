@@ -645,6 +645,48 @@ becomes true with no app change.
 
 ---
 
+### T24 — `connect-onboarding-link` created duplicate Stripe accounts `[x]` (2026-09-19)
+
+**Found** while reviewing the live cutover: one tutor had **5** Connect accounts created
+within 2 seconds, another had **2** within 1 second. Not repeated taps over time —
+sub-second, so concurrent.
+
+**Cause: a check-then-act race.** The function read `stripe_connect_account_id`, saw null,
+and created an account. The "Payout account" row stayed tappable while the Edge Function
+cold-started, so several invocations overlapped; each read null before any of them wrote,
+each created its own Stripe account, and the last write won. The others were orphaned. The
+original also **discarded the upsert error**, so a failed write looked like success and
+guaranteed another duplicate on the next tap.
+
+**Fixed, three defences server-side plus one client-side:**
+1. `accounts.create` now passes `idempotencyKey: connect_acct_<user.id>`, so Stripe itself
+   collapses concurrent creates into one account.
+2. The persist is conditional (`.is('stripe_connect_account_id', null)`) and checks which
+   rows it actually updated, so a losing racer detects it lost and **deletes the account it
+   just created** instead of orphaning it.
+3. Persist failures now return a 500 and clean up, rather than handing back a link to an
+   account nobody recorded.
+4. `tutor_profile.tsx` guards `setupPayouts` with a `payoutBusy` flag and shows
+   "Opening Stripe…" on the row.
+
+It also now recovers from a stored id that is dead under the current keys
+(`resource_missing` / `account_invalid` / `permission_error`) by clearing it and creating a
+fresh one — the sandbox-to-live case from T10, which would otherwise have been permanently
+stuck.
+
+**Verified against the real live Stripe account:** 5 simultaneous creates with the new
+idempotency key produced **1** account, 4 collapsed as `idempotency_key_in_use`, and a
+sequential retry returned that same account. All test accounts were deleted
+(`deleted: true`).
+
+**Incidental finding — worth knowing:** the **sandbox rejects Accounts v1 outright**
+("Stripe no longer recommends Accounts v1 ... use POST /v2/core/accounts"), while the live
+account still accepts it. So Connect onboarding cannot be exercised on the sandbox at all,
+and a future Stripe deprecation of v1 on live would break onboarding entirely. Migrating to
+`/v2/core/accounts` should get its own ticket before launch.
+
+---
+
 ## Deliberately NOT claiming (keep the reply honest)
 - **Push notifications:** not built (only the in-app center). Don't list APNs as a service.
   Confirm the app never shows a notification-permission prompt.

@@ -12,6 +12,7 @@ import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
+import { errText } from '../lib/errText';
 import { useRoleSwitch } from '../lib/useRoleSwitch';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { pickAndUploadAvatar } from '../lib/avatar';
@@ -81,12 +82,21 @@ export default function TutorProfile() {
   const [payouts, setPayouts] = useState<{ connected: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean } | null>(null);
   const refreshPayouts = () => api.connect.status().then((s) => setPayouts(s)).catch(() => {});
   useEffect(() => { void refreshPayouts(); }, []);
-  const payoutSub = payouts?.payoutsEnabled
+  // Guard against concurrent taps. Each call to onboardingLink() used to be able to create
+  // its own Stripe Connect account — the row is reachable while the Edge Function cold
+  // starts, and double-tapping orphaned real accounts (APP_REVIEW_TICKETS.md T24). The
+  // server is idempotent now; this just stops us asking twice.
+  const [payoutBusy, setPayoutBusy] = useState(false);
+  const payoutSub = payoutBusy
+    ? 'Opening Stripe…'
+    : payouts?.payoutsEnabled
     ? 'Connected · payouts enabled'
     : payouts?.connected
       ? 'Setup incomplete — finish onboarding'
       : 'Not connected — set up Stripe';
   const setupPayouts = async () => {
+    if (payoutBusy) return;
+    setPayoutBusy(true);
     try {
       const { url } = await api.connect.onboardingLink();
       if (!url) {
@@ -98,8 +108,10 @@ export default function TutorProfile() {
       }
       await WebBrowser.openAuthSessionAsync(url, 'noot://connect-return');
       void refreshPayouts();
-    } catch {
-      Alert.alert('Could not open payout setup', 'Please try again.');
+    } catch (e) {
+      Alert.alert('Could not open payout setup', errText(e, 'Please try again.'));
+    } finally {
+      setPayoutBusy(false);
     }
   };
 
