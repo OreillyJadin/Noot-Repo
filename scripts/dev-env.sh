@@ -38,7 +38,11 @@ fi
 # --- report (names and shapes only, never values) --------------------------
 _noot_report() {
   local name len
-  for name in SUPABASE_ACCESS_TOKEN EXPO_TOKEN STRIPE_SECRET_KEY STRIPE_PUBLISHABLE_KEY; do
+  # STRIPE_SECRET_KEY stays the SANDBOX key on purpose — the verify_* scripts create real
+  # PaymentIntents against whatever it points at. The _LIVE pair is only for configuring
+  # the production project and production builds.
+  for name in SUPABASE_ACCESS_TOKEN EXPO_TOKEN STRIPE_SECRET_KEY STRIPE_PUBLISHABLE_KEY \
+              STRIPE_SECRET_KEY_LIVE STRIPE_PUBLISHABLE_KEY_LIVE STRIPE_WEBHOOK_SECRET_LIVE; do
     len="$(eval "printf '%s' \"\${#$name}\"")"
     if [ "$len" -gt 0 ]; then printf '  ✅ %-26s (%s chars)\n' "$name" "$len"
     else printf '  ⚠️  %-26s not set\n' "$name"; fi

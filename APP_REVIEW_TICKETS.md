@@ -267,9 +267,42 @@ notes dangerous.
 apart. `connect-onboarding-link` appears to mint a fresh account per tap instead of reusing
 an incomplete one. Worth a ticket of its own.
 
-The only Connect account on the sandbox that actually works is `acct_1TwADu1nmgWvUthV`
-(`charges` ✓, `payouts` ✓, `transfers` capability active, no requirements due) — which is
-what T8's seed now points the demo tutors at.
+**CUTOVER DONE 2026-09-19.** The live account was located and is fully activated:
+
+```
+acct_1Tq3MW1NCXpBpEKP   "Noot tutoring"   jadin.oreilly@watchmenventures.com
+charges ✓  payouts ✓  details_submitted ✓  card_payments active  transfers active
+requirements: nothing due
+```
+
+Note it is a *different* account from the sandbox (`acct_1Tq3Mg…`), not the same account in
+another mode — so nothing carries across.
+
+What was changed:
+
+| | |
+| --- | --- |
+| `.noot-secrets.local.env` | live keys added under **`_LIVE`** names, gitignored, `chmod 600`. `STRIPE_SECRET_KEY` intentionally still points at the **sandbox** — `verify_pricing.mts` / `verify_payout_guards.mts` create real PaymentIntents against it, and that is what stops a local test run charging a real card. |
+| Live webhook | created `we_1UHR3Y1NCXpBpEKPxsvLzGd4` → `payments-webhook`, events `account.updated`, `charge.refunded`, `payment_intent.succeeded`. Signing secret stored as `STRIPE_WEBHOOK_SECRET_LIVE`. The Sync Engine's `stripe-webhook` does **not** read `STRIPE_WEBHOOK_SECRET`, so there is no collision (verified against the deployed source). |
+| Prod Supabase secrets | `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` → live values. |
+| `apps/mobile/eas.json` | **production profile only** → `pk_live_…`. development and preview stay on `pk_test_`. A publishable key is public by design, so it is fine in git. |
+| Database | every `stripe_connect_account_id` nulled and `stripe_charges_enabled` set false (5 tutors); every `stripe_customer_id` nulled (2 users). All were sandbox ids, invalid under live keys. |
+| Functions | all 8 Stripe-touching functions redeployed so they pick up the new secrets. |
+
+Verified: a signed-probe of `payments-webhook` returns a *signature mismatch* rather than
+"Webhook not configured", which only happens when both secrets are present and verification
+is actually running.
+
+**STILL OPEN — Stripe is not usable end-to-end yet:**
+- [ ] **Zero live Connect accounts exist.** Until at least the review tutor onboards,
+      `assertPayoutReady` refuses every completion. **Jadin must tap Profile → Payout account
+      → Set up payouts in a production build and finish Stripe's live onboarding** (real
+      identity + bank details). Verify with
+      `curl https://api.stripe.com/v1/accounts?limit=5 -u "$STRIPE_SECRET_KEY_LIVE:"` —
+      a new account appearing there also proves prod is using the live key.
+- [ ] `DEMO_CONNECT_ACCOUNT=acct_… node supabase/seed_app_review.mjs --apply` once a live
+      account exists, to give the demo tutors a working payout destination.
+- [ ] **Real money is now live.** Any booking on a production build charges a real card.
 
 **Original ticket:**
 **Found:** 2 users have a `stripe_customer_id`, and 5 tutor profiles have a

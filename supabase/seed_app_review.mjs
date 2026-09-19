@@ -33,11 +33,18 @@ const SERVICE =
 const APPLY = process.argv.includes('--apply');
 
 /**
- * A Connect account that can actually receive a transfer. Defaults to the one account on
- * the Watchmen sandbox with charges, payouts and the `transfers` capability all active.
- * Override when the Stripe account changes — a fake id here reintroduces bug (2) above.
+ * A Connect account that can actually receive a transfer, for the demo tutors.
+ *
+ * Deliberately has NO default. Connect ids do not cross Stripe accounts, so a hardcoded id
+ * goes stale the moment the account changes — which is exactly what happened at the
+ * sandbox -> live cutover on 2026-09-19, when the previous default (`acct_1TwADu1nmgWvUthV`,
+ * a sandbox account) became invalid. Leaving it unset skips the repoint entirely and leaves
+ * the tutors with no payout account, which is the honest state: they must onboard.
+ *
+ * Set it only to an id you have confirmed under the CURRENT keys, e.g.
+ *   curl https://api.stripe.com/v1/accounts/acct_xxx -u "$STRIPE_SECRET_KEY_LIVE:"
  */
-const CONNECT_ACCOUNT = process.env.DEMO_CONNECT_ACCOUNT ?? 'acct_1TwADu1nmgWvUthV';
+const CONNECT_ACCOUNT = process.env.DEMO_CONNECT_ACCOUNT ?? null;
 
 /** Must match FEE_RATE in supabase/functions/_shared/booking.ts. */
 const FEE_RATE = 0.175;
@@ -80,7 +87,11 @@ const PLAN = [
 const fail = (msg) => { console.error(`❌ ${msg}`); process.exit(1); };
 
 console.log(`Target: ${IS_LOCAL ? 'LOCAL' : 'CLOUD'} (${URL})`);
-console.log(`Connect account for demo tutors: ${CONNECT_ACCOUNT}`);
+console.log(
+  CONNECT_ACCOUNT
+    ? `Connect account for demo tutors: ${CONNECT_ACCOUNT}`
+    : 'Connect account for demo tutors: (none — set DEMO_CONNECT_ACCOUNT to repoint them)',
+);
 console.log(APPLY ? 'Mode: APPLY\n' : 'Mode: DRY RUN (pass --apply to write)\n');
 
 // --- resolve accounts by email; never create them ---
@@ -154,14 +165,19 @@ if (!APPLY) {
   process.exit(0);
 }
 
-// --- 1. give every demo tutor a Connect account that can actually receive a transfer ---
-const { data: fixed, error: connectErr } = await admin
-  .from('tutor_profiles')
-  .update({ stripe_connect_account_id: CONNECT_ACCOUNT, stripe_charges_enabled: true })
-  .like('stripe_connect_account_id', 'acct_demo_%')
-  .select('user_id');
-if (connectErr) fail(`connect repoint failed: ${connectErr.message}`);
-console.log(`\n✅ repointed ${fixed?.length ?? 0} demo tutor payout account(s) to ${CONNECT_ACCOUNT}`);
+// --- 1. optionally give the demo tutors a Connect account that can receive a transfer ---
+if (CONNECT_ACCOUNT) {
+  const { data: fixed, error: connectErr } = await admin
+    .from('tutor_profiles')
+    .update({ stripe_connect_account_id: CONNECT_ACCOUNT, stripe_charges_enabled: true })
+    .in('user_id', [...new Set(PLAN.map((b) => idFor[b.tutor]))])
+    .select('user_id');
+  if (connectErr) fail(`connect repoint failed: ${connectErr.message}`);
+  console.log(`\n✅ repointed ${fixed?.length ?? 0} demo tutor payout account(s) to ${CONNECT_ACCOUNT}`);
+} else {
+  console.log('\n⏭️  skipped payout repoint (DEMO_CONNECT_ACCOUNT not set) — demo tutors have no');
+  console.log('    payout account, so a booked session cannot be completed until one onboards.');
+}
 
 // --- 2. replace the seeded bookings (reviews first: they reference booking_id) ---
 const ids = PLAN.map((b) => b.id);
