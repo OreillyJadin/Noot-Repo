@@ -13,6 +13,7 @@ import { useMe, fullName, firstName } from '../lib/useMe';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
 import { errText } from '../lib/errText';
+import { openLegal } from '../lib/legal';
 import { useRoleSwitch } from '../lib/useRoleSwitch';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { pickAndUploadAvatar } from '../lib/avatar';
@@ -255,7 +256,14 @@ export default function TutorProfile() {
               Apple's IP question with "no university trademarks", and naming a specific
               school as a product feature contradicted it (APP_REVIEW_TICKETS.md T22). */}
           <Row icon="flame" label="School colors" sub="Crimson accent" control={<Toggle on={school} onPress={toggleSchool} />} />
-          <Row icon="help" label="Help & support" onPress={() => router.push('/help')} last />
+          <Row icon="help" label="Help & support" onPress={() => router.push('/help')} />
+          {/* These three exist on the student profile too. They are missing here until
+              2026-09-21, which made APP_REVIEW_REPLY_DRAFT's "Profile > Blocked users to
+              unblock" false for anyone signed in as a tutor — and Apple asks for
+              credentials for each account type (APP_REVIEW_TICKETS.md T3). */}
+          <Row icon="lock" label="Blocked users" onPress={() => router.push('/blocked_users')} />
+          <Row icon="shield" label="Privacy Policy" onPress={() => openLegal('privacy')} />
+          <Row icon="doc" label="Terms of Service" onPress={() => openLegal('terms')} last />
         </Card>
 
         {/* add ambassador role if not held yet (switching between held roles is the switcher above) */}

@@ -85,9 +85,24 @@ list is at `blocked_users.tsx`, linked from `profile.tsx:269`. Remaining real ga
 - Booking has **no block check at all** (`create-payment-intent` has none; `confirm-booking:27`
   runs as service role and its opening-message insert at `:107` bypasses `messages_insert`).
 - **Reviews have no report path.** `target_kind = 'review'` exists (`0028:44`) but `reportReview`
-  exists nowhere. `/terms` describes reviews as UGC.
-- Report-a-message has no visual affordance — long-press only. A reviewer has to guess.
-- `tutor_profile.tsx` has no "Blocked users" row (the student profile does).
+  exists nowhere. Confirmed still missing 2026-09-21 — but no claim in the reply depends on it,
+  and ratings are not displayed to users, so this is not review-blocking.
+- Report-a-message has no visual affordance — long-press only. A reviewer has to guess. The
+  reply spells out the long-press, so it is discoverable from the notes; still worth an
+  affordance before launch.
+- ~~`tutor_profile.tsx` has no "Blocked users" row~~ **Fixed 2026-09-21** — and it was worse
+  than recorded: the tutor profile was missing **Blocked users, Privacy Policy AND Terms of
+  Service**. All three are claimed in the reply as reachable from Profile, and Apple asks for
+  credentials for *each account type*, so a reviewer signed in as the tutor would have found
+  three false statements. All three rows added, mirroring the student profile.
+
+**Re-audited 2026-09-21 — the claim-critical half of this ticket is already done.** Blocking
+is symmetric and enforced server-side for both messaging (`messages_insert`) and booking
+(`resolveBooking` reads `user_blocks` in both directions, `_shared/booking.ts:127`), which is
+exactly what the reply claims. What remains is search *visibility*: `api.tutors.search()`
+still filters client-side and one-directionally (`.eq('blocker_id', meId)`), so someone who
+blocked you still appears in your results — though the booking itself is refused. The reply
+does not claim they disappear from search, so this is a correctness/UX gap, not a false claim.
 **Fix:**
 - Confirm the Report (message, user) and Block entry points exist on screen.
 - Exclude blocked pairs in `api.tutors.search()` (in core, so every caller inherits it, like the
@@ -149,7 +164,7 @@ and `sessionType` is now explicit rather than sniffed from a display string.
 - [x] `scripts/verify_pricing.mts` — **22/22 against real Stripe test mode**, including
       `price: 99999` against a $34 hold being ignored, a hold reused for a pricier course
       being refused, hold reuse (409), and another user's hold (403).
-- [ ] Both functions are deployed to cloud with the version bumped. **← still to do**
+- [x] Both functions are deployed to cloud with the version bumped (2026-09-17).
 
 ### T8 — Review demo data `[~]` (worse than first described)
 
