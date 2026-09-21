@@ -10,12 +10,11 @@
 > **External (Jadin — from `HANDOFF_2026-08-11.md` §3 and `ASC_SUBMISSION_CHECKLIST.md`)**
 >   - [x] `https://trynoot.com/privacy` loads publicly (verified 2026-09-17). Reviewers open it
 >         directly. The domain is **trynoot.com**, not noot.app.
->   - [ ] **⚠ No Terms of Use document is published.** `trynoot.com/terms` 404s, and the live
->         `/privacy` page is a Privacy Policy only — it contains no Terms of Use, and the words
->         "zero tolerance" and "objectionable" do not appear on it (checked 2026-09-17). The app's
->         sign-up checkbox says "I agree to noot's **Terms of Use** and Privacy Policy" and states
->         zero tolerance on-screen, but the Terms of Use link currently opens the privacy policy.
->         **Apple checks this under Guideline 1.2.** See `APP_REVIEW_TICKETS.md` T23.
+>   - [ ] **⚠ `https://trynoot.com/terms` must be live before submitting.** The app, the
+>         sign-up checkbox, every auth email footer and these notes all point there as of
+>         2026-09-21. The text is written (`legal/TERMS_OF_USE.md`) but not yet published — a
+>         reviewer tapping "Terms of Use" and getting a 404 is a **Guideline 1.2** failure.
+>         No rebuild is needed once the page goes up. See `APP_REVIEW_TICKETS.md` T23.
 > - [x] SMTP is configured (Resend, sending as `support@trynoot.com`, verified sending 2026-09-17).
 > - [ ] Stripe is on **live** keys, and test-mode Stripe IDs have been cleared (`APP_REVIEW_TICKETS.md` T10).
 > - [ ] A fresh **SDK 57** production build is in TestFlight. The recording comes from that build, **not Expo Go** — Expo Go has no PaymentSheet.
@@ -110,7 +109,7 @@ Sign-up requires an email address on a supported campus domain. For App Review, 
 - **Server-side filter:** all user-supplied text is checked against a blocked-term list on the server before it is stored — chat messages, tutor bios, review comments, display names, and the meeting location. The check runs in the database itself, so it applies no matter which part of the app is writing.
 - **Pre-moderation:** tutor profiles are approved by our team before anyone can find them. Session ratings are collected but are not shown to other users anywhere in the app.
 - Our team reviews reports within 24 hours. We can remove content and suspend or ban accounts, from the in-app admin panel.
-- **Terms of Use are accepted during sign-up** — the account cannot be created without it — and state zero tolerance for objectionable content and abusive behavior. They are published at [TERMS URL — no terms document is live yet; see T23].
+- **Terms of Use are accepted during sign-up** — the account cannot be created without it — and state zero tolerance for objectionable content and abusive behavior. They are published at https://trynoot.com/terms.
 - Support is at admin@trynoot.com and in the app at Profile → Help & support.
 
 **Payments (Guideline 3.1.3(d)).** noot sells real-time, one-on-one tutoring between two individuals, in person on campus. As Guideline 3.1.3(d) permits, these sessions are paid through Stripe rather than In-App Purchase. noot sells no digital content, subscriptions, or unlockable features, and there is nothing in the app to unlock by paying.
@@ -147,8 +146,9 @@ Thank you,
 
 ## Part B — App Review Information → Notes
 
-Paste the block below verbatim. Fill the five `[ ]` passwords, `[TERMS URL]` and the video
-timestamp; everything else is already true in the shipped code.
+Paste the block below verbatim. Fill the five `[ ]` passwords and the video timestamp;
+everything else is already true in the shipped code — **provided `trynoot.com/terms` is live
+before you submit** (T23).
 Measured at **3,996 characters** — App Store Connect's Notes field caps at 4,000, so any
 addition needs a matching cut.
 
@@ -176,7 +176,7 @@ UGC SAFEGUARDS (Guideline 1.2)
 - Server-side filter: all user-supplied text is checked against a blocked-term list before storage - messages, bios, review comments, display names, meeting locations. It runs inside the database, so it applies no matter which part of the app writes.
 - Pre-moderation: tutor profiles are approved by our team before they can be found. Ratings are collected but never shown to other users anywhere in the app.
 - Every report is reviewed within 24 hours; we can remove content, suspend or ban from the in-app admin panel.
-- Terms of Use are accepted at sign-up - the account cannot be created without it - and state zero tolerance for objectionable content and abusive behaviour. Published at [TERMS URL].
+- Terms of Use are accepted at sign-up - the account cannot be created without it - and state zero tolerance for objectionable content and abusive behaviour. Published at https://trynoot.com/terms.
 - Support: admin@trynoot.com, and in-app at Profile > Help & support.
 
 PAYMENTS (Guideline 3.1.3(d))
@@ -192,6 +192,7 @@ Supabase (auth, DB, storage, functions), Stripe (payments, Connect payouts), Res
       verified, student role, terms accepted, no bookings. The deletion flow was exercised
       against production end to end and all 8 checks passed — see T1. The account was then
       recreated clean for the reviewer. Its password is in App Store Connect only, never here.
-- [ ] **`[TERMS URL]`** — T23. Nothing to paste until the terms are published.
+- [ ] **`https://trynoot.com/terms` is live** — T23. The URL is already written into the
+      notes; the page just has to exist before you submit.
 - [ ] **Passwords** go straight into App Store Connect, never into this file.
 - [ ] **`[0:00]`** — the payment timestamp in the recording.

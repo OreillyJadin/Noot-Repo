@@ -515,7 +515,8 @@ export const api = {
     /**
      * Record that the user accepted the Terms of Use during onboarding (T9, Guideline 1.2).
      * Called from set_password.tsx, where accepting is required to continue. Keep
-     * TERMS_VERSION in step with the "updated" date on trynoot.com/privacy.
+     * TERMS_VERSION in step with the effective date of legal/TERMS_OF_USE.md,
+     * published at trynoot.com/terms.
      */
     async acceptTerms(version: string): Promise<void> {
       const uid = await requireUid();

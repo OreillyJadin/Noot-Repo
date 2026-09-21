@@ -663,10 +663,13 @@ one-line `PATHS` map — publishing a real page is a one-word change there.
       the 17.5% fee (§10–11), and the no-university-affiliation statement T22 needs (§22). Every
       policy number in it was checked against the code. **Needs a lawyer's review before it goes
       up**, especially §17–§19 and the 18+ age requirement in §2.
-- [ ] That text is **published and public** — either at `trynoot.com/terms` or appended to the
-      `/privacy` document. ← **needs Jadin**
-- [ ] `PATHS.terms` in `apps/mobile/lib/legal.ts` points at it (one word if it gets its own page;
-      no change at all if it's appended to `/privacy`).
+- [x] **Destination decided 2026-09-21: its own page at `https://trynoot.com/terms`.**
+      `PATHS.terms` now points there, the five auth email footers link Privacy and Terms
+      separately, and the App Review notes name the URL.
+- [ ] That text is **published and public** at `https://trynoot.com/terms`. ← **needs Jadin**
+      **No rebuild required** — it is a runtime link, so the page can go up after the build.
+      But it **must be live before submitting**: a 404 behind the sign-up checkbox is a
+      Guideline 1.2 failure.
 - [x] `TERMS_VERSION` matches the document's effective date — both are now `2026-09-17`.
       **Note:** this records acceptance of a document that is not live yet. Publishing is what
       closes the gap; don't ship a build to real users before it's up.

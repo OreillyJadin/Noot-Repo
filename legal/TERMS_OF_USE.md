@@ -4,8 +4,14 @@
 
 > **This file is the source of truth for the published Terms of Use.** It exists in the repo so
 > the terms can be reviewed in a diff and so `TERMS_VERSION` in `apps/mobile/lib/legal.ts` has
-> something to be "in step with". Publish this text at `https://trynoot.com/terms` (or append it
-> to the `/privacy` document), then point `PATHS.terms` in `apps/mobile/lib/legal.ts` at it.
+> something to be "in step with".
+>
+> **Publish this text at `https://trynoot.com/terms`.** That is already where the app points
+> (`PATHS.terms` in `apps/mobile/lib/legal.ts`, set 2026-09-21), where the sign-up checkbox
+> links, where every auth email footer links, and what the App Review notes tell Apple. The
+> page does not need to exist for the build — but **it must be live before the app is
+> submitted**, or a reviewer tapping "Terms of Use" gets a 404, which is a Guideline 1.2
+> failure.
 >
 > **Every factual statement below was checked against the code** — cancellation tiers against
 > `supabase/functions/cancel-booking/index.ts`, the platform fee against `FEE_RATE` in

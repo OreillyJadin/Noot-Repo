@@ -20,10 +20,15 @@ export const SUPPORT_EMAIL = 'admin@trynoot.com';
 export const TERMS_VERSION = '2026-09-17';
 
 /**
- * Terms and Privacy are served from the same page for now — the combined document at
- * /privacy covers both. Split `terms` back out once a standalone /terms page is live.
+ * Both pages are plain links opened in a browser, so the destinations can go live after a
+ * build ships — nothing here is baked into behaviour beyond the path itself.
+ *
+ * `/terms` was a 404 as of 2026-09-21 and is being published separately from `/privacy`
+ * (APP_REVIEW_TICKETS.md T23, text in legal/TERMS_OF_USE.md). **It must be live before the
+ * app is submitted**: a reviewer tapping "Terms of Use" and getting a 404 is a Guideline
+ * 1.2 failure, and the sign-up checkbox links straight here.
  */
-const PATHS: Record<'privacy' | 'terms', string> = { privacy: '/privacy', terms: '/privacy' };
+const PATHS: Record<'privacy' | 'terms', string> = { privacy: '/privacy', terms: '/terms' };
 
 export const openLegal = (page: 'privacy' | 'terms') =>
   WebBrowser.openBrowserAsync(`${LEGAL_BASE}${PATHS[page]}`).catch(() => {});
