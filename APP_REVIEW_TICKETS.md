@@ -213,9 +213,10 @@ account and course pair resolves and the derived prices match.
 
 **Done when:**
 - [x] A repeatable seed script exists and its plan is validated against production.
-- [ ] `node supabase/seed_app_review.mjs --apply` has been run against the cloud project.
-      ← **needs Jadin** (the session was blocked from reading the prod service_role key)
-- [ ] A deletion-test account with no live bookings exists (T1) — still not created.
+- [ ] `DEMO_CONNECT_ACCOUNT=acct_… node supabase/seed_app_review.mjs --apply` has been run
+      against the cloud project. **Blocked on a live Connect account existing** (T10), not on
+      access — a session can read the prod service_role key via the Management API.
+- [x] A deletion-test account with no live bookings exists (T1) — `deletion.review@watchmenventures.com`, created and deletion-verified 2026-09-21.
 
 **Original ticket:**
 **Found:**
