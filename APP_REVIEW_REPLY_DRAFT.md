@@ -86,17 +86,19 @@ Sign-up requires an email address on a supported campus domain. For App Review, 
 
 | Account | Email | Password | Use it for |
 |---|---|---|---|
-| Student | [ ] | [ ] | Search, book, pay, chat, report, block. Has an upcoming session, a past session, and a chat thread. |
-| Tutor | [ ] | [ ] | Tutor mode, Mark session complete, Payout account |
-| Admin | [ ] | [ ] | Profile → noot Admin |
-| Deletion test | [ ] | [ ] | Profile → Delete account (no upcoming sessions) |
+| Student | `student.review@watchmenventures.com` | [ ] | Search, book, pay, chat, report, block. Has an upcoming session, a pending one, and a past session. |
+| Tutor | `tutor.review@watchmenventures.com` | [ ] | Tutor mode, Mark session complete, Payout account. Already approved. |
+| Admin | `admin.review@watchmenventures.com` | [ ] | Profile → noot Admin (reports queue, suspend/ban) |
+| Ambassador | `ambassador.review@watchmenventures.com` | [ ] | Profile → Refer & earn |
+| Deletion test | [DELETION TEST EMAIL] | [ ] | Profile → Delete account (no upcoming sessions) |
 
 **Booking and payment**
-- Search **[COURSE CODE]** and open **[Demo Tutor Name]**. Choose a time **more than 24 hours away**. Sessions can be booked up to six days ahead.
+- Search **MATH 125** and open **Taylor Reviewer**. Choose a time **more than 24 hours away**. Sessions can be booked up to six days ahead.
+- All sessions are **in person on campus** — you pick a meeting spot when booking. The app has no video calling.
 - Bookings confirm instantly. The card is authorized when you book and only charged after the tutor marks the session complete. The price is set by the tutor's rate for that course and is calculated on our server, never by the app.
 - Cards, Apple Pay and Google Pay are all handled by Stripe's payment sheet; noot never sees card details.
 - **Cancellation refunds are tiered:** more than 24 hours before the session, the hold is released and nothing is charged; between 2 and 24 hours, 50% is charged; under 2 hours, the session is charged in full. The app shows the outcome before you confirm.
-- If you'd rather not enter a card, the full payment flow is shown in the recording at [0:00].
+- **Please note: this build uses our live payment account, so a booking places a real authorization on the card used.** A test session costs about $28. If you would rather not use a card, the complete payment flow is shown in the recording at [0:00]. If you do book, you can cancel from Sessions more than 24 hours ahead and the hold is released with nothing charged — and we will refund any charge on request at admin@trynoot.com.
 
 **Roles.** One account can hold Student, Tutor, and Ambassador roles and switch between them from Profile. The admin panel is a separate, restricted entry at Profile → noot Admin.
 
@@ -104,7 +106,7 @@ Sign-up requires an email address on a supported campus domain. For App Review, 
 
 **User-generated content safeguards (Guideline 1.2)**
 - **Report:** any chat message can be reported by long-pressing it, and any person can be reported from the ⋯ button in the chat header.
-- **Block:** the same ⋯ menu blocks a person. A blocked person can no longer message you and cannot book a session with you; blocking is enforced on our server, in both directions. Blocked people are listed under Profile → Blocked users, where they can be unblocked.
+- **Block:** the same ⋯ menu blocks a person. A blocked person can no longer message you and cannot book a session with you; blocking is enforced on our server, in both directions. Blocked people are listed under Profile → Blocked users, where they can be unblocked. This is available on both the student and the tutor profile.
 - **Server-side filter:** all user-supplied text is checked against a blocked-term list on the server before it is stored — chat messages, tutor bios, review comments, display names, and the meeting location. The check runs in the database itself, so it applies no matter which part of the app is writing.
 - **Pre-moderation:** tutor profiles are approved by our team before anyone can find them. Session ratings are collected but are not shown to other users anywhere in the app.
 - Our team reviews reports within 24 hours. We can remove content and suspend or ban accounts, from the in-app admin panel.
@@ -143,24 +145,54 @@ Thank you,
 
 ---
 
-## Part B — Condensed version for App Review Information → Notes
+## Part B — App Review Information → Notes
+
+Paste the block below verbatim. Fill the five `[ ]` passwords, `[DELETION TEST EMAIL]`,
+`[TERMS URL]` and the video timestamp; everything else is already true in the shipped code.
+Measured at **3,996 characters** — App Store Connect's Notes field caps at 4,000, so any
+addition needs a matching cut.
 
 ```
-noot: peer-tutoring marketplace for university students. Students search their exact course, find tutors who already completed it, book 1:1 in-person sessions on campus, pay, and chat. Public consumer app launching at Univ. of Alabama, adding campuses; not affiliated with any university.
+noot is a peer-tutoring marketplace for university students: search the exact course you need help with, find students who already completed it, book a 1:1 IN-PERSON session on campus, pay, and message. Public consumer app launching at the University of Alabama. Not affiliated with or endorsed by any university; no university trademarks or logos are used, and the crimson accent is only a colour preference.
 
-SIGN-UP needs a supported campus email; review domain watchmenventures.com is enabled. Terms of Use must be accepted to finish sign-up. All accounts verified; tutor pre-approved.
-Student (has upcoming + past session, chat): [email] / [pw]
-Tutor: [email] / [pw]
-Admin: [email] / [pw]  (Profile > noot Admin)
-Deletion test (no upcoming sessions): [email] / [pw]
+SIGN-UP
+Requires a supported campus email; we enabled watchmenventures.com for review. Terms of Use must be accepted to finish sign-up. All accounts are verified and the tutor pre-approved.
+Student  student.review@watchmenventures.com / [ ]  (upcoming, pending and past sessions)
+Tutor    tutor.review@watchmenventures.com / [ ]  (tutor mode, Mark complete, Payout account)
+Admin    admin.review@watchmenventures.com / [ ]  (Profile > noot Admin)
+Ambassador ambassador.review@watchmenventures.com / [ ]  (Profile > Refer & earn)
+Deletion test [DELETION TEST EMAIL] / [ ]  (no upcoming sessions, safe to delete)
 
-BOOK: search [COURSE] > [Tutor] > pick a time 24h+ away (max 6 days out) > pay. Price is computed server-side from the tutor's course rate. Card is authorized and captured only after the tutor marks the session complete. Refunds are tiered: >24h full, 2-24h 50%, <2h none. Card/Apple Pay/Google Pay via Stripe's sheet. Payment shown in video at [0:00].
-DELETE: Profile > Delete account. Users with upcoming sessions are asked to cancel them first.
+BOOKING AND PAYMENT
+Search MATH 125 > open Taylor Reviewer > pick a time more than 24h away (max 6 days out) > pay. Sessions are in person on campus; you choose a meeting spot. The app has no video calling. Price is computed on our server from the tutor's course rate, never sent by the app. The card is authorized at booking and captured only after the tutor marks the session complete. Refunds: >24h nothing charged, 2-24h 50%, <2h full. Card/Apple Pay/Google Pay via Stripe's sheet; we never see card details.
+IMPORTANT: this build uses our live Stripe account, so booking places a REAL authorization (~$28). You need not pay to review - the full payment flow is in the recording at [0:00]. Cancelling >24h ahead releases the hold with nothing charged, and we refund any charge on request.
 
-UGC (1.2): report a message by long-pressing it, report or block a person from the chat header ⋯ menu; blocked people can't message or book you (enforced server-side, both directions); Profile > Blocked users to unblock. Server-side blocked-term filter on messages, bios, review comments, display names and locations, enforced in the database. Tutors pre-approved; ratings are collected but never shown to users. Reports handled within 24h; suspend/ban from the in-app admin panel. Zero-tolerance Terms accepted at sign-up ([TERMS URL — see T23]). admin@trynoot.com and Profile > Help & support.
+ACCOUNT DELETION
+Profile > Delete account. Removes the sign-in identity and all personal data (name, email, photo, transcript, messages, attachments). Anonymized payment records are kept for tax and chargeback purposes, as the privacy policy discloses. An account with an upcoming session must cancel it first so the other person is not stranded - use the Deletion test account, which has none.
 
-PAYMENTS (3.1.3(d)): real-time 1:1 in-person tutoring between individuals, paid via Stripe. No digital goods, subscriptions, or unlockable features. Ambassadors get a flat $5 recorded when a referral completes a first paid session, paid out by our team; never tied to downloads or ratings.
+UGC SAFEGUARDS (Guideline 1.2)
+- Report: long-press any chat message to report it; report a person from the ... button in the chat header.
+- Block: the same ... menu blocks a person. They then cannot message or book you - enforced server-side in both directions. Profile > Blocked users to unblock, on both student and tutor profiles.
+- Server-side filter: all user-supplied text is checked against a blocked-term list before storage - messages, bios, review comments, display names, meeting locations. It runs inside the database, so it applies no matter which part of the app writes.
+- Pre-moderation: tutor profiles are approved by our team before they can be found. Ratings are collected but never shown to other users anywhere in the app.
+- Every report is reviewed within 24 hours; we can remove content, suspend or ban from the in-app admin panel.
+- Terms of Use are accepted at sign-up - the account cannot be created without it - and state zero tolerance for objectionable content and abusive behaviour. Published at [TERMS URL].
+- Support: admin@trynoot.com, and in-app at Profile > Help & support.
 
-SERVICES: Supabase (auth, DB, storage, functions); Stripe (payments, Connect payouts); [email provider]. No AI, ads, or third-party tracking. No push notifications.
-REGION: US only; content limited to supported campuses. REGULATED: no. No university trademarks or logos; the crimson accent is a colour preference only.
+PAYMENTS (Guideline 3.1.3(d))
+noot sells real-time, 1:1, in-person tutoring between two individuals. As 3.1.3(d) permits, these are paid via Stripe rather than IAP. No digital content, no subscription, nothing to unlock by paying. Ambassadors get a flat $5 when a referral completes a first paid session, paid out by our team; never tied to downloads, ratings or reviews, and the app never asks for a rating in exchange for anything.
+
+SERVICES
+Supabase (auth, DB, storage, functions), Stripe (payments, Connect payouts), Resend (email). No AI, ads, third-party analytics/tracking, or push notifications. US only. Not a regulated industry; no protected third-party material.
 ```
+
+### Before pasting — still outstanding
+
+- [ ] **The Deletion test account does not exist yet.** The four review accounts are real, but
+      the student account has 2 live bookings and so hits the 409 by design (T1). Create a
+      fifth account on `watchmenventures.com`, verify it, leave it with no bookings, and fill
+      in `[DELETION TEST EMAIL]`. Do not point the reviewer at the admin or ambassador account
+      instead — deleting either removes the demo it exists for.
+- [ ] **`[TERMS URL]`** — T23. Nothing to paste until the terms are published.
+- [ ] **Passwords** go straight into App Store Connect, never into this file.
+- [ ] **`[0:00]`** — the payment timestamp in the recording.
