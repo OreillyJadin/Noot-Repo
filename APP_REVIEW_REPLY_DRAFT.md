@@ -90,7 +90,7 @@ Sign-up requires an email address on a supported campus domain. For App Review, 
 | Tutor | `tutor.review@watchmenventures.com` | [ ] | Tutor mode, Mark session complete, Payout account. Already approved. |
 | Admin | `admin.review@watchmenventures.com` | [ ] | Profile → noot Admin (reports queue, suspend/ban) |
 | Ambassador | `ambassador.review@watchmenventures.com` | [ ] | Profile → Refer & earn |
-| Deletion test | [DELETION TEST EMAIL] | [ ] | Profile → Delete account (no upcoming sessions) |
+| Deletion test | `deletion.review@watchmenventures.com` | [ ] | Profile → Delete account (no upcoming sessions) |
 
 **Booking and payment**
 - Search **MATH 125** and open **Taylor Reviewer**. Choose a time **more than 24 hours away**. Sessions can be booked up to six days ahead.
@@ -147,8 +147,8 @@ Thank you,
 
 ## Part B — App Review Information → Notes
 
-Paste the block below verbatim. Fill the five `[ ]` passwords, `[DELETION TEST EMAIL]`,
-`[TERMS URL]` and the video timestamp; everything else is already true in the shipped code.
+Paste the block below verbatim. Fill the five `[ ]` passwords, `[TERMS URL]` and the video
+timestamp; everything else is already true in the shipped code.
 Measured at **3,996 characters** — App Store Connect's Notes field caps at 4,000, so any
 addition needs a matching cut.
 
@@ -161,7 +161,7 @@ Student  student.review@watchmenventures.com / [ ]  (upcoming, pending and past 
 Tutor    tutor.review@watchmenventures.com / [ ]  (tutor mode, Mark complete, Payout account)
 Admin    admin.review@watchmenventures.com / [ ]  (Profile > noot Admin)
 Ambassador ambassador.review@watchmenventures.com / [ ]  (Profile > Refer & earn)
-Deletion test [DELETION TEST EMAIL] / [ ]  (no upcoming sessions, safe to delete)
+Deletion test deletion.review@watchmenventures.com / [ ]  (no upcoming sessions, safe to delete)
 
 BOOKING AND PAYMENT
 Search MATH 125 > open Taylor Reviewer > pick a time more than 24h away (max 6 days out) > pay. Sessions are in person on campus; you choose a meeting spot. The app has no video calling. Price is computed on our server from the tutor's course rate, never sent by the app. The card is authorized at booking and captured only after the tutor marks the session complete. Refunds: >24h nothing charged, 2-24h 50%, <2h full. Card/Apple Pay/Google Pay via Stripe's sheet; we never see card details.
@@ -188,11 +188,10 @@ Supabase (auth, DB, storage, functions), Stripe (payments, Connect payouts), Res
 
 ### Before pasting — still outstanding
 
-- [ ] **The Deletion test account does not exist yet.** The four review accounts are real, but
-      the student account has 2 live bookings and so hits the 409 by design (T1). Create a
-      fifth account on `watchmenventures.com`, verify it, leave it with no bookings, and fill
-      in `[DELETION TEST EMAIL]`. Do not point the reviewer at the admin or ambassador account
-      instead — deleting either removes the demo it exists for.
+- [x] **Deletion test account created** (2026-09-21): `deletion.review@watchmenventures.com`,
+      verified, student role, terms accepted, no bookings. The deletion flow was exercised
+      against production end to end and all 8 checks passed — see T1. The account was then
+      recreated clean for the reviewer. Its password is in App Store Connect only, never here.
 - [ ] **`[TERMS URL]`** — T23. Nothing to paste until the terms are published.
 - [ ] **Passwords** go straight into App Store Connect, never into this file.
 - [ ] **`[0:00]`** — the payment timestamp in the recording.

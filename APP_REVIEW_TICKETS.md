@@ -68,8 +68,25 @@ must read the response body — this fixes Edge Function error copy app-wide.
 party, then delete.
 **Done when:**
 - [x] The 409 reason now reaches the user — see T13, fixed 2026-09-10.
-- [ ] On the device build, the deletion-test account deletes cleanly. **← needs a device**
-- [ ] Signing in again fails. **← needs a device**
+- [x] **The deletion-test account deletes cleanly.** Exercised against PRODUCTION on
+      2026-09-21 through the real path — `signInWithPassword`, then the `delete-account`
+      Edge Function with the user's own access token. 8/8:
+
+      1 created deletion.review@watchmenventures.com
+      2 no live bookings (0) — does not hit the 409
+      3 signed in
+      4 delete-account -> HTTP 200 {"ok":true}
+      5 auth identity removed
+      6 users row soft-deleted: deleted_at set, email rewritten to
+        deleted+<uuid>@removed.invalid, name "Deleted"
+      7 signing in again fails: "Invalid login credentials"
+      8 a clean account recreated for the reviewer
+
+      Step 6 is worth noting: the de-identification matches what the privacy policy and the
+      review notes claim about anonymized records being retained.
+- [x] Signing in again fails — step 7 above.
+- [ ] Still worth doing the same walk **in the UI** on the device build; this proved the
+      server path, not the button.
 
 ### T3 — Block and report reachable in the UI; block applied to search and booking `[ ]`
 **Found:** `user_blocks` and `content_reports` exist. `messages_insert` enforces blocks. There are

@@ -10,6 +10,10 @@ and the verification loop; `APP_REVIEW_TICKETS.md` is the work list, `APP_REVIEW
 the reply whose every claim must be true in code, and `APP_REVIEW_AUDITOR.md` the adversarial
 audit prompt to run before calling a ticket done. **Read it before doing App Review work.**
 
+**Newest handoff: `HANDOFF_2026-09-21.md`** — trynoot.com migration, Supabase auth email as
+code, the Stripe sandbox→live cutover, and exactly what still blocks the App Review
+resubmission. Read it first.
+
 **Newest state: `PICKUP_HERE.md`** — the Expo **SDK 54→57** upgrade (done, on `main`,
 device-verified in Expo Go): what changed, the gotchas, and what still needs a new EAS build.
 
