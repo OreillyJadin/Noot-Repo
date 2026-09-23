@@ -4,7 +4,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Share, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Body, TabBar, Card, Ic, H1, H2, Sub, Eyebrow, Skeleton, useTheme } from '@noot/ui';
+import { Body, TabBar, Card, Ic, H1, Sub, Eyebrow, Skeleton, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useTabNav } from '../lib/useTabNav';
@@ -55,9 +55,20 @@ export default function AmbassadorReferrals() {
           {loading ? (
             <Skeleton width={180} height={34} />
           ) : (
-            <H2 style={{ fontSize: 30, letterSpacing: 1, marginTop: 8, color: t.accent }}>{code ?? '—'}</H2>
+            // One line that shrinks to fit: at 30pt with tracking, "NOOT-XXXXXX" ran off
+            // narrower phones (tracker A1). Selectable, so a long-press copies it.
+            <Text
+              selectable
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+              accessibilityLabel={code ? `Your referral code, ${code.split('').join(' ')}` : undefined}
+              style={[styles.code, { color: t.accent }]}
+            >
+              {code ?? '—'}
+            </Text>
           )}
-          <Text style={[styles.link, { color: t.text3 }]} numberOfLines={1}>
+          <Text selectable style={[styles.link, { color: t.text3 }]} numberOfLines={1} ellipsizeMode="middle">
             {code ? referralLink(code) : ''}
           </Text>
           <Pressable
@@ -95,6 +106,7 @@ export default function AmbassadorReferrals() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 6 },
+  code: { fontSize: 30, fontWeight: '700', letterSpacing: 1, marginTop: 8, alignSelf: 'stretch', textAlign: 'center' },
   link: { fontSize: 12.5, marginTop: 8 },
   shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16, height: 48, borderRadius: 14, alignSelf: 'stretch' },
   shareLabel: { fontSize: 15, fontWeight: '700' },
