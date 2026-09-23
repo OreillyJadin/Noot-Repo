@@ -1,16 +1,28 @@
 // T9 Review Profile — ported from screens-tutor.jsx (T9). Preview of the tutor
 // card before submission. Step 9 of the tutor application. → T10 In review.
 // Shows what's actually saved — photo, name, courses + rates, bio, hours (tracker T1);
-// it used to be a hard-coded CH 101 / $25 mock.
-import React, { useState } from 'react';
-import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
+// it used to be a hard-coded CH 101 / $25 mock. Final tweaks happen right here (T5) —
+// "Edit" used to send the tutor all the way back to step 2.
+import React, { useEffect, useState } from 'react';
+import { View, Text, TextInput, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, Badge, Avatar, H2, ProgressDots, H1, Sub, Ic, Skeleton, useTheme } from '@noot/ui';
-import { api, STEP_REQUIREMENTS, REQUIREMENT_LABEL, type Requirement, type TutorAvailability } from '@noot/core';
+import { Screen, Body, ActionBar, Button, Card, Badge, Avatar, H2, ProgressDots, H1, Sub, Ic, Skeleton, Field, Select, Label, Eyebrow, useTheme } from '@noot/ui';
+import {
+  api,
+  STEP_REQUIREMENTS,
+  REQUIREMENT_LABEL,
+  MIN_HOURLY_RATE,
+  MAX_HOURLY_RATE,
+  type MyTutorProfile,
+  type Requirement,
+  type TutorAvailability,
+} from '@noot/core';
 import { useTutorApplication } from '../lib/useTutorApplication';
 import { errText } from '../lib/errText';
 import { useMe } from '../lib/useMe';
+import { MajorPicker } from '../lib/MajorPicker';
+import { pickAndUploadAvatar } from '../lib/avatar';
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -46,6 +58,169 @@ function StepHead({
   );
 }
 
+const YEAR_OPTIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate Student'];
+
+/**
+ * Final tweaks without leaving the review (tracker T5): name, year, major, bio, photo and
+ * per-course rates edit in place; adding a course or changing hours opens that step and
+ * comes straight back here (?from=review) instead of walking the whole flow again.
+ */
+function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Promise<void> }) {
+  const t = useTheme();
+  const router = useRouter();
+  const { me } = useMe();
+  const [first, setFirst] = useState('');
+  const [last, setLast] = useState('');
+  const [year, setYear] = useState('');
+  const [major, setMajor] = useState('');
+  const [bio, setBio] = useState('');
+  const [rates, setRates] = useState<Record<string, string>>({});
+  const [prefilled, setPrefilled] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Fill once; afterwards the fields are the tutor's edits in progress.
+  useEffect(() => {
+    if (prefilled || !me) return;
+    setFirst(me.firstName);
+    setLast(me.lastName);
+    setYear(me.year ?? '');
+    setMajor(me.major ?? '');
+    setBio(app.bio);
+    setPrefilled(true);
+  }, [me, app, prefilled]);
+  // Rates follow the saved course list (a course added on step 3 appears here with no rate).
+  useEffect(() => {
+    setRates((prev) => {
+      const next: Record<string, string> = {};
+      for (const c of app.courses) next[c.courseCode] = prev[c.courseCode] ?? (c.hourlyRate > 0 ? String(c.hourlyRate) : '');
+      return next;
+    });
+  }, [app.courses]);
+
+  const profileDirty =
+    prefilled &&
+    !!me &&
+    (first.trim() !== me.firstName ||
+      last.trim() !== me.lastName ||
+      year !== (me.year ?? '') ||
+      major !== (me.major ?? '') ||
+      bio.trim() !== app.bio);
+  const ratesDirty = app.courses.some((c) => (rates[c.courseCode] ?? '') !== (c.hourlyRate > 0 ? String(c.hourlyRate) : ''));
+  const dirty = profileDirty || ratesDirty;
+
+  const save = async () => {
+    if (saving || !dirty) return;
+    if (!first.trim() || !last.trim()) return Alert.alert('Add your name', 'Students see your first name and last initial.');
+    const bad = app.courses.filter((c) => {
+      const n = Number(rates[c.courseCode]);
+      return !n || n < MIN_HOURLY_RATE || n > MAX_HOURLY_RATE;
+    });
+    if (bad.length) {
+      return Alert.alert(
+        'Check your rates',
+        `Rates are $${MIN_HOURLY_RATE}–$${MAX_HOURLY_RATE}/hr. Check ${bad.map((c) => c.courseCode).join(', ')}.`,
+      );
+    }
+    setSaving(true);
+    try {
+      if (profileDirty) {
+        await api.profile.updatePersonal({ firstName: first.trim(), lastName: last.trim(), year: year || null, major: major || null });
+        await api.profile.updateTutorProfile({ bio: bio.trim() });
+      }
+      if (ratesDirty) {
+        await api.profile.setTutorCourses(
+          app.courses.map((c) => ({ courseCode: c.courseCode, grade: c.grade, hourlyRate: Number(rates[c.courseCode]), sessions: c.sessions })),
+        );
+      }
+      await onSaved();
+    } catch (e) {
+      Alert.alert('Could not save', errText(e, 'Please check your connection and try again.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeCourse = (code: string) =>
+    Alert.alert('Remove course', `Remove ${code} from your profile?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.profile.setTutorCourses(
+              app.courses
+                .filter((c) => c.courseCode !== code)
+                .map((c) => ({ courseCode: c.courseCode, grade: c.grade, hourlyRate: c.hourlyRate, sessions: c.sessions })),
+            );
+            await onSaved();
+          } catch (e) {
+            Alert.alert('Could not remove', errText(e, 'Please try again.'));
+          }
+        },
+      },
+    ]);
+
+  return (
+    <View style={{ gap: 14, marginTop: 4 }}>
+      <Eyebrow style={{ color: t.text3 }}>Make final tweaks</Eyebrow>
+
+      <View style={styles.photoRow}>
+        <Avatar size={48} uri={me?.avatarUrl} />
+        <Text onPress={() => void pickAndUploadAvatar()} style={[styles.link, { color: t.accent }]}>Change photo</Text>
+      </View>
+      <View style={styles.row}>
+        <View style={{ flex: 1 }}>
+          <Field label="First" value={first} onChangeText={setFirst} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Field label="Last" value={last} onChangeText={setLast} />
+        </View>
+      </View>
+      <Select label="Year" value={year} options={YEAR_OPTIONS} onChange={setYear} />
+      <MajorPicker value={major} onChange={setMajor} />
+      <Field label="Bio" value={bio} onChangeText={setBio} multiline placeholder="Tell students why you're a great tutor…" />
+
+      <Label>Courses &amp; rates</Label>
+      {app.courses.map((c) => (
+        <View key={c.courseCode} style={[styles.rateRow, { borderColor: t.border }]}>
+          <Text style={[styles.rateCode, { color: t.text }]}>
+            {c.courseCode}
+            {c.grade ? <Text style={{ color: t.text3, fontWeight: '500' }}>{`  ${c.grade}`}</Text> : null}
+          </Text>
+          <View style={[styles.rateBox, { borderColor: t.borderStrong, backgroundColor: t.surface }]}>
+            <Text style={{ color: t.text3 }}>$</Text>
+            <TextInput
+              value={rates[c.courseCode] ?? ''}
+              onChangeText={(v) => setRates((r) => ({ ...r, [c.courseCode]: v.replace(/[^0-9]/g, '') }))}
+              keyboardType="number-pad"
+              maxLength={3}
+              placeholder="—"
+              placeholderTextColor={t.text3}
+              accessibilityLabel={`Hourly rate for ${c.courseCode}`}
+              style={[styles.rateInput, { color: t.text }]}
+            />
+            <Text style={{ color: t.text3, fontSize: 12 }}>/hr</Text>
+          </View>
+          <Pressable onPress={() => removeCourse(c.courseCode)} hitSlop={8} accessibilityLabel={`Remove ${c.courseCode}`}>
+            <Ic name="x" size={17} color={t.text3} strokeWidth={2} />
+          </Pressable>
+        </View>
+      ))}
+      <Text onPress={() => router.push('/t3?from=review')} style={[styles.link, { color: t.accent }]}>+ Add a course</Text>
+
+      <View style={styles.hoursRow}>
+        <Text style={[styles.hoursText, { color: t.text2 }]}>Weekly availability: {weeklyHours(app.availability)} hrs</Text>
+        <Text onPress={() => router.push('/t5?from=review')} style={[styles.link, { color: t.accent }]}>Edit hours</Text>
+      </View>
+
+      {dirty ? (
+        <Button label={saving ? 'Saving…' : 'Save changes'} kind="secondary" full disabled={saving} onPress={save} />
+      ) : null}
+    </View>
+  );
+}
+
 /** The onboarding step that owns a requirement. */
 function stepFor(r: Requirement): number {
   const hit = Object.entries(STEP_REQUIREMENTS).find(([, reqs]) => reqs.includes(r));
@@ -68,7 +243,7 @@ export default function T9() {
   // The saved application, re-read on focus so an edit made on an earlier step shows here
   // when the tutor comes back (T1), plus what's still missing (T4). Name/major/photo come
   // from useMe, which already follows every save.
-  const { app, missing } = useTutorApplication();
+  const { app, missing, reload } = useTutorApplication();
   const ready = missing !== null && missing.length === 0;
   const alreadySubmitted = tutorStatus === 'pending' || tutorStatus === 'approved';
   const [submitting, setSubmitting] = useState(false);
@@ -101,7 +276,7 @@ export default function T9() {
         {!app ? (
           <Skeleton height={220} radius={16} />
         ) : (
-          <Card onPress={() => router.push('/t2')} style={styles.previewCard}>
+          <Card style={styles.previewCard}>
             <View style={styles.badgeRow}>
               <Badge label="Pending review" tone="accentSoft" />
             </View>
@@ -167,17 +342,13 @@ export default function T9() {
           </Card>
         ) : null}
 
-        <Pressable onPress={() => router.push('/t2')} style={[styles.editRow, { borderColor: t.borderStrong }]}>
-          <Ic name="edit" size={18} color={t.text3} strokeWidth={1.7} />
-          <Text style={[styles.editLabel, { color: t.text2 }]}>Tap to review &amp; change any of your info before submitting.</Text>
-        </Pressable>
+        {app ? <ReviewEditor app={app} onSaved={reload} /> : null}
       </Body>
       <ActionBar>
-        <Button label="Edit" kind="secondary" size="md" style={{ flex: 1 }} onPress={() => router.push('/t2')} />
         <Button
           label={alreadySubmitted ? 'Submitted' : submitting ? 'Submitting…' : 'Submit for review'}
           kind="primary"
-          style={{ flex: 1.8 }}
+          full
           disabled={!ready || submitting || alreadySubmitted}
           onPress={submit}
         />
@@ -206,8 +377,15 @@ const styles = StyleSheet.create({
   statBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
   statLabel: { fontSize: 13, flexShrink: 1 },
   statValue: { fontSize: 13, fontWeight: '700', marginLeft: 'auto' },
-  editRow: { marginTop: 12, padding: 14, borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', flexDirection: 'row', gap: 10, alignItems: 'center' },
-  editLabel: { flex: 1, fontSize: 13, fontWeight: '600' },
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  row: { flexDirection: 'row', gap: 10 },
+  link: { fontSize: 14, fontWeight: '600' },
+  rateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1 },
+  rateCode: { flex: 1, fontSize: 15, fontWeight: '600' },
+  rateBox: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 11, borderWidth: 1.5 },
+  rateInput: { width: 36, fontWeight: '700', fontSize: 17, textAlign: 'center', padding: 0 },
+  hoursRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hoursText: { fontSize: 14 },
   todoCard: { padding: 14, gap: 8 },
   todoTitle: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
   todoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },

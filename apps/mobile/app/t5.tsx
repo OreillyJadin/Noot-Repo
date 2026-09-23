@@ -14,7 +14,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Eyebrow, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 
@@ -76,6 +76,10 @@ export default function T5() {
     return () => { active = false; };
   }, []);
 
+  // From the step-9 review (T5): go back there instead of on to step 6.
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const next = () => (from === 'review' ? router.back() : router.push('/t6'));
+
   const toggle = (r: number, c: number) => {
     setDirty(true);
     setGrid((g) => g.map((row, ri) => (ri === r ? row.map((v, ci) => (ci === c ? (v ? 0 : 1) : v)) : row)));
@@ -85,7 +89,7 @@ export default function T5() {
   const saveAndContinue = async () => {
     if (saving) return;
     if (hadSaved && !dirty) {
-      router.push('/t6');
+      next();
       return;
     }
     const windows = windowsFromGrid(grid);
@@ -96,7 +100,7 @@ export default function T5() {
     setSaving(true);
     try {
       await api.profile.updateAvailability(windows);
-      router.push('/t6');
+      next();
     } catch {
       Alert.alert('Could not save your availability', 'Please check your connection and try again.');
     } finally {

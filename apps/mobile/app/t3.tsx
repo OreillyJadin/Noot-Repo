@@ -61,10 +61,10 @@ export default function T3() {
   const [picked, setPicked] = useState<CatalogCourse | null>(null);
   const [grade, setGrade] = useState('');
 
-  // Opened from Courses & rates ("Add a course") rather than onboarding: saving returns
-  // there instead of walking on into step 4 (tracker T1).
+  // Opened from Courses & rates ("Add a course") or the step-9 review rather than walking
+  // through onboarding: saving returns there instead of going on to step 4 (T1, T5).
   const { from } = useLocalSearchParams<{ from?: string }>();
-  const fromRates = from === 'rates';
+  const fromRates = from === 'rates' || from === 'review';
 
   // Load the tutor's existing courses (own rows — works before approval).
   useEffect(() => {
