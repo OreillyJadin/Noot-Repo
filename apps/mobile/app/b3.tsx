@@ -25,6 +25,7 @@ import { useMe, firstName } from '../lib/useMe';
 import { BOOKABLE_DAYS } from '../lib/data';
 import { slotsFromWindows } from '../lib/availability';
 import { NoSession } from '../lib/NoSession';
+import { VerifiedBadge } from '../lib/VerifiedBadge';
 
 const LENGTHS: [number, string][] = [
   [30, '30 min'],
@@ -167,7 +168,7 @@ function B3Inner() {
               {tutor.year} · {tutor.major}
             </Text>
           </View>
-          <Badge label="✓ Verified" tone="good" />
+          <VerifiedBadge verified={tutor.verified} />
         </Card>
 
         <FieldBlock label="Course">

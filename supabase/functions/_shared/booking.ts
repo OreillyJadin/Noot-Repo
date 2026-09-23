@@ -8,9 +8,10 @@
 // Both functions call resolveBooking() and use ONLY what it returns. Nothing about money
 // or tutor eligibility is read from the request body.
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { splitPrice } from './fees.ts';
 
-/** Noot's cut. The single definition — ARCHITECTURE.md §8 is stale and says $0.00. */
-export const FEE_RATE = 0.175;
+// Noot's cut lives in ./fees.ts (17.5% verified, 32.5% unverified). ARCHITECTURE.md §8
+// is stale and says $0.00.
 
 /**
  * How far ahead a session may be booked, in days. Kept at 6 because payment is a
@@ -110,7 +111,7 @@ export async function resolveBooking(
   const { data: tutor, error: tutorErr } = await db
     .from('users')
     // !user_id disambiguates: tutor_profiles also references users via reviewed_by.
-    .select('id, deleted_at, tutor_profiles!user_id!inner(approval_status, stripe_charges_enabled)')
+    .select('id, deleted_at, tutor_profiles!user_id!inner(approval_status, stripe_charges_enabled, grades_verified_at)')
     .eq('id', tutorId)
     .maybeSingle();
   if (tutorErr) dbFail('tutor lookup', tutorErr);
@@ -175,7 +176,8 @@ export async function resolveBooking(
 
   const price = round2((hourlyRate * durationMinutes) / 60);
   if (price <= 0) throw new BookingError('Computed price was zero', 409);
-  const platformFee = round2(price * FEE_RATE);
+  // The tutor's verification decides noot's cut (fees.ts). Locked in on the booking row.
+  const { platformFee, tutorPayout } = splitPrice(price, profile.grades_verified_at != null);
 
   return {
     tutorId,
@@ -186,7 +188,7 @@ export async function resolveBooking(
     price,
     amountCents: Math.round(price * 100),
     platformFee,
-    tutorPayout: round2(price - platformFee),
+    tutorPayout,
   };
 }
 

@@ -101,6 +101,11 @@ export default function T2() {
       Alert.alert('Add your name', 'Students see your first name and last initial.');
       return;
     }
+    // Marked "Required" on this screen, and required to submit (T4).
+    if (!me?.avatarUrl) {
+      Alert.alert('Add a profile photo', 'Tap the + on the photo. A clear photo of your face — no group shots or filters.');
+      return;
+    }
     setSaving(true);
     const ok = await persist();
     setSaving(false);

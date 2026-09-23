@@ -8,15 +8,15 @@ import { View, Text, StyleSheet, Modal, Pressable, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Avatar, Divider, Eyebrow, Button, Ic, useTheme, type IconName } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, feeRateFor } from '@noot/core';
+import { useMe } from '../lib/useMe';
 import { useApp, type BookingDraft } from '../lib/store';
 import { DAYS, toTutor, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
 
-const FEE_RATE = 0.175; // 15–20% platform fee; using 17.5% midpoint
 
-function sessionFacts(booking: BookingDraft, tutor: Tutor) {
+function sessionFacts(booking: BookingDraft, tutor: Tutor, feeRate: number) {
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1]!;
   const lengthMin = booking.lengthMin ?? 60;
   const lengthHours = lengthMin / 60;
@@ -27,7 +27,7 @@ function sessionFacts(booking: BookingDraft, tutor: Tutor) {
   const courseMatch = tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!;
   const rate = courseMatch[2];
   const gross = rate * lengthHours;
-  const fee = gross * FEE_RATE;
+  const fee = gross * feeRate;
   const payout = gross - fee;
   const online = location.startsWith('Online');
   return { dayObj, lengthHours, lenLabel, slot, location, course, rate, gross, fee, payout, online };
@@ -67,8 +67,12 @@ export default function TB2() {
   const student = useCounterpart(booking.studentId);
   const studentMeta = [student.year, student.major].filter(Boolean).join(' · ');
   const tutor = booking.tutor ?? fetchedTutor;
+  // Fee follows the tutor's verification (T6): 17.5% verified, 32.5% not.
+  // Above the early return: hooks can't run conditionally.
+  const { gradesVerified } = useMe();
   if (!tutor) return <NoSession />;
-  const f = sessionFacts(booking, tutor);
+  const feeRate = feeRateFor(gradesVerified);
+  const f = sessionFacts(booking, tutor, feeRate);
 
   return (
     <Screen>
@@ -136,7 +140,7 @@ export default function TB2() {
             <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>${f.gross.toFixed(2)}</Text>
           </View>
           <View style={[styles.earnRow, { marginTop: 10 }]}>
-            <Text style={{ fontSize: 14, color: t.text2 }}>Noot service fee ({(FEE_RATE * 100).toFixed(1)}%)</Text>
+            <Text style={{ fontSize: 14, color: t.text2 }}>Noot service fee ({+(feeRate * 100).toFixed(1)}%)</Text>
             <Text style={{ fontSize: 14, fontWeight: '600', color: t.text2 }}>−${f.fee.toFixed(2)}</Text>
           </View>
           <Divider style={{ marginVertical: 13 }} />

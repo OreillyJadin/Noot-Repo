@@ -7,13 +7,14 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Avatar, Divider, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { feeRateFor } from '@noot/core';
+import { useMe } from '../lib/useMe';
 import { useApp, type BookingDraft } from '../lib/store';
 import { DAYS, type Tutor } from '../lib/data';
 import { useCounterpart } from '../lib/useCounterpart';
 
-const FEE_RATE = 0.175; // 15–20% platform fee; using 17.5% midpoint
 
-function sessionFacts(booking: BookingDraft, tutor?: Tutor) {
+function sessionFacts(booking: BookingDraft, tutor: Tutor | undefined, feeRate: number) {
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1]!;
   const lengthMin = booking.lengthMin ?? 60;
   const lengthHours = lengthMin / 60;
@@ -24,7 +25,7 @@ function sessionFacts(booking: BookingDraft, tutor?: Tutor) {
   const courseMatch = tutor?.courses.find((c) => c[0] === course) ?? tutor?.courses[0];
   const rate = courseMatch?.[2] ?? 0;
   const gross = rate * lengthHours;
-  const fee = gross * FEE_RATE;
+  const fee = gross * feeRate;
   const payout = gross - fee;
   const online = location.startsWith('Online');
   return { dayObj, lengthHours, lenLabel, slot, location, course, rate, gross, fee, payout, online };
@@ -39,7 +40,10 @@ export default function TB1() {
   const tutor = booking.tutor; // no TUTORS[0] demo fallback — sessionFacts degrades safely.
   const student = useCounterpart(booking.studentId);
   const studentMeta = [student.year, student.major].filter(Boolean).join(' · ');
-  const f = sessionFacts(booking, tutor);
+  // Fee follows the tutor's verification (T6): 17.5% verified, 32.5% not.
+  const { gradesVerified } = useMe();
+  const feeRate = feeRateFor(gradesVerified);
+  const f = sessionFacts(booking, tutor, feeRate);
   const dayWord = f.dayObj.label === 'Today' ? 'today' : f.dayObj.label === 'Tomorrow' ? 'tomorrow' : f.dayObj.label;
 
   return (

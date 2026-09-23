@@ -95,7 +95,7 @@ export default function TutorHome() {
   const t = useTheme();
   const router = useRouter();
   const { role } = useApp();
-  const { me, loading, tutorStatus } = useMe();
+  const { me, loading, tutorStatus, gradesVerified } = useMe();
   const multiRole = (me?.roles ?? []).filter((r) => r === 'student' || r === 'tutor' || r === 'ambassador').length > 1;
   // Reachable before approval (via the switcher, or straight off T10). Branch on the
   // APPLICATION state, not the role: the tutor role only lands when an admin approves, so a
@@ -147,7 +147,8 @@ export default function TutorHome() {
         <View style={styles.headerTop}>
           <Wordmark size={22} />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            {tutorStatus === 'approved' ? <Badge label="✓ Verified" tone="good" /> : null}
+            {/* Verified = grades checked by an admin (T6), not merely approved. */}
+            {tutorStatus === 'approved' && gradesVerified ? <Badge label="✓ Verified" tone="good" /> : null}
             {tutorStatus === 'pending' ? <Badge label="In review" tone="accentSoft" /> : null}
             <NotificationBell />
           </View>

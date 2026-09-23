@@ -14,8 +14,8 @@
 > failure.
 >
 > **Every factual statement below was checked against the code** — cancellation tiers against
-> `supabase/functions/cancel-booking/index.ts`, the platform fee against `FEE_RATE` in
-> `supabase/functions/_shared/booking.ts`, the 24-hour commitment against
+> `supabase/functions/cancel-booking/index.ts`, the platform fees against
+> `supabase/functions/_shared/fees.ts`, the 24-hour commitment against
 > `apps/mobile/app/admin_reports.tsx`. If you change the policy in one place, change it in both.
 >
 > **This is not legal advice.** Have a lawyer review it before publishing, particularly §17–§19
@@ -137,8 +137,11 @@ where we are required or permitted to do so.
 If you tutor on noot:
 
 - You must be **approved before you can accept bookings.** Approval involves verifying your
-  university email and reviewing the course grades you claim against an official transcript you
-  upload.
+  university email and a review of your application by a noot team member.
+- **Grade verification is optional.** If you upload an official transcript or grade screenshot,
+  we check the grades you claim against it; once we have, your profile shows a **Verified**
+  badge. You may instead sign up without one, as an unverified tutor, and upload it later. The
+  platform fee is lower for verified tutors (see §11).
 - Your grades are verified for our internal review. **They are not published on your public
   profile.**
 - Claim only courses you actually completed, at the grade you actually earned. Misrepresenting
@@ -181,9 +184,14 @@ After a session is marked complete, the tutor's earnings are transferred to the 
 they connected under **Profile → Payout account**. Transfers typically arrive within a few
 business days; the timing is Stripe's, not ours.
 
-noot retains a platform fee of **17.5%** of the session price. The tutor receives the remainder.
-We will give notice in the app before changing this fee, and a change never applies to a session
-already booked.
+noot retains a platform fee of the session price, and the tutor receives the remainder:
+
+- **17.5%** if the tutor's grades are verified (the Verified badge), or
+- **32.5%** if they are not.
+
+The fee is fixed when the session is booked: a tutor who becomes verified after a booking is made
+is paid for that session at the rate in effect when it was booked. We will give notice in the app
+before changing these fees, and a change never applies to a session already booked.
 
 A tutor must have a working payout account connected before funds can be released. We will not
 capture a student's payment for a session we cannot pay out.
@@ -242,8 +250,9 @@ disclaim all implied warranties, including merchantability, fitness for a partic
 non-infringement.
 
 **We do not warrant** any academic result, the accuracy of anything a user tells you, or the
-conduct of any user. We verify tutors' claimed grades against transcripts; we do not otherwise
-run background checks, and verification is not a character reference.
+conduct of any user. For tutors shown as Verified, we checked their claimed grades against a
+transcript; tutors without the badge have not been grade-verified. We do not otherwise run
+background checks, and verification is not a character reference.
 
 ## 18. Limitation of liability
 

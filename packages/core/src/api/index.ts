@@ -88,6 +88,11 @@ export interface PendingTutor {
   transcriptUrl: string | null;
   verifiedGrade: string | null;
   submittedAt: string;
+  /** 'application': a submitted application to approve or reject. 'grades': already live,
+   *  with a transcript waiting to be checked for the Verified badge. */
+  awaiting: 'application' | 'grades';
+  /** False when the tutor chose to sign up unverified (nothing to check). */
+  hasTranscript: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,6 +275,7 @@ function mapTutorSummary(row: any): TutorSummary {
     ratingAvg: numOrNull(tp.rating_avg),
     totalSessions: tp.total_sessions ?? 0,
     verifiedGrade: tp.verified_grade ?? null,
+    verified: tp.grades_verified_at != null,
     courses: (row.tutor_courses ?? []).map(mapTutorCourse),
   };
 }
@@ -369,7 +375,7 @@ function mapMessage(row: any): Message {
 // the user_id FK explicitly or PostgREST errors on the ambiguity.
 const TUTOR_SELECT = `
   id, first_name, last_name, year, major, gender,
-  tutor_profiles!user_id!inner ( bio, subjects, hourly_rate, rating_avg, total_sessions, verified_grade, approval_status ),
+  tutor_profiles!user_id!inner ( bio, subjects, hourly_rate, rating_avg, total_sessions, verified_grade, approval_status, grades_verified_at ),
   tutor_courses ( id, tutor_id, course_code, grade, hourly_rate, sessions, created_at )
 `;
 
@@ -479,6 +485,9 @@ function mapAmbassadorProfile(row: any): AmbassadorProfile {
     updatedAt: row.updated_at,
   };
 }
+
+/** See api.profile.getTutorStanding. */
+export type TutorApplicationStatus = 'none' | 'draft' | 'pending' | 'approved' | 'rejected';
 
 export const api = {
   // --- users / profiles ---
@@ -620,24 +629,37 @@ export const api = {
     },
 
     /**
-     * Where the signed-in user stands as a tutor. 'none' means they've never applied (no
-     * tutor_profiles row); otherwise it's the review state of their application.
+     * Where the signed-in user stands as a tutor:
+     *   'none'     never started (no tutor_profiles row)
+     *   'draft'    started onboarding, not submitted yet (submitted_at null — 0038)
+     *   'pending'  submitted, in the admin review queue
+     *   'approved' live and bookable
+     *   'rejected' not approved; can fix and resubmit
+     * plus `gradesVerified`: an admin checked the transcript (Verified badge, lower fee).
      *
      * This — NOT user_roles — is the signal the UI should branch on. The tutor role is only
      * granted once an admin approves (approve-tutor), so before that a real applicant holds
      * no tutor role at all and a role check can't tell "never applied" from "in review".
      * tutor_profiles_select (0002) already lets a user read their own row.
      */
-    async getTutorStatus(): Promise<'none' | 'pending' | 'approved' | 'rejected'> {
+    async getTutorStanding(): Promise<{ status: TutorApplicationStatus; gradesVerified: boolean }> {
       const uid = await requireUid();
       const { data, error } = await getSupabase()
         .from('tutor_profiles')
-        .select('approval_status')
+        .select('approval_status, submitted_at, grades_verified_at')
         .eq('user_id', uid)
         .maybeSingle();
       if (error) throw error;
+      const gradesVerified = data?.grades_verified_at != null;
       const s = data?.approval_status;
-      return s === 'approved' || s === 'pending' || s === 'rejected' ? s : 'none';
+      if (!data) return { status: 'none', gradesVerified };
+      if (s === 'approved' || s === 'rejected') return { status: s, gradesVerified };
+      return { status: data.submitted_at ? 'pending' : 'draft', gradesVerified };
+    },
+
+    /** Just the status part of getTutorStanding. */
+    async getTutorStatus(): Promise<TutorApplicationStatus> {
+      return (await api.profile.getTutorStanding()).status;
     },
 
     /**
@@ -686,19 +708,69 @@ export const api = {
       const uid = await requireUid();
       const sb = getSupabase();
       const [prof, courses, avail] = await Promise.all([
-        sb.from('tutor_profiles').select('bio, approval_status').eq('user_id', uid).maybeSingle(),
+        sb
+          .from('tutor_profiles')
+          .select(
+            'bio, approval_status, submitted_at, transcript_url, transcript_skipped, agreement_signed_at, agreement_signed_name, stripe_payouts_enabled, grades_verified_at',
+          )
+          .eq('user_id', uid)
+          .maybeSingle(),
         sb.from('tutor_courses').select('*').eq('tutor_id', uid).order('created_at', { ascending: true }),
         sb.from('tutor_availability').select('*').eq('tutor_id', uid).order('day_of_week', { ascending: true }),
       ]);
       if (prof.error) throw prof.error;
       if (courses.error) throw courses.error;
       if (avail.error) throw avail.error;
+      const tp = prof.data;
       return {
-        approvalStatus: (prof.data?.approval_status as MyTutorProfile['approvalStatus']) ?? null,
-        bio: (prof.data?.bio as string | undefined) ?? '',
+        approvalStatus: (tp?.approval_status as MyTutorProfile['approvalStatus']) ?? null,
+        submittedAt: tp?.submitted_at ?? null,
+        bio: (tp?.bio as string | undefined) ?? '',
         courses: (courses.data ?? []).map(mapTutorCourse),
         availability: (avail.data ?? []).map(mapTutorAvailability),
+        transcriptUploaded: !!tp?.transcript_url,
+        transcriptSkipped: !!tp?.transcript_skipped,
+        agreementSignedAt: tp?.agreement_signed_at ?? null,
+        agreementSignedName: tp?.agreement_signed_name ?? null,
+        payoutsEnabled: !!tp?.stripe_payouts_enabled,
+        gradesVerified: tp?.grades_verified_at != null,
       };
+    },
+
+    /** Step 6: sign up without a transcript (unverified, higher fee) — or undo that choice. */
+    async setTranscriptSkipped(skipped: boolean): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('tutor_profiles')
+        .upsert({ user_id: uid, transcript_skipped: skipped }, { onConflict: 'user_id' });
+      if (error) throw error;
+      notifyUserChanged();
+    },
+
+    /**
+     * Step 7: sign the independent contractor agreement. The server stamps the time
+     * (sign_tutor_agreement, 0038); `version` pins the exact text signed.
+     */
+    async signAgreement(signedName: string, version: string): Promise<string> {
+      const { data, error } = await getSupabase().rpc('sign_tutor_agreement', {
+        signed_name: signedName,
+        version,
+      });
+      if (error) throw error;
+      notifyUserChanged();
+      return data as string;
+    },
+
+    /**
+     * Step 9: submit for review. The server re-checks every requirement and refuses an
+     * incomplete application ("application incomplete: photo, payouts") — see
+     * submit_tutor_application in 0038. Moves the status from draft to in review.
+     */
+    async submitTutorApplication(): Promise<string> {
+      const { data, error } = await getSupabase().rpc('submit_tutor_application');
+      if (error) throw error;
+      notifyUserChanged();
+      return data as string;
     },
 
     /** Update just the tutor's base hourly rate (edit_rates). */
@@ -1023,9 +1095,14 @@ export const api = {
       const sb = getSupabase();
       const { data: profs, error } = await sb
         .from('tutor_profiles')
-        .select('user_id, bio, subjects, hourly_rate, transcript_url, verified_grade, created_at')
-        .eq('approval_status', 'pending')
-        .order('created_at', { ascending: true });
+        .select('user_id, bio, subjects, hourly_rate, transcript_url, verified_grade, created_at, submitted_at, approval_status, grades_verified_at')
+        // Two queues (0038): submitted applications (drafts stay out until the tutor
+        // submits), and live tutors whose uploaded transcript hasn't been checked yet.
+        .or(
+          'and(approval_status.eq.pending,submitted_at.not.is.null),' +
+            'and(approval_status.eq.approved,transcript_url.not.is.null,grades_verified_at.is.null)',
+        )
+        .order('submitted_at', { ascending: true });
       if (error) throw error;
       const rows = profs ?? [];
       if (rows.length === 0) return [];
@@ -1056,15 +1133,26 @@ export const api = {
             hourlyRate: num(r.hourly_rate),
             transcriptUrl,
             verifiedGrade: r.verified_grade ?? null,
-            submittedAt: r.created_at,
-          };
+            submittedAt: r.submitted_at ?? r.created_at,
+            awaiting: r.approval_status === 'approved' ? 'grades' : 'application',
+            hasTranscript: !!r.transcript_url,
+          } satisfies PendingTutor;
         }),
       );
     },
 
     /** Approve or reject a tutor (approve-tutor Edge Function; re-verifies admin server-side). */
-    approveTutor(tutorUserId: string, decision: 'approved' | 'rejected'): Promise<{ ok: true; approvalStatus: string }> {
-      return invokeFn('approve-tutor', { tutorUserId, decision });
+    approveTutor(
+      tutorUserId: string,
+      decision: 'approved' | 'rejected',
+      opts: { verifyGrades?: boolean } = {},
+    ): Promise<{ ok: true; approvalStatus: string; gradesVerified: boolean }> {
+      return invokeFn('approve-tutor', { tutorUserId, decision, ...(opts.verifyGrades ? { verifyGrades: true } : {}) });
+    },
+
+    /** Mark a tutor's transcript as checked — the Verified badge and the lower fee (T6). */
+    verifyTutorGrades(tutorUserId: string): Promise<{ ok: true; approvalStatus: string; gradesVerified: boolean }> {
+      return invokeFn('approve-tutor', { tutorUserId, verifyGrades: true });
     },
 
     /** All accounts with their roles + status (admin RLS). */

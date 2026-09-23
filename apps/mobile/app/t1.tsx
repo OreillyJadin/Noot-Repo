@@ -4,17 +4,28 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, HeroIcon, H1, Sub, Eyebrow, Ic, useTheme, type IconName } from '@noot/ui';
+import { firstIncompleteStep } from '@noot/core';
+import { useMe } from '../lib/useMe';
+import { useTutorApplication } from '../lib/useTutorApplication';
 
 const NEED: [IconName, string][] = [
   ['cap', 'Profile photo'],
   ['doc', 'Courses you can tutor'],
-  ['shield', 'Transcripts or grade screenshots'],
+  ['shield', 'Transcript or grade screenshot (optional — to get verified)'],
   ['card', 'Bank account for payouts'],
 ];
 
 export default function T1() {
   const t = useTheme();
   const router = useRouter();
+  // A draft picks up at the first step with something left to do (T4), not at step 2.
+  const { tutorStatus } = useMe();
+  const { missing } = useTutorApplication();
+  const resuming = tutorStatus === 'draft' || tutorStatus === 'rejected';
+  const start = () => {
+    if (resuming && missing) router.push(`/t${firstIncompleteStep(missing)}` as never);
+    else router.push('/t2');
+  };
 
   return (
     <Screen>
@@ -39,7 +50,13 @@ export default function T1() {
         </View>
       </Body>
       <ActionBar>
-        <Button label="Get started" kind="primary" full iconRight="chevron" onPress={() => router.push('/t2')} />
+        <Button
+          label={resuming ? 'Continue where you left off' : 'Get started'}
+          kind="primary"
+          full
+          iconRight="chevron"
+          onPress={start}
+        />
       </ActionBar>
     </Screen>
   );

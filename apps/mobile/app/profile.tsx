@@ -277,16 +277,20 @@ export default function Profile() {
               <Text style={[styles.switchTitle, { color: t.text }]}>
                 {tutorStatus === 'pending'
                   ? 'Tutor application in review'
-                  : tutorStatus === 'rejected'
-                    ? 'Tutor application not approved'
-                    : 'Become a tutor'}
+                  : tutorStatus === 'draft'
+                    ? 'Finish your tutor application'
+                    : tutorStatus === 'rejected'
+                      ? 'Tutor application not approved'
+                      : 'Become a tutor'}
               </Text>
               <Text style={[styles.switchSub, { color: t.text3 }]}>
                 {tutorStatus === 'pending'
-                  ? 'We’re verifying your grades — we’ll email you within 24 hours'
-                  : tutorStatus === 'rejected'
-                    ? 'Tap to review your details and apply again'
-                    : 'Earn money helping classmates in courses you aced'}
+                  ? 'We’re reviewing it — we’ll email you within 24 hours'
+                  : tutorStatus === 'draft'
+                    ? 'Pick up where you left off'
+                    : tutorStatus === 'rejected'
+                      ? 'Tap to review your details and apply again'
+                      : 'Earn money helping classmates in courses you aced'}
               </Text>
             </View>
             <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />

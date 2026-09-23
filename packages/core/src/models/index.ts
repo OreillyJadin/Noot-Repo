@@ -80,9 +80,20 @@ export interface TutorCourse {
 export interface MyTutorProfile {
   /** Null until anything creates the tutor_profiles row. */
   approvalStatus: 'pending' | 'approved' | 'rejected' | null;
+  /** When the application was submitted for review; null while it's a draft (0038). */
+  submittedAt: Timestamp | null;
   bio: string;
   courses: TutorCourse[];
   availability: TutorAvailability[];
+  transcriptUploaded: boolean;
+  /** Chose "sign up as unverified" on step 6. */
+  transcriptSkipped: boolean;
+  agreementSignedAt: Timestamp | null;
+  agreementSignedName: string | null;
+  /** Stripe Connect can pay this tutor out (cached by connect-status). */
+  payoutsEnabled: boolean;
+  /** An admin checked the transcript: Verified badge + the lower fee. */
+  gradesVerified: boolean;
 }
 
 /** Joined tutor view for search results and cards (user + profile + courses). */
@@ -99,6 +110,8 @@ export interface TutorSummary {
   ratingAvg: number | null;
   totalSessions: number;
   verifiedGrade: string | null;
+  /** Grades checked by an admin (tutor_profiles.grades_verified_at) — the Verified badge. */
+  verified: boolean;
   courses: TutorCourse[];
 }
 

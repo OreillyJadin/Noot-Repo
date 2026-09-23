@@ -23,7 +23,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { api, auth, onUserChanged } from '@noot/core';
-import type { User } from '@noot/core';
+import type { User, TutorApplicationStatus } from '@noot/core';
 import { useApp } from './store';
 
 /**
@@ -31,7 +31,7 @@ import { useApp } from './store';
  * tutor role only exists after an admin approves, so a role check can't tell "never applied"
  * from "application in review", and it reads false for the entire review period.
  */
-export type TutorStatus = 'none' | 'pending' | 'approved' | 'rejected';
+export type TutorStatus = TutorApplicationStatus;
 
 export interface MeState {
   me: User | null;
@@ -39,6 +39,8 @@ export interface MeState {
   /** Re-read the user + tutor status (e.g. after applying, or returning from approval). */
   refresh: () => Promise<void>;
   tutorStatus: TutorStatus;
+  /** An admin checked this tutor's transcript: Verified badge and the lower fee. */
+  gradesVerified: boolean;
   /** Approved tutor — may actually take bookings. */
   isTutor: boolean;
   isAmbassador: boolean;
@@ -50,6 +52,7 @@ const EMPTY: MeState = {
   loading: true,
   refresh: async () => {},
   tutorStatus: 'none',
+  gradesVerified: false,
   isTutor: false,
   isAmbassador: false,
   isAdmin: false,
@@ -65,6 +68,7 @@ export function MeProvider({ children }: { children: React.ReactNode }) {
   resetRef.current = reset;
   const [me, setMe] = useState<User | null>(null);
   const [tutorStatus, setTutorStatus] = useState<TutorStatus>('none');
+  const [gradesVerified, setGradesVerified] = useState(false);
   const [loading, setLoading] = useState(true);
   // Loads can overlap (a save and a foreground land together). Only the newest one may
   // write, or a slow earlier read would put stale data back over a fresh one.
@@ -74,13 +78,16 @@ export function MeProvider({ children }: { children: React.ReactNode }) {
     const mine = ++seq.current;
     // Both reads together — a screen must never see the user without their standing, or it
     // renders "not a tutor" for a frame and flashes the wrong banner.
-    const [user, status] = await Promise.all([
+    const [user, standing] = await Promise.all([
       api.getMe().catch(() => null),
-      api.profile.getTutorStatus().catch((): TutorStatus => 'none'),
+      api.profile
+        .getTutorStanding()
+        .catch(() => ({ status: 'none' as TutorStatus, gradesVerified: false })),
     ]);
     if (mine !== seq.current) return;
     setMe(user);
-    setTutorStatus(status);
+    setTutorStatus(standing.status);
+    setGradesVerified(standing.gradesVerified);
   }, []);
 
   useEffect(() => {
@@ -92,6 +99,7 @@ export function MeProvider({ children }: { children: React.ReactNode }) {
         seq.current++; // drop any read still in flight for the old user
         setMe(null);
         setTutorStatus('none');
+        setGradesVerified(false);
         resetRef.current();
         return;
       }
@@ -117,11 +125,12 @@ export function MeProvider({ children }: { children: React.ReactNode }) {
       loading,
       refresh: load,
       tutorStatus,
+      gradesVerified,
       isTutor: tutorStatus === 'approved',
       isAmbassador: roles.includes('ambassador'),
       isAdmin: roles.includes('admin'),
     };
-  }, [me, loading, tutorStatus, load]);
+  }, [me, loading, tutorStatus, gradesVerified, load]);
 
   return React.createElement(MeContext.Provider, { value }, children);
 }

@@ -13,6 +13,7 @@ import { toTutor, type Tutor } from '../lib/data';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { useCourseSuggestions } from '../lib/useCourseSuggestions';
+import { VerifiedBadge } from '../lib/VerifiedBadge';
 
 const CATS = ['For you', 'Business', 'STEM', 'Humanities'] as const;
 const TITLES: Record<(typeof CATS)[number], string> = {
@@ -71,7 +72,7 @@ function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => voi
           </Text>
           <View style={styles.rowFoot}>
             {badgeCourse ? <Badge label={badgeCourse} tone="accentSoft" /> : null}
-            <Badge label="Verified" tone="good" />
+            <VerifiedBadge verified={tutor.verified} />
             <Text style={[styles.rowSessions, { color: t.text3 }]}>{tutor.sessions} sessions</Text>
           </View>
         </View>
@@ -204,7 +205,7 @@ export default function StudentHome() {
         <Body ref={scrollRef} pad={0} contentStyle={styles.bodyContent}>
           <View style={[styles.sectionHead, styles.resultsHead]}>
             <Text style={[styles.resultsCount, { color: t.text3 }]}>
-              <Text style={{ color: t.text2, fontWeight: '700' }}>{results.length}</Text> verified tutor
+              <Text style={{ color: t.text2, fontWeight: '700' }}>{results.length}</Text> tutor
               {results.length !== 1 ? 's' : ''} for “{trimmed}”
             </Text>
           </View>
@@ -261,10 +262,12 @@ export default function StudentHome() {
               <Avatar size={40} />
               <Text style={[styles.miniName, { color: t.text }]}>{tutor.name}</Text>
               {courseFor(tutor) ? <Badge label={courseFor(tutor)} tone="accentSoft" /> : null}
-              <View style={styles.miniVerified}>
-                <Ic name="check" size={13} color={t.good} strokeWidth={2.6} />
-                <Text style={[styles.miniVerifiedLabel, { color: t.good }]}>Verified</Text>
-              </View>
+              {tutor.verified ? (
+                <View style={styles.miniVerified}>
+                  <Ic name="check" size={13} color={t.good} strokeWidth={2.6} />
+                  <Text style={[styles.miniVerifiedLabel, { color: t.good }]}>Verified</Text>
+                </View>
+              ) : null}
             </Card>
           ))}
         </ScrollView>

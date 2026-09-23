@@ -12,6 +12,7 @@ import { api } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
+import { VerifiedBadge } from '../lib/VerifiedBadge';
 
 type SegmentKey = 'upcoming' | 'past' | 'saved';
 
@@ -233,7 +234,7 @@ export default function Sessions() {
                       {tutor.year} · {tutor.major}
                     </Text>
                     <View style={styles.tagsRow}>
-                      <Badge label="✓ Verified" tone="good" />
+                      <VerifiedBadge verified={tutor.verified} />
                       <Text style={[styles.sessions, { color: t.text3 }]}>{tutor.sessions} sessions</Text>
                     </View>
                   </View>

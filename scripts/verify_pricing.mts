@@ -56,6 +56,16 @@ step(3, rate > 0, `tutor teaches ${courseCode} at $${rate}/hr → expect $${expe
 // The tutor must be able to take charges, or every booking is correctly refused.
 await admin.from('tutor_profiles').update({ stripe_charges_enabled: true }).eq('user_id', tutor.userId)
 
+// The fee depends on whether an admin verified the tutor's grades (tracker T6): 32.5%
+// unverified, 17.5% verified. Start unverified; step 6b verifies and books again.
+const { data: before } = await admin
+  .from('tutor_profiles').select('grades_verified_at').eq('user_id', tutor.userId).maybeSingle()
+await admin.from('tutor_profiles').update({ grades_verified_at: null, grades_verified_by: null }).eq('user_id', tutor.userId)
+const split = (price: number, rate: number) => {
+  const fee = Math.round(price * rate * 100) / 100
+  return { fee, payout: Math.round((price - fee) * 100) / 100 }
+}
+
 // Start from a clean slate. The double-booking check is real, so a leftover future
 // booking from another suite (verify_mutations reschedules one to +5 days) would make
 // these slots collide and look like a pricing failure.
@@ -99,10 +109,41 @@ try {
 // The stored row is what complete-session pays out from — check every money column.
 const { data: row } = await admin
   .from('bookings').select('price, platform_fee, tutor_payout_amount, subject').eq('id', bookingId).maybeSingle()
-const expFee = Math.round(expectedPrice * 0.175 * 100) / 100
-const expPayout = Math.round((expectedPrice - expFee) * 100) / 100
+const { fee: expFee, payout: expPayout } = split(expectedPrice, 0.325)
 step(6, Number(row?.price) === expectedPrice && Number(row?.platform_fee) === expFee && Number(row?.tutor_payout_amount) === expPayout,
-  `stored row: price $${row?.price}, fee $${row?.platform_fee} (expect $${expFee}), payout $${row?.tutor_payout_amount} (expect $${expPayout})`)
+  `UNVERIFIED tutor, stored row: price $${row?.price}, fee $${row?.platform_fee} (expect 32.5% = $${expFee}), payout $${row?.tutor_payout_amount} (expect $${expPayout})`)
+
+// 6b) Same tutor once an admin has verified their grades → 17.5%, locked onto the new booking.
+await admin.from('tutor_profiles').update({ grades_verified_at: new Date().toISOString() }).eq('user_id', tutor.userId)
+{
+  const at = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString() // its own slot: +3/+4/+5 are other steps'
+  let ok = false
+  let detail = ''
+  try {
+    const pi = await api.createPaymentIntent({ tutorId: tutor.userId, courseCode, durationMinutes: DURATION, scheduledAt: at })
+    if (stripeTestMode() && pi.paymentIntentId.startsWith('pi_')) await authorizeHold(pi.paymentIntentId)
+    const res = await api.bookings.confirm({
+      tutorId: tutor.userId, courseCode, scheduledAt: at, durationMinutes: DURATION,
+      sessionType: 'in_person', message: 'Verified-rate check', paymentIntentId: pi.paymentIntentId,
+    })
+    const { data: r2 } = await admin
+      .from('bookings').select('platform_fee, tutor_payout_amount').eq('id', res.bookingId).maybeSingle()
+    const exp = split(expectedPrice, 0.175)
+    ok = Number(r2?.platform_fee) === exp.fee && Number(r2?.tutor_payout_amount) === exp.payout
+    detail = `VERIFIED tutor: fee $${r2?.platform_fee} (expect 17.5% = $${exp.fee}), payout $${r2?.tutor_payout_amount} (expect $${exp.payout})`
+    // The first booking keeps the rate it was made at.
+    const { data: r1 } = await admin.from('bookings').select('platform_fee').eq('id', bookingId).maybeSingle()
+    ok = ok && Number(r1?.platform_fee) === expFee
+    detail += `; earlier booking still $${r1?.platform_fee}`
+  } catch (e) {
+    detail = `threw: ${String(e)}`
+  }
+  step('6b', ok, detail)
+}
+// Put the tutor's verification back the way the seed had it.
+await admin.from('tutor_profiles')
+  .update({ grades_verified_at: before?.grades_verified_at ?? null })
+  .eq('user_id', tutor.userId)
 
 // --- the attacks: call the functions directly, as a tampered client would ---
 const call = async (fn: string, body: unknown) => {

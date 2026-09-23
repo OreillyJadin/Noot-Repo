@@ -9,6 +9,7 @@ import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Avatar, H1, Sub, 
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { NoSession } from '../lib/NoSession';
+import { VerifiedBadge, VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 
 export default function B2() {
   const { booking } = useApp();
@@ -68,8 +69,8 @@ function B2Inner() {
             <Text style={{ fontSize: 14, color: t.text2 }}>
               <Text style={{ color: t.text, fontWeight: '700' }}>{tutor.sessions}</Text> sessions completed
             </Text>
-            <View style={[styles.divider, { backgroundColor: t.border }]} />
-            <Badge label="Verified" tone="good" />
+            {tutor.verified ? <View style={[styles.divider, { backgroundColor: t.border }]} /> : null}
+            <VerifiedBadge verified={tutor.verified} />
           </View>
         </View>
 
@@ -87,7 +88,13 @@ function B2Inner() {
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{code}</Text>
                   <View style={styles.courseMetaRow}>
-                    <Badge label={`Grade ${grade}`} tone="good" />
+                    {/* Green "Grade A" read as checked; it is only once the tutor is verified (T6). */}
+                    {grade ? (
+                      <Badge
+                        label={tutor.verified ? `Grade ${grade} · verified` : `Grade ${grade} · self-reported`}
+                        tone={tutor.verified ? 'good' : 'neutral'}
+                      />
+                    ) : null}
                     <Text style={{ fontSize: 12, color: t.text3 }}>· {sess} sessions</Text>
                   </View>
                 </View>
@@ -100,12 +107,16 @@ function B2Inner() {
           </View>
         </Section>
 
-        <Section title="Verified by noot">
+        {/* Says only what's true for THIS tutor: "confirmed against transcripts" was shown
+            for everyone, verified or not (T6). */}
+        <Section title={tutor.verified ? 'Verified by noot' : 'Reviewed by noot'}>
           <Card flat style={{ ...styles.verifiedCard, backgroundColor: t.surfaceAlt }}>
-            <Ic name="shield" size={18} color={t.good} strokeWidth={1.8} />
+            <Ic name="shield" size={18} color={tutor.verified ? t.good : t.text3} strokeWidth={1.8} />
             <Text style={{ flex: 1, fontSize: 13, color: t.text2, lineHeight: 19.5 }}>
-              Grades are confirmed against official UA transcripts. Session quality is monitored by our team — flag
-              any concern and we&apos;ll review it directly.
+              {tutor.verified
+                ? VERIFIED_EXPLAINER
+                : 'A noot team member approved this tutor’s profile. Their grades haven’t been verified against a transcript yet.'}{' '}
+              Session quality is monitored by our team — flag any concern and we&apos;ll review it directly.
             </Text>
           </Card>
         </Section>

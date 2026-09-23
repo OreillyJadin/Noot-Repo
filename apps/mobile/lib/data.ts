@@ -84,7 +84,10 @@ export interface Tutor {
   sessions: number;
   rate: number;
   gender: 'f' | 'm';
-  verified: string;
+  /** Transcript checked by an admin — the Verified badge (T6). */
+  verified: boolean;
+  /** The grade on record, if any ('' when none — never invented). */
+  verifiedGrade: string;
   next: number;
   nextLabel: string;
   bio: string;
@@ -122,7 +125,8 @@ export function toTutor(s: TutorSummary): Tutor {
     sessions: s.totalSessions,
     rate,
     gender: s.gender ?? 'f',
-    verified: s.verifiedGrade ?? 'A',
+    verified: s.verified,
+    verifiedGrade: s.verifiedGrade ?? '',
     next: 0,
     nextLabel: '',
     bio: s.bio,

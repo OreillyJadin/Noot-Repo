@@ -28,6 +28,7 @@ import { useAttachmentUrls } from '../lib/useAttachmentUrls';
 import { separatorLabel } from '../lib/chatTime';
 import { openSafetyMenu, reportMessage } from '../lib/moderation';
 import { errText } from '../lib/errText';
+import { VerifiedBadge, VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 
 type Who = 'student' | 'tutor';
 type AttachKind = 'image' | 'file';
@@ -198,7 +199,10 @@ function ChatInner() {
           <View style={styles.navCenter}>
             <Avatar size={34} label={other[0]} />
             <View style={{ minWidth: 0 }}>
-              <Text numberOfLines={1} style={[styles.navName, { color: t.text }]}>{other}</Text>
+              <View style={styles.navNameRow}>
+                <Text numberOfLines={1} style={[styles.navName, { color: t.text, flexShrink: 1 }]}>{other}</Text>
+                <VerifiedBadge verified={tutor.verified} compact />
+              </View>
               <Text numberOfLines={1} style={[styles.navSub, { color: t.text3 }]}>{otherSub}</Text>
             </View>
           </View>
@@ -377,6 +381,7 @@ function AttachChip({ a, url, onRemove }: { a: Attachment; url?: string; onRemov
 }
 
 const styles = StyleSheet.create({
+  navNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   root: { flex: 1 },
   nav: { flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingHorizontal: 8, paddingVertical: 6, gap: 4 },
   navSide: { width: 48, justifyContent: 'center' },

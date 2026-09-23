@@ -45,7 +45,24 @@ check('never applied → "none"', (await api.profile.getTutorStatus()) === 'none
 
 // --- 2. applies (what t1..t10 leaves behind) -------------------------------------------------
 await api.profile.updateTutorProfile({ bio: 'MGT 300, aced it', subjects: ['MGT 300'], hourlyRate: 25 });
-check('after applying → "pending"', (await api.profile.getTutorStatus()) === 'pending');
+// Started but not submitted is a DRAFT (0038) — not in review, not in the admin queue.
+check('after starting onboarding → "draft"', (await api.profile.getTutorStatus()) === 'draft');
+
+// Submitting an incomplete application is refused server-side, naming what's missing.
+let incomplete = '';
+try { await api.profile.submitTutorApplication(); } catch (e) { incomplete = (e as Error).message; }
+check('DENY: incomplete application cannot be submitted', /application incomplete: .*photo.*payouts/.test(incomplete), incomplete);
+
+// Complete it the way steps 2–8 do. Photo and Stripe payouts are set by the service role
+// here (uploads and Stripe onboarding have their own suites).
+await svc.from('users').update({ avatar_url: 'https://example.invalid/a.jpg' }).eq('id', uid);
+await api.profile.setTutorCourses([{ courseCode: 'MGT 300', grade: 'A', hourlyRate: 25 }]);
+await api.profile.updateAvailability([{ dayOfWeek: 1, startTime: '14:00', endTime: '17:00' }]);
+await api.profile.setTranscriptSkipped(true);
+await api.profile.signAgreement('Casey Nguyen', 'test-version');
+await svc.from('tutor_profiles').update({ stripe_payouts_enabled: true }).eq('user_id', uid);
+await api.profile.submitTutorApplication();
+check('after submitting → "pending" (in review)', (await api.profile.getTutorStatus()) === 'pending');
 
 const meMid = await api.getMe();
 check('pending applicant still holds NO tutor role', !meMid?.roles.includes('tutor'), meMid?.roles.join(',') ?? '');

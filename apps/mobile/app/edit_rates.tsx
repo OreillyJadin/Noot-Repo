@@ -10,6 +10,7 @@ import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Ic, useTheme } from '@noot/ui';
 import { api, MIN_HOURLY_RATE, MAX_HOURLY_RATE } from '@noot/core';
+import { useMe } from '../lib/useMe';
 
 interface Rate {
   code: string;
@@ -20,6 +21,7 @@ interface Rate {
 
 export default function EditRates() {
   const t = useTheme();
+  const { gradesVerified } = useMe();
   const router = useRouter();
   const [rates, setRates] = useState<Rate[]>([]);
   const [, setLoading] = useState(true);
@@ -102,7 +104,10 @@ export default function EditRates() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{r.code}</Text>
-                  <Text style={{ fontSize: 12, color: t.text3 }}>Grade {r.grade} verified</Text>
+                  {/* "verified" only once an admin has checked the transcript (T6). */}
+                  <Text style={{ fontSize: 12, color: t.text3 }}>
+                    {r.grade ? `Grade ${r.grade}${gradesVerified ? ' · verified' : ''}` : 'No grade'}
+                  </Text>
                 </View>
                 <View style={styles.stepper}>
                   <Pressable onPress={() => bump(i, -1)} style={[styles.stepBtn, { borderColor: t.borderStrong, backgroundColor: t.surface }]}>

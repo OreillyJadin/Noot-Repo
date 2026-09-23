@@ -13,12 +13,11 @@ import { useMe, fullName, firstName } from '../lib/useMe';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
-import { errText } from '../lib/errText';
 import { openLegal } from '../lib/legal';
 import { useRoleSwitch } from '../lib/useRoleSwitch';
+import { openPayoutSetup } from '../lib/payoutSetup';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { pickAndUploadAvatar } from '../lib/avatar';
-import * as WebBrowser from 'expo-web-browser';
 
 function Row({
   icon,
@@ -66,7 +65,7 @@ export default function TutorProfile() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { role } = useApp();
-  const { me, loading, tutorStatus } = useMe();
+  const { me, loading, tutorStatus, gradesVerified } = useMe();
   const { dark, toggle: toggleDark, school, toggleSchool } = useThemePref();
 
   const meName = fullName(me, 'Tutor');
@@ -100,18 +99,7 @@ export default function TutorProfile() {
     if (payoutBusy) return;
     setPayoutBusy(true);
     try {
-      const { url } = await api.connect.onboardingLink();
-      if (!url) {
-        Alert.alert(
-          'Payout setup unavailable',
-          'We could not start Stripe payout setup just now. Please try again in a few minutes.',
-        );
-        return;
-      }
-      await WebBrowser.openAuthSessionAsync(url, 'noot://connect-return');
-      void refreshPayouts();
-    } catch (e) {
-      Alert.alert('Could not open payout setup', errText(e, 'Please try again.'));
+      if (await openPayoutSetup()) void refreshPayouts();
     } finally {
       setPayoutBusy(false);
     }
@@ -180,10 +168,13 @@ export default function TutorProfile() {
               <Text style={[styles.sub, { color: t.text3 }]}>
                 {meYearMajor}
               </Text>
-              <View style={styles.verifiedRow}>
-                <Ic name="shield" size={13} color={t.good} strokeWidth={1.9} />
-                <Text style={[styles.verifiedText, { color: t.good }]}>Verified tutor</Text>
-              </View>
+              {/* Only for grades an admin has checked (T6) — it used to show for everyone. */}
+              {gradesVerified ? (
+                <View style={styles.verifiedRow}>
+                  <Ic name="shield" size={13} color={t.good} strokeWidth={1.9} />
+                  <Text style={[styles.verifiedText, { color: t.good }]}>Verified tutor</Text>
+                </View>
+              ) : null}
             </View>
           </View>
           <View style={[styles.statsRow, { borderTopColor: t.border }]}>

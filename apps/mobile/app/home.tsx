@@ -15,6 +15,7 @@ import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
 import { NotificationBell } from '../lib/NotificationBell';
+import { VerifiedBadge, VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
 function formatWhen(iso: string): string {
@@ -97,6 +98,7 @@ function TutorRow({
   course,
   rate,
   sessions,
+  verified,
   onPress,
 }: {
   name: string;
@@ -104,6 +106,7 @@ function TutorRow({
   course: string;
   rate: string;
   sessions: number;
+  verified: boolean;
   onPress: () => void;
 }) {
   const t = useTheme();
@@ -121,7 +124,7 @@ function TutorRow({
         <Text style={[styles.tutorMeta, { color: t.text3 }]}>{meta}</Text>
         <View style={styles.tutorBadges}>
           {course ? <Badge label={course} tone="accentSoft" /> : null}
-          <Badge label="Verified" tone="good" />
+          <VerifiedBadge verified={verified} />
           <Text style={[styles.tutorSessions, { color: t.text3 }]}>{sessions} sessions</Text>
         </View>
       </View>
@@ -321,6 +324,7 @@ export default function Home() {
                 course={course}
                 rate={`$${tt.rate}`}
                 sessions={tt.sessions}
+                verified={tt.verified}
               />
             );
           })}

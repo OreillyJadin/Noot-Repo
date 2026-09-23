@@ -1,12 +1,14 @@
-// T8 Payout Setup (Stripe) — ported from screens-tutor.jsx (T8). Identity +
-// bank details for Stripe Connect payouts. Step 8 of the tutor application.
-// → T9 Review profile. "Save & exit" → Landing.
-import React from 'react';
-import { View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+// T8 Payout Setup (Stripe) — ported from screens-tutor.jsx (T8). Stripe Connect's hosted
+// onboarding for payouts. Step 8 of the tutor application. → T9 Review profile.
+// Continue unlocks only once Stripe reports payouts enabled (tracker T4); the old screen was
+// a mock form whose SSN and bank fields went nowhere.
+import React, { useCallback, useState } from 'react';
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, Field, H2, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
-import { useMe, fullName } from '../lib/useMe';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { Screen, Body, ActionBar, Button, Card, H2, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
+import { openPayoutSetup } from '../lib/payoutSetup';
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -42,10 +44,48 @@ function StepHead({
   );
 }
 
+type Payouts = { connected: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean };
+
 export default function T8() {
   const t = useTheme();
   const router = useRouter();
-  const { me } = useMe();
+  const [status, setStatus] = useState<Payouts | null>(null);
+  const [checking, setChecking] = useState(true);
+  // Guards the double tap that used to create a second Stripe account (T24).
+  const [opening, setOpening] = useState(false);
+
+  // connect-status asks Stripe directly and caches the result server-side, which is what
+  // the submit check (0038) reads. Re-checked on focus and after the browser closes.
+  const check = useCallback(async () => {
+    setChecking(true);
+    try {
+      setStatus(await api.connect.status());
+    } catch {
+      setStatus(null);
+    } finally {
+      setChecking(false);
+    }
+  }, []);
+  useFocusEffect(useCallback(() => { void check(); }, [check]));
+
+  const setUp = async () => {
+    if (opening) return;
+    setOpening(true);
+    try {
+      if (await openPayoutSetup()) await check();
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  const ready = !!status?.payoutsEnabled;
+  const statusLine = checking
+    ? 'Checking with Stripe…'
+    : ready
+      ? 'Payouts are set up. You’re ready to continue.'
+      : status?.connected
+        ? 'Setup isn’t finished yet — Stripe still needs a few details.'
+        : 'Not set up yet.';
 
   return (
     <Screen>
@@ -63,18 +103,18 @@ export default function T8() {
             <Text style={[styles.stripeWordmark, { color: t.text }]}>stripe</Text>
           </View>
           <View style={styles.stripeBody}>
-            <H2 style={{ fontSize: 16, marginBottom: 14 }}>Verify your identity</H2>
-            <Field label="Legal name" value={fullName(me, '')} placeholder="Your legal name" />
-            <View style={[styles.row, { marginTop: 12 }]}>
-              <View style={{ flex: 1 }}>
-                <Field label="Date of birth" placeholder="MM/DD/YYYY" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="SSN (last 4)" placeholder="••••" />
-              </View>
-            </View>
-            <View style={{ marginTop: 12 }}>
-              <Field label="Bank account" placeholder="Routing + account number" />
+            <H2 style={{ fontSize: 16, marginBottom: 8 }}>Set up payouts</H2>
+            <Text style={[styles.lockText, { color: t.text2 }]}>
+              Stripe will ask for your legal name, date of birth, the last 4 of your SSN and the bank account
+              to pay you into. It takes about 5 minutes, then you come straight back here.
+            </Text>
+            <View style={styles.statusRow}>
+              {checking ? (
+                <ActivityIndicator size="small" color={t.text3} />
+              ) : (
+                <Ic name={ready ? 'check' : 'clock'} size={16} color={ready ? t.good : t.text3} strokeWidth={2.2} />
+              )}
+              <Text style={[styles.statusText, { color: ready ? t.good : t.text2 }]}>{statusLine}</Text>
             </View>
           </View>
         </Card>
@@ -88,7 +128,18 @@ export default function T8() {
         </Card>
       </Body>
       <ActionBar>
-        <Button label="Continue with Stripe" kind="primary" full iconRight="chevron" onPress={() => router.push('/t9')} />
+        {ready ? (
+          <Button label="Continue" kind="primary" full iconRight="chevron" onPress={() => router.push('/t9')} />
+        ) : (
+          <Button
+            label={opening ? 'Opening Stripe…' : status?.connected ? 'Finish setup with Stripe' : 'Continue with Stripe'}
+            kind="primary"
+            full
+            iconRight="chevron"
+            disabled={opening || checking}
+            onPress={setUp}
+          />
+        )}
       </ActionBar>
     </Screen>
   );
@@ -106,7 +157,8 @@ const styles = StyleSheet.create({
   stripeHeader: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   stripeWordmark: { fontWeight: '800', fontSize: 14 },
   stripeBody: { padding: 16 },
-  row: { flexDirection: 'row', gap: 10 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 },
+  statusText: { flex: 1, fontSize: 13.5, fontWeight: '600' },
   lockCard: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14 },
   lockText: { flex: 1, fontSize: 13, lineHeight: 19 },
 });

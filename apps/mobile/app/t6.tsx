@@ -2,13 +2,19 @@
 // upload. Step 6 of the tutor application. → T7 Tutor agreement. "Save & exit" → Landing.
 // Wired: the dropzone picks a PDF/image and uploads it to the private `transcripts` bucket
 // via api.profile.uploadTranscript; admins review it (signed URL) in the approval queue.
+// Can't be passed without either a transcript or the explicit "sign up as unverified"
+// choice (tracker T4/T6), which is explained up front: no badge and the higher fee.
+
+const pct = (rate: number) => `${+(rate * 100).toFixed(1)}%`;
 import React, { useState } from 'react';
 import { View, Text, Pressable, Alert, ActivityIndicator, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, VERIFIED_FEE_RATE as VERIFIED_FEE, UNVERIFIED_FEE_RATE as UNVERIFIED_FEE } from '@noot/core';
+import { useTutorApplication } from '../lib/useTutorApplication';
+import { errText } from '../lib/errText';
 import { readUriBytes } from '../lib/bytes';
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
@@ -48,8 +54,12 @@ function StepHead({
 export default function T6() {
   const t = useTheme();
   const router = useRouter();
+  const { app, reload } = useTutorApplication();
   const [uploaded, setUploaded] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // What's saved: a transcript from an earlier visit, or the "unverified" choice.
+  const hasTranscript = !!uploaded || !!app?.transcriptUploaded;
+  const skipped = !hasTranscript && !!app?.transcriptSkipped;
 
   const pick = async () => {
     if (busy) return;
@@ -68,13 +78,37 @@ export default function T6() {
       if (bytes.byteLength === 0) throw new Error('That file came through empty.');
       const ext = asset.name?.split('.').pop() || 'pdf';
       await api.profile.uploadTranscript(bytes, ext, asset.mimeType);
+      // Uploading after choosing "unverified" puts them back on the verified track.
+      if (app?.transcriptSkipped) await api.profile.setTranscriptSkipped(false);
       setUploaded(asset.name ?? `transcript.${ext}`);
+      void reload();
     } catch (e) {
       Alert.alert('Upload failed', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setBusy(false);
     }
   };
+
+  // Signing up without a transcript is allowed (T6) but has consequences — say them first.
+  const skip = () =>
+    Alert.alert(
+      'Sign up as unverified?',
+      `You can tutor without a transcript, but you won’t get the Verified badge and noot’s fee is ${pct(UNVERIFIED_FEE)} of each session instead of ${pct(VERIFIED_FEE)}. You can upload a transcript later to get verified.`,
+      [
+        { text: 'Upload instead', style: 'cancel' },
+        {
+          text: 'Continue unverified',
+          onPress: async () => {
+            try {
+              await api.profile.setTranscriptSkipped(true);
+              router.push('/t7');
+            } catch (e) {
+              Alert.alert('Could not save', errText(e, 'Please try again.'));
+            }
+          },
+        },
+      ],
+    );
 
   return (
     <Screen>
@@ -106,20 +140,20 @@ export default function T6() {
         </Pressable>
 
         <Eyebrow style={{ color: t.text3 }}>Uploaded</Eyebrow>
-        {uploaded ? (
+        {hasTranscript ? (
           <Card style={styles.fileCard}>
             <View style={[styles.fileIcon, { backgroundColor: t.surface2, borderColor: t.border }]}>
               <Ic name="doc" size={18} color={t.accent} strokeWidth={1.6} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text numberOfLines={1} style={[styles.fileCourse, { color: t.text }]}>{uploaded}</Text>
+              <Text numberOfLines={1} style={[styles.fileCourse, { color: t.text }]}>{uploaded ?? 'Transcript'}</Text>
               <Text style={[styles.fileName, { color: t.text3 }]}>Sent for review</Text>
             </View>
             <Badge label="Pending" tone="accentSoft" />
           </Card>
         ) : (
           <Text style={[styles.fileName, { color: t.text3, paddingHorizontal: 2 }]}>
-            No transcript uploaded yet.
+            {skipped ? 'You chose to sign up unverified. Upload a transcript any time to get verified.' : 'No transcript uploaded yet.'}
           </Text>
         )}
 
@@ -133,9 +167,26 @@ export default function T6() {
         <Text style={[styles.finePrint, { color: t.text3 }]}>
           If a grade comes back below B-, only that course is removed — you stay on the platform.
         </Text>
+
+        <Card flat style={[styles.lockCard, { backgroundColor: t.surfaceAlt }]}>
+          <Ic name="shield" size={18} color={t.accent} strokeWidth={1.7} />
+          <Text style={[styles.lockText, { color: t.text2 }]}>
+            <Text style={{ color: t.text, fontWeight: '700' }}>Why verify?</Text> Verified tutors get a ✓ badge
+            students can see, and noot’s fee is {pct(VERIFIED_FEE)} instead of {pct(UNVERIFIED_FEE)}.
+          </Text>
+        </Card>
       </Body>
       <ActionBar>
-        <Button label="Submit for review" kind="primary" full onPress={() => router.push('/t7')} />
+        {hasTranscript || skipped ? (
+          <Button label={hasTranscript ? 'Continue' : 'Continue unverified'} kind="primary" full onPress={() => router.push('/t7')} />
+        ) : (
+          <View style={{ flex: 1, gap: 10 }}>
+            <Button label="Upload to continue" kind="primary" full disabled />
+            <Text onPress={skip} accessibilityRole="button" style={[styles.skip, { color: t.text2 }]}>
+              Skip — sign up as unverified
+            </Text>
+          </View>
+        )}
       </ActionBar>
     </Screen>
   );
@@ -159,4 +210,5 @@ const styles = StyleSheet.create({
   lockCard: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14 },
   lockText: { flex: 1, fontSize: 13, lineHeight: 19 },
   finePrint: { fontSize: 12, lineHeight: 17, paddingHorizontal: 2 },
+  skip: { fontSize: 14, fontWeight: '600', textAlign: 'center', paddingVertical: 4 },
 });

@@ -22,16 +22,23 @@ const COPY: Record<
     body: 'This is what tutoring on noot looks like. Apply to start taking sessions.',
     cta: 'Apply',
   },
+  // Started, not submitted (0038). Nobody is reviewing it yet, so say so.
+  draft: {
+    icon: 'edit',
+    title: 'Finish your application',
+    body: 'You’re part-way through. Pick up where you left off — students can book you once you submit and we approve it.',
+    cta: 'Continue',
+  },
   pending: {
     icon: 'clock',
-    title: 'Waiting on verification',
-    body: 'We’re checking your transcript against the courses you listed — usually within 24 hours. You can set your rates and availability now so you’re bookable the moment you’re approved.',
+    title: 'Application in review',
+    body: 'A noot team member is reviewing your application — usually within 24 hours. You can adjust your rates and availability now so you’re bookable the moment you’re approved.',
     cta: null,
   },
   rejected: {
     icon: 'alert',
     title: 'Application not approved',
-    body: 'We couldn’t verify your grades from what you sent. Check your transcript and course list, then send it again.',
+    body: 'We couldn’t approve your application as sent. Check your profile, courses and transcript, then submit again.',
     cta: 'Apply again',
   },
 };

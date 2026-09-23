@@ -34,11 +34,18 @@ export default function AdminTutors() {
     return null;
   }
 
-  const decide = async (tutor: PendingTutor, decision: 'approved' | 'rejected') => {
+  // Approving and verifying grades are separate (T6): approval puts the tutor live;
+  // verifying the transcript adds the Verified badge and the lower fee.
+  const decide = async (
+    tutor: PendingTutor,
+    action: 'approve' | 'approveAndVerify' | 'reject' | 'verify',
+  ) => {
     if (busy) return;
     setBusy(tutor.userId);
     try {
-      await api.admin.approveTutor(tutor.userId, decision);
+      if (action === 'verify') await api.admin.verifyTutorGrades(tutor.userId);
+      else if (action === 'reject') await api.admin.approveTutor(tutor.userId, 'rejected');
+      else await api.admin.approveTutor(tutor.userId, 'approved', { verifyGrades: action === 'approveAndVerify' });
       setPending((prev) => prev.filter((p) => p.userId !== tutor.userId));
     } catch (e) {
       Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
@@ -70,7 +77,10 @@ export default function AdminTutors() {
                       {[tutor.year, tutor.major].filter(Boolean).join(' · ') || '—'} · {tutor.email}
                     </Text>
                   </View>
-                  {tutor.verifiedGrade ? <Badge label={`Grade ${tutor.verifiedGrade}`} tone="accentSoft" /> : null}
+                  <Badge
+                    label={tutor.awaiting === 'grades' ? 'Live · grade check' : tutor.hasTranscript ? 'New · transcript' : 'New · unverified'}
+                    tone={tutor.awaiting === 'grades' ? 'neutral' : 'accentSoft'}
+                  />
                 </View>
 
                 {tutor.bio ? <Text style={[styles.bio, { color: t.text2 }]}>{tutor.bio}</Text> : null}
@@ -88,28 +98,57 @@ export default function AdminTutors() {
                 >
                   <Ic name="doc" size={16} color={tutor.transcriptUrl ? t.accent : t.text3} strokeWidth={1.8} />
                   <Text style={[styles.transcriptText, { color: tutor.transcriptUrl ? t.accent : t.text3 }]}>
-                    {tutor.transcriptUrl ? 'View transcript' : 'No transcript uploaded'}
+                    {tutor.transcriptUrl
+                      ? 'View transcript'
+                      : tutor.hasTranscript
+                        ? 'Transcript link unavailable — reload'
+                        : 'No transcript — signed up unverified'}
                   </Text>
                 </Card>
 
-                <View style={styles.actions}>
-                  <Button
-                    label="Reject"
-                    kind="secondary"
-                    size="md"
-                    style={{ flex: 1 }}
-                    disabled={busy === tutor.userId}
-                    onPress={() => decide(tutor, 'rejected')}
-                  />
-                  <Button
-                    label="Approve"
-                    kind="primary"
-                    size="md"
-                    style={{ flex: 1.4 }}
-                    disabled={busy === tutor.userId}
-                    onPress={() => decide(tutor, 'approved')}
-                  />
-                </View>
+                {tutor.awaiting === 'grades' ? (
+                  <View style={styles.actions}>
+                    <Button
+                      label="Mark grades verified"
+                      kind="primary"
+                      size="md"
+                      style={{ flex: 1 }}
+                      disabled={busy === tutor.userId}
+                      onPress={() => decide(tutor, 'verify')}
+                    />
+                  </View>
+                ) : (
+                  <View style={{ gap: 10, marginTop: 14 }}>
+                    {tutor.hasTranscript ? (
+                      <Button
+                        label="Approve & verify grades"
+                        kind="primary"
+                        size="md"
+                        full
+                        disabled={busy === tutor.userId}
+                        onPress={() => decide(tutor, 'approveAndVerify')}
+                      />
+                    ) : null}
+                    <View style={[styles.actions, { marginTop: 0 }]}>
+                      <Button
+                        label="Reject"
+                        kind="secondary"
+                        size="md"
+                        style={{ flex: 1 }}
+                        disabled={busy === tutor.userId}
+                        onPress={() => decide(tutor, 'reject')}
+                      />
+                      <Button
+                        label={tutor.hasTranscript ? 'Approve, unverified' : 'Approve (unverified)'}
+                        kind={tutor.hasTranscript ? 'secondary' : 'primary'}
+                        size="md"
+                        style={{ flex: 1.4 }}
+                        disabled={busy === tutor.userId}
+                        onPress={() => decide(tutor, 'approve')}
+                      />
+                    </View>
+                  </View>
+                )}
               </Card>
             ))}
           </View>

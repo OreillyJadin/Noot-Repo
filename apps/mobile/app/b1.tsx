@@ -16,6 +16,7 @@ import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { nextFromWindows } from '../lib/availability';
+import { VerifiedBadge } from '../lib/VerifiedBadge';
 
 type SortKey = 'best' | 'sessions' | 'price' | 'soon';
 type AvailKey = 'any' | 'today' | 'week';
@@ -266,7 +267,7 @@ export default function B1() {
       <Body pad={16} contentStyle={{ paddingTop: 4 }}>
         {!loading ? (
           <Text style={{ fontSize: 13, color: t.text3, marginBottom: 12 }}>
-            <Text style={{ color: t.text2, fontWeight: '700' }}>{list.length}</Text> verified tutor
+            <Text style={{ color: t.text2, fontWeight: '700' }}>{list.length}</Text> tutor
             {list.length !== 1 ? 's' : ''}
             {trimmed ? ` for “${trimmed}”` : activeChips.length ? ' match your filters' : ' available'}
           </Text>
@@ -295,7 +296,7 @@ export default function B1() {
                     </Text>
                   </View>
                   <View style={styles.badgeRow}>
-                    <Badge label={`Verified ${tt.verified}`} tone="good" />
+                    <VerifiedBadge verified={tt.verified} />
                     {matchCourse(tt, trimmed) ? <Badge label={matchCourse(tt, trimmed)} tone="accentSoft" /> : null}
                   </View>
                 </View>

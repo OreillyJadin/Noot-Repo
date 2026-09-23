@@ -38,7 +38,8 @@ const uid = created.user!.id;
 await svc.from('users').update({ first_name: 'Robin', last_name: 'Ellis' }).eq('id', uid);
 await svc.from('user_roles').upsert({ user_id: uid, role: 'student' }, { onConflict: 'user_id,role' });
 await svc.from('tutor_profiles').upsert(
-  { user_id: uid, bio: 'applied', subjects: ['MGT 300'], hourly_rate: 25 },
+  // submitted_at: approve-tutor only decides SUBMITTED applications (0038).
+  { user_id: uid, bio: 'applied', subjects: ['MGT 300'], hourly_rate: 25, submitted_at: new Date().toISOString() },
   { onConflict: 'user_id' },
 );
 console.log(`applicant ${EMAIL} (${uid})\n`);

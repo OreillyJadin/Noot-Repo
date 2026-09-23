@@ -47,7 +47,7 @@ export default function Landing() {
         </View>
 
         <Card style={{ backgroundColor: t.surfaceAlt, marginTop: 16 }}>
-          <Text style={{ color: t.text2, fontSize: 13 }}>312 active tutors · 28 departments · all grade-verified.</Text>
+          <Text style={{ color: t.text2, fontSize: 13 }}>312 active tutors · 28 departments · grade-verified tutors marked ✓.</Text>
         </Card>
       </ScrollView>
     </SafeAreaView>

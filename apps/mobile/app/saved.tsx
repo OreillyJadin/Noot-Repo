@@ -12,6 +12,7 @@ import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
+import { VerifiedBadge } from '../lib/VerifiedBadge';
 
 function TabHeader({ title }: { title: string }) {
   const t = useTheme();
@@ -72,7 +73,7 @@ export default function Saved() {
                 </Text>
                 <View style={styles.tagsRow}>
                   {tutor.courses[0]?.[0] ? <Badge label={tutor.courses[0][0]} tone="accentSoft" /> : null}
-                  <Badge label="✓ Verified" tone="good" />
+                  <VerifiedBadge verified={tutor.verified} />
                   <Text style={[styles.sessions, { color: t.text3 }]}>{tutor.sessions} sessions</Text>
                 </View>
               </View>

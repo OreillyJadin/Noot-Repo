@@ -135,7 +135,9 @@ export default function T4() {
   };
 
   const first = rates.find((r) => Number(r.rate) > 0);
-  const payout = first ? tutorPayoutFor(Number(first.rate)).toFixed(2) : null;
+  // Verification happens on step 6, so show both takes (tracker T6).
+  const payoutVerified = first ? tutorPayoutFor(Number(first.rate), true).toFixed(2) : null;
+  const payoutUnverified = first ? tutorPayoutFor(Number(first.rate), false).toFixed(2) : null;
 
   return (
     <Screen>
@@ -193,9 +195,11 @@ export default function T4() {
           </Text>
         </Card>
 
-        {first && payout ? (
+        {first && payoutVerified ? (
           <Text style={[styles.payoutLine, { color: t.text2 }]}>
-            Your payout for a 1-hour {first.courseCode} session: <Text style={{ color: t.accent, fontWeight: '700' }}>${payout}</Text>
+            Your payout for a 1-hour {first.courseCode} session:{' '}
+            <Text style={{ color: t.accent, fontWeight: '700' }}>${payoutVerified}</Text> with verified grades,{' '}
+            ${payoutUnverified} without.
           </Text>
         ) : null}
       </Body>

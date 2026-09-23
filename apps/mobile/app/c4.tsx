@@ -7,9 +7,10 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Divider, Ic, HeroIcon, useTheme } from '@noot/ui';
+import { tutorPayoutFor } from '@noot/core';
+import { useMe } from '../lib/useMe';
 import { useApp } from '../lib/store';
 
-const FEE_RATE = 0.175; // 15–20% platform fee; using 17.5% midpoint (matches sessionFacts demo calc)
 
 export default function C4() {
   const t = useTheme();
@@ -22,6 +23,7 @@ export default function C4() {
   // Recap counterpart comes from the in-progress booking draft (store), which B1/B2
   // populate from live @noot/core tutor data — no hardcoded demo tutor fallback.
   const tutor = booking.tutor;
+  const { gradesVerified } = useMe();
   const tutorFirst = tutor?.name.split(' ')[0] ?? 'your tutor';
 
   // Net payout is derived from the booking draft's real tutor rate + length (no fake
@@ -31,7 +33,8 @@ export default function C4() {
   const rate = courseEntry?.[2] ?? 0;
   const lengthHours = (booking.lengthMin ?? 60) / 60;
   const gross = rate * lengthHours;
-  const payout = gross - gross * FEE_RATE;
+  // Fee follows the tutor's verification (T6): 17.5% verified, 32.5% not.
+  const payout = tutorPayoutFor(gross, gradesVerified);
 
   return (
     <Screen>
