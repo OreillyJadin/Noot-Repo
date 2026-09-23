@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, Chip, Button, Ic, H1, TabBar, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { useTabNav } from '../lib/useTabNav';
+import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { api } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -51,6 +52,7 @@ function TabHeader({ title }: { title: string }) {
 }
 
 export default function Sessions() {
+  const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
   const { patchBooking, role } = useApp();
@@ -96,7 +98,7 @@ export default function Sessions() {
       .catch(() => { /* no session / offline → empty state */ })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
   useEffect(() => {
     let active = true;
     api.tutors
@@ -105,7 +107,7 @@ export default function Sessions() {
       .catch(() => { /* no session / offline → empty state */ })
       .finally(() => { if (active) setSavedLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
   // Past: real completed/elapsed sessions, each joined to its (approved) tutor.
   useEffect(() => {
     let active = true;
@@ -123,7 +125,7 @@ export default function Sessions() {
       .catch(() => { /* no session / offline → empty state */ })
       .finally(() => { if (active) setPastLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
 
   // Navigation into the mutation flows below is unchanged (read-only pass); each carries
   // the resolved tutor into the target screen via the local booking store.
@@ -197,7 +199,7 @@ export default function Sessions() {
           <Chip key={v} label={l} on={tab === v} onPress={() => setTab(v)} />
         ))}
       </View>
-      <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 4 }}>
+      <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 4 }}>
         {tab === 'saved' ? (
           savedLoading ? (
             <View style={{ gap: 10 }}>

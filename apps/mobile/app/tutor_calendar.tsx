@@ -15,6 +15,7 @@ import { DAYS, MONTHS } from '../lib/data';
 import { isTimeOpen } from '../lib/availability';
 import { GeckoLogo } from '../lib/GeckoLogo';
 import { useTabNav } from '../lib/useTabNav';
+import { usePullToRefresh } from '../lib/usePullToRefresh';
 
 const CAL_TIMES = ['9:00 AM', '10:30 AM', '12:00 PM', '1:30 PM', '3:00 PM', '4:30 PM', '6:00 PM', '7:30 PM'];
 
@@ -55,6 +56,7 @@ const WEEK_TABS: [number, string][] = [
 ];
 
 export default function TutorCalendar() {
+  const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -85,7 +87,10 @@ export default function TutorCalendar() {
       })
       .catch(() => {});
     return () => { active = false; };
-  }, [me]);
+    // Keyed on the id, not the object: useMe re-reads in the background (S1), and
+    // re-seeding on every re-read would wipe edits in progress.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.id]);
 
   useEffect(() => {
     let active = true;
@@ -115,7 +120,7 @@ export default function TutorCalendar() {
       })
       .catch(() => { /* offline → grid stays empty rather than showing invented sessions */ });
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
 
   const days = DAYS.slice(week * 7, week * 7 + 7);
   const sessions = sessionsByDay[day] || {};
@@ -233,7 +238,7 @@ export default function TutorCalendar() {
         </View>
       </View>
 
-      <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 12 }}>
+      <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 12 }}>
         <Label style={{ fontSize: 13, marginBottom: 10 }}>{dayObj.label}</Label>
         <View style={{ gap: 8 }}>
           {CAL_TIMES.map((time) => {

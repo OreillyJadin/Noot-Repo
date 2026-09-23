@@ -10,6 +10,7 @@ import { api, type AmbassadorReferrals } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
+import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
 
 const STATUS: Record<string, { label: string; tone: BadgeTone }> = {
@@ -19,6 +20,7 @@ const STATUS: Record<string, { label: string; tone: BadgeTone }> = {
 };
 
 export default function AmbassadorHome() {
+  const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
   const { role } = useApp();
@@ -38,7 +40,7 @@ export default function AmbassadorHome() {
       .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [reloadKey]);
 
   const previewing = !(me?.roles ?? []).includes('ambassador');
   const totals = data?.totals;
@@ -60,7 +62,7 @@ export default function AmbassadorHome() {
         </View>
       </View>
 
-      <Body ref={scrollRef} contentStyle={{ paddingTop: 8 }}>
+      <Body ref={scrollRef} onRefresh={onRefresh} contentStyle={{ paddingTop: 8 }}>
         {/* earnings summary */}
         <View style={[styles.summary, { backgroundColor: t.accent }]}>
           <GeckoLogo style={styles.geckoDeco} />

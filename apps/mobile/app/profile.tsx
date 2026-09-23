@@ -14,6 +14,7 @@ import { useRoleSwitch } from '../lib/useRoleSwitch';
 import { errText } from '../lib/errText';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
+import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import { openLegal } from '../lib/legal';
 
@@ -58,6 +59,7 @@ function Row({
 }
 
 export default function Profile() {
+  const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -69,12 +71,11 @@ export default function Profile() {
   const displayName = fullName(me, 'Student');
   const displayFirst = firstName(me, 'Student');
 
-  // Local mirror of the avatar so an upload reflects immediately without a full refetch.
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  useEffect(() => { setAvatarUrl(me?.avatarUrl ?? null); }, [me?.avatarUrl]);
+  // Straight from useMe: the upload fires onUserChanged, so every screen showing the photo
+  // updates together. A per-screen copy is what lost the photo across a role switch (S1).
+  const avatarUrl = me?.avatarUrl ?? null;
   const changePhoto = async () => {
-    const url = await pickAndUploadAvatar();
-    if (url) setAvatarUrl(url);
+    await pickAndUploadAvatar();
   };
 
   // Real study stats + saved-tutor count.
@@ -85,7 +86,7 @@ export default function Profile() {
     api.studentStats().then((s) => { if (active) setStats(s); }).catch(() => {});
     api.tutors.listSaved().then((l) => { if (active) setSavedCount(l.length); }).catch(() => {});
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
 
   const STATS: [string, string][] = [
     [stats ? String(stats.sessionsCompleted) : '—', 'Sessions'],
@@ -187,7 +188,7 @@ export default function Profile() {
           <H1 style={styles.headerTitle}>Profile</H1>
         </View>
       </View>
-      <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 10 }}>
+      <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 10 }}>
         {/* identity card */}
         <Card style={{ padding: 18 }}>
           <View style={styles.identityRow}>

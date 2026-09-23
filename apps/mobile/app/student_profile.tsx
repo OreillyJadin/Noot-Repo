@@ -51,7 +51,7 @@ function AddCourseChip({ onPress }: { onPress: () => void }) {
 export default function StudentProfile() {
   const t = useTheme();
   const router = useRouter();
-  const { me } = useMe();
+  const { me, refresh } = useMe();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [year, setYear] = useState('');
@@ -60,14 +60,18 @@ export default function StudentProfile() {
 
   // Prefill the editable fields once the signed-in user loads (returning user
   // sees their own data). Falls back to empty strings before load / no session.
+  // Once only: useMe re-reads in the background (S1), and re-filling on each re-read
+  // would overwrite what the user is typing.
+  const [prefilled, setPrefilled] = useState(false);
   useEffect(() => {
-    if (!me) return;
+    if (!me || prefilled) return;
+    setPrefilled(true);
     setFirstName(me.firstName);
     setLastName(me.lastName);
     setYear(me.year ?? '');
     setMajor(me.major ?? '');
     setCourses(me.courses);
-  }, [me]);
+  }, [me, prefilled]);
 
   const addCourse = () => {
     // TODO(api): course search — built with backend
@@ -82,6 +86,9 @@ export default function StudentProfile() {
         major: major || null,
       });
       await api.profile.setCourses(courses);
+      // Both writes already triggered a re-read; wait for it so Home and Profile open on
+      // the data just entered, not the empty row from sign-up.
+      await refresh();
       router.push('/home');
     } catch {
       Alert.alert('Could not save', 'Please sign in and try again.');

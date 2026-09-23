@@ -126,7 +126,10 @@ export default function EditAvailability() {
       .catch(() => {})
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [me]);
+    // Keyed on the id, not the object: useMe re-reads in the background (S1), and
+    // re-seeding on every re-read would wipe edits in progress.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.id]);
 
   const setDayHours = (d: Day, next: Set<number>) =>
     setAv((prev) => ({ ...prev, [d]: next }) as Record<Day, Set<number>>);

@@ -11,6 +11,7 @@ import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { useTabNav } from '../lib/useTabNav';
+import { usePullToRefresh } from '../lib/usePullToRefresh';
 
 function TabHeader({ title }: { title: string }) {
   const t = useTheme();
@@ -23,6 +24,7 @@ function TabHeader({ title }: { title: string }) {
 }
 
 export default function Saved() {
+  const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
   const { patchBooking } = useApp();
@@ -36,7 +38,7 @@ export default function Saved() {
       .catch(() => {})
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
 
   const open = (tutor: Tutor) => {
     patchBooking({ tutor, course: tutor.courses[0]?.[0] ?? '' });
@@ -49,7 +51,7 @@ export default function Saved() {
   return (
     <Screen>
       <TabHeader title="Saved" />
-      <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 8 }}>
+      <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 8 }}>
         <Text style={[styles.count, { color: t.text3 }]}>
           {loading ? 'Loading…' : `${tutors.length} tutor${tutors.length === 1 ? '' : 's'} saved for later`}
         </Text>

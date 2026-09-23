@@ -147,3 +147,20 @@ export async function getSessionUserId(): Promise<string | null> {
   const { data } = await getSupabase().auth.getSession();
   return data.session?.user.id ?? null;
 }
+
+/** The auth transitions the app reacts to. Token refreshes are deliberately not surfaced. */
+export type AuthChange = 'signed_in' | 'signed_out' | 'user_updated';
+
+/**
+ * Subscribe to sign-in / sign-out / account updates (e.g. a password change). Lets the app
+ * drop the previous user's cached state on sign-out and load the new one on sign-in, instead
+ * of holding whatever it read at launch. Returns the unsubscribe function.
+ */
+export function onAuthChange(fn: (change: AuthChange) => void): () => void {
+  const { data } = getSupabase().auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_IN') fn('signed_in');
+    else if (event === 'SIGNED_OUT') fn('signed_out');
+    else if (event === 'USER_UPDATED') fn('user_updated');
+  });
+  return () => data.subscription.unsubscribe();
+}

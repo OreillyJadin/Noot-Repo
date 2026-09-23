@@ -12,6 +12,7 @@ import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
+import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { errText } from '../lib/errText';
 import { openLegal } from '../lib/legal';
 import { useRoleSwitch } from '../lib/useRoleSwitch';
@@ -60,6 +61,7 @@ function Row({
 }
 
 export default function TutorProfile() {
+  const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -70,19 +72,18 @@ export default function TutorProfile() {
   const meName = fullName(me, 'Tutor');
   const meFirst = firstName(me, 'T');
 
-  // Local mirror of the avatar so an upload reflects immediately without a full refetch.
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  useEffect(() => { setAvatarUrl(me?.avatarUrl ?? null); }, [me?.avatarUrl]);
+  // Straight from useMe: the upload fires onUserChanged, so every screen showing the photo
+  // updates together. A per-screen copy is what lost the photo across a role switch (S1).
+  const avatarUrl = me?.avatarUrl ?? null;
   const changePhoto = async () => {
-    const url = await pickAndUploadAvatar();
-    if (url) setAvatarUrl(url);
+    await pickAndUploadAvatar();
   };
   const meYearMajor = [me?.year, me?.major].filter(Boolean).join(' · ') || '—';
 
   // Stripe Connect (payout) status → drives the "Payout account" row + earnings promo.
   const [payouts, setPayouts] = useState<{ connected: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean } | null>(null);
   const refreshPayouts = () => api.connect.status().then((s) => setPayouts(s)).catch(() => {});
-  useEffect(() => { void refreshPayouts(); }, []);
+  useEffect(() => { void refreshPayouts(); }, [reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
   // Guard against concurrent taps. Each call to onboardingLink() used to be able to create
   // its own Stripe Connect account — the row is reachable while the Edge Function cold
   // starts, and double-tapping orphaned real accounts (APP_REVIEW_TICKETS.md T24). The
@@ -129,7 +130,7 @@ export default function TutorProfile() {
       }).catch(() => {});
     }
     return () => { active = false; };
-  }, [me]);
+  }, [me, reloadKey]);
 
   // Ratings are collected but never surfaced in the app — no "Avg rating" stat here.
   const STATS: [string, string][] = [
@@ -160,7 +161,7 @@ export default function TutorProfile() {
           <H1 style={styles.headerTitle}>Profile</H1>
         </View>
       </View>
-      <Body ref={scrollRef} pad={20} contentStyle={{ paddingTop: 10 }}>
+      <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 10 }}>
         {/* identity card */}
         <Card style={{ padding: 18 }}>
           <View style={styles.identityRow}>

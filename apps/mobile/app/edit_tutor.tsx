@@ -13,6 +13,7 @@ import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { pickAndUploadAvatar } from '../lib/avatar';
+import { useMe } from '../lib/useMe';
 
 export default function EditTutorProfile() {
   const t = useTheme();
@@ -20,7 +21,8 @@ export default function EditTutorProfile() {
   const { patchBooking } = useApp();
   const [displayName, setDisplayName] = useState('');
   const [about, setAbout] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  // The photo is read live from useMe (see profile.tsx) rather than copied at mount.
+  const avatarUrl = useMe().me?.avatarUrl ?? null;
   const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   // The tutor's own profile, mapped to the same shape B2 renders — lets "Preview"
@@ -33,7 +35,6 @@ export default function EditTutorProfile() {
       .getMe()
       .then(async (me) => {
         if (!active || !me) return;
-        setAvatarUrl(me.avatarUrl);
         const tutor = await api.tutors.getById(me.id);
         if (active && tutor) {
           const initial = tutor.lastName ? `${tutor.lastName.charAt(0)}.` : '';
@@ -54,8 +55,7 @@ export default function EditTutorProfile() {
   }, []);
 
   const changePhoto = async () => {
-    const url = await pickAndUploadAvatar();
-    if (url) setAvatarUrl(url);
+    await pickAndUploadAvatar();
   };
 
   // Seed the booking draft with the tutor's own profile (reflecting the currently

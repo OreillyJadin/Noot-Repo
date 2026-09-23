@@ -55,7 +55,6 @@ export default function T2() {
   const [grad, setGrad] = useState('');
   const [major, setMajor] = useState('');
   const [bio, setBio] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
   useEffect(() => {
     if (!me || prefilled) return;
@@ -63,13 +62,11 @@ export default function T2() {
     setLast(me.lastName ?? '');
     setYear(me.year ?? '');
     setMajor(me.major ?? '');
-    setAvatarUrl(me.avatarUrl);
     setPrefilled(true);
   }, [me, prefilled]);
 
   const changePhoto = async () => {
-    const url = await pickAndUploadAvatar();
-    if (url) setAvatarUrl(url);
+    await pickAndUploadAvatar();
   };
 
   return (
@@ -84,7 +81,7 @@ export default function T2() {
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
         <View style={styles.photoRow}>
           <View style={{ position: 'relative' }}>
-            <Avatar size={64} uri={avatarUrl} />
+            <Avatar size={64} uri={me?.avatarUrl} />
             <Pressable
               onPress={changePhoto}
               style={[styles.photoBadge, { backgroundColor: t.accent, borderColor: t.bg }]}

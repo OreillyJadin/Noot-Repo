@@ -8,6 +8,7 @@ import { Screen, NavTop, Body, ActionBar, Button, Field, Select, Label, Avatar, 
 import { api } from '@noot/core';
 import { SubjectField } from '../lib/SubjectField';
 import { pickAndUploadAvatar } from '../lib/avatar';
+import { useMe } from '../lib/useMe';
 
 export default function EditPersonal() {
   const t = useTheme();
@@ -17,7 +18,8 @@ export default function EditPersonal() {
   const [year, setYear] = useState('');
   const [major, setMajor] = useState('');
   const [email, setEmail] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  // The photo is read live from useMe (see profile.tsx) rather than copied at mount.
+  const avatarUrl = useMe().me?.avatarUrl ?? null;
   const [, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,7 +32,6 @@ export default function EditPersonal() {
           setYear(me.year ?? '');
           setMajor(me.major ?? '');
           setEmail(me.email);
-          setAvatarUrl(me.avatarUrl);
         }
       })
       .catch(() => {})
@@ -39,8 +40,7 @@ export default function EditPersonal() {
   }, []);
 
   const changePhoto = async () => {
-    const url = await pickAndUploadAvatar();
-    if (url) setAvatarUrl(url);
+    await pickAndUploadAvatar();
   };
 
   const save = async () => {

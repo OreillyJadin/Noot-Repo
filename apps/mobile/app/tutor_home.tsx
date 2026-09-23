@@ -10,6 +10,7 @@ import { api, type Booking, type Message } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
+import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
 import { NotificationBell } from '../lib/NotificationBell';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
@@ -90,6 +91,7 @@ const ACTIONS: [IconName, string, string][] = [
 ];
 
 export default function TutorHome() {
+  const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
   const { role } = useApp();
@@ -123,7 +125,7 @@ export default function TutorHome() {
       })
       .catch(() => {});
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
 
   // Countdown to the real session when we have one.
   const target = useMemo(() => (next ? new Date(next.scheduledAt).getTime() : Date.now()), [next]);
@@ -164,7 +166,7 @@ export default function TutorHome() {
         ) : null}
       </View>
 
-      <Body ref={scrollRef} contentStyle={{ paddingTop: 8 }}>
+      <Body ref={scrollRef} onRefresh={onRefresh} contentStyle={{ paddingTop: 8 }}>
         {previewing ? <TutorStatusBanner status={tutorStatus} onApply={() => router.push('/t1')} /> : null}
 
         {/* Next session + payout — real upcoming booking, or a CTA when there's none */}

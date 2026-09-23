@@ -1,7 +1,7 @@
 // Layout primitives — ported from app/kit.jsx (Screen/NavTop/Body/ActionBar).
 // The prototype used fixed TOP_INSET/BOT_INSET; here we use real safe-area insets.
 import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from './ThemeProvider';
 import { Ic } from './Icon';
@@ -43,17 +43,35 @@ export interface BodyProps {
   children: React.ReactNode;
   pad?: number;
   contentStyle?: ViewStyle;
+  /** Enables pull-to-refresh. The spinner shows until the returned promise settles. */
+  onRefresh?: () => Promise<unknown> | void;
 }
 
 // forwardRef exposes the inner ScrollView so callers (e.g. the tab bar's
 // "reselect" action) can scroll the page back to top. See lib/useTabNav.
 export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
-  { children, pad = 20, contentStyle },
+  { children, pad = 20, contentStyle, onRefresh },
   ref,
 ) {
+  const t = useTheme();
+  const [refreshing, setRefreshing] = React.useState(false);
+  const pull = React.useCallback(async () => {
+    if (!onRefresh) return;
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [onRefresh]);
   return (
     <ScrollView
       ref={ref}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl refreshing={refreshing} onRefresh={pull} tintColor={t.accent} colors={[t.accent]} />
+        ) : undefined
+      }
       style={styles.bodyScroll}
       contentContainerStyle={[{ padding: pad, paddingTop: 4, gap: 14 }, contentStyle]}
       // persistTaps: a control under the keyboard responds on the FIRST tap instead of the

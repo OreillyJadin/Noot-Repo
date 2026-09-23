@@ -12,6 +12,7 @@ import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
+import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
 import { NotificationBell } from '../lib/NotificationBell';
 
@@ -129,6 +130,7 @@ function TutorRow({
 }
 
 export default function Home() {
+  const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
   const { patchBooking, role } = useApp();
@@ -160,7 +162,7 @@ export default function Home() {
       .catch(() => { if (active) setNext(null); })
       .finally(() => { if (active) setNextLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
 
   // "Pick up where you left off" — real tutors from search (student's courses drive it).
   const [popular, setPopular] = useState<Tutor[]>([]);
@@ -171,7 +173,7 @@ export default function Home() {
       .then((list) => { if (active) setPopular(list.map(toTutor).slice(0, 3)); })
       .catch(() => {});
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
 
   // Real study stats (sessions completed / hours / upcoming). No streak or monthly-goal
   // data model exists, so those fabricated numbers are gone — these are honest zeros
@@ -181,7 +183,7 @@ export default function Home() {
     let active = true;
     api.studentStats().then((s) => { if (active) setStats(s); }).catch(() => {});
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
 
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
@@ -222,7 +224,7 @@ export default function Home() {
         ) : null}
       </View>
 
-      <Body ref={scrollRef} contentStyle={{ paddingTop: 8 }}>
+      <Body ref={scrollRef} onRefresh={onRefresh} contentStyle={{ paddingTop: 8 }}>
         {/* Next session countdown — real upcoming booking, or a CTA when there's none */}
         {next ? (
           <View style={[styles.nextCard, { backgroundColor: t.accent }]}>

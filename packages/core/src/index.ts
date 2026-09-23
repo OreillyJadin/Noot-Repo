@@ -2,6 +2,7 @@
 // package (and supabase/functions) may touch Supabase/Stripe directly.
 export * from './models';
 export * as auth from './auth';
+export { onUserChanged } from './changes';
 export {
   api,
   type AmbassadorReferrals,

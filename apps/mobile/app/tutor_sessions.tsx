@@ -8,6 +8,7 @@ import { Body, TabBar, Button, Badge, Card, Avatar, Ic, H2, EmptyState, Skeleton
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useTabNav } from '../lib/useTabNav';
+import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
 
 type Tab = 'upcoming' | 'past';
@@ -28,6 +29,7 @@ function formatWhen(iso: string): string {
 interface SessionRow { id: string; name: string; av: string; course: string; when: string; where: string; pay: string; status: string; }
 
 export default function TutorSessions() {
+  const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
   const { role } = useApp();
@@ -71,7 +73,7 @@ export default function TutorSessions() {
       .catch(() => { /* no session / offline → empty state */ })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [reloadKey]);
 
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef, onReselect: () => setTab('upcoming') });
@@ -120,7 +122,7 @@ export default function TutorSessions() {
         </View>
       </View>
 
-      <Body ref={scrollRef} contentStyle={{ paddingTop: 14 }}>
+      <Body ref={scrollRef} onRefresh={onRefresh} contentStyle={{ paddingTop: 14 }}>
         {tab === 'upcoming' ? (
           loading ? (
             <View style={{ gap: 10 }}>

@@ -62,7 +62,10 @@ export default function XReschedulePropose() {
       })
       .catch(() => {});
     return () => { active = false; };
-  }, [me]);
+    // Keyed on the id, not the object: useMe re-reads in the background (S1), and
+    // re-seeding on every re-read would wipe edits in progress.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.id]);
 
   const f = sessionFacts(booking);
   const daySlots = slots[day] ?? [];

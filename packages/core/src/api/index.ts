@@ -8,6 +8,7 @@
 //   • Trust-sensitive writes (create booking, capture payment, approve tutor, moderate
 //     review, award bonus) are NOT here — they're Edge Functions (service role). See §5.
 import { getSupabase } from '../supabase';
+import { notifyUserChanged } from '../changes';
 import type {
   AmbassadorProfile,
   Booking,
@@ -510,6 +511,7 @@ export const api = {
       if (Object.keys(row).length === 0) return;
       const { error } = await getSupabase().from('users').update(row).eq('id', uid);
       if (error) throw error;
+      notifyUserChanged();
     },
 
     /**
@@ -530,6 +532,7 @@ export const api = {
         .select('id')
         .single();
       if (error) throw error;
+      notifyUserChanged();
     },
 
     /** Set the student's enrolled course codes (edit_courses). */
@@ -537,6 +540,7 @@ export const api = {
       const uid = await requireUid();
       const { error } = await getSupabase().from('users').update({ courses }).eq('id', uid);
       if (error) throw error;
+      notifyUserChanged();
     },
 
     /**
@@ -548,6 +552,7 @@ export const api = {
       const uid = await requireUid();
       const { error } = await getSupabase().from('users').update({ active_role: role }).eq('id', uid);
       if (error) throw error;
+      notifyUserChanged();
     },
 
     /** Add a role the user can hold (e.g. "Become a tutor/ambassador"). RLS blocks 'admin'. */
@@ -557,6 +562,7 @@ export const api = {
         .from('user_roles')
         .upsert({ user_id: uid, role }, { onConflict: 'user_id,role' });
       if (error) throw error;
+      notifyUserChanged();
     },
 
     /**
@@ -580,6 +586,7 @@ export const api = {
         .from('tutor_profiles')
         .upsert({ user_id: uid, transcript_url: path }, { onConflict: 'user_id' });
       if (pErr) throw pErr;
+      notifyUserChanged();
       return path;
     },
 
@@ -607,6 +614,7 @@ export const api = {
       const url = `${pub.publicUrl}?v=${Date.now()}`;
       const { error: uErr } = await sb.from('users').update({ avatar_url: url }).eq('id', uid);
       if (uErr) throw uErr;
+      notifyUserChanged();
       return url;
     },
 
@@ -664,6 +672,7 @@ export const api = {
         .from('tutor_profiles')
         .upsert(row, { onConflict: 'user_id' });
       if (error) throw error;
+      notifyUserChanged();
     },
 
     /** Update just the tutor's base hourly rate (edit_rates). */

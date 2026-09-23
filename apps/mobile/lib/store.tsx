@@ -43,6 +43,9 @@ interface AppState {
   lastRouteByRole: Partial<Record<Role, string>>;
   /** Remember `route` as the current tab for `role` (called by tab-root screens). */
   recordRoute: (role: Role, route: string) => void;
+  /** Forget everything about the current user (called on sign-out), so the next account
+   *  to sign in on this device never inherits their mode, place or booking draft. */
+  reset: () => void;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -61,6 +64,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lastRouteByRole,
       recordRoute: (r, route) =>
         setLastRouteByRole((m) => (m[r] === route ? m : { ...m, [r]: route })),
+      reset: () => {
+        setRole('student');
+        setBooking({});
+        setLastRouteByRole({});
+      },
     }),
     [role, booking, lastRouteByRole],
   );
