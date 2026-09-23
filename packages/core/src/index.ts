@@ -3,6 +3,7 @@
 export * from './models';
 export * as auth from './auth';
 export { onUserChanged } from './changes';
+export { UA_MAJORS, searchMajors, type Major } from './data/uaMajors';
 export {
   api,
   type AmbassadorReferrals,

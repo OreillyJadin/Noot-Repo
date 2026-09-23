@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Field, Select, Avatar, Divider, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { pickAndUploadAvatar } from '../lib/avatar';
+import { MajorPicker } from '../lib/MajorPicker';
 
 const YEAR_OPTIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate Student'];
 
@@ -119,7 +120,7 @@ export default function T2() {
         </View>
 
         <View style={{ marginTop: 14 }}>
-          <Field label="Major" value={major} onChangeText={setMajor} placeholder="e.g. Chemistry" />
+          <MajorPicker value={major} onChange={setMajor} />
         </View>
         <View style={{ marginTop: 14 }}>
           <Field

@@ -6,6 +6,8 @@ import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { api } from '@noot/core';
 import { useMe } from '../lib/useMe';
+import { MajorPicker } from '../lib/MajorPicker';
+import { CoursePicker } from '../lib/CoursePicker';
 import {
   Screen,
   NavTop,
@@ -25,13 +27,18 @@ import {
 const YEAR_OPTIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Grad'];
 
 // ── local helpers (used only by this screen) ───────────────────────────────
-function CourseChip({ label }: { label: string }) {
+function CourseChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   const t = useTheme();
   return (
-    <View style={[styles.chip, { backgroundColor: t.accentWeak }]}>
+    <Pressable
+      onPress={onRemove}
+      accessibilityRole="button"
+      accessibilityLabel={`Remove ${label}`}
+      style={[styles.chip, { backgroundColor: t.accentWeak }]}
+    >
       <Text style={[styles.chipLabel, { color: t.accent }]}>{label}</Text>
       <Ic name="x" size={13} color={t.accent} strokeWidth={2.2} />
-    </View>
+    </Pressable>
   );
 }
 
@@ -73,9 +80,13 @@ export default function StudentProfile() {
     setCourses(me.courses);
   }, [me, prefilled]);
 
-  const addCourse = () => {
-    // TODO(api): course search — built with backend
+  // "Add course" opens the catalog search inline; picking one adds it and closes it.
+  const [adding, setAdding] = useState(false);
+  const addCourse = (code: string) => {
+    setCourses((cs) => (cs.includes(code) ? cs : [...cs, code]));
+    setAdding(false);
   };
+  const removeCourse = (code: string) => setCourses((cs) => cs.filter((c) => c !== code));
 
   const complete = async () => {
     try {
@@ -120,13 +131,7 @@ export default function StudentProfile() {
         </View>
 
         <View style={styles.mt14}>
-          <Field
-            label="Major"
-            placeholder="Search UA majors…"
-            value={major}
-            onChangeText={setMajor}
-            suffix={<Ic name="search" size={18} color={t.text3} strokeWidth={1.8} />}
-          />
+          <MajorPicker value={major} onChange={setMajor} />
         </View>
 
         <Divider style={styles.divider} />
@@ -135,10 +140,16 @@ export default function StudentProfile() {
         <Label style={{ marginTop: 10 }}>Current courses</Label>
         <View style={styles.chipWrap}>
           {courses.map((c) => (
-            <CourseChip key={c} label={c} />
+            <CourseChip key={c} label={c} onRemove={() => removeCourse(c)} />
           ))}
-          <AddCourseChip onPress={addCourse} />
+          {!adding ? <AddCourseChip onPress={() => setAdding(true)} /> : null}
         </View>
+        {adding ? (
+          <View style={styles.mt14}>
+            <CoursePicker label="" selected={courses} onSelect={(c) => addCourse(c.courseCode)} />
+            <Text onPress={() => setAdding(false)} style={[styles.cancel, { color: t.text3 }]}>Cancel</Text>
+          </View>
+        ) : null}
         <Text style={[styles.helpText, { color: t.text3 }]}>
           Helps us match tutors who took your exact classes — same professor when we can.
         </Text>
@@ -160,5 +171,6 @@ const styles = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 34, paddingHorizontal: 14, borderRadius: 999 },
   chipOutline: { borderWidth: 1 },
   chipLabel: { fontSize: 13, fontWeight: '600' },
+  cancel: { fontSize: 13, fontWeight: '600', marginTop: 8, textAlign: 'center' },
   helpText: { fontSize: 13, marginTop: 10, lineHeight: 18 },
 });

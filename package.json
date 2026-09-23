@@ -19,7 +19,8 @@
     "web": "pnpm --filter @noot/web dev",
     "check:preview": "node scripts/check_supabase_preview.mjs",
     "hooks:install": "git config core.hooksPath .githooks",
-    "check:release": "node scripts/check_release.mjs"
+    "check:release": "node scripts/check_release.mjs",
+    "test": "pnpm dlx tsx --test packages/core/test/*.test.ts"
   },
   "devDependencies": {
     "turbo": "^2.1.3",
