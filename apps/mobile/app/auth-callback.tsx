@@ -9,11 +9,15 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { Button, useTheme } from '@noot/ui';
 import { auth } from '@noot/core';
+import { useApp } from '../lib/store';
+import { routeAfterAuth } from '../lib/postAuth';
+import { exchangeOnce, passwordResetDone } from '../lib/authLinkOnce';
 
 export default function AuthCallback() {
   const t = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { setRole } = useApp();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,7 +32,8 @@ export default function AuthCallback() {
               queryParams: params as Record<string, string>,
             });
 
-      const res = await auth.completeAuthFromUrl(url);
+      // Shared across duplicate mounts of this screen for the same link (tracker T2).
+      const res = await exchangeOnce(params, () => auth.completeAuthFromUrl(url));
       if (cancelled) return;
       if (!res.ok) {
         setError(res.error ?? 'This sign-in link is invalid or expired.');
@@ -40,7 +45,9 @@ export default function AuthCallback() {
       // a sign-up VERIFICATION → onboarding, which starts by setting the password.
       if (cancelled) return;
       if (params.flow === 'recovery') {
-        router.replace('/set_password?mode=reset');
+        // A second delivery of the link after the reset is done must not reopen it.
+        if (passwordResetDone()) await routeAfterAuth(router, setRole);
+        else router.replace('/set_password?mode=reset');
       } else {
         router.replace('/verified');
       }

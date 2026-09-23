@@ -13,6 +13,7 @@ import { Button, Field, Ic, useTheme } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { routeAfterAuth } from '../lib/postAuth';
+import { markPasswordResetDone } from '../lib/authLinkOnce';
 import { TERMS_VERSION, openLegal } from '../lib/legal';
 
 const MIN_LEN = 8;
@@ -46,6 +47,8 @@ export default function SetPassword() {
       }
       if (isReset) {
         // Existing user; already authenticated via the recovery session → into the app.
+        // Recorded first, so a late duplicate of the reset link goes home (tracker T2).
+        markPasswordResetDone();
         await routeAfterAuth(router, setRole);
       } else {
         // Record the acceptance before moving on, so no account can reach the rest of the
