@@ -1,10 +1,11 @@
 // Profile-photo picker + upload. Opens the OS image library (a file input on web),
 // uploads the chosen image via @noot/core, and returns the new public avatar URL.
 // Screens use the return value to update the shown photo immediately.
-import { Alert, Platform } from 'react-native';
+import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { api } from '@noot/core';
 import { base64ToArrayBuffer } from './bytes';
+import { ensurePhotoAccess } from './photoAccess';
 
 /** Extension for the picked asset, from its file name or mime type. */
 function extensionFor(asset: ImagePicker.ImagePickerAsset): string {
@@ -20,14 +21,7 @@ function extensionFor(asset: ImagePicker.ImagePickerAsset): string {
  * @returns the new public URL, or null if they canceled / it failed.
  */
 export async function pickAndUploadAvatar(): Promise<string | null> {
-  // Ask for library permission on native (web uses a file input — no prompt needed).
-  if (Platform.OS !== 'web') {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Photo access needed', 'Enable photo library access to change your picture.');
-      return null;
-    }
-  }
+  if (!(await ensurePhotoAccess('to change your picture'))) return null;
 
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],

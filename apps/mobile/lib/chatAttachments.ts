@@ -11,6 +11,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { api, type OutgoingAttachment } from '@noot/core';
 import { readUriBytes } from './bytes';
 import { errText } from './errText';
+import { ensurePhotoAccess } from './photoAccess';
 
 /** Mirrors the bucket's file_size_limit (migration 0021) — checked here for a kind message. */
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
@@ -22,13 +23,7 @@ interface Picked {
 }
 
 async function pickImage(): Promise<Picked | null> {
-  if (Platform.OS !== 'web') {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Photo access needed', 'Enable photo library access to send a photo.');
-      return null;
-    }
-  }
+  if (!(await ensurePhotoAccess('to send a photo'))) return null;
   const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
   if (res.canceled || !res.assets?.length) return null;
   const a = res.assets[0]!;
