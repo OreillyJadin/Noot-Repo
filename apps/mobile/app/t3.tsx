@@ -1,10 +1,11 @@
 // T3 Courses You Tutor — Step 3 of the tutor application. → T4 Set your rates.
 // Loads the tutor's real courses (api.tutors.getById self), lets them add/remove, and
-// persists via api.profile.setTutorCourses on continue. Rates are set on T4.
+// persists via api.profile.setTutorCourses on continue. Rates are set on T4 — or, when
+// opened from Courses & rates (?from=rates), back on that screen.
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Select, Badge, Eyebrow, H2, Muted, ProgressDots, H1, Sub, Ic, Skeleton, useTheme } from '@noot/ui';
 import { api, type CatalogCourse } from '@noot/core';
 import { CoursePicker } from '../lib/CoursePicker';
@@ -60,14 +61,18 @@ export default function T3() {
   const [picked, setPicked] = useState<CatalogCourse | null>(null);
   const [grade, setGrade] = useState('');
 
-  // Load the tutor's existing courses (own profile).
+  // Opened from Courses & rates ("Add a course") rather than onboarding: saving returns
+  // there instead of walking on into step 4 (tracker T1).
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const fromRates = from === 'rates';
+
+  // Load the tutor's existing courses (own rows — works before approval).
   useEffect(() => {
     let active = true;
-    api
-      .getMe()
-      .then((me) => (me ? api.tutors.getById(me.id) : null))
+    api.profile
+      .getMyTutorProfile()
       .then((tutor) => {
-        if (active && tutor) {
+        if (active) {
           setCourses(
             tutor.courses.map((c) => ({
               courseCode: c.courseCode,
@@ -122,7 +127,9 @@ export default function T3() {
     setSaving(true);
     const ok = await persist();
     setSaving(false);
-    if (ok) router.push('/t4');
+    if (!ok) return;
+    if (fromRates) router.back();
+    else router.push('/t4');
   };
 
   const saveAndExit = async () => {

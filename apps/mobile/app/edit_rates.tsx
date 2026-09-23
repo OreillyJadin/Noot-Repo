@@ -5,11 +5,11 @@
 // profile.setTutorCourses(...) — the contract method for per-course rate rows.
 // (profile.updateRates(number) sets only a single base rate, which this
 // per-course UI doesn't expose, so we persist each course row instead.)
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Ic, useTheme } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, MIN_HOURLY_RATE, MAX_HOURLY_RATE } from '@noot/core';
 
 interface Rate {
   code: string;
@@ -25,13 +25,14 @@ export default function EditRates() {
   const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  // On focus, not just mount: "Add a course" goes to step 3 and comes back here, and the
+  // new course has to show up with its rate still to set (tracker T1).
+  useFocusEffect(useCallback(() => {
     let active = true;
-    api
-      .getMe()
-      .then((me) => (me ? api.tutors.getById(me.id) : null))
+    api.profile
+      .getMyTutorProfile()
       .then((tutor) => {
-        if (active && tutor) {
+        if (active) {
           setRates(
             tutor.courses.map((c) => ({
               code: c.courseCode,
@@ -51,13 +52,19 @@ export default function EditRates() {
     return () => {
       active = false;
     };
-  }, []);
+  }, []));
 
   const bump = (i: number, d: number) =>
-    setRates((rs) => rs.map((r, j) => (j === i ? { ...r, rate: Math.min(120, Math.max(10, r.rate + d)) } : r)));
+    setRates((rs) => rs.map((r, j) => (j === i ? { ...r, rate: Math.min(MAX_HOURLY_RATE, Math.max(MIN_HOURLY_RATE, r.rate + d)) } : r)));
 
   const save = async () => {
     if (saving) return;
+    // A course just added from step 3 has no rate yet; saving it at $0 would make it unbookable.
+    const unset = rates.filter((r) => r.rate < MIN_HOURLY_RATE);
+    if (unset.length > 0) {
+      Alert.alert('Set a rate first', `Use + to set a rate for ${unset.map((r) => r.code).join(', ')}.`);
+      return;
+    }
     setSaving(true);
     try {
       await api.profile.setTutorCourses(
@@ -116,7 +123,7 @@ export default function EditRates() {
 
         <Card
           flat
-          onPress={() => router.push('/t3')}
+          onPress={() => router.push('/t3?from=rates')}
           style={{ marginTop: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surfaceAlt }}
         >
           <Ic name="plus" size={17} color={t.accent} strokeWidth={2.2} />

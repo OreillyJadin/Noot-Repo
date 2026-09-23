@@ -11,50 +11,15 @@
 // per-tutor location — `tutoring_locations` (0027) is a read-only campus list maintained
 // out of band, and B3's spot picker has its own list — so the field only ever discarded
 // what the tutor typed.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Eyebrow, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 
-const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-const ROW_LABELS = ['8a', '11a', '2p', '5p', '8p'];
-/** Each row is a 3-hour block; index matches ROW_LABELS. */
-const ROW_START_HOUR = [8, 11, 14, 17, 20];
-const BLOCK_HOURS = 3;
-/** Column 0 is Monday, but the DB stores day_of_week with Sunday = 0. */
-const COL_TO_DOW = [1, 2, 3, 4, 5, 6, 0];
-const EMPTY_GRID: number[][] = ROW_LABELS.map(() => DAY_LABELS.map(() => 0));
+import { DAY_LABELS, ROW_LABELS, BLOCK_HOURS, EMPTY_GRID, windowsFromGrid, gridFromWindows } from '../lib/weekGrid';
 
-const hhmm = (h: number) => `${String(h).padStart(2, '0')}:00`;
-
-/**
- * Turn the painted grid into the weekly windows the DB stores, merging vertically
- * adjacent blocks on the same day into one window (8a+11a → 08:00-14:00) so we don't
- * write three rows where one will do.
- */
-function windowsFromGrid(grid: number[][]) {
-  const out: { dayOfWeek: number; startTime: string; endTime: string }[] = [];
-  for (let col = 0; col < DAY_LABELS.length; col++) {
-    let runStart: number | null = null;
-    for (let row = 0; row <= grid.length; row++) {
-      const on = row < grid.length && grid[row]![col] === 1;
-      if (on && runStart === null) runStart = row;
-      if (!on && runStart !== null) {
-        out.push({
-          dayOfWeek: COL_TO_DOW[col]!,
-          startTime: hhmm(ROW_START_HOUR[runStart]!),
-          endTime: hhmm(ROW_START_HOUR[row - 1]! + BLOCK_HOURS),
-        });
-        runStart = null;
-      }
-    }
-  }
-  return out;
-}
-
-// Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
   step,
   title,
@@ -93,14 +58,36 @@ export default function T5() {
   const router = useRouter();
   const [grid, setGrid] = useState<number[][]>(EMPTY_GRID);
   const [saving, setSaving] = useState(false);
+  // Hours already saved (coming back to this step, or editing from step 9) are painted in.
+  // Only a grid the tutor actually touched is written back: the grid is coarser than Edit
+  // Availability, so re-saving an untouched grid could round away hours set there.
+  const [hadSaved, setHadSaved] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    let active = true;
+    api.profile
+      .getMyTutorProfile()
+      .then((p) => {
+        if (!active || p.availability.length === 0) return;
+        setGrid(gridFromWindows(p.availability));
+        setHadSaved(true);
+      })
+      .catch(() => { /* nothing saved yet → empty grid */ });
+    return () => { active = false; };
+  }, []);
 
   const toggle = (r: number, c: number) => {
+    setDirty(true);
     setGrid((g) => g.map((row, ri) => (ri === r ? row.map((v, ci) => (ci === c ? (v ? 0 : 1) : v)) : row)));
   };
   const total = grid.flat().reduce((a, b) => a + b, 0) * BLOCK_HOURS;
 
   const saveAndContinue = async () => {
     if (saving) return;
+    if (hadSaved && !dirty) {
+      router.push('/t6');
+      return;
+    }
     const windows = windowsFromGrid(grid);
     if (windows.length === 0) {
       Alert.alert('Pick some hours', 'Tap the grid to mark when you can tutor.');

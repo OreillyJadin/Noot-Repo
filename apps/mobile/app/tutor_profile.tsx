@@ -124,9 +124,10 @@ export default function TutorProfile() {
     let active = true;
     api.tutorStats().then((s) => { if (active) setStats(s); }).catch(() => {});
     if (me) {
-      api.tutors.getById(me.id).then((sum) => {
-        if (!active || !sum || sum.courses.length === 0) return;
-        setCoursesSub(sum.courses.map((c) => `${c.courseCode} · $${c.hourlyRate}/hr`).join(', '));
+      // Own rows: the same reader onboarding and Courses & rates use (tracker T1).
+      api.profile.getMyTutorProfile().then((p) => {
+        if (!active || p.courses.length === 0) return;
+        setCoursesSub(p.courses.map((c) => `${c.courseCode} · ${c.hourlyRate > 0 ? `$${c.hourlyRate}/hr` : 'no rate'}`).join(', '));
       }).catch(() => {});
     }
     return () => { active = false; };

@@ -72,6 +72,19 @@ export interface TutorCourse {
   createdAt: Timestamp;
 }
 
+/**
+ * The signed-in user's own tutor application as saved so far — what onboarding (T2–T9),
+ * Courses & rates and Availability all read, so each field has one source of truth.
+ * Read from the tutor's own rows, so it works before the application row exists.
+ */
+export interface MyTutorProfile {
+  /** Null until anything creates the tutor_profiles row. */
+  approvalStatus: 'pending' | 'approved' | 'rejected' | null;
+  bio: string;
+  courses: TutorCourse[];
+  availability: TutorAvailability[];
+}
+
 /** Joined tutor view for search results and cards (user + profile + courses). */
 export interface TutorSummary {
   userId: UUID;

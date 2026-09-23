@@ -20,7 +20,7 @@
     "check:preview": "node scripts/check_supabase_preview.mjs",
     "hooks:install": "git config core.hooksPath .githooks",
     "check:release": "node scripts/check_release.mjs",
-    "test": "pnpm dlx tsx --test packages/core/test/*.test.ts"
+    "test": "pnpm dlx tsx --test packages/core/test/*.test.ts apps/mobile/test/*.test.ts"
   },
   "devDependencies": {
     "turbo": "^2.1.3",

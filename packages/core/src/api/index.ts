@@ -25,6 +25,7 @@ import type {
   ReviewSummary,
   TutorAvailability,
   TutorCourse,
+  MyTutorProfile,
   TutorSummary,
   User,
 } from '../models';
@@ -675,6 +676,31 @@ export const api = {
       notifyUserChanged();
     },
 
+    /**
+     * The caller's own tutor application: bio, courses (with grades + rates) and weekly
+     * availability. Reads the caller's own rows directly: tutors.getById inner-joins
+     * tutor_profiles, so it returns nothing until that row exists — and during onboarding
+     * nothing created it before the transcript upload on step 6 (tracker T1).
+     */
+    async getMyTutorProfile(): Promise<MyTutorProfile> {
+      const uid = await requireUid();
+      const sb = getSupabase();
+      const [prof, courses, avail] = await Promise.all([
+        sb.from('tutor_profiles').select('bio, approval_status').eq('user_id', uid).maybeSingle(),
+        sb.from('tutor_courses').select('*').eq('tutor_id', uid).order('created_at', { ascending: true }),
+        sb.from('tutor_availability').select('*').eq('tutor_id', uid).order('day_of_week', { ascending: true }),
+      ]);
+      if (prof.error) throw prof.error;
+      if (courses.error) throw courses.error;
+      if (avail.error) throw avail.error;
+      return {
+        approvalStatus: (prof.data?.approval_status as MyTutorProfile['approvalStatus']) ?? null,
+        bio: (prof.data?.bio as string | undefined) ?? '',
+        courses: (courses.data ?? []).map(mapTutorCourse),
+        availability: (avail.data ?? []).map(mapTutorAvailability),
+      };
+    },
+
     /** Update just the tutor's base hourly rate (edit_rates). */
     async updateRates(hourlyRate: number): Promise<void> {
       const uid = await requireUid();
@@ -683,6 +709,7 @@ export const api = {
         .update({ hourly_rate: hourlyRate })
         .eq('user_id', uid);
       if (error) throw error;
+      notifyUserChanged();
     },
 
     /**
@@ -696,7 +723,7 @@ export const api = {
       const sb = getSupabase();
       const { error: delErr } = await sb.from('tutor_courses').delete().eq('tutor_id', uid);
       if (delErr) throw delErr;
-      if (courses.length === 0) return;
+      if (courses.length === 0) return notifyUserChanged();
       const rows = courses.map((c) => ({
         tutor_id: uid,
         course_code: c.courseCode,
@@ -706,6 +733,7 @@ export const api = {
       }));
       const { error } = await sb.from('tutor_courses').insert(rows);
       if (error) throw error;
+      notifyUserChanged();
     },
 
     /** Replace the tutor's recurring weekly availability windows (edit_availability). */
@@ -716,7 +744,7 @@ export const api = {
       const sb = getSupabase();
       const { error: delErr } = await sb.from('tutor_availability').delete().eq('tutor_id', uid);
       if (delErr) throw delErr;
-      if (weekly.length === 0) return;
+      if (weekly.length === 0) return notifyUserChanged();
       const rows = weekly.map((w) => ({
         tutor_id: uid,
         day_of_week: w.dayOfWeek,
@@ -725,6 +753,7 @@ export const api = {
       }));
       const { error } = await sb.from('tutor_availability').insert(rows);
       if (error) throw error;
+      notifyUserChanged();
     },
   },
 

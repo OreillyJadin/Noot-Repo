@@ -3,6 +3,7 @@
 export * from './models';
 export * as auth from './auth';
 export { onUserChanged } from './changes';
+export { PLATFORM_FEE_RATE, tutorPayoutFor, MIN_HOURLY_RATE, MAX_HOURLY_RATE } from './pricing';
 export { UA_MAJORS, searchMajors, type Major } from './data/uaMajors';
 export {
   api,

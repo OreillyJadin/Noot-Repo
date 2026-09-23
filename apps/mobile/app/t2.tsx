@@ -1,10 +1,12 @@
 // T2 Tutor Profile — ported from screens-tutor.jsx (T2). Step 2 of the tutor
 // application. → T3 Courses you tutor. "Save & exit" → Landing.
+// Saves name/year/major (users) and bio (tutor_profiles) on Continue and on Save & exit.
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Field, Select, Avatar, Divider, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import { MajorPicker } from '../lib/MajorPicker';
@@ -65,6 +67,49 @@ export default function T2() {
     setMajor(me.major ?? '');
     setPrefilled(true);
   }, [me, prefilled]);
+  // The bio lives on tutor_profiles, not users — load it from the saved application.
+  useEffect(() => {
+    let active = true;
+    api.profile
+      .getMyTutorProfile()
+      .then((p) => { if (active && p.bio) setBio((b) => b || p.bio); })
+      .catch(() => { /* nothing saved yet */ });
+    return () => { active = false; };
+  }, []);
+
+  // Everything on this step is saved — it used to be thrown away on Continue, which is why
+  // step 9 and the public profile never showed it (tracker T1).
+  const [saving, setSaving] = useState(false);
+  const persist = async (): Promise<boolean> => {
+    try {
+      await api.profile.updatePersonal({
+        firstName: first.trim(),
+        lastName: last.trim(),
+        year: year || null,
+        major: major || null,
+      });
+      await api.profile.updateTutorProfile({ bio: bio.trim() });
+      return true;
+    } catch {
+      Alert.alert('Could not save your profile', 'Please check your connection and try again.');
+      return false;
+    }
+  };
+  const saveAndContinue = async () => {
+    if (saving) return;
+    if (!first.trim() || !last.trim()) {
+      Alert.alert('Add your name', 'Students see your first name and last initial.');
+      return;
+    }
+    setSaving(true);
+    const ok = await persist();
+    setSaving(false);
+    if (ok) router.push('/t3');
+  };
+  const saveAndExit = async () => {
+    if (first.trim() && last.trim()) await persist();
+    router.replace('/');
+  };
 
   const changePhoto = async () => {
     await pickAndUploadAvatar();
@@ -77,7 +122,7 @@ export default function T2() {
         title="Your profile"
         sub="Students see this on your tutor card."
         onBack={() => router.back()}
-        onExit={() => router.replace('/')}
+        onExit={saveAndExit}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
         <View style={styles.photoRow}>
@@ -133,7 +178,13 @@ export default function T2() {
         </View>
       </Body>
       <ActionBar>
-        <Button label="Save & Continue" kind="primary" full onPress={() => router.push('/t3')} />
+        <Button
+          label={saving ? 'Saving…' : 'Save & Continue'}
+          kind="primary"
+          full
+          disabled={saving}
+          onPress={saveAndContinue}
+        />
       </ActionBar>
     </Screen>
   );
