@@ -11,7 +11,7 @@ import { Button, useTheme } from '@noot/ui';
 import { auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { routeAfterAuth } from '../lib/postAuth';
-import { exchangeOnce, passwordResetDone } from '../lib/authLinkOnce';
+import { authLinks } from '../lib/authLinks';
 
 export default function AuthCallback() {
   const t = useTheme();
@@ -32,8 +32,24 @@ export default function AuthCallback() {
               queryParams: params as Record<string, string>,
             });
 
-      // Shared across duplicate mounts of this screen for the same link (tracker T2).
-      const res = await exchangeOnce(params, () => auth.completeAuthFromUrl(url));
+      // A link this device already used — a duplicate delivery, or the app reopened at the
+      // same launch URL after a force-close (T2). Its code is spent, so don't re-enter the
+      // flow: finish an unfinished reset, otherwise go where a signed-in user belongs.
+      const prior = await authLinks.state(params);
+      if (cancelled) return;
+      if (prior !== 'new') {
+        const signedIn = !!(await auth.getSessionUserId());
+        if (cancelled) return;
+        if (!signedIn) router.replace('/signin');
+        else if (params.flow === 'recovery' && prior === 'used') {
+          authLinks.setRecoveryLink(params);
+          router.replace('/set_password?mode=reset');
+        } else await routeAfterAuth(router, setRole);
+        return;
+      }
+
+      // Shared across duplicate mounts of this screen for the same link.
+      const res = await authLinks.exchangeOnce(params, () => auth.completeAuthFromUrl(url));
       if (cancelled) return;
       if (!res.ok) {
         setError(res.error ?? 'This sign-in link is invalid or expired.');
@@ -45,9 +61,8 @@ export default function AuthCallback() {
       // a sign-up VERIFICATION → onboarding, which starts by setting the password.
       if (cancelled) return;
       if (params.flow === 'recovery') {
-        // A second delivery of the link after the reset is done must not reopen it.
-        if (passwordResetDone()) await routeAfterAuth(router, setRole);
-        else router.replace('/set_password?mode=reset');
+        authLinks.setRecoveryLink(params);
+        router.replace('/set_password?mode=reset');
       } else {
         router.replace('/verified');
       }

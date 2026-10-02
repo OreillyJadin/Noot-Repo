@@ -96,6 +96,8 @@ accurate metadata and content), and a user can check them against search.
 - [ ] **Add `expo-clipboard`** for a one-tap Copy button on the referral code (A1 partial). It's
   held because `apps/mobile/package.json` and `pnpm-lock.yaml` have uncommitted dependency bumps
   that aren't from the tracker work. Commit or discard those first.
-- [ ] **Sign-up links may arrive twice too.** T2 fixed the reset link being delivered twice on a
-  cold launch. A sign-up verification link could do the same and drop a new user back at the
-  start of onboarding. It hasn't been reported. Should it get the same fix?
+- [x] **Sign-up links may arrive twice too.** Resolved 2026-10-02 by the force-close fix
+  (`apps/mobile/lib/authLinkOnce.ts`). Every emailed link's state is now remembered on the
+  device, so a sign-up link delivered again, or reopened after a force-close, goes through
+  normal post-login routing (home, or the next onboarding step) instead of restarting
+  onboarding.
