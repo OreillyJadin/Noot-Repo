@@ -126,6 +126,8 @@ async function seedTutor(row, idx) {
   chk('profile', await admin.from('tutor_profiles').upsert({
     user_id: id, bio, subjects: courses.map((c) => c[0]), hourly_rate: courses[0][2],
     approval_status: 'approved', rating_avg: rating, total_sessions: sessions, verified_grade: grade,
+    // An approved application was submitted (0038). Not grade-verified: nobody is by default.
+    submitted_at: new Date().toISOString(),
   }, { onConflict: 'user_id' }));
   await admin.from('tutor_courses').delete().eq('tutor_id', id);
   chk('courses', await admin.from('tutor_courses').insert(

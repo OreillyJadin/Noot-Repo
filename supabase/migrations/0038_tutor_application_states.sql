@@ -32,11 +32,15 @@ comment on column public.tutor_profiles.grades_verified_at is
   'An admin checked the transcript. Drives the Verified badge and the lower platform fee.';
 
 -- ---------- backfill (no grandfathering: nobody starts verified) ----------
--- Every existing pending/approved/rejected row predates the draft state, so treat it as
--- submitted — pending rows stay in the admin queue, approved tutors stay live (unverified).
+-- Approved and rejected applications were decided, so they were submitted: approved tutors
+-- stay live (unverified). PENDING rows become drafts. Before this migration "pending" was
+-- created by merely starting onboarding (production on 2026-10-02: both pending rows had no
+-- courses or a $0 rate), so none of them is a complete application. As drafts they leave the
+-- admin queue, see "Finish your application", and submit through the new checks.
 update public.tutor_profiles
-   set submitted_at = coalesce(reviewed_at, created_at)
- where submitted_at is null;
+   set submitted_at = coalesce(reviewed_at, updated_at, created_at)
+ where submitted_at is null
+   and approval_status in ('approved', 'rejected');
 
 -- ---------- guard: server-only fields ----------
 -- Direct client writes run as the `authenticated` (or `anon`) role. The service role
@@ -157,7 +161,9 @@ as $$
   where u.id = uid;
 $$;
 
-revoke all on function tutor_application_missing(uuid) from public;
+-- Internal: takes any uid, so no client may call it (it would reveal another user's progress).
+-- Supabase grants new functions to anon/authenticated directly, not only via PUBLIC.
+revoke all on function tutor_application_missing(uuid) from public, anon, authenticated;
 
 -- ---------- step 9: submit for review ----------
 create or replace function submit_tutor_application()
