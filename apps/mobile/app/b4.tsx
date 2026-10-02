@@ -231,7 +231,7 @@ function B4Inner() {
                 </View>
               ))}
               <Text style={{ fontSize: 11, color: t.text3, marginTop: 2 }}>
-                Refunds are processed to your original payment method via Stripe.
+                Refunds are processed to your original payment method via Stripe. Any Noot credit you used comes back as credit, in the same proportion.
               </Text>
             </View>
           ) : null}

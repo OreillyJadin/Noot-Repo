@@ -4,7 +4,8 @@
 //
 // Everyone: your invite code, your Noot credit, and the people you invited with whether
 // they've completed a session yet ($5 credit each when they do — 0040).
-// Ambassadors also see their goals (ambassador_milestones) and can cash credit out.
+// Ambassadors also see their goals (ambassador_milestones) and cash-out, both of which only
+// pay once the team has approved them; credit earned in the last 7 days can't be cashed out.
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Share, Alert, StyleSheet } from 'react-native';
 import { Card, Badge, Avatar, Ic, Eyebrow, Skeleton, EmptyState, useTheme, type IconName } from '@noot/ui';
@@ -24,15 +25,26 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
   const [balance, setBalance] = useState<number | null>(null);
   const [invites, setInvites] = useState<Invite[] | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [approved, setApproved] = useState(false);
+  const [cashable, setCashable] = useState(0);
+  const [paidGoals, setPaidGoals] = useState(0); // milestone bonuses actually credited
   const [cashingOut, setCashingOut] = useState(false);
   const [bump, setBump] = useState(0);
 
   useEffect(() => {
     let alive = true;
-    api.credits.myCode().then((c) => { if (alive) setCode(c); }).catch(() => {});
+    api.credits.myCode().then((c) => { if (alive) setCode(c); }).catch(() => { if (alive) setCode(''); });
     api.credits.balance().then((b) => { if (alive) setBalance(b); }).catch(() => { if (alive) setBalance(0); });
     api.credits.invites().then((l) => { if (alive) setInvites(l); }).catch(() => { if (alive) setInvites([]); });
-    if (isAmbassador) api.credits.milestones().then((m) => { if (alive) setMilestones(m); }).catch(() => {});
+    if (isAmbassador) {
+      api.credits.milestones().then((m) => { if (alive) setMilestones(m); }).catch(() => {});
+      api.credits.ambassadorApproved().then((a) => { if (alive) setApproved(a); }).catch(() => {});
+      api.credits.cashable().then((c) => { if (alive) setCashable(c); }).catch(() => {});
+      api.credits
+        .history()
+        .then((h) => { if (alive) setPaidGoals(h.filter((e) => e.kind === 'milestone_bonus').length); })
+        .catch(() => {});
+    }
     return () => { alive = false; };
   }, [reloadKey, bump, isAmbassador]);
 
@@ -51,10 +63,10 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
   const nextGoal = milestones.find((m) => m.threshold > completed);
 
   const cashOut = () => {
-    if (!balance || balance < CASHOUT_MIN_CENTS) return;
+    if (cashable < CASHOUT_MIN_CENTS) return;
     Alert.alert(
-      `Cash out ${dollars(balance)}?`,
-      'Your credit balance goes to $0 and the noot team will be in touch to send you the money.',
+      `Cash out ${dollars(cashable)}?`,
+      'That much comes off your credit balance and the noot team will be in touch to send you the money.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -62,7 +74,7 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
           onPress: async () => {
             setCashingOut(true);
             try {
-              await api.credits.requestCashout(balance);
+              await api.credits.requestCashout(cashable);
               Alert.alert('Cash-out requested', 'We’ll be in touch to send it to you.');
               setBump((n) => n + 1);
             } catch (e) {
@@ -90,7 +102,9 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
       {/* code + share */}
       <Card style={{ padding: 20, alignItems: 'center', marginTop: 12 }}>
         <Eyebrow style={{ color: t.text3 }}>Your invite code</Eyebrow>
-        {code ? (
+        {code === '' ? (
+          <Text style={[styles.code, { color: t.text3 }]}>—</Text>
+        ) : code ? (
           // One line that shrinks to fit (tracker A1). Selectable, so a long-press copies it.
           <Text
             selectable
@@ -135,6 +149,14 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
       {isAmbassador ? (
         <>
           <Eyebrow style={{ color: t.text3, marginTop: 22, marginBottom: 10 }}>Ambassador goals</Eyebrow>
+          {!approved ? (
+            <Card flat style={{ padding: 14, marginBottom: 10, backgroundColor: t.surfaceAlt }}>
+              <Text style={[styles.goalTitle, { color: t.text }]}>Pending team approval</Text>
+              <Text style={[styles.goalSub, { color: t.text3 }]}>
+                You earn $5 credit per completed invite now. Goal bonuses and cash-out start once the noot team approves you as an ambassador.
+              </Text>
+            </Card>
+          ) : null}
           <Card style={{ padding: 16 }}>
             {nextGoal ? (
               <>
@@ -154,8 +176,9 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
               <Skeleton height={40} />
             )}
             <View style={{ marginTop: 12, gap: 8 }}>
-              {milestones.map((m) => {
-                const hit = completed >= m.threshold;
+              {milestones.map((m, idx) => {
+                // Ticked once the bonus is actually credited (milestones pay in order).
+                const hit = idx < paidGoals;
                 return (
                   <View key={m.threshold} style={styles.goalRow}>
                     <Ic name={hit ? 'check' : 'target'} size={16} color={hit ? t.good : t.text3} strokeWidth={2} />
@@ -170,16 +193,18 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
           </Card>
           <Pressable
             onPress={cashOut}
-            disabled={cashingOut || !balance || balance < CASHOUT_MIN_CENTS}
+            disabled={cashingOut || cashable < CASHOUT_MIN_CENTS}
             style={[styles.cashBtn, { borderColor: t.border, backgroundColor: t.surface }]}
           >
             <Ic name="wallet" size={18} color={t.accent} strokeWidth={1.8} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.cashTitle, { color: t.text }]}>{cashingOut ? 'Requesting…' : 'Cash out credit'}</Text>
               <Text style={[styles.cashSub, { color: t.text3 }]}>
-                {balance != null && balance >= CASHOUT_MIN_CENTS
-                  ? `Turn your ${dollars(balance)} into cash`
-                  : `Available once you have ${dollars(CASHOUT_MIN_CENTS)} or more`}
+                {!approved
+                  ? 'Opens once the team approves you'
+                  : cashable >= CASHOUT_MIN_CENTS
+                    ? `${dollars(cashable)} available now`
+                    : `Available at ${dollars(CASHOUT_MIN_CENTS)}+ · credit earned this week unlocks after 7 days`}
               </Text>
             </View>
           </Pressable>

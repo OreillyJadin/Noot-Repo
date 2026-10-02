@@ -191,7 +191,9 @@ export interface Booking {
   subject: string;
   scheduledAt: Timestamp;
   durationMinutes: number;
-  price: number; // total charged to student
+  price: number; // session price (fee and payout are computed on this)
+  /** Noot credit that came off it (0040); the student's card paid price − creditApplied. */
+  creditApplied: number;
   platformFee: number; // noot's cut
   tutorPayoutAmount: number;
   sessionType: SessionType;

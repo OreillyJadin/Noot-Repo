@@ -305,6 +305,7 @@ function mapBooking(row: any): Booking {
     scheduledAt: row.scheduled_at,
     durationMinutes: row.duration_minutes,
     price: num(row.price),
+    creditApplied: num(row.credit_applied),
     platformFee: num(row.platform_fee),
     tutorPayoutAmount: num(row.tutor_payout_amount),
     sessionType: row.session_type,
@@ -1165,7 +1166,26 @@ export const api = {
       }));
     },
 
-    /** Ambassadors only: ask the team to pay out `cents` ($10 minimum). Debits immediately. */
+    /** Has the team approved the caller as an ambassador (unlocks cash-out and goal bonuses)? */
+    async ambassadorApproved(): Promise<boolean> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('ambassador_approvals')
+        .select('user_id')
+        .eq('user_id', uid)
+        .maybeSingle();
+      if (error) throw error;
+      return !!data;
+    },
+
+    /** Cents the caller could cash out now: 0 unless approved; excludes credit earned this week. */
+    async cashable(): Promise<number> {
+      const { data, error } = await getSupabase().rpc('my_cashable_credit');
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+
+    /** Approved ambassadors only: ask the team to pay out `cents` ($10 minimum). Debits immediately. */
     async requestCashout(cents: number): Promise<void> {
       const { error } = await getSupabase().rpc('request_credit_cashout', { p_cents: cents });
       if (error) throw error;
