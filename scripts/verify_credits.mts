@@ -5,8 +5,9 @@
 //   • invite codes: one per user, never client-chosen; redeem rules
 //   • the ledger: no client writes, no reading anyone else's rows
 //   • earning: $5 to the inviter when the invitee completes a session, once
-//   • ambassador milestones: once each, ambassadors only
-//   • spending / returning on a booking; cash-out for ambassadors only
+//   • no reward for a session with your own inviter; one invite per email, ever
+//   • ambassador milestones: once each, only once the team approves the ambassador
+//   • spending / returning on a booking; cash-out for approved ambassadors, 7-day hold
 // Local stack only; doesn't need Edge Functions.
 //   pnpm dlx tsx scripts/verify_credits.mts
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -120,7 +121,39 @@ try {
   check('my_invites shows the friend as completed, first name + initial', row?.completed === true && row?.display_name === 'Friend T.' && row?.reward_cents === 500, JSON.stringify(row ?? invites.error?.message));
   check("my_invites shows nothing to someone who invited no one", ((await stranger.c.rpc('my_invites')).data ?? []).length === 0);
 
-  console.log('\n— ambassador milestones —');
+  console.log('\n— self-dealing, re-signups, legacy —');
+  const tutorInviter = await newUser('TutorInv');
+  const tiCode = (await tutorInviter.c.rpc('my_invite_code')).data as string;
+  const buddy = await newUser('Buddy');
+  await buddy.c.rpc('redeem_invite_code', { p_code: tiCode });
+  const { data: selfDeal } = await svc.from('bookings').insert({
+    student_id: buddy.uid, tutor_id: tutorInviter.uid, subject: 'MGT 300',
+    scheduled_at: new Date(Date.now() - 864e5).toISOString(), duration_minutes: 60, price: 28, platform_fee: 4.9,
+    tutor_payout_amount: 23.1, status: 'completed', session_type: 'in_person', cancellation_deadline: new Date(Date.now() - 2 * 864e5).toISOString(),
+  }).select('id').single();
+  check('a session with the person who invited you earns them nothing', (await svc.rpc('award_invite_rewards', { p_booking: selfDeal!.id })).data === 0);
+
+  const again = await newUser('Again');
+  const { data: againUser } = await svc.from('users').select('email').eq('id', again.uid).single();
+  allowed(await again.c.rpc('redeem_invite_code', { p_code: code }), 'a new user redeems');
+  await svc.from('users').delete().eq('id', again.uid); // as delete-account does
+  const del = await svc.auth.admin.deleteUser(again.uid);
+  if (del.error) throw del.error;
+  const { data: reborn, error: rErr } = await svc.auth.admin.createUser({ email: againUser!.email, password: PASSWORD, email_confirm: true });
+  if (rErr) throw rErr;
+  created.push(reborn.user!.id);
+  const rc = createClient(URL, ANON, { auth: { persistSession: false } });
+  await rc.auth.signInWithPassword({ email: againUser!.email, password: PASSWORD });
+  blocked(await rc.rpc('redeem_invite_code', { p_code: code }), 'deleting the account and signing up again cannot redeem a second time');
+
+  const legacy = await newUser('Legacy');
+  await legacy.c.rpc('redeem_invite_code', { p_code: code });
+  const { data: lref } = await svc.from('referrals').select('id').eq('referred_user_id', legacy.uid).single();
+  await svc.from('referral_bonuses').insert({ ambassador_id: inviter.uid, referral_id: lref!.id, status: 'paid' });
+  check('a referral already paid under the old cash bonus earns nothing more', (await svc.rpc('award_invite_rewards', { p_booking: await completedBooking(legacy.uid) })).data === 0);
+  await svc.from('referral_bonuses').delete().eq('referral_id', lref!.id);
+
+  console.log('\n— ambassador milestones need team approval —');
   const amb = await newUser('Amb');
   allowed(await amb.c.from('user_roles').insert({ user_id: amb.uid, role: 'ambassador' }), 'opt in as ambassador');
   const ambCode = (await amb.c.rpc('create_my_ambassador_profile')).data as string;
@@ -130,8 +163,14 @@ try {
     await f.c.rpc('redeem_invite_code', { p_code: ambCode });
     await svc.rpc('award_invite_rewards', { p_booking: await completedBooking(f.uid) });
   }
+  check('unapproved: 5 completed invites earn 5×$5 and no milestone', (await balance(amb.c)) === 2500, String(await balance(amb.c)));
+  blocked(await amb.c.rpc('request_credit_cashout', { p_cents: 1000 }), 'unapproved ambassador cannot cash out');
+  check('…and has nothing cashable', (await amb.c.rpc('my_cashable_credit')).data === 0);
+  noRows(await amb.c.from('ambassador_approvals').insert({ user_id: amb.uid }).select(), 'ambassador cannot approve themselves');
+  allowed(await svc.from('ambassador_approvals').insert({ user_id: amb.uid }), 'team approves the ambassador');
   const { data: m5 } = await svc.from('ambassador_milestones').select('bonus_cents').eq('threshold', 5).single();
-  check('5 completed invites = 5×$5 + the 5-invite milestone', (await balance(amb.c)) === 2500 + m5!.bonus_cents, String(await balance(amb.c)));
+  check('approval pays the goal they already reached', (await balance(amb.c)) === 2500 + m5!.bonus_cents, String(await balance(amb.c)));
+  await svc.rpc('award_invite_rewards', { p_booking: await completedBooking((await newUser('Pal5')).uid) });
   const bonuses = await amb.c.from('credit_ledger').select('milestone').eq('kind', 'milestone_bonus');
   check('the milestone is paid exactly once', (bonuses.data ?? []).length === 1);
   check('a non-ambassador inviter gets no milestone', ((await inviter.c.from('credit_ledger').select('id').eq('kind', 'milestone_bonus')).data ?? []).length === 0);
@@ -146,11 +185,24 @@ try {
   check('a 50% refund returns $2.50', (await svc.rpc('return_booking_credit', { p_booking: spentB, p_percent: 50 })).data === 250);
   await svc.rpc('return_booking_credit', { p_booking: spentB, p_percent: 100 });
   check('…and only once', (await balance(inviter.c)) === 250, String(await balance(inviter.c)));
+  blocked(await svc.rpc('spend_credit', { p_user: inviter.uid, p_cents: 100, p_payment_intent: 'pi_spend_1' }), 'the same PaymentIntent cannot spend twice');
+  // A spend that never got linked to its booking is still found through the PaymentIntent.
+  await svc.from('credit_ledger').insert({ user_id: inviter.uid, amount_cents: 300, kind: 'adjustment' });
+  await svc.rpc('spend_credit', { p_user: inviter.uid, p_cents: 300, p_payment_intent: 'pi_unlinked' });
+  const { data: unlinked } = await svc.from('bookings').insert({
+    student_id: inviter.uid, tutor_id: tutorId, subject: 'MGT 300', scheduled_at: new Date(Date.now() + 864e5).toISOString(),
+    duration_minutes: 60, price: 28, platform_fee: 4.9, tutor_payout_amount: 23.1, credit_applied: 3, status: 'cancelled',
+    session_type: 'in_person', cancellation_deadline: new Date().toISOString(), stripe_payment_intent_id: 'pi_unlinked',
+  }).select('id').single();
+  check('an unlinked spend is still returned on cancel', (await svc.rpc('return_booking_credit', { p_booking: unlinked!.id, p_percent: 100 })).data === 300);
 
   console.log('\n— cash-out —');
   blocked(await inviter.c.rpc('request_credit_cashout', { p_cents: 1000 }), 'non-ambassadors cannot cash out');
   blocked(await amb.c.rpc('request_credit_cashout', { p_cents: 500 }), 'under $10 is rejected');
   blocked(await amb.c.rpc('request_credit_cashout', { p_cents: 999999 }), 'more than the balance is rejected');
+  blocked(await amb.c.rpc('request_credit_cashout', { p_cents: 2000 }), 'credit earned this week cannot be cashed out yet');
+  await svc.from('credit_ledger').update({ created_at: new Date(Date.now() - 8 * 864e5).toISOString() }).eq('user_id', amb.uid);
+  check('after 7 days it is cashable', ((await amb.c.rpc('my_cashable_credit')).data as number) === (await balance(amb.c)));
   const before = await balance(amb.c);
   allowed(await amb.c.rpc('request_credit_cashout', { p_cents: 2000 }), 'ambassador cashes out $20');
   check('balance drops by $20', (await balance(amb.c)) === before - 2000);

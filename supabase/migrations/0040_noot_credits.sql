@@ -10,8 +10,10 @@
 --   • Credit comes off the next booking automatically. The tutor's payout is unchanged —
 --     noot absorbs the difference (create-payment-intent / confirm-booking).
 --   • Cancelled booking → the credit comes back in the same proportion as the cash refund.
---   • Ambassadors also earn milestone bonuses (ambassador_milestones — placeholder amounts for
---     the team to set), and can cash their balance out; everyone else spends it on sessions.
+--   • No reward for a session between the inviter and the person they invited.
+--   • Ambassadors whom the TEAM has approved (ambassador_approvals) also earn milestone
+--     bonuses (ambassador_milestones — placeholder amounts) and can cash credit out, except
+--     credit earned in the last 7 days. Joining as an ambassador alone unlocks neither.
 
 -- ---------------------------------------------------------------------------------------
 -- 1) Invite codes, one per user. ambassador_profiles.referral_code stays as a mirror for
@@ -104,7 +106,9 @@ begin
 
   if ref_code is not null then
     select user_id into inviter from public.invite_codes where code = ref_code;
-    if inviter is not null and inviter <> new.id then
+    if inviter is not null and inviter <> new.id
+       and not exists (select 1 from public.redeemed_invite_emails where email_hash = public.invite_email_hash(new.email)) then
+      insert into public.redeemed_invite_emails (email_hash) values (public.invite_email_hash(new.email));
       insert into public.referrals (ambassador_id, referred_user_id, referred_role, referral_code_used)
       values (inviter, new.id, 'student', ref_code)
       on conflict (referred_user_id) do nothing;
@@ -117,11 +121,25 @@ begin
   return new;
 end $$;
 
+-- One invite per EMAIL, not per account: deleting the account (which cascades its referral)
+-- and signing up again must not make the same person redeemable twice. Server-only.
+create table redeemed_invite_emails (
+  email_hash text primary key,
+  created_at timestamptz not null default now()
+);
+alter table redeemed_invite_emails enable row level security;
+-- No policies: only the SECURITY DEFINER functions here read or write it.
+
+create or replace function invite_email_hash(p_email text)
+returns text language sql immutable as $$
+  select encode(sha256(convert_to(lower(trim(coalesce(p_email, ''))), 'UTF8')), 'hex');
+$$;
+
 -- The app's path: a new user types a friend's code during onboarding.
 -- Allowed once, only before the caller has had any booking, and never your own code or
 -- the code of someone you invited (no trading codes back and forth).
 create or replace function redeem_invite_code(p_code text)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, auth as $$
 declare
   uid uuid := auth.uid();
   c text := upper(trim(coalesce(p_code, '')));
@@ -146,6 +164,12 @@ begin
   if exists (select 1 from bookings where student_id = uid or tutor_id = uid) then
     raise exception 'Invite codes can only be used before your first session.';
   end if;
+  begin
+    insert into redeemed_invite_emails (email_hash)
+    select invite_email_hash(email) from auth.users where id = uid;
+  exception when unique_violation then
+    raise exception 'You''ve already used an invite code.';
+  end;
   insert into referrals (ambassador_id, referred_user_id, referred_role, referral_code_used)
   values (inviter, uid, 'student', c);
   update ambassador_profiles
@@ -169,6 +193,25 @@ create policy ambassador_milestones_select on ambassador_milestones for select t
 insert into ambassador_milestones (threshold, bonus_cents) values
   (5, 2500), (10, 5000), (25, 15000), (50, 35000), (100, 80000);
 
+-- Team approval for an ambassador's cash-out and milestone bonuses. Its own table because
+-- the owner can update their ambassador_profiles row. Written by the team (Studio for now).
+create table ambassador_approvals (
+  user_id     uuid primary key references users(id) on delete cascade,
+  approved_at timestamptz not null default now(),
+  approved_by uuid references users(id) on delete set null
+);
+alter table ambassador_approvals enable row level security;
+create policy ambassador_approvals_select on ambassador_approvals for select to authenticated
+  using (user_id = auth.uid() or is_admin());
+
+create or replace function is_approved_ambassador(p_user uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from user_roles where user_id = p_user and role = 'ambassador')
+     and exists (select 1 from ambassador_approvals where user_id = p_user);
+$$;
+revoke execute on function is_approved_ambassador(uuid) from public, anon, authenticated;
+grant execute on function is_approved_ambassador(uuid) to service_role;
+
 -- ---------------------------------------------------------------------------------------
 -- 4) Cash-out requests (ambassadors only). Paid by the team by hand for now; marking one
 --    'rejected' does NOT return the credit automatically — add an 'adjustment' row.
@@ -176,7 +219,7 @@ insert into ambassador_milestones (threshold, bonus_cents) values
 create type cashout_status as enum ('pending', 'paid', 'rejected');
 create table credit_cashouts (
   id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null references users(id) on delete cascade,
+  user_id      uuid references users(id) on delete set null,  -- kept for the audit trail
   amount_cents int not null check (amount_cents >= 1000),
   status       cashout_status not null default 'pending',
   created_at   timestamptz not null default now(),
@@ -200,7 +243,7 @@ create type credit_kind as enum (
 );
 create table credit_ledger (
   id                uuid primary key default gen_random_uuid(),
-  user_id           uuid not null references users(id) on delete cascade,
+  user_id           uuid references users(id) on delete set null,  -- kept for the audit trail
   amount_cents      int not null check (amount_cents <> 0),
   kind              credit_kind not null,
   referral_id       uuid references referrals(id) on delete set null,
@@ -251,12 +294,39 @@ grant execute on function my_credit_balance() to authenticated;
 --    Rewards whoever invited the student and whoever invited the tutor of a completed
 --    booking, once per invited person ever, then any ambassador milestone it unlocks.
 -- ---------------------------------------------------------------------------------------
+-- Milestone bonuses an approved ambassador has reached, paid once each. Counts every reward
+-- they've earned, so approval pays out goals reached before it (see the trigger below).
+create or replace function award_milestones(p_user uuid)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  done int;
+begin
+  if not is_approved_ambassador(p_user) then
+    return;
+  end if;
+  select count(*) into done from credit_ledger where user_id = p_user and kind = 'invite_reward';
+  insert into credit_ledger (user_id, amount_cents, kind, milestone)
+  select p_user, m.bonus_cents, 'milestone_bonus', m.threshold
+    from ambassador_milestones m where m.threshold <= done
+  on conflict (user_id, milestone) where kind = 'milestone_bonus' do nothing;
+end $$;
+revoke execute on function award_milestones(uuid) from public, anon, authenticated;
+grant execute on function award_milestones(uuid) to service_role;
+
+create or replace function on_ambassador_approved()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform award_milestones(new.user_id);
+  return new;
+end $$;
+create trigger ambassador_approvals_award after insert on ambassador_approvals
+  for each row execute function on_ambassador_approved();
+
 create or replace function award_invite_rewards(p_booking uuid)
 returns int language plpgsql security definer set search_path = public as $$
 declare
   b record;
   r record;
-  done int;
   awarded int := 0;
   n int;
 begin
@@ -265,20 +335,20 @@ begin
     return 0;
   end if;
   for r in
-    select id, ambassador_id from referrals where referred_user_id in (b.student_id, b.tutor_id)
+    select id, ambassador_id from referrals
+     where referred_user_id in (b.student_id, b.tutor_id)
+       -- a session with the person who invited you earns them nothing (no self-dealing)
+       and ambassador_id not in (b.student_id, b.tutor_id)
+       -- referrals already handled under the old cash bonus (paid or converted above)
+       and not exists (select 1 from referral_bonuses rb where rb.referral_id = referrals.id)
   loop
     insert into credit_ledger (user_id, amount_cents, kind, referral_id, booking_id)
     values (r.ambassador_id, 500, 'invite_reward', r.id, b.id)
     on conflict (referral_id) where kind = 'invite_reward' do nothing;
     get diagnostics n = row_count;
     awarded := awarded + n;
-    if n > 0 and exists (select 1 from user_roles where user_id = r.ambassador_id and role = 'ambassador') then
-      select count(*) into done from credit_ledger
-        where user_id = r.ambassador_id and kind = 'invite_reward';
-      insert into credit_ledger (user_id, amount_cents, kind, milestone)
-      select r.ambassador_id, m.bonus_cents, 'milestone_bonus', m.threshold
-        from ambassador_milestones m where m.threshold <= done
-      on conflict (user_id, milestone) where kind = 'milestone_bonus' do nothing;
+    if n > 0 then
+      perform award_milestones(r.ambassador_id);
     end if;
   end loop;
   return awarded;
@@ -312,10 +382,15 @@ declare
   spent int;
   back int;
   who uuid;
+  n int;
 begin
-  select -amount_cents, user_id into spent, who from credit_ledger
-    where booking_id = p_booking and kind = 'booking_spend';
-  if spent is null then
+  -- By booking, or by its PaymentIntent in case linking the spend to the booking failed.
+  select -l.amount_cents, l.user_id into spent, who from credit_ledger l
+   where l.kind = 'booking_spend'
+     and (l.booking_id = p_booking
+          or l.payment_intent_id = (select stripe_payment_intent_id from bookings where id = p_booking))
+   limit 1;
+  if spent is null or who is null then
     return 0;
   end if;
   back := round(spent * greatest(0, least(100, p_percent)) / 100.0)::int;
@@ -325,14 +400,33 @@ begin
   insert into credit_ledger (user_id, amount_cents, kind, booking_id)
   values (who, back, 'booking_return', p_booking)
   on conflict (booking_id) where kind = 'booking_return' do nothing;
-  return back;
+  get diagnostics n = row_count;
+  return case when n > 0 then back else 0 end;
 end $$;
 revoke execute on function return_booking_credit(uuid, int) from public, anon, authenticated;
 grant execute on function return_booking_credit(uuid, int) to service_role;
 
 -- ---------------------------------------------------------------------------------------
--- 8) Ambassador cash-out. Minimum $10. Debits the balance immediately.
+-- 8) Ambassador cash-out. Approved ambassadors only, $10 minimum, and not credit earned in
+--    the last 7 days (time for a refund or dispute on the session that earned it).
 -- ---------------------------------------------------------------------------------------
+create or replace function credit_cashable_cents(p_user uuid)
+returns int language sql stable security definer set search_path = public as $$
+  select greatest(0, credit_balance_cents(p_user) - coalesce((
+    select sum(amount_cents) from credit_ledger
+     where user_id = p_user and kind in ('invite_reward', 'milestone_bonus')
+       and created_at > now() - interval '7 days'), 0))::int;
+$$;
+revoke execute on function credit_cashable_cents(uuid) from public, anon, authenticated;
+grant execute on function credit_cashable_cents(uuid) to service_role;
+
+create or replace function my_cashable_credit()
+returns int language sql stable security definer set search_path = public as $$
+  select case when is_approved_ambassador(auth.uid()) then credit_cashable_cents(auth.uid()) else 0 end;
+$$;
+revoke execute on function my_cashable_credit() from public, anon;
+grant execute on function my_cashable_credit() to authenticated;
+
 create or replace function request_credit_cashout(p_cents int)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare
@@ -342,8 +436,8 @@ begin
   if uid is null then
     raise exception 'not authenticated' using errcode = 'insufficient_privilege';
   end if;
-  if not exists (select 1 from user_roles where user_id = uid and role = 'ambassador') then
-    raise exception 'Only ambassadors can cash out credit.';
+  if not is_approved_ambassador(uid) then
+    raise exception 'Cash-out opens once our team approves you as an ambassador.';
   end if;
   if p_cents is null or p_cents < 1000 then
     raise exception 'You can cash out $10 or more.';
@@ -351,6 +445,9 @@ begin
   perform credit_lock(uid);
   if credit_balance_cents(uid) < p_cents then
     raise exception 'That''s more than your credit balance.';
+  end if;
+  if credit_cashable_cents(uid) < p_cents then
+    raise exception 'Credit earned in the last 7 days can''t be cashed out yet.';
   end if;
   insert into credit_cashouts (user_id, amount_cents) values (uid, p_cents) returning id into cid;
   insert into credit_ledger (user_id, amount_cents, kind, cashout_id) values (uid, -p_cents, 'cashout', cid);
