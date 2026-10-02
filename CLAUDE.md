@@ -48,6 +48,73 @@ commit on it. Verify against the live local backend instead:
 - **Do NOT verify at http://localhost:8081.** The mobile app's web bundle is broken on
   SDK 57 and web is out of scope (see "Current scope" above).
 
+## Git workflow
+
+Priorities: **security and code quality.** These rules apply to every change, however small.
+
+### One feature = one branch
+- **Before writing any code**, branch from an up-to-date main:
+  `git checkout main && git pull && git checkout -b <type>/<short-description>`
+- Name branches by type: `feat/`, `fix/`, `chore/`, `refactor/`
+  (e.g. `fix/onboarding-step4-courses`).
+- Keep branches short-lived and tightly scoped. If you notice an unrelated issue mid-task,
+  **don't fix it on the current branch** — note it and report it at the end.
+- Two features in one session = two branches. Commit and push the first before switching,
+  and say clearly when you switch and which branch each change lives on.
+- **Never commit directly to `main`.**
+
+### Before every push
+- Run **`pnpm lint`**, **`pnpm typecheck`** and **`pnpm test`**, plus the `scripts/verify_*.mts`
+  checks that cover the change (see "Verifying changes" above). If any fail, don't push —
+  report what failed. (The pre-push hook also runs `pnpm check:preview`; see Conventions.)
+- Review your own diff with `git diff main...HEAD` for leftover debug code, commented-out
+  blocks, unrelated changes and TODOs.
+- Security check on that diff:
+  - No secrets, API keys or `.env` / `.noot-secrets.local.env` contents.
+  - Stripe: **secret** keys (`sk_live_`, `rk_live_`, `whsec_`) never appear in the repo. Code
+    and local/dev config use test-mode keys; the only live key in the repo is the publishable
+    `pk_live_` in the `production` profile of `apps/mobile/eas.json`, which ships in the app
+    by design.
+  - Every new Supabase table has **RLS enabled** with policies written for it, and every
+    migration's policies are checked as a non-owner (a `verify_*.mts` that tries the write
+    as a plain student, like `verify_student_walls.mts`).
+  - User input is validated **server-side** (RLS, triggers, SECURITY DEFINER checks or the
+    Edge Function), not only in the app.
+- Conventional commit messages (`fix: carry step 3 courses into step 4`), **one logical
+  change per commit.**
+
+### Handoff
+- Push the branch (`git push -u origin <branch>`), then give Jadin a **ready-to-paste PR
+  title and description**: what changed and why, how to verify it (the `verify_*.mts`
+  checks run; device steps only if useful), any migrations or env changes, and any risks.
+- Jadin opens the PR and reviews the diff. **Never merge without Jadin's explicit go-ahead.**
+
+### After approval
+- Merge the PR (squash, keeping `main` linear), delete the branch locally and on the remote,
+  then `git checkout main && git pull`.
+
+### Sessions
+- Say when it's a good time to start a fresh session: after a feature is merged, before
+  switching to unrelated work, or when this session has run long enough that earlier context
+  may be stale.
+- Before Jadin switches, give a short **handoff note** to paste into the new session: branch,
+  status, and anything unfinished.
+
+### Subagents
+- Use subagents for **read-only exploration** of the codebase, so the main session stays
+  focused.
+- **Before every push**, spawn a separate review subagent that hasn't seen the work. It reviews
+  `git diff main...HEAD` for bugs, security issues (secrets, missing RLS, unvalidated input,
+  auth gaps) and anything outside the branch's scope. Fix what it finds, and summarize its
+  findings in the PR description.
+- **One feature, one branch at a time** — no parallel feature work unless Jadin explicitly asks
+  for it, and then each feature gets its own git worktree.
+
+### Never, without asking first
+Force-push, rewrite pushed history, merge, delete a branch Jadin hasn't approved, or modify
+`main`, **including applying a migration to production.** Git `main` is linked to the
+production Supabase project, so migrations are meant to reach production through the merge.
+
 ## Layout
 
 - `apps/mobile` — Expo (**SDK 57**, RN 0.86, React 19.2) app. Screens read/write through
@@ -97,6 +164,6 @@ commit on it. Verify against the live local backend instead:
   (see `0016_enable_rls_stripe_schema.sql` for the guarded pattern). Needs
   `SUPABASE_ACCESS_TOKEN` (env or `.noot-secrets.local.env`). On a fresh clone run
   `pnpm hooks:install` to enable the hook. Bypass once with `SKIP_SUPABASE_CHECK=1 git push`.
-- Commit only when asked; don't commit unprompted. Git user is "Jadin".
+- Commit freely on the feature branch; never on `main` (see Git workflow). Git user is "Jadin".
 - DB is snake_case, models are camelCase — every row crosses a `map*` fn in
   `packages/core/src/api`. Note `TutorSummary.userId` (not `.id`).
