@@ -92,8 +92,11 @@ Priorities: **security and code quality.** These rules apply to every change, ho
 - Jadin reviews the diff and comments, then approves.
 
 ### After approval
-- Once Jadin approves, merge the PR (squash, keeping `main` linear), delete the branch locally
-  and on the remote, then `git checkout main && git pull`.
+- Approval means Jadin says so explicitly, in the session or as a GitHub approval. Once the
+  PR is approved and its checks are green, merge it (squash, keeping `main` linear), delete
+  the branch locally and on the remote, then `git checkout main && git pull`.
+- Merging to `main` deploys any migrations in the PR to production, so a PR with migrations
+  says so at the top of its description: approving it approves the production deploy.
 
 ### Sessions
 - Say when it's a good time to start a fresh session: after a feature is merged, before
@@ -163,7 +166,8 @@ production Supabase project, so migrations are meant to reach production through
   the remote row to a numeric version with a matching local file, or add the local file
   (see `0016_enable_rls_stripe_schema.sql` for the guarded pattern). Needs
   `SUPABASE_ACCESS_TOKEN` (env or `.noot-secrets.local.env`). On a fresh clone run
-  `pnpm hooks:install` to enable the hook. Bypass once with `SKIP_SUPABASE_CHECK=1 git push`.
+  `pnpm hooks:install` to enable the hook. Bypass once with `SKIP_SUPABASE_CHECK=1 git push`,
+  only with Jadin's go-ahead.
 - Commit freely on the feature branch; never on `main` (see Git workflow). Git user is "Jadin".
 - DB is snake_case, models are camelCase — every row crosses a `map*` fn in
   `packages/core/src/api`. Note `TutorSummary.userId` (not `.id`).
