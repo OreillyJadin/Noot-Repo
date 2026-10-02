@@ -30,18 +30,34 @@ import type {
   User,
 } from '../models';
 
-/** A referral row for the ambassador dashboard (from the list-referrals Edge Function). */
-export interface AmbassadorReferralRow {
+/** Someone the caller invited (my_invites, 0040). */
+export interface Invite {
   referralId: string;
+  /** First name + last initial — all an inviter is shown. */
   name: string;
-  referredRole: 'student' | 'tutor';
-  status: 'signed_up' | 'bonus_pending' | 'bonus_paid';
-  bonusAmount: number;
-  createdAt: string;
+  joinedAt: string;
+  /** They've completed a session, so the inviter's $5 credit has been earned. */
+  completed: boolean;
+  rewardCents: number;
 }
-export interface AmbassadorReferrals {
-  referrals: AmbassadorReferralRow[];
-  totals: { referrals: number; bonusesEarned: number; totalEarned: number };
+/** An ambassador goal: complete `threshold` invites, earn `bonusCents`. */
+export interface Milestone {
+  threshold: number;
+  bonusCents: number;
+}
+export type CreditKind =
+  | 'invite_reward'
+  | 'milestone_bonus'
+  | 'booking_spend'
+  | 'booking_return'
+  | 'cashout'
+  | 'adjustment';
+/** One line of the caller's credit history. Positive = earned, negative = spent. */
+export interface CreditEntry {
+  id: string;
+  kind: CreditKind;
+  amountCents: number;
+  createdAt: string;
 }
 
 /** A user row for the admin user-management list. */
@@ -1084,9 +1100,75 @@ export const api = {
       return data ? mapAmbassadorProfile(data) : null;
     },
 
-    /** Referred users + bonus pipeline status + running totals (list-referrals Edge Function). */
-    listReferrals(): Promise<AmbassadorReferrals> {
-      return invokeFn('list-referrals');
+  },
+
+  // --- Noot credits (0040). Every balance change is written server-side; these only read,
+  //     plus the two caller-scoped actions (redeem a code, request a cash-out). ---
+  credits: {
+    /** The caller's invite code, generated on first use. Never client-chosen. */
+    async myCode(): Promise<string> {
+      const { data, error } = await getSupabase().rpc('my_invite_code');
+      if (error) throw error;
+      return data as string;
+    },
+
+    /** Use a friend's invite code. Once, and only before your first session. */
+    async redeem(code: string): Promise<void> {
+      const { error } = await getSupabase().rpc('redeem_invite_code', { p_code: code });
+      if (error) throw error;
+    },
+
+    /** Current balance in cents. */
+    async balance(): Promise<number> {
+      const { data, error } = await getSupabase().rpc('my_credit_balance');
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+
+    /** People the caller invited, newest first, with whether they've completed a session. */
+    async invites(): Promise<Invite[]> {
+      const { data, error } = await getSupabase().rpc('my_invites');
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+        referralId: r.referral_id as string,
+        name: (r.display_name as string) || 'A classmate',
+        joinedAt: r.joined_at as string,
+        completed: Boolean(r.completed),
+        rewardCents: Number(r.reward_cents ?? 0),
+      }));
+    },
+
+    /** Ambassador goals, smallest first. */
+    async milestones(): Promise<Milestone[]> {
+      const { data, error } = await getSupabase()
+        .from('ambassador_milestones')
+        .select('threshold, bonus_cents')
+        .order('threshold');
+      if (error) throw error;
+      return (data ?? []).map((m) => ({ threshold: m.threshold as number, bonusCents: m.bonus_cents as number }));
+    },
+
+    /** The caller's credit history, newest first. RLS: own rows only. */
+    async history(): Promise<CreditEntry[]> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('credit_ledger')
+        .select('id, kind, amount_cents, created_at')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((e) => ({
+        id: e.id as string,
+        kind: e.kind as CreditKind,
+        amountCents: e.amount_cents as number,
+        createdAt: e.created_at as string,
+      }));
+    },
+
+    /** Ambassadors only: ask the team to pay out `cents` ($10 minimum). Debits immediately. */
+    async requestCashout(cents: number): Promise<void> {
+      const { error } = await getSupabase().rpc('request_credit_cashout', { p_cents: cents });
+      if (error) throw error;
     },
   },
 
@@ -1306,6 +1388,10 @@ export const api = {
     paymentIntentId: string;
     /** Authoritative, server-computed. Show this, don't recompute it. */
     amountCents: number;
+    /** Noot credit taken off automatically (0040). */
+    creditCents: number;
+    /** What the card is charged: amountCents − creditCents. */
+    chargeCents: number;
     price: number;
     simulated: boolean;
   }> {
