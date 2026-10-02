@@ -203,7 +203,7 @@ export default function Home() {
   const grabSlot = () => {
     const first = popular[0];
     if (first) openTutor(first, first.courses[0]?.[0] ?? '');
-    else router.replace('/student_home' as any);
+    else router.replace('/student_home');
   };
 
   return (
@@ -267,7 +267,7 @@ export default function Home() {
               Find a verified tutor for your courses and lock in a time.
             </Text>
             <View style={styles.nextActions}>
-              <Pressable onPress={() => router.replace('/student_home' as any)} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
+              <Pressable onPress={() => router.replace('/student_home')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
                 <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Find a tutor</Text>
               </Pressable>
             </View>
@@ -308,7 +308,7 @@ export default function Home() {
         {/* Continue / popular */}
         <View style={[styles.sectionHead, { marginTop: 10 }]}>
           <H2 style={{ fontSize: 17 }}>Pick up where you left off</H2>
-          <Text onPress={() => router.replace('/student_home' as any)} style={[styles.browseLink, { color: t.accent }]}>
+          <Text onPress={() => router.replace('/student_home')} style={[styles.browseLink, { color: t.accent }]}>
             Browse
           </Text>
         </View>

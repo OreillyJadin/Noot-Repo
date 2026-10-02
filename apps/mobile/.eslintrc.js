@@ -1,1 +1,3 @@
-module.exports = { extends: ['@noot/config'] };
+module.exports = {
+  extends: [require.resolve('@noot/config'), 'plugin:react-hooks/recommended'],
+};

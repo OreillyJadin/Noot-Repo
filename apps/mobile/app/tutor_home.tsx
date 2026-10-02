@@ -242,7 +242,7 @@ export default function TutorHome() {
         <Eyebrow style={{ marginTop: 8 }}>Manage</Eyebrow>
         <View style={{ gap: 8 }}>
           {ACTIONS.map(([icon, label, key]) => (
-            <Card key={label} onPress={() => router.push((`/${key}`) as any)} style={styles.actionRow}>
+            <Card key={label} onPress={() => router.push(`/${key}`)} style={styles.actionRow}>
               <View style={[styles.actionIcon, { backgroundColor: t.accentWeak }]}>
                 <Ic name={icon} size={17} color={t.accent} strokeWidth={1.8} />
               </View>

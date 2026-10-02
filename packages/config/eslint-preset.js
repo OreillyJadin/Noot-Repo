@@ -6,7 +6,7 @@
 // UI migration-agnostic so the AWS migration is a swap, not a rewrite.
 //
 // The restriction below is applied everywhere; the two allowed locations override
-// it back off in their own .eslintrc (see packages/core/.eslintrc.js).
+// it back off in their own .eslintrc (see packages/core/.eslintrc.cjs).
 
 const BACKEND_ONLY_IMPORTS = [
   {
@@ -15,7 +15,9 @@ const BACKEND_ONLY_IMPORTS = [
       'Import Supabase only inside packages/core or supabase/functions. Elsewhere, use @noot/core.',
   },
   {
-    group: ['stripe', 'stripe/*', '@stripe/stripe-js', '@stripe/*'],
+    // The native PaymentSheet SDK is the exception: it's on-device UI that only holds the
+    // publishable key, it can't live in packages/core, and it doesn't change with the backend.
+    group: ['stripe', 'stripe/*', '@stripe/stripe-js', '@stripe/*', '!@stripe/stripe-react-native'],
     message:
       'Import Stripe only inside packages/core or supabase/functions. Elsewhere, use @noot/core.',
   },
@@ -36,8 +38,7 @@ module.exports = {
       { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
     ],
   },
-  // Re-export so packages/core can turn the guardrail off for itself.
-  overrides: [],
+  // ESLint 8 only lints .js when given a directory (`eslint src`); a files override is what
+  // makes it pick up the TypeScript too. Without this the lint run checked almost nothing.
+  overrides: [{ files: ['*.ts', '*.tsx'] }],
 };
-
-module.exports.BACKEND_ONLY_IMPORTS = BACKEND_ONLY_IMPORTS;
