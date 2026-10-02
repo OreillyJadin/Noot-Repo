@@ -114,7 +114,7 @@ Sign-up requires an email address on a supported campus domain. For App Review, 
 
 **Payments (Guideline 3.1.3(d)).** noot sells real-time, one-on-one tutoring between two individuals, in person on campus. As Guideline 3.1.3(d) permits, these sessions are paid through Stripe rather than In-App Purchase. noot sells no digital content, subscriptions, or unlockable features, and there is nothing in the app to unlock by paying.
 
-**Invites and Noot credit.** Every user has an invite code at Profile → Refer a friend. When someone signs up with that code and then completes a tutoring session, the person who invited them receives $5 of Noot credit. Credit is taken off the price of that user's next session automatically. It can't be bought and has no other use in the app: it unlocks nothing, and it is never digital content. Student ambassadors (Profile → Refer & earn on the Ambassador account) also earn bonus credit at set numbers of completed invites, and can ask our team to pay their credit out in cash. Credit is earned only from completed tutoring sessions — never for app downloads, ratings, or reviews — and the app never asks a user to rate it in exchange for anything.
+**Invites and Noot credit.** Every user has an invite code at Profile → Refer a friend. When someone signs up with that code and then completes a tutoring session, the person who invited them receives $5 of Noot credit. Credit is taken off the price of that user's next session automatically. It can't be bought and has no other use in the app: it unlocks nothing, and it is never digital content. Student ambassadors whom our team has approved (Profile → Refer & earn on the Ambassador account) also earn bonus credit at set numbers of completed invites, and can ask our team to pay out credit that is at least 7 days old in cash. Credit is earned only from completed tutoring sessions — never for app downloads, ratings, or reviews — and the app never asks a user to rate it in exchange for anything.
 
 ### 4. External services
 
@@ -180,7 +180,7 @@ UGC SAFEGUARDS (Guideline 1.2)
 - Support: admin@trynoot.com, and in-app at Profile > Help & support.
 
 PAYMENTS (Guideline 3.1.3(d))
-noot sells real-time, 1:1, in-person tutoring between two individuals. As 3.1.3(d) permits, these are paid via Stripe rather than IAP. No digital content, no subscription, nothing to unlock by paying. Inviting a friend earns $5 of Noot credit once they complete a session; credit only reduces the price of a tutoring session, can't be bought, and ambassadors can have theirs paid out in cash by our team. Never tied to downloads, ratings or reviews, and the app never asks for a rating in exchange for anything.
+noot sells real-time, 1:1, in-person tutoring between two individuals. As 3.1.3(d) permits, these are paid via Stripe rather than IAP. No digital content, no subscription, nothing to unlock by paying. Inviting a friend earns $5 of Noot credit once they complete a session; credit only reduces the price of a tutoring session, can't be bought, and team-approved ambassadors can have theirs paid out in cash. Never tied to downloads, ratings or reviews, and the app never asks for a rating in exchange for anything.
 
 SERVICES
 Supabase (auth, DB, storage, functions), Stripe (payments, Connect payouts), Resend (email). No AI, ads, third-party analytics/tracking, or push notifications. US only. Not a regulated industry; no protected third-party material.

@@ -133,7 +133,10 @@ CreditLedger                  Noot credit (0040). Append-only; balance = sum(amo
   milestone · cashout_id · created_at      — partial unique indexes make each event once-only
 
 AmbassadorMilestones          threshold(pk) · bonus_cents   (placeholder amounts; team-editable)
+AmbassadorApprovals           user_id(pk) · approved_at · approved_by — team-written; unlocks
+                              milestone bonuses + cash-out (credit ≥ 7 days old, $10 min)
 CreditCashouts                id · user_id · amount_cents(≥1000) · status(pending|paid|rejected)
+RedeemedInviteEmails          email_hash(pk) — one invite per email, survives account deletion
 
 ReferralBonuses               LEGACY (cash bonuses before 0040); no longer written
 
@@ -176,7 +179,8 @@ ledger rows and nothing else; one `invite_reward` per referral is a unique index
 
 **Backend rules (Edge Functions, §5):** booking must fall inside a `TutorAvailability` window and
 not overlap a confirmed booking; on `completed`, `award_invite_rewards` credits $5 to whoever
-invited the student and the tutor (once per invitee, ever) plus any ambassador milestone.
+invited the student and the tutor (once per invitee, ever; never for a session with your own
+inviter) plus any milestone an approved ambassador has reached.
 
 ### Resolved decisions (PRD ↔ handoff)
 

@@ -104,6 +104,19 @@ try {
   const heldB = await getPaymentIntent(piB.paymentIntentId);
   check('…and the second card hold is released', heldB.status === 'canceled', heldB.status);
 
+  // Double-submit (double tap, or a retry after a timeout): same PaymentIntent, twice at once.
+  await grant(500);
+  const t6 = at(70);
+  const pi6 = await hold(t6);
+  const both = await Promise.allSettled([
+    api.bookings.confirm({ tutorId, courseCode, scheduledAt: t6, durationMinutes: 60, sessionType: 'in_person', paymentIntentId: pi6.paymentIntentId }),
+    api.bookings.confirm({ tutorId, courseCode, scheduledAt: t6, durationMinutes: 60, sessionType: 'in_person', paymentIntentId: pi6.paymentIntentId }),
+  ]);
+  for (const r of both) if (r.status === 'fulfilled') bookings.push(r.value.bookingId);
+  check('a double-submit books once', both.filter((r) => r.status === 'fulfilled').length === 1, both.map((r) => r.status).join(','));
+  const held6 = await getPaymentIntent(pi6.paymentIntentId);
+  check('…and the booking that went through keeps its card hold', held6.status === 'requires_capture', held6.status);
+
   console.log('\n— cancelling returns credit —');
   const bal0 = await api.credits.balance();
   const r100 = await api.bookings.cancel(b1);
