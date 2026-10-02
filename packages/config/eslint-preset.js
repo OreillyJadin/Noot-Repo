@@ -15,7 +15,9 @@ const BACKEND_ONLY_IMPORTS = [
       'Import Supabase only inside packages/core or supabase/functions. Elsewhere, use @noot/core.',
   },
   {
-    group: ['stripe', 'stripe/*', '@stripe/stripe-js', '@stripe/*'],
+    // The native PaymentSheet SDK is the exception: it's on-device UI that only holds the
+    // publishable key, it can't live in packages/core, and it doesn't change with the backend.
+    group: ['stripe', 'stripe/*', '@stripe/stripe-js', '@stripe/*', '!@stripe/stripe-react-native'],
     message:
       'Import Stripe only inside packages/core or supabase/functions. Elsewhere, use @noot/core.',
   },

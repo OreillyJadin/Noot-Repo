@@ -4,6 +4,8 @@
 import React from 'react';
 import { Image, type ImageStyle, type StyleProp } from 'react-native';
 
+// Metro bundles images through require(); there's no import form for a static asset here.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const GECKO = require('../assets/gecko-sage.png');
 
 export interface GeckoMarkProps {

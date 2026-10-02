@@ -473,6 +473,7 @@ export interface SubmitRatingInput {
 // api
 // ---------------------------------------------------------------------------
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- untyped Supabase row, like the mappers above */
 function mapAmbassadorProfile(row: any): AmbassadorProfile {
   return {
     id: row.id,
@@ -485,6 +486,7 @@ function mapAmbassadorProfile(row: any): AmbassadorProfile {
     updatedAt: row.updated_at,
   };
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /** See api.profile.getTutorStanding. */
 export type TutorApplicationStatus = 'none' | 'draft' | 'pending' | 'approved' | 'rejected';
@@ -1162,11 +1164,11 @@ export const api = {
         .select('id, first_name, last_name, email, status, user_roles(role)')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return (data ?? []).map((u: any) => ({
+      return (data ?? []).map((u) => ({
         id: u.id,
         name: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || '—',
         email: u.email,
-        roles: (u.user_roles ?? []).map((r: any) => r.role),
+        roles: (u.user_roles ?? []).map((r: { role: string }) => r.role),
         status: u.status,
       }));
     },
@@ -1264,8 +1266,8 @@ export const api = {
       const ids = [...new Set(rows.flatMap((b) => [b.student_id, b.tutor_id]))];
       const { data: users } = ids.length
         ? await sb.from('users').select('id, first_name, last_name').in('id', ids)
-        : { data: [] as any[] };
-      const nameById = new Map((users ?? []).map((u: any) => [u.id, `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || '—']));
+        : { data: [] };
+      const nameById = new Map((users ?? []).map((u) => [u.id, `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || '—']));
       return rows.map((b) => ({
         id: b.id,
         studentName: nameById.get(b.student_id) ?? '—',
@@ -1582,28 +1584,28 @@ export const api = {
       if (rows.length === 0) return [];
 
       // counterpart names
-      const otherIds = [...new Set(rows.map((c: any) => (c.student_id === uid ? c.tutor_id : c.student_id)))];
+      const otherIds = [...new Set(rows.map((c) => (c.student_id === uid ? c.tutor_id : c.student_id)))];
       const { data: users, error: uErr } = await sb
         .from('users')
         .select('id, first_name, last_name')
         .in('id', otherIds);
       if (uErr) throw uErr;
-      const byId = new Map((users ?? []).map((u: any) => [u.id, u]));
+      const byId = new Map((users ?? []).map((u) => [u.id, u]));
 
       // last message per conversation (fetch recent, pick newest per convo)
-      const convoIds = rows.map((c: any) => c.id);
+      const convoIds = rows.map((c) => c.id);
       const { data: msgs, error: mErr } = await sb
         .from('messages')
         .select('*')
         .in('conversation_id', convoIds)
         .order('created_at', { ascending: false });
       if (mErr) throw mErr;
-      const lastByConvo = new Map<string, any>();
+      const lastByConvo = new Map<string, Record<string, unknown>>();
       for (const m of msgs ?? []) {
         if (!lastByConvo.has(m.conversation_id)) lastByConvo.set(m.conversation_id, m);
       }
 
-      return rows.map((c: any): ConversationSummary => {
+      return rows.map((c): ConversationSummary => {
         const otherId = c.student_id === uid ? c.tutor_id : c.student_id;
         const u = byId.get(otherId);
         const last = lastByConvo.get(c.id);
@@ -1856,6 +1858,7 @@ export const api = {
   },
 };
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- untyped Supabase row, like the mappers above */
 function mapNotification(row: any): Notification {
   return {
     id: row.id,
@@ -1867,3 +1870,4 @@ function mapNotification(row: any): Notification {
     createdAt: row.created_at,
   };
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
