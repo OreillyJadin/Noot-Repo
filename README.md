@@ -37,7 +37,7 @@ pnpm mobile                # run the app (iOS/Android/web) — fast, local netwo
 pnpm mobile-team           # run the app in tunnel mode — teammates can test off-network
 pnpm tunnel                # mobile-team inside tmux — survives SSH drops; reattach on the road
 pnpm web                   # run the marketing site
-pnpm typecheck             # typecheck all packages
+pnpm typecheck             # typecheck all packages except @noot/web
 pnpm lint                  # lint (enforces the migration-boundary guardrail)
 ```
 

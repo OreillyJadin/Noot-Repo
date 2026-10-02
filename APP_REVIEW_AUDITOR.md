@@ -24,7 +24,7 @@ Requirements:
 6. **Metadata and IP (Guideline 3.2 / 5.2).** No University of Alabama logos or marks in `apps/mobile/assets` or the design handoff assets. No copy implying university affiliation. Nothing framing the app as being for one organization only. The crimson theme is a colour, not a mark — flag it only if it's paired with UA marks.
 7. **Stripe mode.** Nothing in the deployed functions or the DB assumes test-mode IDs carry over to live mode (T10).
 
-You may run read-only commands: grep, `pnpm -r typecheck`, `pnpm check:release`, the `scripts/verify_*.mts` suites against the **local** stack, and read-only SQL. Never edit files, apply migrations, deploy, or touch production data.
+You may run read-only commands: grep, `pnpm typecheck`, `pnpm check:release`, the `scripts/verify_*.mts` suites against the **local** stack, and read-only SQL. Never edit files, apply migrations, deploy, or touch production data.
 
 Output format:
 
