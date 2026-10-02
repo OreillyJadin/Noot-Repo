@@ -1385,6 +1385,25 @@ export const api = {
     },
 
     /**
+     * Tutor side: the conversation with one of your students. confirm-booking creates it
+     * when the session is booked; tutors can't start one (conversations_insert, 0002).
+     * getOrCreateConversation is the STUDENT's call — it matches student_id = me — which is
+     * why the tutor chat never found the real conversation (tracker B2).
+     */
+    async getConversationWithStudent(studentId: string): Promise<Conversation> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('conversations')
+        .select('*')
+        .eq('tutor_id', uid)
+        .eq('student_id', studentId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('No conversation with this student yet.');
+      return mapConversation(data);
+    },
+
+    /**
      * The single admin team room (0024). Membership is implicit — RLS returns this row only
      * to admins, and only admins can read or post in it. Throws for everyone else.
      */

@@ -1,8 +1,9 @@
 // M2 Chat (Tutor view) — ported from screens-chat.jsx (ChatTutor = Chat with
 // perspective="tutor"). Same thread as chat.tsx (M1), rendered from the tutor's
 // side: bubbles flipped, header shows the student.
-// Wired to @noot/core messaging: the conversation with booking.tutor is
-// loaded/created on mount, messages are fetched + streamed live, and the
+// Wired to @noot/core messaging: the conversation with the session's student
+// (booking.studentId — confirm-booking created it) is loaded on mount,
+// messages are fetched + streamed live, and the
 // composer sends text and/or attachments through the API.
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -30,6 +31,8 @@ import { useAttachmentUrls } from '../lib/useAttachmentUrls';
 import { separatorLabel } from '../lib/chatTime';
 import { openSafetyMenu, reportMessage } from '../lib/moderation';
 import { errText } from '../lib/errText';
+import { useMe } from '../lib/useMe';
+import { tutorSessionDrafts } from '../lib/sessionDrafts';
 
 type Who = 'student' | 'tutor';
 type AttachKind = 'image' | 'file';
@@ -81,7 +84,8 @@ function fmtSize(b: number): string {
 
 export default function ChatTutor() {
   const { booking } = useApp();
-  if (!booking.tutor) {
+  // Keyed on the session's student: the tutor's chat is the conversation with them.
+  if (!booking.studentId) {
     return <NoSession title="No conversation yet" subtitle="Open a chat from one of your sessions." />;
   }
   return <ChatTutorInner />;
@@ -95,8 +99,7 @@ function ChatTutorInner() {
 
   // Counterpart conversation comes from the booking draft; the student's real name
   // (header/placeholder) resolves via the resolve-participants edge function.
-  const tutorId = booking.tutor!.id;
-  // May be absent on an older draft; the safety menu and block check need a definite id.
+  // Guaranteed by ChatTutor's guard; kept nullable for the safety menu's existing checks.
   const studentId = booking.studentId ?? null;
   const student = useCounterpart(booking.studentId);
   const other = student.name;
@@ -113,6 +116,23 @@ function ChatTutorInner() {
   const [blocked, setBlocked] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
+  // Suggested messages for a booked session (B2) — the location one asks the tutor to name
+  // the exact spot. Only fills the composer; the tutor edits and sends it themselves.
+  const { me } = useMe();
+  const drafts = booking.bookingId
+    ? tutorSessionDrafts({
+        studentFirstName: other.split(' ')[0] ?? '',
+        tutorFirstName: me?.firstName ?? '',
+        course: booking.course ?? '',
+        location: booking.location ?? '',
+        when: booking.scheduledAt
+          ? new Date(booking.scheduledAt)
+              .toLocaleString(undefined, { weekday: 'long', hour: 'numeric', minute: '2-digit' })
+              .replace(/,? (\d)/, ' at $1')
+          : '',
+      })
+    : [];
+
   // Every attachment on screen (sent + staged) needs a signed URL — the bucket is private.
   const urls = useAttachmentUrls([
     ...messages.flatMap((m) => m.attach?.map((a) => a.storagePath) ?? []),
@@ -126,7 +146,9 @@ function ChatTutorInner() {
     (async () => {
       try {
         const me = await auth.getSessionUserId();
-        const conv = await api.chat.getOrCreateConversation(tutorId);
+        // The conversation confirm-booking created with this student. (getOrCreateConversation
+        // is the student-side call and matched the tutor as the student — B2.)
+        const conv = await api.chat.getConversationWithStudent(studentId!);
         if (!active) return;
         setUid(me);
         setConvId(conv.id);
@@ -149,7 +171,7 @@ function ChatTutorInner() {
       active = false;
       unsub();
     };
-  }, [tutorId]);
+  }, [studentId]);
 
   const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading && !blocked;
 
@@ -255,6 +277,29 @@ function ChatTutorInner() {
             </View>
           )}
         </ScrollView>
+
+        {drafts.length > 0 && !draft && !blocked ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            style={[styles.draftBar, { borderTopColor: t.border, backgroundColor: t.surface }]}
+            contentContainerStyle={styles.draftRow}
+          >
+            {drafts.map((d) => (
+              <Pressable
+                key={d.key}
+                onPress={() => setDraft(d.text)}
+                accessibilityRole="button"
+                accessibilityLabel={`Draft a message: ${d.label}`}
+                style={[styles.draftChip, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}
+              >
+                <Ic name={d.key === 'location' ? 'pin' : d.key === 'intro' ? 'chat' : 'doc'} size={14} color={t.accent} strokeWidth={2} />
+                <Text style={[styles.draftLabel, { color: t.accent }]}>{d.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
 
         <View style={[styles.composer, { backgroundColor: t.surface, borderTopColor: t.border }]}>
           <Pressable
@@ -384,6 +429,10 @@ function AttachChip({ a, url, onRemove }: { a: Attachment; url?: string; onRemov
 }
 
 const styles = StyleSheet.create({
+  draftBar: { flexGrow: 0, borderTopWidth: 1 },
+  draftRow: { gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  draftChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, height: 34, borderRadius: 999, borderWidth: 1 },
+  draftLabel: { fontSize: 13, fontWeight: '600' },
   root: { flex: 1 },
   nav: { flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingHorizontal: 8, paddingVertical: 6, gap: 4 },
   navSide: { width: 48, justifyContent: 'center' },

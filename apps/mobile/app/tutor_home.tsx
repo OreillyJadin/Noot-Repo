@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, ViewingAs, PreviewBanner, useTheme, type IconName } from '@noot/ui';
 import { api, type Booking, type Message } from '@noot/core';
 import { useApp } from '../lib/store';
+import { draftFromBooking } from '../lib/bookingDraft';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
@@ -94,7 +95,7 @@ export default function TutorHome() {
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
-  const { role } = useApp();
+  const { role, patchBooking } = useApp();
   const { me, loading, tutorStatus, gradesVerified } = useMe();
   const multiRole = (me?.roles ?? []).filter((r) => r === 'student' || r === 'tutor' || r === 'ambassador').length > 1;
   // Reachable before approval (via the switcher, or straight off T10). Branch on the
@@ -135,8 +136,15 @@ export default function TutorHome() {
 
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
+  // Both open the NEXT session, so the draft carries it (B2) — without it the chat had no
+  // student to open and session details had nothing to show.
   const openChat = () => {
+    if (next) patchBooking(draftFromBooking(next));
     router.push('/chat_tutor');
+  };
+  const openNextDetail = () => {
+    if (next) patchBooking(draftFromBooking(next));
+    router.push('/tb2');
   };
   const openEarnings = () =>
     Alert.alert('Earnings', stats ? `You've earned $${stats.earnedThisWeek.toFixed(2)} this week.` : 'Loading…');
@@ -197,7 +205,7 @@ export default function TutorHome() {
                 <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />
                 <Text style={[styles.nextBtnLabel, { color: t.onAccent }]}>Message</Text>
               </Pressable>
-              <Pressable onPress={() => router.push('/tb2')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
+              <Pressable onPress={openNextDetail} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
                 <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Details</Text>
               </Pressable>
             </View>

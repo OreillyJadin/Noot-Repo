@@ -6,7 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Body, TabBar, Button, Badge, Card, Avatar, Ic, H2, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
+import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
+import { draftFromBooking } from '../lib/bookingDraft';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
@@ -26,13 +28,13 @@ function formatWhen(iso: string): string {
   return `${label} · ${time}`;
 }
 
-interface SessionRow { id: string; name: string; av: string; course: string; when: string; where: string; pay: string; status: string; }
+interface SessionRow { id: string; name: string; av: string; course: string; when: string; where: string; pay: string; status: string; booking: Booking; }
 
 export default function TutorSessions() {
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
-  const { role } = useApp();
+  const { role, patchBooking } = useApp();
   const [tab, setTab] = useState<Tab>('upcoming');
 
   // Upcoming = live confirmed future sessions; Past = listPast (includes past-but-confirmed
@@ -48,6 +50,7 @@ export default function TutorSessions() {
       const name = (nm ? `${nm.firstName} ${nm.lastName}`.trim() : '') || 'Student';
       return {
         id: b.id,
+        booking: b,
         name,
         av: name.charAt(0) || 'S',
         course: b.subject,
@@ -77,8 +80,10 @@ export default function TutorSessions() {
 
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef, onReselect: () => setTab('upcoming') });
-  const openDetail = () => {
-    // TODO(api): pass the tapped booking id so tb2 can load this exact session.
+  // Carry the tapped session into the draft tb2 and the chat read (B2) — it used to open
+  // whatever draft was left in the store.
+  const openDetail = (r: SessionRow) => {
+    patchBooking(draftFromBooking(r.booking));
     router.push('/tb2');
   };
 
@@ -134,7 +139,7 @@ export default function TutorSessions() {
           ) : (
             <View style={{ gap: 10 }}>
               {upcoming.map((r, i) => (
-                <Card key={i} onPress={openDetail} style={{ padding: 14 }}>
+                <Card key={i} onPress={() => openDetail(r)} style={{ padding: 14 }}>
                   <View style={styles.upcomingRow}>
                     <Avatar size={44} label={r.av} />
                     <View style={{ flex: 1, minWidth: 0 }}>

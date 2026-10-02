@@ -51,26 +51,27 @@ export default function TB2() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { booking } = useApp();
-  // Session facts + earnings are derived from the booking draft (store). When the draft
-  // is empty (e.g. deep-linked), fetch a real tutor for rate/course data instead of demo.
+  // Session facts + earnings are derived from the booking draft (store). This is the
+  // tutor's own screen, so when the draft doesn't carry a tutor, load the signed-in tutor's
+  // own profile for the rates. (It used to take the first search result — always some other
+  // tutor, since search excludes you — and show their rates as your earnings.)
   const [fetchedTutor, setFetchedTutor] = useState<Tutor | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const { me, gradesVerified } = useMe();
   useEffect(() => {
-    if (booking.tutor) return; // draft already carries the tutor
+    if (booking.tutor || !me) return; // draft already carries the tutor
     let active = true;
     api.tutors
-      .search()
-      .then((list) => { if (active && list[0]) setFetchedTutor(toTutor(list[0])); })
-      .catch(() => { /* deep-linked with no draft → resolve a real tutor for rates */ });
+      .getById(me.id)
+      .then((own) => { if (active && own) setFetchedTutor(toTutor(own)); })
+      .catch(() => { /* offline → NoSession below */ });
     return () => { active = false; };
-  }, [booking.tutor]);
+  }, [booking.tutor, me?.id]);
   const student = useCounterpart(booking.studentId);
   const studentMeta = [student.year, student.major].filter(Boolean).join(' · ');
   const tutor = booking.tutor ?? fetchedTutor;
-  // Fee follows the tutor's verification (T6): 17.5% verified, 32.5% not.
-  // Above the early return: hooks can't run conditionally.
-  const { gradesVerified } = useMe();
   if (!tutor) return <NoSession />;
+  // Fee follows the tutor's verification (T6): 17.5% verified, 32.5% not.
   const feeRate = feeRateFor(gradesVerified);
   const f = sessionFacts(booking, tutor, feeRate);
 
