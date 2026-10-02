@@ -13,7 +13,7 @@ import { useApp } from '../lib/store';
 const TASKS: [IconName, string, string][] = [
   ['user', 'Set notification preferences', '/notifications'],
   ['edit', 'Add a bio (recommended)', '/edit_tutor'],
-  ['star', 'Refer a tutor — earn $10', '/ambassador_referrals'],
+  ['star', 'Refer a classmate — earn $5', '/ambassador_referrals'],
 ];
 
 export default function T10() {
