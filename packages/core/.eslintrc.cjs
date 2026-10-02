@@ -2,7 +2,7 @@
 // the Supabase client and Stripe SDK directly. Turn the backend-only-import
 // guardrail off here. See packages/config/eslint-preset.js (ARCHITECTURE.md §9).
 module.exports = {
-  extends: ['@noot/config'],
+  extends: [require.resolve('@noot/config')],
   rules: {
     'no-restricted-imports': 'off',
   },
