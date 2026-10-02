@@ -134,6 +134,11 @@ Deno.serve(async (req) => {
         p_payment_intent: storedPaymentIntentId,
       });
       if (spendErr) {
+        // Same PaymentIntent already spent = a double-submit of a confirm that's going
+        // through. Leave its hold alone — releasing it would cancel the real booking's payment.
+        if (spendErr.code === '23505') {
+          return Response.json({ error: 'That payment has already been used' }, { status: 409, headers: cors });
+        }
         if (releaseHold) await releaseHold().catch((e) => console.error('confirm-booking: release hold failed', String(e)));
         return Response.json(
           { error: 'Your Noot credit changed since checkout, so you weren’t charged. Please book again.' },
@@ -170,18 +175,25 @@ Deno.serve(async (req) => {
       .single();
 
     if (bookingError) {
-      // Give the credit back — there's no booking for it to have paid for.
+      // No booking, so nothing for the credit or the hold to pay for: give both back.
       if (creditCents > 0) {
-        await db.from('credit_ledger').insert({ user_id: studentId, amount_cents: creditCents, kind: 'adjustment', payment_intent_id: storedPaymentIntentId });
+        const { error: backErr } = await db
+          .from('credit_ledger')
+          .insert({ user_id: studentId, amount_cents: creditCents, kind: 'adjustment', payment_intent_id: storedPaymentIntentId });
+        if (backErr) console.error('confirm-booking: credit NOT returned after failed insert', storedPaymentIntentId, backErr.message);
       }
+      if (releaseHold) await releaseHold().catch((e) => console.error('confirm-booking: release hold failed', String(e)));
       throw bookingError;
     }
     if (creditCents > 0) {
-      await db
+      // return_booking_credit also finds the spend by PaymentIntent, so a failure here is
+      // logged rather than fatal.
+      const { error: linkErr } = await db
         .from('credit_ledger')
         .update({ booking_id: booking.id })
         .eq('payment_intent_id', storedPaymentIntentId)
         .eq('kind', 'booking_spend');
+      if (linkErr) console.error('confirm-booking: could not link credit spend', booking.id, linkErr.message);
     }
 
     const { data: conversation, error: conversationError } = await db

@@ -95,8 +95,9 @@ Deno.serve(async (req: Request) => {
         } else {
           // The card was held for the price minus any Noot credit (0040), so the late-cancel
           // share comes out of that, not the full price.
-          const charged = Number(booking.price) - Number(booking.credit_applied ?? 0);
-          const captureCents = Math.round(charged * ((100 - refundPercent) / 100) * 100);
+          // Whole cents, so e.g. $17.33 − $5 can't round a cent away.
+          const chargedCents = Math.round(Number(booking.price) * 100) - Math.round(Number(booking.credit_applied ?? 0) * 100);
+          const captureCents = Math.round((chargedCents * (100 - refundPercent)) / 100);
           await stripe.paymentIntents.capture(pi, { amount_to_capture: captureCents }, { idempotencyKey: `cancelcap_${bookingId}` });
         }
       } catch (stripeErr) {
