@@ -25,9 +25,9 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
   const [balance, setBalance] = useState<number | null>(null);
   const [invites, setInvites] = useState<Invite[] | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [approved, setApproved] = useState(false);
+  const [approved, setApproved] = useState<boolean | null>(null); // null = not known yet
   const [cashable, setCashable] = useState(0);
-  const [paidGoals, setPaidGoals] = useState(0); // milestone bonuses actually credited
+  const [paidGoals, setPaidGoals] = useState<Set<number>>(new Set()); // thresholds actually credited
   const [cashingOut, setCashingOut] = useState(false);
   const [bump, setBump] = useState(0);
 
@@ -42,7 +42,9 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
       api.credits.cashable().then((c) => { if (alive) setCashable(c); }).catch(() => {});
       api.credits
         .history()
-        .then((h) => { if (alive) setPaidGoals(h.filter((e) => e.kind === 'milestone_bonus').length); })
+        .then((h) => {
+          if (alive) setPaidGoals(new Set(h.filter((e) => e.kind === 'milestone_bonus').map((e) => e.milestone ?? 0)));
+        })
         .catch(() => {});
     }
     return () => { alive = false; };
@@ -149,7 +151,7 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
       {isAmbassador ? (
         <>
           <Eyebrow style={{ color: t.text3, marginTop: 22, marginBottom: 10 }}>Ambassador goals</Eyebrow>
-          {!approved ? (
+          {approved === false ? (
             <Card flat style={{ padding: 14, marginBottom: 10, backgroundColor: t.surfaceAlt }}>
               <Text style={[styles.goalTitle, { color: t.text }]}>Pending team approval</Text>
               <Text style={[styles.goalSub, { color: t.text3 }]}>
@@ -176,9 +178,9 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
               <Skeleton height={40} />
             )}
             <View style={{ marginTop: 12, gap: 8 }}>
-              {milestones.map((m, idx) => {
-                // Ticked once the bonus is actually credited (milestones pay in order).
-                const hit = idx < paidGoals;
+              {milestones.map((m) => {
+                // Ticked once that goal's bonus is actually credited.
+                const hit = paidGoals.has(m.threshold);
                 return (
                   <View key={m.threshold} style={styles.goalRow}>
                     <Ic name={hit ? 'check' : 'target'} size={16} color={hit ? t.good : t.text3} strokeWidth={2} />
@@ -200,11 +202,13 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
             <View style={{ flex: 1 }}>
               <Text style={[styles.cashTitle, { color: t.text }]}>{cashingOut ? 'Requesting…' : 'Cash out credit'}</Text>
               <Text style={[styles.cashSub, { color: t.text3 }]}>
-                {!approved
-                  ? 'Opens once the team approves you'
-                  : cashable >= CASHOUT_MIN_CENTS
-                    ? `${dollars(cashable)} available now`
-                    : `Available at ${dollars(CASHOUT_MIN_CENTS)}+ · credit earned this week unlocks after 7 days`}
+                {approved === null
+                  ? ' '
+                  : !approved
+                    ? 'Opens once the team approves you'
+                    : cashable >= CASHOUT_MIN_CENTS
+                      ? `${dollars(cashable)} available now`
+                      : `Available at ${dollars(CASHOUT_MIN_CENTS)}+ · credit earned this week unlocks after 7 days`}
               </Text>
             </View>
           </Pressable>

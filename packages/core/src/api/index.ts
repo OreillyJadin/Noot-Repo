@@ -57,6 +57,8 @@ export interface CreditEntry {
   id: string;
   kind: CreditKind;
   amountCents: number;
+  /** For a milestone_bonus: the goal (threshold) it paid. */
+  milestone: number | null;
   createdAt: string;
 }
 
@@ -1154,7 +1156,7 @@ export const api = {
       const uid = await requireUid();
       const { data, error } = await getSupabase()
         .from('credit_ledger')
-        .select('id, kind, amount_cents, created_at')
+        .select('id, kind, amount_cents, milestone, created_at')
         .eq('user_id', uid)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -1162,6 +1164,7 @@ export const api = {
         id: e.id as string,
         kind: e.kind as CreditKind,
         amountCents: e.amount_cents as number,
+        milestone: (e.milestone as number | null) ?? null,
         createdAt: e.created_at as string,
       }));
     },
