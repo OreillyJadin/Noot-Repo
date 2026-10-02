@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
     // Load booking.
     const { data: booking, error: loadError } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, scheduled_at, status, price, stripe_payment_intent_id')
+      .select('id, student_id, tutor_id, scheduled_at, status, price, credit_applied, stripe_payment_intent_id')
       .eq('id', bookingId)
       .single();
 
@@ -93,7 +93,10 @@ Deno.serve(async (req: Request) => {
         if (refundPercent === 100) {
           await stripe.paymentIntents.cancel(pi, {}, { idempotencyKey: `cancel_${bookingId}` });
         } else {
-          const captureCents = Math.round(Number(booking.price) * ((100 - refundPercent) / 100) * 100);
+          // The card was held for the price minus any Noot credit (0040), so the late-cancel
+          // share comes out of that, not the full price.
+          const charged = Number(booking.price) - Number(booking.credit_applied ?? 0);
+          const captureCents = Math.round(charged * ((100 - refundPercent) / 100) * 100);
           await stripe.paymentIntents.capture(pi, { amount_to_capture: captureCents }, { idempotencyKey: `cancelcap_${bookingId}` });
         }
       } catch (stripeErr) {
@@ -113,6 +116,12 @@ Deno.serve(async (req: Request) => {
 
     if (updateError) {
       return Response.json({ error: updateError.message }, { status: 400, headers: cors });
+    }
+
+    // Noot credit comes back in the same proportion as the cash refund. Once per booking.
+    if (Number(booking.credit_applied ?? 0) > 0) {
+      const { error: creditErr } = await db.rpc('return_booking_credit', { p_booking: bookingId, p_percent: refundPercent });
+      if (creditErr) console.error('cancel-booking: credit return failed', bookingId, creditErr.message);
     }
 
     return Response.json(

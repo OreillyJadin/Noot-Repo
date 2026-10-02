@@ -1,11 +1,9 @@
 // Edge Function: award-referral-bonus.
-// ⚠️ SECURITY-REVIEW (referral fraud). Creates the flat $5 referral bonus when a referred
-// user's FIRST paid session completes. Service-role only; intended to be called from
-// complete-session (NOT yet built — the Stripe/completion workstream). Idempotent and
-// fraud-guarded: referral_bonuses.referral_id is UNIQUE (one bonus per referral ever), the
-// booking must be 'completed', and self-referrals are already blocked by a CHECK on
-// referrals (ambassador_id <> referred_user_id). Access is gated to service-role callers
-// (see the Authorization check below) so an end-user JWT can't trigger bonus creation.
+// ⚠️ SECURITY-REVIEW (referral fraud). When a booking completes, credits $5 of Noot credit
+// to whoever invited the student and whoever invited the tutor — once per invited person,
+// ever — plus any ambassador milestone that unlocks (award_invite_rewards, 0040). Called
+// from complete-session. Service-role only (see the Authorization check below) so an
+// end-user JWT can't mint credit. Self-referral is blocked by a CHECK on referrals.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const cors = {
@@ -33,42 +31,13 @@ Deno.serve(async (req: Request) => {
     const url = Deno.env.get('SUPABASE_URL')!;
     const db = createClient(url, serviceKey);
 
-    const { data: booking, error: bErr } = await db
-      .from('bookings')
-      .select('id, student_id, status')
-      .eq('id', bookingId)
-      .maybeSingle();
-    if (bErr) return Response.json({ error: bErr.message }, { status: 400, headers: cors });
-    if (!booking) return Response.json({ error: 'booking not found' }, { status: 404, headers: cors });
-    if (booking.status !== 'completed') {
-      return Response.json({ awarded: false, reason: 'booking not completed' }, { headers: cors });
-    }
+    // award_invite_rewards (0040) does the checks and is idempotent: the booking must be
+    // completed, each invited person earns their inviter one reward ever, and an
+    // ambassador's milestone bonuses are paid once each.
+    const { data: awarded, error } = await db.rpc('award_invite_rewards', { p_booking: bookingId });
+    if (error) return Response.json({ error: error.message }, { status: 400, headers: cors });
 
-    // Was this student referred?
-    const { data: referral } = await db
-      .from('referrals')
-      .select('id, ambassador_id')
-      .eq('referred_user_id', booking.student_id)
-      .maybeSingle();
-    if (!referral) return Response.json({ awarded: false, reason: 'not referred' }, { headers: cors });
-
-    // One bonus per referral ever (unique constraint is the hard guard; check to be graceful).
-    const { data: existing } = await db
-      .from('referral_bonuses')
-      .select('id')
-      .eq('referral_id', referral.id)
-      .maybeSingle();
-    if (existing) return Response.json({ awarded: false, reason: 'already awarded' }, { headers: cors });
-
-    const { error: insErr } = await db.from('referral_bonuses').insert({
-      ambassador_id: referral.ambassador_id,
-      referral_id: referral.id,
-      triggering_booking_id: booking.id,
-      // bonus_amount defaults to 5.00; status defaults to 'pending' until the payout clears.
-    });
-    if (insErr) return Response.json({ error: insErr.message }, { status: 400, headers: cors });
-
-    return Response.json({ awarded: true }, { headers: cors });
+    return Response.json({ awarded: Number(awarded ?? 0) > 0, rewards: Number(awarded ?? 0) }, { headers: cors });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 400, headers: cors });
   }
