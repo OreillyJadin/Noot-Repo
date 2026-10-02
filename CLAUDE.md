@@ -93,6 +93,23 @@ Priorities: **security and code quality.** These rules apply to every change, ho
 - Merge the PR (squash, keeping `main` linear), delete the branch locally and on the remote,
   then `git checkout main && git pull`.
 
+### Sessions
+- Say when it's a good time to start a fresh session: after a feature is merged, before
+  switching to unrelated work, or when this session has run long enough that earlier context
+  may be stale.
+- Before Jadin switches, give a short **handoff note** to paste into the new session: branch,
+  status, and anything unfinished.
+
+### Subagents
+- Use subagents for **read-only exploration** of the codebase, so the main session stays
+  focused.
+- **Before every push**, spawn a separate review subagent that hasn't seen the work. It reviews
+  `git diff main...HEAD` for bugs, security issues (secrets, missing RLS, unvalidated input,
+  auth gaps) and anything outside the branch's scope. Fix what it finds, and summarize its
+  findings in the PR description.
+- **One feature, one branch at a time** — no parallel feature work unless Jadin explicitly asks
+  for it, and then each feature gets its own git worktree.
+
 ### Never, without asking first
 Force-push, rewrite pushed history, merge, delete a branch Jadin hasn't approved, or modify
 `main`, **including applying a migration to production.** Git `main` is linked to the
