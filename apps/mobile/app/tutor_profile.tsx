@@ -267,7 +267,7 @@ export default function TutorProfile() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.switchTitle, { color: t.text }]}>Become an ambassador</Text>
-              <Text style={[styles.switchSub, { color: t.text3 }]}>Share your code and earn $5 when a classmate completes their first paid session</Text>
+              <Text style={[styles.switchSub, { color: t.text3 }]}>Earn bonuses for invite goals and cash out your Noot credit</Text>
             </View>
             <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
           </Card>

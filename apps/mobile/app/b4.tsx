@@ -2,13 +2,13 @@
 // look: wallet buttons on top, card fields below, held-payment + cancellation
 // policy notes. Reads the booking draft from useApp() with safe fallbacks so
 // nothing renders undefined if a student lands here without going through B3.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
 import { useStripe } from '@stripe/stripe-react-native';
 import Constants from 'expo-constants';
-import { api } from '@noot/core';
+import { api, creditToApply } from '@noot/core';
 import { useApp } from '../lib/store';
 import { DAYS, MONTHS } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
@@ -40,7 +40,19 @@ function B4Inner() {
   const location = booking.location ?? 'Gorgas Library, Fl 2';
   const course = booking.course ?? tutor.courses[0]![0];
   const rate = (tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!)[2];
-  const cost = ((rate * lengthMin) / 60).toFixed(2).replace(/\.00$/, '');
+  const dollars = (cents: number) => (cents / 100).toFixed(2).replace(/\.00$/, '');
+  const costCents = Math.round((rate * lengthMin * 100) / 60);
+  const cost = dollars(costCents);
+  // Noot credit comes off automatically. Display only — create-payment-intent applies the
+  // same rule to the real balance, and the payment sheet shows what's actually charged.
+  const [balanceCents, setBalanceCents] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    api.credits.balance().then((b) => { if (alive) setBalanceCents(b); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const creditCents = creditToApply(balanceCents, costCents);
+  const due = dollars(costCents - creditCents);
 
   const rows: [string, string][] = [
     ['Tutor', tutor.name],
@@ -162,10 +174,16 @@ function B4Inner() {
             <Text style={{ fontSize: 14, color: t.text2 }}>Session · {lenLabel}</Text>
             <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>${cost}</Text>
           </View>
+          {creditCents > 0 ? (
+            <View style={[styles.rowBetween, { marginTop: 10 }]}>
+              <Text style={{ fontSize: 14, color: t.good }}>Noot credit</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: t.good }}>−${dollars(creditCents)}</Text>
+            </View>
+          ) : null}
           <Divider style={{ marginVertical: 14 }} />
           <View style={styles.rowBetween}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>Total</Text>
-            <Text style={{ fontSize: 22, fontWeight: '800', color: t.accent }}>${cost}</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: t.accent }}>${due}</Text>
           </View>
         </Card>
 
@@ -221,7 +239,7 @@ function B4Inner() {
       </Body>
 
       <ActionBar>
-        <Button label={`Confirm & pay $${cost}`} full onPress={pay} disabled={status === 'processing'} />
+        <Button label={`Confirm & pay $${due}`} full onPress={pay} disabled={status === 'processing'} />
       </ActionBar>
 
       {/* Processing overlay — brief window while the sheet opens / booking is created. */}

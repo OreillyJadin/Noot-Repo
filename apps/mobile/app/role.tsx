@@ -1,12 +1,15 @@
 // O4 Choose Role — ported from screens-shared.jsx (Role). One account holds both;
 // pick what to start as. Student → S1 profile setup → Home; Tutor → T1 onboarding → … → Tutor Home.
 // The choice is persisted to the shared app store so the whole app (tab bar, role-gated
-// screens) reflects the active role.
+// screens) reflects the active role. Every new account passes through here, so it's also
+// where a friend's invite code is entered (optional; redeem_invite_code, 0040).
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Alert, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Button, Card, useTheme } from '@noot/ui';
+import { Button, Card, Field, useTheme } from '@noot/ui';
+import { api } from '@noot/core';
+import { errText } from '../lib/errText';
 import { useApp } from '../lib/store';
 
 type RoleId = 'student' | 'tutor';
@@ -21,8 +24,23 @@ export default function Role() {
   const router = useRouter();
   const { setRole } = useApp();
   const [sel, setSel] = useState<RoleId>('student');
+  const [code, setCode] = useState('');
+  const [redeemed, setRedeemed] = useState(false); // so Back → Continue doesn't redeem twice
+  const [busy, setBusy] = useState(false);
 
-  const onContinue = () => {
+  const onContinue = async () => {
+    if (code.trim() && !redeemed) {
+      setBusy(true);
+      try {
+        await api.credits.redeem(code);
+        setRedeemed(true);
+      } catch (e) {
+        Alert.alert('Invite code not applied', errText(e, 'Please check the code and try again.'));
+        return;
+      } finally {
+        setBusy(false);
+      }
+    }
     setRole(sel);
     // Student → profile setup (S1); tutor → verification onboarding (T1 → … → tutor_home).
     router.push(sel === 'student' ? '/student_profile' : '/t1');
@@ -62,12 +80,24 @@ export default function Role() {
             );
           })}
         </View>
+
+        <View style={{ marginTop: 14 }}>
+          <Field
+            label="Invite code (optional)"
+            placeholder="NOOT-XXXXXX"
+            value={code}
+            onChangeText={setCode}
+            autoCapitalize="characters"
+            hint={redeemed ? 'Applied — your friend gets credit after your first session.' : 'Got one from a friend? Enter it here.'}
+          />
+        </View>
       </ScrollView>
 
       <View style={styles.actionBar}>
         <Button
           label={sel === 'student' ? 'Continue as Student' : 'Continue as Tutor'}
           onPress={onContinue}
+          disabled={busy}
         />
       </View>
     </SafeAreaView>
