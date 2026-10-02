@@ -193,7 +193,7 @@ export default function TutorProfile() {
           </View>
         ) : null}
 
-        {/* mode switcher — every mode, with the ones you haven't joined marked as preview */}
+        {/* mode switcher — the modes you hold, plus Tutor as a preview while the application is in review */}
         {roles.length + previewRoles.length > 1 ? (
           <View style={{ marginTop: 16 }}>
             <RoleSwitcher roles={roles} previewRoles={previewRoles} active={role} onSelect={switchTo} />

@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { api } from '@noot/core';
 import { useApp, type Role } from './store';
 import { useMe } from './useMe';
+import { previewRolesFor } from './roleTabs';
 
 const HOME: Record<Role, string> = {
   student: '/home',
@@ -19,10 +20,8 @@ export function useRoleSwitch() {
   const { me, isAdmin, tutorStatus } = useMe();
   // Roles the user actually holds; default to student until loaded. Admin is not switchable.
   const roles = (me?.roles ?? ['student']).filter((r): r is Role => r === 'student' || r === 'tutor' || r === 'ambassador');
-  // Modes the user can LOOK at without holding the role yet. Tutor and ambassador are both
-  // things you opt into, and you can't sensibly decide to apply without seeing what you'd get
-  // — previously the switcher hid them entirely until the application was already finished.
-  const previewRoles = (['tutor', 'ambassador'] as Role[]).filter((r) => !roles.includes(r));
+  // Modes shown without holding the role yet — only a submitted tutor application (see roleTabs).
+  const previewRoles = previewRolesFor(roles, role, tutorStatus);
 
   const switchTo = async (next: Role) => {
     if (next === role) return;
