@@ -95,7 +95,7 @@ Four roles. **A user can hold more than one role and switch between them from th
 |---|---|---|---|
 | Student | — | Books sessions with tutors | Active on `.edu` verify |
 | Tutor | `TutorProfiles` | Uploads transcript; **admin-approved** before bookable | `.edu` verify → admin approval |
-| Ambassador | `AmbassadorProfiles` | Recruits students/tutors via referral code; earns a **flat $5 one-time bonus** per referral's first completed paid session | Active on `.edu` verify |
+| Ambassador | `AmbassadorProfiles` | Invites like everyone ($5 Noot credit per invitee who completes a session), plus **milestone bonuses** (`AmbassadorMilestones`) and **cash-out** of credit | Active on `.edu` verify |
 | Admin | — | noot team — approves tutors, moderates reviews, manages accounts | Internal |
 
 A typical account is student + tutor; ambassador/admin are usually held on their own.
@@ -120,13 +120,22 @@ AmbassadorProfiles            1:1 with Users where role=ambassador
   id · user_id(unique) · referral_code(unique) · stripe_connect_account_id
   total_referrals · total_earned · created_at · updated_at
 
-Referrals                     who each ambassador recruited
-  id · ambassador_id · referred_user_id · referred_role(student|tutor)
+InviteCodes                   one per user (0040); generated server-side, never client-chosen
+  user_id(pk) · code(unique) · created_at
+
+Referrals                     who invited whom (ambassador_id = the inviter, any user since 0040)
+  id · ambassador_id · referred_user_id(unique) · referred_role(student|tutor)
   referral_code_used · created_at
 
-ReferralBonuses               flat $5, one per referral EVER
-  id · ambassador_id · referral_id(unique) · triggering_booking_id
-  bonus_amount · status(pending|paid) · paid_at · created_at
+CreditLedger                  Noot credit (0040). Append-only; balance = sum(amount_cents)
+  id · user_id · amount_cents(±) · kind(invite_reward|milestone_bonus|booking_spend|
+  booking_return|cashout|adjustment) · referral_id · booking_id · payment_intent_id
+  milestone · cashout_id · created_at      — partial unique indexes make each event once-only
+
+AmbassadorMilestones          threshold(pk) · bonus_cents   (placeholder amounts; team-editable)
+CreditCashouts                id · user_id · amount_cents(≥1000) · status(pending|paid|rejected)
+
+ReferralBonuses               LEGACY (cash bonuses before 0040); no longer written
 
 Bookings                      the unit of work
   id · student_id · tutor_id · subject · scheduled_at · duration_minutes
@@ -162,11 +171,12 @@ PushTokens                    device registration for notifications
 **RLS highlights:** users read/write only their own row; bookings visible only to their student or
 tutor; conversation/message rows only to participants; only `approved` tutors are student-visible;
 **reviews are readable only when `approval_status=approved`** (pending/rejected visible to admins
-only); `ReferralBonuses` uniqueness on `referral_id` enforces one-bonus-per-referral.
+only); credit is written only by SECURITY DEFINER functions — clients read their own
+ledger rows and nothing else; one `invite_reward` per referral is a unique index.
 
 **Backend rules (Edge Functions, §5):** booking must fall inside a `TutorAvailability` window and
-not overlap a confirmed booking; on `completed` + payment cleared, check the referred user for a
-`Referrals` row with no `ReferralBonuses` yet → create one.
+not overlap a confirmed booking; on `completed`, `award_invite_rewards` credits $5 to whoever
+invited the student and the tutor (once per invitee, ever) plus any ambassador milestone.
 
 ### Resolved decisions (PRD ↔ handoff)
 
@@ -178,7 +188,7 @@ Where the PRD and the design handoff disagreed, these are the decided outcomes:
 | Ratings/reviews | **Admin-moderated** — hidden from everyone until an admin approves, then attached to the rated user |
 | Cancellation refund | **Binary 24h** — full refund before `scheduled_at − 24h`, none after |
 | Availability | **Weekly windows + one-off overrides** (`TutorAvailability` + `availability_overrides`) |
-| Ambassador role | **Included** (referrals + flat $5 one-time bonus) |
+| Ambassador role | **Included** (invites + milestone bonuses + credit cash-out) |
 
 ---
 
@@ -195,7 +205,7 @@ Everything the client can't be trusted to do. Deno, in `supabase/functions/`.
 | `complete-session` | C-flow / cron | Capture held payment, transfer payout to tutor; on success, run the referral-bonus check. |
 | `submit-review` | after session | Store review as `approval_status=pending` — hidden from everyone until moderated. |
 | `moderate-review` | admin | Admin approves/rejects a review; on approve, attach to the subject user + update `rating_avg`. |
-| `award-referral-bonus` | on `complete-session` | If the booking's student/tutor was referred and has no prior bonus → create a `ReferralBonuses` row + payout. |
+| `award-referral-bonus` | on `complete-session` | Service-role only. Calls `award_invite_rewards`: $5 Noot credit to the inviter of the booking's student/tutor (once per invitee) + ambassador milestones. |
 | `cancel-booking` | cancel | **Binary 24h**: cancel before `scheduled_at − 24h` → full refund; after → none. Set `refund_status`. |
 | `approve-tutor` | admin | Set `TutorProfiles.approval_status`; only approved tutors become bookable. |
 | `send-reminders` (scheduled) | `pg_cron` | 24h + 1h reminders (location / video link on the 1h). |
@@ -248,8 +258,12 @@ reproduce against the real backend — do not port localStorage.
   then attached to the rated user. Enforced in `submit-review` / `moderate-review` + RLS, never client-side.
 - **Refunds (binary 24h):** full refund if cancelled before `scheduled_at − 24h`, none after —
   server rule in §5 `cancel-booking`; the screens only surface the state.
-- **Referral bonus:** flat $5 once per referral, on the referred user's first completed paid
-  session (§5 `award-referral-bonus`) — paid to the ambassador's Connect account.
+- **Noot credit (0040, replaces the cash referral bonus):** the inviter gets $5 credit when
+  the invitee completes a session. Credit comes off the next booking automatically
+  (`create-payment-intent`); the tutor's payout is still on the full price, so noot absorbs
+  it; the card is always charged at least $1. Spent under a per-user lock in
+  `confirm-booking`, returned pro rata on cancel and in full on a tutor no-show. Ambassadors
+  also earn milestone bonuses and can request a cash-out (paid by the team by hand for now).
 - Payments are **hosting-independent** — unchanged across Phase 1 and Phase 2.
 
 ---
