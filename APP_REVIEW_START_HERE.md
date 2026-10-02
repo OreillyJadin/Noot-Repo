@@ -65,7 +65,7 @@ Jadin.
 1. Every server-side ticket gets a `scripts/verify_<ticket>.mts` in the style of the existing suites,
    with both an allow case and a deny case. Run it against the **local** stack
    (`supabase start` + `node supabase/seed_demo.mjs`) and paste the output.
-2. Run `pnpm -r typecheck`, `pnpm check:release`, and `pnpm check:preview`.
+2. Run `pnpm typecheck`, `pnpm check:release`, and `pnpm check:preview`.
 3. **Deploy any Edge Function you touched** and confirm the deployed version bumped.
    `check:preview` says nothing about functions (lesson from 2026-08-20).
 4. Run the audit in `APP_REVIEW_AUDITOR.md` on the ticket before calling it done.

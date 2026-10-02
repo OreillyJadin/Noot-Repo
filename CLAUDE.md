@@ -57,16 +57,17 @@ Priorities: **security and code quality.** These rules apply to every change, ho
   `git checkout main && git pull && git checkout -b <type>/<short-description>`
 - Name branches by type: `feat/`, `fix/`, `chore/`, `refactor/`
   (e.g. `fix/onboarding-step4-courses`).
-- Keep branches short-lived and tightly scoped. If you notice an unrelated issue mid-task,
-  **don't fix it on the current branch** — note it and report it at the end.
-- Two features in one session = two branches. Commit and push the first before switching,
-  and say clearly when you switch and which branch each change lives on.
+- **One branch at a time**, short-lived and tightly scoped: push one before starting the next,
+  and say which branch each change lives on. Unrelated issues found mid-task get noted and
+  reported, not fixed on the current branch. Parallel branches only if Jadin asks (each in
+  its own git worktree).
 - **Never commit directly to `main`.**
 
 ### Before every push
 - Run **`pnpm lint`**, **`pnpm typecheck`** and **`pnpm test`**, plus the `scripts/verify_*.mts`
   checks that cover the change (see "Verifying changes" above). If any fail, don't push —
-  report what failed. (The pre-push hook also runs `pnpm check:preview`; see Conventions.)
+  report what failed. (The pre-push hook also runs `pnpm check:preview`; see Conventions.
+  Bypass it with `SKIP_SUPABASE_CHECK=1` only with Jadin's go-ahead.)
 - Review your own diff with `git diff main...HEAD` for leftover debug code, commented-out
   blocks, unrelated changes and TODOs.
 - Security check on that diff:
@@ -84,14 +85,18 @@ Priorities: **security and code quality.** These rules apply to every change, ho
   change per commit.**
 
 ### Handoff
-- Push the branch (`git push -u origin <branch>`), then give Jadin a **ready-to-paste PR
-  title and description**: what changed and why, how to verify it (the `verify_*.mts`
-  checks run; device steps only if useful), any migrations or env changes, and any risks.
-- Jadin opens the PR and reviews the diff. **Never merge without Jadin's explicit go-ahead.**
+- Push the branch (`git push -u origin <branch>`) and open the PR (`gh pr create`), or hand
+  Jadin the title and description to open it. The description covers what changed and why,
+  how it was verified (the `verify_*.mts` checks run; device steps only if useful), any
+  migrations or env changes, the review subagent's findings, and any risks.
+- Jadin reviews the diff and comments, then approves.
 
 ### After approval
-- Merge the PR (squash, keeping `main` linear), delete the branch locally and on the remote,
-  then `git checkout main && git pull`.
+- Approval means Jadin says so explicitly, in the session or as a GitHub approval. Once the
+  PR is approved and its checks are green, merge it (squash, keeping `main` linear), delete
+  the branch locally and on the remote, then `git checkout main && git pull`.
+- Merging to `main` deploys any migrations in the PR to production, so a PR with migrations
+  says so at the top of its description: approving it approves the production deploy.
 
 ### Sessions
 - Say when it's a good time to start a fresh session: after a feature is merged, before
@@ -107,12 +112,10 @@ Priorities: **security and code quality.** These rules apply to every change, ho
   `git diff main...HEAD` for bugs, security issues (secrets, missing RLS, unvalidated input,
   auth gaps) and anything outside the branch's scope. Fix what it finds, and summarize its
   findings in the PR description.
-- **One feature, one branch at a time** — no parallel feature work unless Jadin explicitly asks
-  for it, and then each feature gets its own git worktree.
 
 ### Never, without asking first
-Force-push, rewrite pushed history, merge, delete a branch Jadin hasn't approved, or modify
-`main`, **including applying a migration to production.** Git `main` is linked to the
+Force-push, rewrite pushed history, delete a branch Jadin hasn't approved, or modify `main`
+outside an approved merge, **including applying a migration to production.** Git `main` is linked to the
 production Supabase project, so migrations are meant to reach production through the merge.
 
 ## Layout
@@ -163,7 +166,8 @@ production Supabase project, so migrations are meant to reach production through
   the remote row to a numeric version with a matching local file, or add the local file
   (see `0016_enable_rls_stripe_schema.sql` for the guarded pattern). Needs
   `SUPABASE_ACCESS_TOKEN` (env or `.noot-secrets.local.env`). On a fresh clone run
-  `pnpm hooks:install` to enable the hook. Bypass once with `SKIP_SUPABASE_CHECK=1 git push`.
+  `pnpm hooks:install` to enable the hook. Bypass once with `SKIP_SUPABASE_CHECK=1 git push`,
+  only with Jadin's go-ahead.
 - Commit freely on the feature branch; never on `main` (see Git workflow). Git user is "Jadin".
 - DB is snake_case, models are camelCase — every row crosses a `map*` fn in
   `packages/core/src/api`. Note `TutorSummary.userId` (not `.id`).
