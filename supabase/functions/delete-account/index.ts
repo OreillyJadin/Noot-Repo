@@ -94,6 +94,8 @@ Deno.serve(async (req: Request) => {
     // 2. Personal data that isn't financial. tutor_profiles carries a bio and a transcript
     //    pointer; push tokens would keep notifying a deleted account.
     await db.from('push_tokens').delete().eq('user_id', uid);
+    // Revoke their invite code so it stops earning for a deleted account (0040).
+    await db.from('invite_codes').delete().eq('user_id', uid);
     await db.from('saved_tutors').delete().or(`student_id.eq.${uid},tutor_id.eq.${uid}`);
     await db.from('tutor_profiles').update({ bio: '', transcript_url: null }).eq('user_id', uid);
 

@@ -121,8 +121,9 @@ begin
   return new;
 end $$;
 
--- One invite per EMAIL, not per account: deleting the account (which cascades its referral)
--- and signing up again must not make the same person redeemable twice. Server-only.
+-- One invite per EMAIL, not per account: a new account for the same person (after
+-- delete-account, which keeps a scrubbed users row but frees the address) must not be able
+-- to redeem again. Server-only.
 create table redeemed_invite_emails (
   email_hash text primary key,
   created_at timestamptz not null default now()
@@ -130,9 +131,11 @@ create table redeemed_invite_emails (
 alter table redeemed_invite_emails enable row level security;
 -- No policies: only the SECURITY DEFINER functions here read or write it.
 
+-- Normalized first: lower-case, and "+tag" sub-addresses (a+1@x reaches a@x) count as one.
 create or replace function invite_email_hash(p_email text)
-returns text language sql immutable as $$
-  select encode(sha256(convert_to(lower(trim(coalesce(p_email, ''))), 'UTF8')), 'hex');
+returns text language sql immutable set search_path = public as $$
+  select encode(sha256(convert_to(
+    regexp_replace(lower(trim(coalesce(p_email, ''))), '\+[^@]*@', '@'), 'UTF8')), 'hex');
 $$;
 
 -- The app's path: a new user types a friend's code during onboarding.
@@ -212,6 +215,16 @@ $$;
 revoke execute on function is_approved_ambassador(uuid) from public, anon, authenticated;
 grant execute on function is_approved_ambassador(uuid) to service_role;
 
+-- Becoming an ambassador after approval also pays the goals already reached.
+create or replace function on_ambassador_role_added()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.role = 'ambassador' then
+    perform award_milestones(new.user_id);
+  end if;
+  return new;
+end $$;
+
 -- ---------------------------------------------------------------------------------------
 -- 4) Cash-out requests (ambassadors only). Paid by the team by hand for now; marking one
 --    'rejected' does NOT return the credit automatically — add an 'adjustment' row.
@@ -260,6 +273,8 @@ create unique index credit_ledger_one_bonus   on credit_ledger (user_id, milesto
 create unique index credit_ledger_one_spend   on credit_ledger (payment_intent_id)   where kind = 'booking_spend';
 create unique index credit_ledger_one_return  on credit_ledger (booking_id)          where kind = 'booking_return';
 create unique index credit_ledger_one_cashout on credit_ledger (cashout_id)          where kind = 'cashout';
+-- confirm-booking gives an unused spend back as an adjustment keyed by its PaymentIntent.
+create unique index credit_ledger_one_refund  on credit_ledger (payment_intent_id)   where kind = 'adjustment' and payment_intent_id is not null;
 alter table credit_ledger enable row level security;
 create policy credit_ledger_select on credit_ledger for select to authenticated
   using (user_id = auth.uid() or is_admin());
@@ -321,6 +336,8 @@ begin
 end $$;
 create trigger ambassador_approvals_award after insert on ambassador_approvals
   for each row execute function on_ambassador_approved();
+create trigger user_roles_ambassador_award after insert on user_roles
+  for each row execute function on_ambassador_role_added();
 
 create or replace function award_invite_rewards(p_booking uuid)
 returns int language plpgsql security definer set search_path = public as $$
@@ -491,4 +508,10 @@ select ambassador_id, round(bonus_amount * 100)::int, 'invite_reward', referral_
   from referral_bonuses
  where status = 'pending'
 on conflict (referral_id) where kind = 'invite_reward' do nothing;
+-- People referred before 0040 count as having used their one invite.
+insert into redeemed_invite_emails (email_hash)
+select distinct invite_email_hash(u.email)
+  from referrals r join users u on u.id = r.referred_user_id
+on conflict do nothing;
+
 comment on table referral_bonuses is 'Legacy (cash bonuses before 0040). New rewards go to credit_ledger.';

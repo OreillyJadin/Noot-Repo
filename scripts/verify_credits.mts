@@ -136,15 +136,20 @@ try {
   const again = await newUser('Again');
   const { data: againUser } = await svc.from('users').select('email').eq('id', again.uid).single();
   allowed(await again.c.rpc('redeem_invite_code', { p_code: code }), 'a new user redeems');
-  await svc.from('users').delete().eq('id', again.uid); // as delete-account does
+  // As delete-account does: scrub the users row (it's kept), revoke the code, drop the login.
+  await svc.from('users').update({ email: `deleted+${again.uid}@removed.invalid`, first_name: '', last_name: '' }).eq('id', again.uid);
+  await svc.from('invite_codes').delete().eq('user_id', again.uid);
   const del = await svc.auth.admin.deleteUser(again.uid);
   if (del.error) throw del.error;
-  const { data: reborn, error: rErr } = await svc.auth.admin.createUser({ email: againUser!.email, password: PASSWORD, email_confirm: true });
-  if (rErr) throw rErr;
-  created.push(reborn.user!.id);
-  const rc = createClient(URL, ANON, { auth: { persistSession: false } });
-  await rc.auth.signInWithPassword({ email: againUser!.email, password: PASSWORD });
-  blocked(await rc.rpc('redeem_invite_code', { p_code: code }), 'deleting the account and signing up again cannot redeem a second time');
+  const tagged = againUser!.email.replace('@', '+2@');
+  for (const addr of [againUser!.email, tagged]) {
+    const { data: reborn, error: rErr } = await svc.auth.admin.createUser({ email: addr, password: PASSWORD, email_confirm: true });
+    if (rErr) throw rErr;
+    created.push(reborn.user!.id);
+    const rc = createClient(URL, ANON, { auth: { persistSession: false } });
+    await rc.auth.signInWithPassword({ email: addr, password: PASSWORD });
+    blocked(await rc.rpc('redeem_invite_code', { p_code: code }), `a new account as ${addr === tagged ? 'a +tag of the same email' : 'the same email'} cannot redeem again`);
+  }
 
   const legacy = await newUser('Legacy');
   await legacy.c.rpc('redeem_invite_code', { p_code: code });
@@ -174,6 +179,19 @@ try {
   const bonuses = await amb.c.from('credit_ledger').select('milestone').eq('kind', 'milestone_bonus');
   check('the milestone is paid exactly once', (bonuses.data ?? []).length === 1);
   check('a non-ambassador inviter gets no milestone', ((await inviter.c.from('credit_ledger').select('id').eq('kind', 'milestone_bonus')).data ?? []).length === 0);
+
+  // Approved first, role second (or role dropped and re-added): goals still get paid.
+  const roleLate = await newUser('LateRole');
+  const lateCode = (await roleLate.c.rpc('my_invite_code')).data as string;
+  for (let i = 0; i < 5; i++) {
+    const f = await newUser(`LPal${i}`);
+    await f.c.rpc('redeem_invite_code', { p_code: lateCode });
+    await svc.rpc('award_invite_rewards', { p_booking: await completedBooking(f.uid) });
+  }
+  await svc.from('ambassador_approvals').insert({ user_id: roleLate.uid });
+  check('approval without the role pays no goal yet', (await balance(roleLate.c)) === 2500);
+  await roleLate.c.from('user_roles').insert({ user_id: roleLate.uid, role: 'ambassador' });
+  check('…adding the role then pays it', (await balance(roleLate.c)) === 2500 + m5!.bonus_cents, String(await balance(roleLate.c)));
 
   console.log('\n— spending and returning —');
   blocked(await svc.rpc('spend_credit', { p_user: inviter.uid, p_cents: 600, p_payment_intent: 'pi_over' }), 'cannot spend more than the balance');
