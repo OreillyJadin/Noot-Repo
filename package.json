@@ -12,7 +12,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint --filter=!@noot/web",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "turbo run typecheck --filter=!@noot/web",
     "mobile": "pnpm --filter @noot/mobile dev",
     "mobile-team": "pnpm --filter @noot/mobile dev:tunnel",
     "tunnel": "bash scripts/tunnel.sh",
