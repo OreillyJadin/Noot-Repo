@@ -20,6 +20,7 @@ set -euo pipefail
 # case the calling shell already exported them, since eas-cli is code fresh from npm.
 eval "$(bash -c 'source "$1" >/dev/null 2>&1; printf "PATH=%q\nEXPO_TOKEN=%q\n" "$PATH" "${EXPO_TOKEN:-}"' _ "$ROOT/scripts/dev-env.sh")"
 export PATH EXPO_TOKEN
+[[ -n "$EXPO_TOKEN" ]] || { echo "EXPO_TOKEN not set — check .noot-secrets.local.env." >&2; exit 1; }
 unset SUPABASE_ACCESS_TOKEN STRIPE_SECRET_KEY STRIPE_PUBLISHABLE_KEY \
       STRIPE_SECRET_KEY_LIVE STRIPE_PUBLISHABLE_KEY_LIVE STRIPE_WEBHOOK_SECRET_LIVE
 
@@ -28,7 +29,7 @@ if [[ "${ALLOW_DIRTY:-}" != "1" ]] && [[ -n "$(git -C "$ROOT" status --porcelain
   exit 1
 fi
 
-# eas-cli is pinned so builds are reproducible; bump it deliberately.
 # ── the two commands ───────────────────────────────────────────────────────────
 cd "$ROOT/apps/mobile"
+# eas-cli is pinned so builds are reproducible; bump it deliberately.
 npx eas-cli@24.8.0 build --platform ios --profile production --auto-submit "$@"
