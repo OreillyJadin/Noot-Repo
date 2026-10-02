@@ -137,6 +137,32 @@ Deno.serve(async (req) => {
         // Same PaymentIntent already spent = a double-submit of a confirm that's going
         // through. Leave its hold alone — releasing it would cancel the real booking's payment.
         if (spendErr.code === '23505') {
+          // …unless that earlier attempt died before creating the booking: then nothing will
+          // ever use the spend or the hold, so give both back. 60s leaves a live winner alone.
+          const { data: prior } = await db
+            .from('credit_ledger')
+            .select('created_at')
+            .eq('payment_intent_id', storedPaymentIntentId)
+            .eq('kind', 'booking_spend')
+            .maybeSingle();
+          const { data: booked } = await db
+            .from('bookings')
+            .select('id')
+            .eq('stripe_payment_intent_id', storedPaymentIntentId)
+            .limit(1);
+          const stale = prior && Date.now() - new Date(prior.created_at as string).getTime() > 60_000;
+          if (stale && (booked ?? []).length === 0) {
+            const { error: backErr } = await db.from('credit_ledger').insert({
+              user_id: studentId, amount_cents: creditCents, kind: 'adjustment', payment_intent_id: storedPaymentIntentId,
+            });
+            // 23505 = an earlier retry already gave it back.
+            if (backErr && backErr.code !== '23505') console.error('confirm-booking: orphaned credit NOT returned', storedPaymentIntentId, backErr.message);
+            if (releaseHold) await releaseHold().catch((e) => console.error('confirm-booking: release hold failed', String(e)));
+            return Response.json(
+              { error: 'That checkout didn’t finish, so you weren’t charged and your credit is back. Please book again.' },
+              { status: 409, headers: cors },
+            );
+          }
           return Response.json({ error: 'That payment has already been used' }, { status: 409, headers: cors });
         }
         if (releaseHold) await releaseHold().catch((e) => console.error('confirm-booking: release hold failed', String(e)));
@@ -180,7 +206,7 @@ Deno.serve(async (req) => {
         const { error: backErr } = await db
           .from('credit_ledger')
           .insert({ user_id: studentId, amount_cents: creditCents, kind: 'adjustment', payment_intent_id: storedPaymentIntentId });
-        if (backErr) console.error('confirm-booking: credit NOT returned after failed insert', storedPaymentIntentId, backErr.message);
+        if (backErr && backErr.code !== '23505') console.error('confirm-booking: credit NOT returned after failed insert', storedPaymentIntentId, backErr.message);
       }
       if (releaseHold) await releaseHold().catch((e) => console.error('confirm-booking: release hold failed', String(e)));
       throw bookingError;
