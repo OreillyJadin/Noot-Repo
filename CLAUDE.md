@@ -85,8 +85,8 @@ Priorities: **security and code quality.** These rules apply to every change, ho
 
 ### Handoff
 - Push the branch (`git push -u origin <branch>`), then give Jadin a **ready-to-paste PR
-  title and description**: what changed and why, how to test it manually on device, any
-  migrations or env changes, and any risks.
+  title and description**: what changed and why, how to verify it (the `verify_*.mts`
+  checks run; device steps only if useful), any migrations or env changes, and any risks.
 - Jadin opens the PR and reviews the diff. **Never merge without Jadin's explicit go-ahead.**
 
 ### After approval
