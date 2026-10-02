@@ -16,7 +16,7 @@ import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { pickAndUploadAvatar } from '../lib/avatar';
-import { openLegal, LEGAL_BASE } from '../lib/legal';
+import { openLegal, SITE_URL } from '../lib/legal';
 
 function Row({
   icon,
@@ -110,7 +110,7 @@ export default function Profile() {
   const isAmbassador = roles.includes('ambassador');
   const inviteFriend = async () => {
     try {
-      await Share.share({ message: `Join me on noot — book a tutor who already aced your course. ${LEGAL_BASE}` });
+      await Share.share({ message: `Join me on noot — book a tutor who already aced your course. ${SITE_URL}` });
     } catch {
       /* user dismissed the sheet */
     }
@@ -231,7 +231,7 @@ export default function Profile() {
           </View>
         </Card>
 
-        {/* mode switcher — only shows if the user holds 2+ switchable roles */}
+        {/* mode switcher — the modes you hold, plus Tutor as a preview while the application is in review */}
         {roles.length + previewRoles.length > 1 ? (
           <View style={{ marginTop: 16 }}>
             <RoleSwitcher roles={roles} previewRoles={previewRoles} active={role} onSelect={switchTo} />
