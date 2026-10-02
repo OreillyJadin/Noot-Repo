@@ -34,24 +34,19 @@ That means both:
 
 iOS and Android are the only targets that must build and run.
 
-## Golden rule — verify in the live app before committing
+## Verifying changes before committing
 
-**Before committing, open the live local app and manually test that the function we
-just worked on actually works.** Don't rely on typecheck or unit checks alone — drive
-the real flow in the running app and confirm the behavior end-to-end. Only commit once
-you've seen it work.
+Expo Go device checks are **not** part of the workflow any more — don't ask for one or block a
+commit on it. Verify against the live local backend instead:
 
-- The tutoring functions live in the **mobile app**. Verify on **iOS or Android** —
-  `pnpm mobile`, then scan the QR with **Expo Go** (needs Expo Go on **SDK 57**), or use
-  the EAS dev build for anything needing native modules (PaymentSheet, Face ID).
-- **Do NOT verify at http://localhost:8081.** That was the old habit and it no longer
-  works — the mobile app's web bundle is broken on SDK 57 and web is out of scope
-  (see "Current scope" above). If you have no device, say the flow is unverified rather
-  than substituting the web target.
-- Backend is live locally via Supabase (see below); inspect data in Studio at
-  http://localhost:54323.
+- Run the `scripts/verify_*.mts` checks that cover what you changed
+  (`pnpm dlx tsx scripts/<name>.mts`), and add one when a change has none.
 - For a fast backend-only smoke test of the `@noot/core` data layer:
   `pnpm dlx tsx scripts/verify_backend.mts` (14 checks against the live stack).
+- Backend is live locally via Supabase (see below); inspect data in Studio at
+  http://localhost:54323.
+- **Do NOT verify at http://localhost:8081.** The mobile app's web bundle is broken on
+  SDK 57 and web is out of scope (see "Current scope" above).
 
 ## Layout
 
