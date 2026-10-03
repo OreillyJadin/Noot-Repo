@@ -18,14 +18,18 @@ export {
   UNVERIFIED_FEE_RATE,
   feeRateFor,
   tutorPayoutFor,
+  creditToApply,
+  MIN_CHARGE_CENTS,
   MIN_HOURLY_RATE,
   MAX_HOURLY_RATE,
 } from './pricing';
 export { UA_MAJORS, searchMajors, type Major } from './data/uaMajors';
 export {
   api,
-  type AmbassadorReferrals,
-  type AmbassadorReferralRow,
+  type Invite,
+  type Milestone,
+  type CreditKind,
+  type CreditEntry,
   type PendingTutor,
   type TutorApplicationStatus,
   type AdminUser,

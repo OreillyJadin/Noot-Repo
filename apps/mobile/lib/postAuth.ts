@@ -4,6 +4,7 @@
 // their role's home, brand-new users start the onboarding flow.
 import type { ImperativeRouter } from 'expo-router';
 import { api } from '@noot/core';
+import { claimPendingInvite } from './pendingInvite';
 import type { Role } from './store';
 
 export interface RouteAfterAuthResult {
@@ -20,6 +21,9 @@ export interface RouteAfterAuthResult {
  * account. Uses router.replace so auth screens don't linger in the back stack.
  */
 export async function routeAfterAuth(router: ImperativeRouter, setRole: (r: Role) => void): Promise<RouteAfterAuthResult> {
+  // A friend's code from the sign-up screen, if this is the account it was typed for. Not
+  // awaited: it must never hold up or fail a sign-in.
+  void claimPendingInvite();
   try {
     const me = await api.getMe();
     if (me && me.firstName.trim()) {

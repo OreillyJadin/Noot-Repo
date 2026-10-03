@@ -2,7 +2,8 @@
 // The caller must be the booking's TUTOR. Marks a confirmed session complete: captures the
 // held PaymentIntent, transfers the tutor's payout to their Connect account, sets
 // status='completed', then fires award-referral-bonus (non-fatal). Idempotent: a booking
-// already 'completed' is a no-op. Simulated bookings (sim_pi_…) just flip to completed.
+// already 'completed' is a no-op apart from re-firing the award. Simulated bookings
+// (sim_pi_…) just flip to completed.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { BookingError, assertPayoutReady, assertSessionElapsed } from '../_shared/booking.ts';
 
@@ -11,6 +12,21 @@ const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+// Invite reward for a completed session (service-role internal call). Never fatal, and safe
+// to repeat — award_invite_rewards pays each invited person's inviter once, ever.
+async function awardInvites(url: string, bookingId: string): Promise<void> {
+  try {
+    await fetch(`${url}/functions/v1/award-referral-bonus`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ bookingId }),
+    });
+  } catch { /* non-fatal */ }
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -34,7 +50,11 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     if (!booking) return Response.json({ error: 'booking not found' }, { status: 404, headers: cors });
     if (booking.tutor_id !== user.id) return Response.json({ error: 'forbidden' }, { status: 403, headers: cors });
-    if (booking.status === 'completed') return Response.json({ status: 'completed', captured: false, alreadyComplete: true }, { headers: cors });
+    if (booking.status === 'completed') {
+      // A retry, e.g. after the payout failed below: the reward may not have fired yet.
+      await awardInvites(url, bookingId);
+      return Response.json({ status: 'completed', captured: false, alreadyComplete: true }, { headers: cors });
+    }
     if (booking.status !== 'confirmed') {
       return Response.json({ error: `Cannot complete a ${booking.status} session` }, { status: 400, headers: cors });
     }
@@ -90,6 +110,8 @@ Deno.serve(async (req: Request) => {
           .update({ status: 'completed', stripe_charge_id: chargeId, payout_failed_at: new Date().toISOString() })
           .eq('id', bookingId);
         console.error('complete-session: captured but transfer failed', bookingId, String(transferErr));
+        // The session did happen and was paid for, so the invite reward still applies.
+        await awardInvites(url, bookingId);
         return Response.json(
           {
             error: 'The payment was taken but the payout to the tutor failed. Our team has been notified and will complete it.',
@@ -107,17 +129,7 @@ Deno.serve(async (req: Request) => {
       .eq('id', bookingId);
     if (upErr) throw upErr;
 
-    // Referral bonus (service-role internal call) — never fatal to completion.
-    try {
-      await fetch(`${url}/functions/v1/award-referral-bonus`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ bookingId }),
-      });
-    } catch { /* non-fatal */ }
+    await awardInvites(url, bookingId);
 
     return Response.json({ status: 'completed', captured, transferId }, { headers: cors });
   } catch (err) {

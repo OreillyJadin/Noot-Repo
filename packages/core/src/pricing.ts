@@ -18,3 +18,13 @@ export function tutorPayoutFor(gross: number, gradesVerified: boolean): number {
 /** Allowed hourly rate, in whole dollars. Same bounds as the Courses & rates stepper. */
 export const MIN_HOURLY_RATE = 10;
 export const MAX_HOURLY_RATE = 120;
+
+/**
+ * Noot credit at checkout — display only, mirrors supabase/functions/_shared/credits.ts.
+ * The card is always charged at least MIN_CHARGE_CENTS; the rest can be credit.
+ */
+export const MIN_CHARGE_CENTS = 100;
+export function creditToApply(balanceCents: number, amountCents: number): number {
+  const room = Math.max(0, Math.floor(amountCents) - MIN_CHARGE_CENTS);
+  return Math.max(0, Math.min(Math.floor(balanceCents), room));
+}

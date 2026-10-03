@@ -43,7 +43,7 @@ Deno.serve(async (req: Request) => {
     // Load the booking.
     const { data: booking, error: loadErr } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, status, scheduled_at, duration_minutes, price, stripe_payment_intent_id, tutor_payout_amount')
+      .select('id, student_id, tutor_id, status, scheduled_at, duration_minutes, price, credit_applied, stripe_payment_intent_id, tutor_payout_amount')
       .eq('id', bookingId)
       .single();
     if (loadErr || !booking) return Response.json({ error: 'Booking not found' }, { status: 404, headers: cors });
@@ -170,6 +170,12 @@ Deno.serve(async (req: Request) => {
       })
       .eq('id', bookingId);
     if (updateErr) return Response.json({ error: updateErr.message }, { status: 400, headers: cors });
+
+    // The tutor didn't show: the student gets their Noot credit back too (0040).
+    if (tutorNoShow && Number(booking.credit_applied ?? 0) > 0) {
+      const { error: creditErr } = await db.rpc('return_booking_credit', { p_booking: bookingId, p_percent: 100 });
+      if (creditErr) console.error('report-no-show: credit return failed', bookingId, creditErr.message);
+    }
 
     // TODO: 3-strike escalation tracking — accumulate no-show strikes per user and
     // escalate (warn/suspend) once a threshold is reached.

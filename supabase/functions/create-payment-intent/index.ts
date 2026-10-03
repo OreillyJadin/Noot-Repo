@@ -7,8 +7,12 @@
 // also asserts the tutor is bookable (T5). If STRIPE_SECRET_KEY is set we create a real
 // manual-capture PaymentIntent; otherwise we return a simulated intent so local/dev never
 // crashes. This is one of the two allowed places to import Stripe directly.
+//
+// Noot credit (0040) comes off the charge automatically: the hold is for chargeCents, and
+// metadata.credit_cents records the credit so confirm-booking can check it and spend it.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { BookingError, resolveBooking } from '../_shared/booking.ts';
+import { creditToApply } from '../_shared/credits.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -40,6 +44,11 @@ Deno.serve(async (req: Request) => {
       scheduledAt: body?.scheduledAt,
     });
 
+    // A failed balance read just means no credit this time, never a failed booking.
+    const { data: bal } = await db.rpc('credit_balance_cents', { p_user: user.id });
+    const creditCents = creditToApply(Number(bal ?? 0), resolved.amountCents);
+    const chargeCents = resolved.amountCents - creditCents;
+
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
 
     if (!stripeKey) {
@@ -52,6 +61,8 @@ Deno.serve(async (req: Request) => {
           customerId: null,
           paymentIntentId: 'sim_pi_' + crypto.randomUUID(),
           amountCents: resolved.amountCents,
+          creditCents,
+          chargeCents,
           price: resolved.price,
           simulated: true,
         },
@@ -85,7 +96,7 @@ Deno.serve(async (req: Request) => {
     const ephemeralKey = await stripe.ephemeralKeys.create({ customer: customerId }, { apiVersion: '2024-06-20' });
 
     const intent = await stripe.paymentIntents.create({
-      amount: resolved.amountCents,
+      amount: chargeCents,
       currency: 'usd',
       capture_method: 'manual', // held until session completion (captured in complete-session)
       customer: customerId,
@@ -98,6 +109,7 @@ Deno.serve(async (req: Request) => {
         course_code: resolved.courseCode,
         duration_minutes: String(resolved.durationMinutes),
         scheduled_at: resolved.scheduledAt,
+        credit_cents: String(creditCents),
       },
     });
 
@@ -108,6 +120,8 @@ Deno.serve(async (req: Request) => {
         customerId,
         paymentIntentId: intent.id,
         amountCents: resolved.amountCents,
+        creditCents,
+        chargeCents,
         price: resolved.price,
         simulated: false,
       },

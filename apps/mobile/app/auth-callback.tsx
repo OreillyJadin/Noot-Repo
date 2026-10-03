@@ -11,6 +11,7 @@ import { Button, useTheme } from '@noot/ui';
 import { auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { routeAfterAuth } from '../lib/postAuth';
+import { claimPendingInvite } from '../lib/pendingInvite';
 import { authLinks } from '../lib/authLinks';
 
 export default function AuthCallback() {
@@ -64,6 +65,9 @@ export default function AuthCallback() {
         authLinks.setRecoveryLink(params);
         router.replace('/set_password?mode=reset');
       } else {
+        // The new account's first sign-in: claim the friend's code typed at sign-up now, before
+        // they can book anything (the claim is refused after a first booking). Not awaited.
+        void claimPendingInvite();
         router.replace('/verified');
       }
     })();

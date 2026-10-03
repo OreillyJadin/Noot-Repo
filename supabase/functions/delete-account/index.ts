@@ -54,15 +54,32 @@ Deno.serve(async (req: Request) => {
 
     // Refuse if they still owe or are owed money on a live session — deleting mid-booking
     // would strand the counterparty with a session they can't complete or be paid for.
-    const { data: live } = await db
+    const { data: live, error: liveErr } = await db
       .from('bookings')
       .select('id')
       .in('status', ['pending', 'confirmed'])
       .or(`student_id.eq.${uid},tutor_id.eq.${uid}`)
       .limit(1);
+    if (liveErr) throw liveErr; // fail closed, as below
     if (live?.length) {
       return Response.json(
         { error: 'You have an upcoming session. Cancel it before deleting your account.' },
+        { status: 409, headers: cors },
+      );
+    }
+
+    // Same for a cash-out the team hasn't paid yet: once the email is scrubbed below, there's
+    // no way to reach them to send it (0040).
+    const { data: owed, error: owedErr } = await db
+      .from('credit_cashouts')
+      .select('id')
+      .eq('user_id', uid)
+      .eq('status', 'pending')
+      .limit(1);
+    if (owedErr) throw owedErr; // fail closed: never delete past a check that didn't run
+    if (owed?.length) {
+      return Response.json(
+        { error: 'Your cash-out is still being processed. You can delete your account once it’s been paid.' },
         { status: 409, headers: cors },
       );
     }
@@ -94,6 +111,8 @@ Deno.serve(async (req: Request) => {
     // 2. Personal data that isn't financial. tutor_profiles carries a bio and a transcript
     //    pointer; push tokens would keep notifying a deleted account.
     await db.from('push_tokens').delete().eq('user_id', uid);
+    // Revoke their invite code so it stops earning for a deleted account (0040).
+    await db.from('invite_codes').delete().eq('user_id', uid);
     await db.from('saved_tutors').delete().or(`student_id.eq.${uid},tutor_id.eq.${uid}`);
     await db.from('tutor_profiles').update({ bio: '', transcript_url: null }).eq('user_id', uid);
 

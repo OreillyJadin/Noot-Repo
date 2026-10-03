@@ -30,18 +30,39 @@ import type {
   User,
 } from '../models';
 
-/** A referral row for the ambassador dashboard (from the list-referrals Edge Function). */
-export interface AmbassadorReferralRow {
+/** Someone the caller invited (my_invites, 0040). */
+export interface Invite {
   referralId: string;
+  /** First name + last initial — all an inviter is shown. */
   name: string;
-  referredRole: 'student' | 'tutor';
-  status: 'signed_up' | 'bonus_pending' | 'bonus_paid';
-  bonusAmount: number;
-  createdAt: string;
+  joinedAt: string;
+  /** They've completed a session, so the inviter's $5 credit has been earned. */
+  completed: boolean;
+  /** That session was refunded or disputed, so the $5 was taken back. */
+  reversed: boolean;
+  rewardCents: number;
 }
-export interface AmbassadorReferrals {
-  referrals: AmbassadorReferralRow[];
-  totals: { referrals: number; bonusesEarned: number; totalEarned: number };
+/** An ambassador goal: complete `threshold` invites, earn `bonusCents`. */
+export interface Milestone {
+  threshold: number;
+  bonusCents: number;
+}
+export type CreditKind =
+  | 'invite_reward'
+  | 'milestone_bonus'
+  | 'booking_spend'
+  | 'booking_return'
+  | 'cashout'
+  | 'reward_reversal'
+  | 'adjustment';
+/** One line of the caller's credit history. Positive = earned, negative = spent. */
+export interface CreditEntry {
+  id: string;
+  kind: CreditKind;
+  amountCents: number;
+  /** For a milestone_bonus: the goal (threshold) it paid. */
+  milestone: number | null;
+  createdAt: string;
 }
 
 /** A user row for the admin user-management list. */
@@ -289,6 +310,7 @@ function mapBooking(row: any): Booking {
     scheduledAt: row.scheduled_at,
     durationMinutes: row.duration_minutes,
     price: num(row.price),
+    creditApplied: num(row.credit_applied),
     platformFee: num(row.platform_fee),
     tutorPayoutAmount: num(row.tutor_payout_amount),
     sessionType: row.session_type,
@@ -1084,9 +1106,107 @@ export const api = {
       return data ? mapAmbassadorProfile(data) : null;
     },
 
-    /** Referred users + bonus pipeline status + running totals (list-referrals Edge Function). */
-    listReferrals(): Promise<AmbassadorReferrals> {
-      return invokeFn('list-referrals');
+  },
+
+  // --- Noot credits (0040). Every balance change is written server-side; these only read,
+  //     plus the two caller-scoped actions (redeem a code, request a cash-out). ---
+  credits: {
+    /** The caller's invite code, generated on first use. Never client-chosen. */
+    async myCode(): Promise<string> {
+      const { data, error } = await getSupabase().rpc('my_invite_code');
+      if (error) throw error;
+      return data as string;
+    },
+
+    /**
+     * Use a friend's invite code as the signed-in (new) account. The app calls this right
+     * after first sign-in with the code typed at sign-up. Server rules: once, before any
+     * booking, and only the code of someone who joined before you (claim_invite, 0040).
+     */
+    async claim(code: string): Promise<void> {
+      const { error } = await getSupabase().rpc('claim_invite', { p_code: code });
+      if (error) throw error;
+    },
+
+    /** Does this invite code exist? For the sign-up screen, so works signed out. */
+    async checkCode(code: string): Promise<boolean> {
+      const { data, error } = await getSupabase().rpc('check_invite_code', { p_code: code });
+      if (error) throw error;
+      return Boolean(data);
+    },
+
+    /** Current balance in cents. */
+    async balance(): Promise<number> {
+      const { data, error } = await getSupabase().rpc('my_credit_balance');
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+
+    /** People the caller invited, newest first, with whether they've completed a session. */
+    async invites(): Promise<Invite[]> {
+      const { data, error } = await getSupabase().rpc('my_invites');
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+        referralId: r.referral_id as string,
+        name: (r.display_name as string) || 'A classmate',
+        joinedAt: r.joined_at as string,
+        completed: Boolean(r.completed),
+        reversed: Boolean(r.reversed),
+        rewardCents: Number(r.reward_cents ?? 0),
+      }));
+    },
+
+    /** Ambassador goals, smallest first. */
+    async milestones(): Promise<Milestone[]> {
+      const { data, error } = await getSupabase()
+        .from('ambassador_milestones')
+        .select('threshold, bonus_cents')
+        .order('threshold');
+      if (error) throw error;
+      return (data ?? []).map((m) => ({ threshold: m.threshold as number, bonusCents: m.bonus_cents as number }));
+    },
+
+    /** The caller's credit history, newest first. RLS: own rows only. */
+    async history(): Promise<CreditEntry[]> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('credit_ledger')
+        .select('id, kind, amount_cents, milestone, created_at')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((e) => ({
+        id: e.id as string,
+        kind: e.kind as CreditKind,
+        amountCents: e.amount_cents as number,
+        milestone: (e.milestone as number | null) ?? null,
+        createdAt: e.created_at as string,
+      }));
+    },
+
+    /** Has the team approved the caller as an ambassador (unlocks cash-out and goal bonuses)? */
+    async ambassadorApproved(): Promise<boolean> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('ambassador_approvals')
+        .select('user_id')
+        .eq('user_id', uid)
+        .maybeSingle();
+      if (error) throw error;
+      return !!data;
+    },
+
+    /** Cents the caller could cash out now: 0 unless approved; excludes credit earned this week. */
+    async cashable(): Promise<number> {
+      const { data, error } = await getSupabase().rpc('my_cashable_credit');
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+
+    /** Approved ambassadors only: ask the team to pay out `cents` ($10 minimum). Debits immediately. */
+    async requestCashout(cents: number): Promise<void> {
+      const { error } = await getSupabase().rpc('request_credit_cashout', { p_cents: cents });
+      if (error) throw error;
     },
   },
 
@@ -1306,6 +1426,10 @@ export const api = {
     paymentIntentId: string;
     /** Authoritative, server-computed. Show this, don't recompute it. */
     amountCents: number;
+    /** Noot credit taken off automatically (0040). */
+    creditCents: number;
+    /** What the card is charged: amountCents − creditCents. */
+    chargeCents: number;
     price: number;
     simulated: boolean;
   }> {

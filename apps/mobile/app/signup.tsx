@@ -2,15 +2,17 @@
 // proves the .edu address is real. There is NO password here by design; the user
 // sets their password later, inside onboarding (verified → set-password). The name
 // rides along in the OTP's user_metadata so the handle_new_user trigger fills in
-// public.users on first insert.
-import React, { useState } from 'react';
+// public.users on first insert. An optional friend's invite code is kept on the device and
+// claimed once they sign in from the link (lib/pendingInvite, 0040).
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { Button, Card, Field, useTheme } from '@noot/ui';
-import { auth } from '@noot/core';
+import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
+import { savePendingInvite } from '../lib/pendingInvite';
 
 /** "Ada Lovelace" → ["Ada", "Lovelace"]; single word → first name only. */
 function splitName(full: string): { first: string; last: string } {
@@ -27,6 +29,24 @@ export default function SignUp() {
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [codeStatus, setCodeStatus] = useState<'idle' | 'checking' | 'ok' | 'missing'>('idle');
+
+  // Check the invite code as they type (debounced), so a typo shows up before the account
+  // exists rather than silently losing their friend the credit.
+  useEffect(() => {
+    const c = code.trim();
+    if (!c) { setCodeStatus('idle'); return; }
+    setCodeStatus('checking');
+    let alive = true;
+    const timer = setTimeout(() => {
+      api.credits
+        .checkCode(c)
+        .then((ok) => { if (alive) setCodeStatus(ok ? 'ok' : 'missing'); })
+        .catch(() => { if (alive) setCodeStatus('idle'); });
+    }, 400);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [code]);
 
   const clearErr = () => { if (error) setError(null); };
 
@@ -35,6 +55,8 @@ export default function SignUp() {
     const trimmedEmail = email.trim();
     if (!trimmedName) { setError('Enter your full name.'); return; }
     if (!trimmedEmail) { setError('Enter your campus email.'); return; }
+    if (codeStatus === 'missing') { setError('That invite code wasn’t found. Fix it, or clear it to continue.'); return; }
+    if (codeStatus === 'checking') { setError('Still checking your invite code — try again in a moment.'); return; }
     setBusy(true); setError(null);
     try {
       // noot://auth-callback on device, http://<host>/auth-callback on web — must be
@@ -42,7 +64,12 @@ export default function SignUp() {
       const redirectTo = Linking.createURL('/auth-callback');
       const { first, last } = splitName(trimmedName);
       const res = await auth.sendSignupVerification(trimmedEmail, first, last, redirectTo);
-      if (res.ok) setSent(true);
+      if (res.ok) {
+        // A code known to be wrong was stopped above. If the check couldn't run (offline),
+        // it's saved anyway: the server validates it when it's claimed.
+        if (code.trim()) await savePendingInvite(code, trimmedEmail);
+        setSent(true);
+      }
       else setError(res.error ?? "Couldn't send the link. Try again.");
     } catch {
       setError("Couldn't reach noot. Check your connection and try again.");
@@ -84,6 +111,22 @@ export default function SignUp() {
               value={email}
               onChangeText={(v) => { setEmail(v); clearErr(); }}
               keyboardType="email-address"
+            />
+            <Field
+              label="Invite code (optional)"
+              placeholder="NOOT-XXXXXX"
+              value={code}
+              onChangeText={(v) => { setCode(v); clearErr(); }}
+              autoCapitalize="characters"
+              hint={
+                codeStatus === 'ok'
+                  ? 'Code found ✓ — it’s applied when you open the link on this phone.'
+                  : codeStatus === 'missing'
+                    ? 'We couldn’t find that code.'
+                    : codeStatus === 'checking'
+                      ? 'Checking…'
+                      : 'Got one from a friend? It can only be added now.'
+              }
             />
 
             {error ? <Text style={{ color: '#C0392B', fontSize: 14 }}>{error}</Text> : null}

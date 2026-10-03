@@ -13,6 +13,7 @@
 // are auto-injected by the runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { BookingError, resolveBooking } from '../_shared/booking.ts';
+import { creditToApply, parseCreditCents } from '../_shared/credits.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -77,6 +78,10 @@ Deno.serve(async (req) => {
     // Stripe authorized and the amount we pay the tutor are unrelated numbers.
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
     let storedPaymentIntentId: string;
+    // Noot credit taken off this booking (0040), and how to let the card hold go if the
+    // credit can't be spent after all.
+    let creditCents = 0;
+    let releaseHold: (() => Promise<unknown>) | null = null;
     if (stripeKey) {
       if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
         return Response.json({ error: 'A completed payment is required' }, { status: 400, headers: cors });
@@ -91,9 +96,14 @@ Deno.serve(async (req) => {
       if (pi.metadata?.tutor_id !== resolved.tutorId || pi.metadata?.course_code !== resolved.courseCode) {
         return Response.json({ error: 'That payment was for a different session' }, { status: 400, headers: cors });
       }
-      if (pi.amount !== resolved.amountCents) {
+      // The hold is the price minus the credit create-payment-intent applied. The credit is
+      // re-checked against the price here and actually spent below, under a lock.
+      const claimed = parseCreditCents(pi.metadata?.credit_cents, resolved.amountCents);
+      if (claimed === null || pi.amount !== resolved.amountCents - claimed) {
         return Response.json({ error: 'The payment amount does not match this session' }, { status: 400, headers: cors });
       }
+      creditCents = claimed;
+      releaseHold = () => stripe.paymentIntents.cancel(paymentIntentId);
       // Manual capture: the hold is authorized and waiting to be captured.
       if (pi.status !== 'requires_capture') {
         return Response.json({ error: 'The payment has not been authorized yet' }, { status: 400, headers: cors });
@@ -111,6 +121,56 @@ Deno.serve(async (req) => {
     } else {
       // No Stripe configured (local/dev) — create-payment-intent returned a simulated id.
       storedPaymentIntentId = paymentIntentId ?? 'sim_pi_' + crypto.randomUUID();
+      const { data: bal } = await db.rpc('credit_balance_cents', { p_user: studentId });
+      creditCents = creditToApply(Number(bal ?? 0), resolved.amountCents);
+    }
+
+    // Spend the credit before the booking exists, under spend_credit's per-user lock, so one
+    // balance can't pay for two bookings confirmed at the same moment.
+    if (creditCents > 0) {
+      const { error: spendErr } = await db.rpc('spend_credit', {
+        p_user: studentId,
+        p_cents: creditCents,
+        p_payment_intent: storedPaymentIntentId,
+      });
+      if (spendErr) {
+        // Same PaymentIntent already spent = a double-submit of a confirm that's going
+        // through. Leave its hold alone — releasing it would cancel the real booking's payment.
+        if (spendErr.code === '23505') {
+          // …unless that earlier attempt died before creating the booking: then nothing will
+          // ever use the spend or the hold, so give both back. 60s leaves a live winner alone.
+          const { data: prior } = await db
+            .from('credit_ledger')
+            .select('created_at')
+            .eq('payment_intent_id', storedPaymentIntentId)
+            .eq('kind', 'booking_spend')
+            .maybeSingle();
+          const { data: booked } = await db
+            .from('bookings')
+            .select('id')
+            .eq('stripe_payment_intent_id', storedPaymentIntentId)
+            .limit(1);
+          const stale = prior && Date.now() - new Date(prior.created_at as string).getTime() > 60_000;
+          if (stale && (booked ?? []).length === 0) {
+            const { error: backErr } = await db.from('credit_ledger').insert({
+              user_id: studentId, amount_cents: creditCents, kind: 'adjustment', payment_intent_id: storedPaymentIntentId,
+            });
+            // 23505 = an earlier retry already gave it back.
+            if (backErr && backErr.code !== '23505') console.error('confirm-booking: orphaned credit NOT returned', storedPaymentIntentId, backErr.message);
+            if (releaseHold) await releaseHold().catch((e) => console.error('confirm-booking: release hold failed', String(e)));
+            return Response.json(
+              { error: 'That checkout didn’t finish, so you weren’t charged and your credit is back. Please book again.' },
+              { status: 409, headers: cors },
+            );
+          }
+          return Response.json({ error: 'That payment has already been used' }, { status: 409, headers: cors });
+        }
+        if (releaseHold) await releaseHold().catch((e) => console.error('confirm-booking: release hold failed', String(e)));
+        return Response.json(
+          { error: 'Your Noot credit changed since checkout, so you weren’t charged. Please book again.' },
+          { status: 409, headers: cors },
+        );
+      }
     }
 
     const cancellationDeadline = new Date(
@@ -128,6 +188,7 @@ Deno.serve(async (req) => {
         price: resolved.price,
         platform_fee: resolved.platformFee,
         tutor_payout_amount: resolved.tutorPayout,
+        credit_applied: creditCents / 100,
         session_type: sessionType,
         meeting_link: meetingLink ?? null,
         location: location ?? null,
@@ -139,7 +200,32 @@ Deno.serve(async (req) => {
       .select('id')
       .single();
 
-    if (bookingError) throw bookingError;
+    if (bookingError) {
+      // Another confirm with this PaymentIntent got there first (bookings_one_per_payment_intent).
+      // Its booking uses the hold and any credit — leave both alone.
+      if (bookingError.code === '23505' && bookingError.message.includes('bookings_one_per_payment_intent')) {
+        return Response.json({ error: 'That payment has already been used' }, { status: 409, headers: cors });
+      }
+      // No booking, so nothing for the credit or the hold to pay for: give both back.
+      if (creditCents > 0) {
+        const { error: backErr } = await db
+          .from('credit_ledger')
+          .insert({ user_id: studentId, amount_cents: creditCents, kind: 'adjustment', payment_intent_id: storedPaymentIntentId });
+        if (backErr && backErr.code !== '23505') console.error('confirm-booking: credit NOT returned after failed insert', storedPaymentIntentId, backErr.message);
+      }
+      if (releaseHold) await releaseHold().catch((e) => console.error('confirm-booking: release hold failed', String(e)));
+      throw bookingError;
+    }
+    if (creditCents > 0) {
+      // return_booking_credit also finds the spend by PaymentIntent, so a failure here is
+      // logged rather than fatal.
+      const { error: linkErr } = await db
+        .from('credit_ledger')
+        .update({ booking_id: booking.id })
+        .eq('payment_intent_id', storedPaymentIntentId)
+        .eq('kind', 'booking_spend');
+      if (linkErr) console.error('confirm-booking: could not link credit spend', booking.id, linkErr.message);
+    }
 
     const { data: conversation, error: conversationError } = await db
       .from('conversations')

@@ -3,7 +3,7 @@
 // stub-Alert helper is gone (APP_REVIEW_TICKETS.md T12). "Dark mode" is a local visual
 // toggle only (not wired to the real theme yet — that lives in ThemeProvider at the app root).
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, Alert, Share, StyleSheet, type ScrollView } from 'react-native';
+import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, type IconName } from '@noot/ui';
@@ -16,7 +16,7 @@ import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { pickAndUploadAvatar } from '../lib/avatar';
-import { openLegal, SITE_URL } from '../lib/legal';
+import { openLegal } from '../lib/legal';
 
 function Row({
   icon,
@@ -104,18 +104,11 @@ export default function Profile() {
       Alert.alert('Could not join the ambassador program', 'Please try again in a moment.');
     }
   };
-  // Referral CTA: an ambassador gets their code + bonus dashboard. Everyone else just invites
-  // a friend from the share sheet — no code, no reward, nothing to join. Becoming an
-  // ambassador is its own card at the bottom of the page.
+  // Referral CTA: everyone can invite and earn Noot credit (/invite). Ambassadors go to their
+  // own tab, which adds goals and cash-out. Becoming an ambassador is its own card at the
+  // bottom of the page.
   const isAmbassador = roles.includes('ambassador');
-  const inviteFriend = async () => {
-    try {
-      await Share.share({ message: `Join me on noot — book a tutor who already aced your course. ${SITE_URL}` });
-    } catch {
-      /* user dismissed the sheet */
-    }
-  };
-  const openReferrals = () => (isAmbassador ? router.push('/ambassador_referrals') : inviteFriend());
+  const openReferrals = () => router.push(isAmbassador ? '/ambassador_referrals' : '/invite');
 
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
@@ -247,8 +240,8 @@ export default function Profile() {
             <Text style={[styles.promoTitle, { color: t.text }]}>{isAmbassador ? 'Refer & earn' : 'Refer a friend'}</Text>
             <Text style={[styles.promoSub, { color: t.text2 }]}>
               {isAmbassador
-                ? 'Earn $5 for every classmate who completes their first paid session'
-                : 'Send a classmate an invite to noot'}
+                ? '$5 credit per friend who completes a session, plus goal bonuses'
+                : 'Get $5 in Noot credit when a friend completes a session'}
             </Text>
           </View>
           <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
@@ -316,7 +309,7 @@ export default function Profile() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[styles.switchTitle, { color: t.text }]}>Become an ambassador</Text>
-              <Text style={[styles.switchSub, { color: t.text3 }]}>Share your code and earn $5 when a classmate completes their first paid session</Text>
+              <Text style={[styles.switchSub, { color: t.text3 }]}>Earn bonuses for invite goals and cash out your Noot credit</Text>
             </View>
             <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
           </Card>

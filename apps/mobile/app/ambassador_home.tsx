@@ -1,23 +1,18 @@
-// Ambassador Home (dashboard). Running bonus total + the referred-user pipeline
-// (signed up → first paid session / bonus pending → bonus earned), all live from
-// api.ambassador (list-referrals edge function). Tab root for the ambassador mode.
+// Ambassador Home (dashboard). Noot credit balance, progress to the next goal, and the
+// people you invited (joined → completed a session, +$5 credit) — all from api.credits
+// (0040). Tab root for the ambassador mode.
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, EmptyState, ViewingAs, PreviewBanner, useTheme, type BadgeTone } from '@noot/ui';
-import { api, type AmbassadorReferrals } from '@noot/core';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, EmptyState, ViewingAs, PreviewBanner, useTheme } from '@noot/ui';
+import { api, type Invite, type Milestone } from '@noot/core';
+import { dollars } from '../lib/InviteView';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
-
-const STATUS: Record<string, { label: string; tone: BadgeTone }> = {
-  signed_up: { label: 'Signed up', tone: 'neutral' },
-  bonus_pending: { label: '$5 pending', tone: 'accentSoft' },
-  bonus_paid: { label: 'Earned $5', tone: 'good' },
-};
 
 export default function AmbassadorHome() {
   const { reloadKey, onRefresh } = usePullToRefresh();
@@ -25,26 +20,30 @@ export default function AmbassadorHome() {
   const router = useRouter();
   const { role } = useApp();
   const { me } = useMe();
-  const [data, setData] = useState<AmbassadorReferrals | null>(null);
+  const [balance, setBalance] = useState(0);
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
 
   useEffect(() => {
     let alive = true;
-    // Ensure a profile/code exists, then load the referral pipeline + totals.
-    api.ambassador
-      .ensureProfile()
-      .then(() => api.ambassador.listReferrals())
-      .then((d) => { if (alive) setData(d); })
+    Promise.all([api.credits.balance(), api.credits.invites(), api.credits.milestones()])
+      .then(([b, i, m]) => {
+        if (!alive) return;
+        setBalance(b);
+        setInvites(i);
+        setMilestones(m);
+      })
       .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [reloadKey]);
 
   const previewing = !(me?.roles ?? []).includes('ambassador');
-  const totals = data?.totals;
-  const referrals = data?.referrals ?? [];
+  const completed = invites.filter((i) => i.completed && !i.reversed).length;
+  const nextGoal = milestones.find((m) => m.threshold > completed);
 
   return (
     <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
@@ -66,12 +65,13 @@ export default function AmbassadorHome() {
         {/* earnings summary */}
         <View style={[styles.summary, { backgroundColor: t.accent }]}>
           <GeckoLogo style={styles.geckoDeco} />
-          <Text style={[styles.summaryLabel, { color: t.onAccent }]}>TOTAL EARNED</Text>
-          <Text style={[styles.summaryValue, { color: t.onAccent }]}>
-            {loading ? '—' : `$${(totals?.totalEarned ?? 0).toFixed(2)}`}
-          </Text>
+          <Text style={[styles.summaryLabel, { color: t.onAccent }]}>NOOT CREDIT</Text>
+          <Text style={[styles.summaryValue, { color: t.onAccent }]}>{loading ? '—' : dollars(balance)}</Text>
           <Text style={[styles.summarySub, { color: t.onAccent }]}>
-            {loading ? ' ' : `${totals?.referrals ?? 0} referred · ${totals?.bonusesEarned ?? 0} bonuses earned`}
+            {loading
+              ? ' '
+              : `${invites.length} invited · ${completed} completed a session` +
+                (nextGoal ? ` · next bonus at ${nextGoal.threshold}` : '')}
           </Text>
         </View>
 
@@ -81,42 +81,44 @@ export default function AmbassadorHome() {
             <Ic name="gift" size={20} color={t.onAccent} strokeWidth={1.8} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.ctaTitle, { color: t.text }]}>Share your referral link</Text>
-            <Text style={[styles.ctaSub, { color: t.text2 }]}>Invite classmates — earn $5 when they complete their first paid session</Text>
+            <Text style={[styles.ctaTitle, { color: t.text }]}>Invite, earn, cash out</Text>
+            <Text style={[styles.ctaSub, { color: t.text2 }]}>$5 credit per friend who completes a session, plus goal bonuses</Text>
           </View>
           <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
         </Card>
 
         {/* referral pipeline */}
-        <Eyebrow style={{ color: t.text3, marginTop: 22, marginBottom: 10 }}>Your referrals</Eyebrow>
+        <Eyebrow style={{ color: t.text3, marginTop: 22, marginBottom: 10 }}>People you invited</Eyebrow>
         {loading ? (
           <View style={{ gap: 10 }}>
             <Skeleton height={64} radius={16} />
             <Skeleton height={64} radius={16} />
           </View>
-        ) : referrals.length === 0 ? (
+        ) : invites.length === 0 ? (
           <EmptyState
             icon="gift"
-            title="No referrals yet"
-            subtitle="Share your code — referred classmates and your bonuses will show up here."
-            actionLabel="Share your link"
+            title="No invites yet"
+            subtitle="Share your code — friends who sign up with it show up here."
+            actionLabel="Invite a friend"
             onAction={() => router.push('/ambassador_referrals')}
           />
         ) : (
           <View style={{ gap: 10 }}>
-            {referrals.map((r) => {
-              const s = STATUS[r.status] ?? STATUS.signed_up!;
-              return (
-                <Card key={r.referralId} style={styles.row}>
-                  <Avatar size={42} label={r.name.charAt(0) || 'S'} />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.name, { color: t.text }]}>{r.name}</Text>
-                    <Text style={[styles.roleSub, { color: t.text3 }]}>Referred as {r.referredRole}</Text>
-                  </View>
-                  <Badge label={s.label} tone={s.tone} />
-                </Card>
-              );
-            })}
+            {invites.map((i) => (
+              <Card key={i.referralId} style={styles.row}>
+                <Avatar size={42} label={i.name.charAt(0) || 'A'} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
+                  <Text style={[styles.roleSub, { color: t.text3 }]}>
+                    {i.reversed ? 'Session refunded' : i.completed ? 'Completed a session' : 'Waiting for their first session'}
+                  </Text>
+                </View>
+                <Badge
+                  label={i.reversed ? 'Refunded' : i.completed ? `+${dollars(i.rewardCents)}` : 'Joined'}
+                  tone={i.completed && !i.reversed ? 'good' : 'neutral'}
+                />
+              </Card>
+            ))}
           </View>
         )}
       </Body>
