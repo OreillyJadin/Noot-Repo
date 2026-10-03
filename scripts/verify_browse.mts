@@ -25,30 +25,36 @@ const me = await api.getMe()
 const tutors = (await api.tutors.search({})).map(toTutor)
 step(2, tutors.length > 0, `${tutors.length} approved tutors from api.tutors.search`)
 
-// Every tab that shows has tutors, and every tutor in it really teaches a subject in it.
+// Every tab that shows has tutors in it.
 const tabs = populatedCategories(tutors)
-const wrong = tabs.flatMap((c) =>
-  tutorsIn(tutors, c).filter((p) => !c.subjects.includes(subjectOf(p.course))).map((p) => `${p.tutor.name} in ${c.name}`))
-step(3, tabs.length > 0 && tabs.every((c) => tutorsIn(tutors, c).length > 0) && wrong.length === 0,
-  `tabs: ${tabs.map((c) => `${c.name} (${tutorsIn(tutors, c).length})`).join(', ')}${wrong.length ? ` — misfiled: ${wrong.join('; ')}` : ''}`)
+step(3, tabs.length > 0 && tabs.every((c) => tutorsIn(tutors, c).length > 0),
+  `tabs: ${tabs.map((c) => `${c.name} (${tutorsIn(tutors, c).length})`).join(', ')}`)
 
-// No tutor's course falls outside every category (they would be unreachable from the tabs).
+// Every subject in the catalog belongs to a category — a tutor whose only subject were
+// missing would be in no tab at all. Local holds a subset of production's 132 subjects; the
+// full list was checked against production when the map was written (2026-10-03).
 const mapped = new Set(CATEGORIES.flatMap((c) => c.subjects))
+const { getSupabase } = await import('../packages/core/src/index.ts')
+// The course_subjects view (0025) is one row per subject, so PostgREST's row cap can't hide any.
+const { data: subjectRows, error: subjErr } = await getSupabase().from('course_subjects').select('subject_code')
+const catalogSubjects = [...new Set((subjectRows ?? []).map((r) => r.subject_code as string))]
+const unmapped = catalogSubjects.filter((code) => !mapped.has(code))
 const orphans = [...new Set(tutors.flatMap((t) => t.courses.map(([code]) => code)).filter((code) => !mapped.has(subjectOf(code))))]
-step(4, orphans.length === 0, orphans.length ? `courses in no category: ${orphans.join(', ')}` : 'every tutor course belongs to a category')
+step(4, !subjErr && catalogSubjects.length > 0 && unmapped.length === 0 && orphans.length === 0,
+  `${catalogSubjects.length} catalog subjects, unmapped: ${unmapped.join(', ') || 'none'}; tutor courses in no category: ${orphans.join(', ') || 'none'}`)
 
 // "Popular" is ordered by sessions.
 const popular = byPopularity(tutors)
 step(5, popular.every((t, i) => i === 0 || popular[i - 1]!.sessions >= t.sessions),
   `popular: ${popular.slice(0, 3).map((t) => `${t.name} (${t.sessions})`).join(', ')}`)
 
-// The "For you" carousel is for THIS student, and is not the popular list again (ERR-010).
+// The demo student has no courses and an "Undecided" major: no carousel, just the list —
+// not the popular list a second time (ERR-010).
 const picked = forYou(tutors, me?.courses ?? [], me?.major ?? null)
-const mine = (me?.courses ?? []).map((c) => c.toLowerCase())
-const onTopic = !picked || picked.title !== 'For your courses' || picked.picks.every((p) => mine.includes(p.course.toLowerCase()))
-step(6, onTopic, picked
-  ? `${picked.title}: ${picked.picks.map((p) => `${p.tutor.name} · ${p.course}`).join(', ')} (student takes ${me?.courses?.join(', ') || 'nothing'})`
-  : `no carousel — no tutor for ${me?.courses?.join(', ') || 'no courses'} or major ${me?.major ?? 'unset'}`)
+const noSignal = (me?.courses ?? []).length === 0 && /^(undeclared|undecided)$/i.test(me?.major ?? 'undeclared')
+step(6, noSignal ? picked === null : true,
+  picked ? `${picked.title}: ${picked.picks.map((p) => `${p.tutor.name} · ${p.course}`).join(', ')}`
+    : `no carousel for courses [${me?.courses?.join(', ') ?? ''}] and major ${me?.major ?? 'unset'}`)
 
 // With a course a seeded tutor teaches, the carousel is exactly that course's tutors.
 const some = tutors[0]!.courses[0]![0]

@@ -71,6 +71,30 @@ test('for you: falls back to the student’s major when no tutor has their cours
   assert.deepEqual(res?.picks.map((p) => [p.tutor.id, p.course]), [['ben', 'MATH 125']]);
 });
 
+test('for you: "Undeclared" is not a major to match on', () => {
+  const undeclared = [tutor('u1', 'Undeclared', 5, ['EN 101']), tutor('u2', 'Undecided', 3, ['EN 102'])];
+  assert.equal(forYou(undeclared, [], 'Undeclared'), null);
+  assert.equal(forYou(undeclared, [], 'undecided'), null);
+  assert.equal(forYou(undeclared, [], '   '), null);
+});
+
+test('for you: the carousel is capped', () => {
+  const many = Array.from({ length: 25 }, (_, i) => tutor(`t${i}`, 'Finance', i, ['FI 302']));
+  assert.equal(forYou(many, ['FI 302'], null)?.picks.length, 10);
+  assert.equal(forYou(many, [], 'Finance')?.picks.length, 10);
+  // …and keeps the most popular ones.
+  assert.equal(forYou(many, ['FI 302'], null)?.picks[0]!.tutor.id, 't24');
+});
+
+test('subjects a student would look for are where they expect', () => {
+  const where = (code: string) => CATEGORIES.find((c) => c.subjects.includes(code))?.name;
+  assert.equal(where('GES'), 'STEM'); // General Engineering Studies
+  assert.equal(where('EC'), 'Business');
+  assert.equal(where('PY'), 'Humanities');
+  assert.equal(where('NUR'), 'Health');
+  assert.equal(where('FA'), 'Arts & Media');
+});
+
 test('for you: nothing to show means no carousel, not a repeat of the popular list', () => {
   assert.equal(forYou(all, [], null), null);
   assert.equal(forYou(all, ['NUR 305'], 'Nursing'), null);

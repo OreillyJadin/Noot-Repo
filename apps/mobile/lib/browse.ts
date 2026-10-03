@@ -4,7 +4,8 @@
 // ERR-010: "For you" showed the SAME unfiltered tutor list twice, once as a carousel and once
 // as a list, both titled "Popular this week". The carousel is now picked for the student —
 // tutors for the courses they're taking, or failing that tutors in their major — and the list
-// is the popular one (most sessions first).
+// is the most popular tutors (most sessions first), titled "Most popular" since the count is
+// all-time, not this week's.
 //
 // ERR-011: the Business / STEM / Humanities tabs matched course codes by PREFIX against a
 // hand-written list, so "PH" (physics) also pulled in PHL (philosophy), "EC" pulled in ECE,
@@ -24,41 +25,43 @@ export interface Category {
 export const CATEGORIES: Category[] = [
   {
     name: 'Business',
-    subjects: ['AC', 'EC', 'FI', 'GBA', 'HCAN', 'IBA', 'LGS', 'MGT', 'MIS', 'MKT', 'OM', 'ST'],
+    subjects: [
+      'AC', 'CSM', 'EC', 'FI', 'GBA', 'HCAN', 'HSM', 'IBA', 'LGS', 'MGT', 'MIS', 'MKT', 'OM', 'ST',
+    ],
   },
   {
     name: 'STEM',
     subjects: [
-      'AEM', 'AY', 'BSC', 'CE', 'CH', 'CHE', 'CS', 'DR', 'ECE', 'ENGR', 'EPIC', 'GEO', 'GY', 'MATH',
-      'ME', 'MFE', 'MS', 'MTE', 'NSE', 'PH',
+      'AEM', 'AY', 'BSC', 'CE', 'CH', 'CHE', 'CS', 'DR', 'ECE', 'ENGR', 'EPIC', 'GEO', 'GES', 'GY',
+      'MATH', 'ME', 'MFE', 'MS', 'MTE', 'PH',
     ],
   },
   {
+    // Languages, social sciences and the general / honors programs sit here too.
     name: 'Humanities',
     subjects: [
-      'AAST', 'ALA', 'AMS', 'ANT', 'ARB', 'AS', 'ASL', 'BUI', 'CC', 'CHI', 'CIP', 'CJ', 'CL', 'CRL',
-      'CZE', 'EN', 'FA', 'FR', 'GDS', 'GES', 'GN', 'GR', 'GS', 'HY', 'IDMD', 'IT', 'JA', 'KOR', 'LA',
-      'LAS', 'MDGR', 'MLC', 'NCLT', 'NEW', 'PHL', 'POR', 'PSC', 'PY', 'REL', 'RL', 'RRS', 'RUS', 'SOC',
-      'SP', 'SS', 'THAI', 'UA', 'UAEC', 'UFE', 'UH', 'UKR', 'VIET', 'WS',
+      'AAST', 'AFS', 'ALA', 'AMS', 'ANT', 'ARB', 'AS', 'ASL', 'BUI', 'CC', 'CHI', 'CIP', 'CJ', 'CL',
+      'CRL', 'CZE', 'EN', 'FR', 'GN', 'GR', 'GS', 'HY', 'IT', 'JA', 'KOR', 'LA', 'LAS', 'MDGR', 'MIL',
+      'MLC', 'NCLT', 'NEW', 'NSE', 'PHL', 'POR', 'PSC', 'PY', 'REL', 'RL', 'RRS', 'RUS', 'SOC', 'SP',
+      'SS', 'THAI', 'UA', 'UAEC', 'UFE', 'UH', 'UKR', 'VIET', 'WS',
     ],
   },
   {
     name: 'Health',
-    subjects: ['ATR', 'CHS', 'HD', 'HES', 'HHE', 'KIN', 'NHM', 'NUR', 'POPH', 'RCH', 'SLH', 'SW'],
+    subjects: [
+      'ATR', 'CHS', 'HD', 'HES', 'HHE', 'IDMD', 'KIN', 'NHM', 'NUR', 'POPH', 'RCH', 'SLH', 'SW',
+    ],
   },
   {
     name: 'Arts & Media',
     subjects: [
-      'APR', 'ARH', 'ART', 'BA', 'CIS', 'COM', 'CSM', 'CTD', 'DN', 'DNCA', 'HSM', 'IS', 'JCM', 'LS',
+      'APR', 'ARH', 'ART', 'BA', 'CIS', 'COM', 'CTD', 'DN', 'DNCA', 'FA', 'GDS', 'IS', 'JCM', 'LS',
       'MC', 'MUA', 'MUS', 'MUSM', 'TH', 'THMT',
     ],
   },
   {
     name: 'Education',
-    subjects: [
-      'AFS', 'BCE', 'BEF', 'BEP', 'BER', 'CAT', 'CEE', 'CIE', 'CRD', 'CSE', 'EDU', 'MAP', 'MIL', 'MUE',
-      'SPE',
-    ],
+    subjects: ['BCE', 'BEF', 'BEP', 'BER', 'CAT', 'CEE', 'CIE', 'CRD', 'CSE', 'EDU', 'MAP', 'MUE', 'SPE'],
   },
 ];
 
@@ -100,11 +103,18 @@ export interface ForYou {
 }
 
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+/** Enough for a carousel; more would just repeat the list underneath it. */
+const MAX_PICKS = 10;
+/** "No major yet" is not a major to match tutors on. */
+const NO_MAJOR = /^(undeclared|undecided)$/i;
 
 /**
  * The carousel on "For you": tutors for the courses the student is taking (each shown with
  * the course they share), or else tutors in the student's major. Null when neither finds
  * anyone — the screen then shows only the popular list rather than repeating it.
+ *
+ * The major match is exact text. Majors are picked from a list at sign-up, but Edit profile
+ * also takes other wording, so a differently-worded major simply finds no one.
  */
 export function forYou(tutors: Tutor[], myCourses: string[], myMajor: string | null): ForYou | null {
   const ranked = byPopularity(tutors);
@@ -114,14 +124,14 @@ export function forYou(tutors: Tutor[], myCourses: string[], myMajor: string | n
     const course = tutor.courses.map(([code]) => code).find((code) => mine.some((m) => same(m, code)));
     return course ? [{ tutor, course }] : [];
   });
-  if (forCourses.length > 0) return { title: 'For your courses', picks: forCourses };
+  if (forCourses.length > 0) return { title: 'For your courses', picks: forCourses.slice(0, MAX_PICKS) };
 
   const major = myMajor?.trim();
-  if (major) {
+  if (major && !NO_MAJOR.test(major)) {
     const inMajor = ranked
       .filter((tutor) => same(tutor.major, major))
       .map((tutor) => ({ tutor, course: tutor.courses[0]?.[0] ?? '' }));
-    if (inMajor.length > 0) return { title: `In your major · ${major}`, picks: inMajor };
+    if (inMajor.length > 0) return { title: `In your major · ${major}`, picks: inMajor.slice(0, MAX_PICKS) };
   }
   return null;
 }

@@ -217,7 +217,12 @@ export default function StudentHome() {
       ) : (
         <>
       <View style={[styles.tabsWrap, { borderBottomColor: t.border }]}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          accessibilityRole="tablist"
+          contentContainerStyle={styles.tabs}
+        >
           {['For you', ...categories.map((c) => c.name)].map((c, i) => {
             const on = i === tabIndex;
             return (
@@ -262,7 +267,7 @@ export default function StudentHome() {
         ) : null}
 
         <View style={[styles.sectionHead, picked ? styles.sectionHeadSpaced : null]}>
-          <H2 style={styles.sectionTitle}>{category ? `Top in ${category.name}` : 'Popular this week'}</H2>
+          <H2 style={styles.sectionTitle}>{category ? `Top in ${category.name}` : 'Most popular'}</H2>
           <Text onPress={openSearch} style={[styles.seeAll, { color: t.accent }]}>
             See all
           </Text>
