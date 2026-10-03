@@ -4,13 +4,12 @@
 -- write into a table that has no insert policy. It was never revoked from PUBLIC, and
 -- PostgREST exposes every function a role may execute — so anyone holding the app's public
 -- key, signed in or not, could call it and put a notification with any title, body and data
--- in front of any user. Notifications now carry meeting links (0042), which makes a forged
--- one a ready-made phishing message.
+-- in front of any user: a ready-made phishing message inside the app.
 --
--- Nothing legitimate calls it from a client: the app never does, and the triggers and the
--- interview functions that use it run as its owner, which a revoke from these roles does
--- not affect.
-revoke execute on function public.create_notification(uuid, notification_type, text, text, jsonb)
+-- Nothing legitimate calls it from a client. The app never does, and every function that
+-- uses it (the message and booking triggers, and the interview functions in 0042) is itself
+-- SECURITY DEFINER and runs as the owner, which a revoke from these roles does not affect.
+revoke execute on function public.create_notification(uuid, public.notification_type, text, text, jsonb)
   from public, anon, authenticated;
--- Server code (Edge Functions, with the service key) may still use it.
-grant execute on function public.create_notification(uuid, notification_type, text, text, jsonb) to service_role;
+-- Kept for server code holding the service key (nothing uses it that way today).
+grant execute on function public.create_notification(uuid, public.notification_type, text, text, jsonb) to service_role;

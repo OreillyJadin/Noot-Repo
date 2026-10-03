@@ -20,26 +20,29 @@ const step = (n: number, ok: boolean, msg: string) => {
 initSupabase({ url: URL, anonKey: ANON })
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } })
 const { data: victim } = await admin.from('users').select('id').eq('email', 'sara@crimson.ua.edu').single()
+if (!victim) throw new Error('seeded tutor sara@crimson.ua.edu not found — run node supabase/seed_demo.mjs')
+/** Postgres "insufficient privilege" — the refusal this migration is meant to produce. */
+const DENIED = '42501'
 const MARK = `forged-${Date.now()}`
-const forge = { p_user: victim!.id, p_type: 'system', p_title: MARK, p_body: 'tap https://evil.example', p_data: {} }
+const forge = { p_user: victim.id, p_type: 'system', p_title: MARK, p_body: 'tap https://evil.example', p_data: {} }
 const forged = async () => (await admin.from('notifications').select('id').eq('title', MARK)).data?.length ?? 0
 
 // 1) Signed out, with only the public key.
 {
   const { error } = await getSupabase().rpc('create_notification', forge)
-  step(1, !!error && (await forged()) === 0, `DENY signed out forging a notification → ${error?.message ?? 'CREATED'}`)
+  step(1, error?.code === DENIED && (await forged()) === 0, `DENY signed out forging a notification → ${error?.message ?? 'CREATED'}`)
 }
 
 // 2) Signed in as a plain student, aimed at someone else.
 const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
 {
   const { error } = await getSupabase().rpc('create_notification', forge)
-  step(2, signIn.ok && !!error && (await forged()) === 0, `DENY a student forging a notification for another user → ${error?.message ?? 'CREATED'}`)
+  step(2, signIn.ok && error?.code === DENIED && (await forged()) === 0, `DENY a student forging a notification for another user → ${error?.message ?? 'CREATED'}`)
 }
 
 // 3) Nor by writing the table directly (there is no insert policy).
 {
-  const { error } = await getSupabase().from('notifications').insert({ user_id: victim!.id, type: 'system', title: MARK, body: '' })
+  const { error } = await getSupabase().from('notifications').insert({ user_id: victim.id, type: 'system', title: MARK, body: '' })
   step(3, !!error && (await forged()) === 0, `DENY inserting into notifications directly → ${error?.message ?? 'INSERTED'}`)
 }
 
@@ -53,10 +56,11 @@ const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password
     const { data: me } = await admin.from('users').select('id').eq('email', 'student@crimson.ua.edu').single()
     const other = c!.student_id === me!.id ? c!.tutor_id : c!.student_id
     const text = `lockdown check ${Date.now()}`
-    await api.chat.sendMessage(convo.id, text)
+    const sent = await api.chat.sendMessage(convo.id, text)
     const { data: notes } = await admin.from('notifications').select('type, body').eq('user_id', other).eq('body', text)
     step(4, notes?.length === 1 && notes[0]!.type === 'message', `ALLOW a real message still notifies the other person (${notes?.length ?? 0} notification)`)
     await admin.from('notifications').delete().eq('user_id', other).eq('body', text)
+    await admin.from('messages').delete().eq('id', sent.id)
   }
 }
 
@@ -68,6 +72,8 @@ const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password
   await admin.from('notifications').delete().eq('title', `${MARK}-server`)
 }
 
+// If a forgery ever does get through, don't leave it in the victim's feed.
+await admin.from('notifications').delete().eq('title', MARK)
 await auth.signOut()
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
