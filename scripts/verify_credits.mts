@@ -101,6 +101,8 @@ try {
   await refusedFor(inviter.c, friendCode, /joined before you/, 'claiming the code of someone who joined after you is refused (no loops)');
   // The join date that counts is the sign-in account's, not the profile row the owner can edit.
   await inviter.c.from('users').update({ created_at: '2099-01-01T00:00:00Z' }).eq('id', inviter.uid);
+  const { data: rewritten } = await svc.from('users').select('created_at').eq('id', inviter.uid).single();
+  check('(setup) the profile row\'s join date really was rewritten', String(rewritten?.created_at).startsWith('2099'), String(rewritten?.created_at));
   await refusedFor(inviter.c, friendCode, /joined before you/, '…even after rewriting your own profile\'s join date');
   blocked(await inviter.c.rpc('claim_invite', { p_code: code }), 'your own code is refused');
   const booked = await newUser('Booked');
