@@ -144,7 +144,7 @@ export default function EditRates() {
             <Ic name="bolt" size={14} color={t.accent} strokeWidth={1.8} />
           </View>
           <Text style={[styles.footNoteText, { color: t.text3 }]}>
-            Most tutors on campus charge $22–$34/hr. You keep 100% during launch.
+            Most tutors on campus charge $22–$34/hr.
           </Text>
         </View>
       </Body>
