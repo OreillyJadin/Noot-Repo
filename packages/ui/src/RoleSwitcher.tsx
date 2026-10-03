@@ -20,9 +20,8 @@ export interface RoleSwitcherProps {
   /** The roles the user actually holds (admin is ignored if present). */
   roles: string[];
   /**
-   * Roles they can look at without holding yet. Shown greyed with a dot so the switcher is a
-   * complete map of the three experiences instead of hiding the ones you haven't joined —
-   * you can't decide to apply to something you're never allowed to see.
+   * Roles they can look at without holding yet (e.g. Tutor while the application is in
+   * review). Shown with a dot to mark them as a preview.
    */
   previewRoles?: string[];
   active: SwitchableRole;

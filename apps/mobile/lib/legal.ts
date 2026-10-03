@@ -2,7 +2,9 @@
 // URL anyway, so the app links it rather than duplicating the text.
 import * as WebBrowser from 'expo-web-browser';
 
-export const LEGAL_BASE = 'https://trynoot.com';
+/** The public site — also the link a "Refer a friend" invite sends. */
+export const SITE_URL = 'https://trynoot.com';
+export const LEGAL_BASE = SITE_URL;
 
 /**
  * Where users are told to reach us: the Help & support screen and the footer of every auth

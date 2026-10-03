@@ -3,7 +3,7 @@
 // stub-Alert helper is gone (APP_REVIEW_TICKETS.md T12). "Dark mode" is a local visual
 // toggle only (not wired to the real theme yet — that lives in ThemeProvider at the app root).
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
+import { View, Text, Pressable, Alert, Share, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, type IconName } from '@noot/ui';
@@ -16,7 +16,7 @@ import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { pickAndUploadAvatar } from '../lib/avatar';
-import { openLegal } from '../lib/legal';
+import { openLegal, SITE_URL } from '../lib/legal';
 
 function Row({
   icon,
@@ -104,9 +104,18 @@ export default function Profile() {
       Alert.alert('Could not join the ambassador program', 'Please try again in a moment.');
     }
   };
-  // Referral CTA: already an ambassador → their referrals dashboard; otherwise sign them up.
-
-  const openReferrals = () => (roles.includes('ambassador') ? router.push('/ambassador_referrals') : becomeAmbassador());
+  // Referral CTA: an ambassador gets their code + bonus dashboard. Everyone else just invites
+  // a friend from the share sheet — no code, no reward, nothing to join. Becoming an
+  // ambassador is its own card at the bottom of the page.
+  const isAmbassador = roles.includes('ambassador');
+  const inviteFriend = async () => {
+    try {
+      await Share.share({ message: `Join me on noot — book a tutor who already aced your course. ${SITE_URL}` });
+    } catch {
+      /* user dismissed the sheet */
+    }
+  };
+  const openReferrals = () => (isAmbassador ? router.push('/ambassador_referrals') : inviteFriend());
 
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
@@ -222,21 +231,25 @@ export default function Profile() {
           </View>
         </Card>
 
-        {/* mode switcher — only shows if the user holds 2+ switchable roles */}
+        {/* mode switcher — the modes you hold, plus Tutor as a preview while the application is in review */}
         {roles.length + previewRoles.length > 1 ? (
           <View style={{ marginTop: 16 }}>
             <RoleSwitcher roles={roles} previewRoles={previewRoles} active={role} onSelect={switchTo} />
           </View>
         ) : null}
 
-        {/* referral CTA — the program isn't built yet, so no fabricated credit balance */}
+        {/* referral CTA — no fabricated credit balance */}
         <Card onPress={openReferrals} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
           <View style={[styles.promoIcon, { backgroundColor: t.accent }]}>
             <Ic name="gift" size={20} color={t.onAccent} strokeWidth={1.7} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.promoTitle, { color: t.text }]}>Refer &amp; earn</Text>
-            <Text style={[styles.promoSub, { color: t.text2 }]}>Become an ambassador to earn $5 for every classmate who completes their first paid session</Text>
+            <Text style={[styles.promoTitle, { color: t.text }]}>{isAmbassador ? 'Refer & earn' : 'Refer a friend'}</Text>
+            <Text style={[styles.promoSub, { color: t.text2 }]}>
+              {isAmbassador
+                ? 'Earn $5 for every classmate who completes their first paid session'
+                : 'Send a classmate an invite to noot'}
+            </Text>
           </View>
           <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
         </Card>
@@ -296,7 +309,7 @@ export default function Profile() {
             <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
           </Card>
         ) : null}
-        {!roles.includes('ambassador') ? (
+        {!isAmbassador ? (
           <Card onPress={becomeAmbassador} style={styles.switchCard}>
             <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
               <Ic name="gift" size={21} color={t.accent} strokeWidth={1.7} />
