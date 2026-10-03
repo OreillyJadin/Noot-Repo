@@ -10,7 +10,7 @@ import * as Linking from 'expo-linking';
 import { Button, useTheme } from '@noot/ui';
 import { auth } from '@noot/core';
 import { useApp } from '../lib/store';
-import { routeAfterAuth } from '../lib/postAuth';
+import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
 import { claimPendingInvite } from '../lib/pendingInvite';
 import { authLinks } from '../lib/authLinks';
 
@@ -20,10 +20,19 @@ export default function AuthCallback() {
   const params = useLocalSearchParams();
   const { setRole } = useApp();
   const [error, setError] = useState<string | null>(null);
+  // Set when the account couldn't be read (not a bad link): offer a retry, bumped to re-run.
+  const [unreachable, setUnreachable] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const unavailable = () => {
+        if (cancelled) return;
+        setUnreachable(true);
+        setError(ACCOUNT_UNAVAILABLE);
+      };
+
       // On web the real href carries the query/fragment; on native reconstruct the
       // deep link from the parsed route params so completeAuthFromUrl sees the code.
       const url =
@@ -45,9 +54,14 @@ export default function AuthCallback() {
         else if (params.flow === 'recovery' && prior === 'used') {
           authLinks.setRecoveryLink(params);
           router.replace('/set_password?mode=reset');
-        } else await routeAfterAuth(router, setRole);
+        } else if (!(await routeAfterAuth(router, setRole)).ok) unavailable();
         return;
       }
+
+      // Already signed in before this link was exchanged → the link isn't what signs them in.
+      // completeAuthFromUrl reports that as success, so it must not be read as a new sign-up.
+      const alreadySignedIn = !!(await auth.getSessionUserId());
+      if (cancelled) return;
 
       // Shared across duplicate mounts of this screen for the same link.
       const res = await authLinks.exchangeOnce(params, () => auth.completeAuthFromUrl(url));
@@ -68,24 +82,41 @@ export default function AuthCallback() {
         // The new account's first sign-in: claim the friend's code typed at sign-up now, before
         // they can book anything (the claim is refused after a first booking). Not awaited.
         void claimPendingInvite();
-        router.replace('/verified');
+        // A new account goes on to create its password. One that already did is here on a
+        // replayed link (the platform re-delivering the launch URL after a quit, on a device
+        // whose link ledger doesn't know it) and goes home instead — ERR-001.
+        const routed = await routeAfterAuth(router, setRole, 'signup_link');
+        if (cancelled || routed.ok) return;
+        // Couldn't read the account. A link that just signed them in is spent, so carry on
+        // into onboarding as before; a session that was already there can simply retry.
+        if (alreadySignedIn) unavailable();
+        else router.replace('/verified');
       }
     })();
     return () => {
       cancelled = true;
     };
-    // Runs once on mount; the inbound URL is fixed for this navigation.
+    // Runs on mount (the inbound URL is fixed for this navigation) and again on "Try again".
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
       {error ? (
         <View style={styles.center}>
           <Text style={{ fontSize: 40 }}>⚠️</Text>
-          <Text style={[styles.title, { color: t.text }]}>Couldn&apos;t sign you in</Text>
+          <Text style={[styles.title, { color: t.text }]}>
+            {unreachable ? 'No connection' : "Couldn't sign you in"}
+          </Text>
           <Text style={[styles.sub, { color: t.text2 }]}>{error}</Text>
-          <Button label="Back to sign in" onPress={() => router.replace('/signup')} />
+          {unreachable ? (
+            <Button
+              label="Try again"
+              onPress={() => { setError(null); setUnreachable(false); setAttempt((n) => n + 1); }}
+            />
+          ) : (
+            <Button label="Back to sign in" onPress={() => router.replace('/signup')} />
+          )}
         </View>
       ) : (
         <View style={styles.center}>

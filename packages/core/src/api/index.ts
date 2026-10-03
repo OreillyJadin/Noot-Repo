@@ -252,6 +252,7 @@ function mapUser(row: any): User {
     gender: row.gender ?? null,
     courses: row.courses ?? [],
     avatarUrl: row.avatar_url ?? null,
+    termsAcceptedAt: row.terms_accepted_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

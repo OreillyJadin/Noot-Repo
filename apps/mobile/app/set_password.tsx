@@ -12,7 +12,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Button, Field, Ic, useTheme } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
-import { routeAfterAuth } from '../lib/postAuth';
+import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
 import { authLinks } from '../lib/authLinks';
 import { TERMS_VERSION, openLegal } from '../lib/legal';
 
@@ -50,7 +50,7 @@ export default function SetPassword() {
         // Recorded first and persisted, so the same link reopening the app later — a
         // duplicate delivery or a relaunch after force-close — goes home (tracker T2).
         await authLinks.markPasswordResetDone();
-        await routeAfterAuth(router, setRole);
+        if (!(await routeAfterAuth(router, setRole)).ok) setError(ACCOUNT_UNAVAILABLE);
       } else {
         // Record the acceptance before moving on, so no account can reach the rest of the
         // app without one. A failure here is not fatal to sign-up — surface it and let
