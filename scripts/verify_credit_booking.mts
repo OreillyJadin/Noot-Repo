@@ -159,10 +159,11 @@ try {
   // A fresh invitee with a completed session.
   const fe = `invitee${Date.now()}@crimson.ua.edu`;
   const { data: f } = await svc.auth.admin.createUser({
-    email: fe, password: PASSWORD, email_confirm: true, user_metadata: { referral_code: invCode.code },
+    email: fe, password: PASSWORD, email_confirm: true,
   });
   const fc = createClient(URL, ANON, { auth: { persistSession: false } });
   await fc.auth.signInWithPassword({ email: fe, password: PASSWORD });
+  await fc.rpc('claim_invite', { p_code: invCode.code }); // as the app does after first sign-in
   const { data: done } = await svc.from('bookings').insert({
     student_id: f.user!.id, tutor_id: tutorId, subject: courseCode, scheduled_at: new Date(Date.now() - 864e5).toISOString(),
     duration_minutes: 60, price: 28, platform_fee: 4.9, tutor_payout_amount: 23.1, status: 'completed', session_type: 'in_person',
@@ -185,9 +186,11 @@ try {
   // still fires the award. A second invitee, completed with no reward yet, then a "retry".
   const fe2 = `invitee2x${Date.now()}@crimson.ua.edu`;
   const { data: f2 } = await svc.auth.admin.createUser({
-    email: fe2, password: PASSWORD, email_confirm: true, user_metadata: { referral_code: invCode.code },
+    email: fe2, password: PASSWORD, email_confirm: true,
   });
-  await createClient(URL, ANON, { auth: { persistSession: false } }).auth.signInWithPassword({ email: fe2, password: PASSWORD }); // attaches the code
+  const fc2 = createClient(URL, ANON, { auth: { persistSession: false } });
+  await fc2.auth.signInWithPassword({ email: fe2, password: PASSWORD });
+  await fc2.rpc('claim_invite', { p_code: invCode.code });
   const { data: done2 } = await svc.from('bookings').insert({
     student_id: f2.user!.id, tutor_id: tutorId, subject: courseCode, scheduled_at: new Date(Date.now() - 864e5).toISOString(),
     duration_minutes: 60, price: 28, platform_fee: 4.9, tutor_payout_amount: 23.1, status: 'completed', session_type: 'in_person',
@@ -249,8 +252,10 @@ try {
   /** An invitee of the test user with a completed $28 session that used $3 of credit. */
   const creditSession = async (tag: string) => {
     const em = `wh${tag}${Date.now()}@crimson.ua.edu`;
-    const { data: w } = await svc.auth.admin.createUser({ email: em, password: PASSWORD, email_confirm: true, user_metadata: { referral_code: await api.credits.myCode() } });
-    await createClient(URL, ANON, { auth: { persistSession: false } }).auth.signInWithPassword({ email: em, password: PASSWORD });
+    const { data: w } = await svc.auth.admin.createUser({ email: em, password: PASSWORD, email_confirm: true });
+    const wc = createClient(URL, ANON, { auth: { persistSession: false } });
+    await wc.auth.signInWithPassword({ email: em, password: PASSWORD });
+    await wc.rpc('claim_invite', { p_code: await api.credits.myCode() });
     const pi = `pi_wh_${tag}_${Date.now()}`;
     await svc.from('credit_ledger').insert({ user_id: w.user!.id, amount_cents: 300, kind: 'adjustment' });
     await svc.rpc('spend_credit', { p_user: w.user!.id, p_cents: 300, p_payment_intent: pi });

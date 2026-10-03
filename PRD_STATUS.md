@@ -110,11 +110,11 @@ now used for signup verification and password reset, **not** as the day-to-day s
 
 | Feature | Status | Notes |
 |---|---|---|
-| Ambassador profiles + unique referral codes | 🟢 | `create_my_ambassador_profile()` DB fn generates a unique `NOOT-XXXXXX` code server-side; `api.ambassador.ensureProfile/getProfile`. "Become an ambassador" adds the role. |
-| Referral share screen | 🟢 | `ambassador_referrals` — code + link + native Share sheet. |
-| Referral dashboard (pipeline + earnings) | 🟢 | `ambassador_home` — referred-user pipeline (signed up → $5 pending → earned) + running total, via the `list-referrals` edge fn. Verified on cloud. |
-| Referral attribution at signup | 🟢 | `handle_new_user` (`0008`) reads `referral_code` from signup metadata + self-referral CHECK. (Signup screen doesn't collect the code yet.) |
-| $5 one-time bonus on first completed session | 🟢 | `award-referral-bonus` edge fn (idempotent, service-role gated) is now **triggered by `complete-session`** when a tutor marks a session complete. |
+| Invite codes for everyone (0040) | 🟢 | `my_invite_code()` generates a unique `NOOT-XXXXXX` per user server-side; ambassadors reuse theirs. |
+| Invite screen | 🟢 | `/invite` (everyone) and `ambassador_referrals` — code, Noot credit, people invited; ambassadors also see goals + cash-out. |
+| Invite attribution | 🟢 | Code typed on the sign-up screen, kept on the device, claimed after first sign-in (`claim_invite`): once, before any booking, only an older account's code (no loops). |
+| Noot credit ($5 per invitee's completed session) | 🟢 | `award-referral-bonus` → `award_invite_rewards`, fired by `complete-session` (also on retry). Credit auto-applies at checkout; returned on cancel/refund; reversed on full refund or dispute. |
+| Ambassador goals + cash-out | 🟢 | Team approval (`ambassador_approvals`) unlocks milestone bonuses and cash-out of credit ≥ 7 days old ($10 min); paid by hand. |
 
 ## Admin  (built 2026-07-11)
 

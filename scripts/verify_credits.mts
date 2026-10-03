@@ -2,7 +2,8 @@
 // i.e. a modified client, not the app — and tries to mint, move or read credit they
 // shouldn't. Then drives the server-side paths (as the Edge Functions would, with the
 // service role) and checks the money adds up:
-//   • invite codes: one per user, never client-chosen; applied only at sign-up
+//   • invite codes: one per user, never client-chosen; claimed by the new account after it
+//     signs in, only an older account's code, never from the sign-up request's metadata
 //   • the ledger: no client writes, no reading anyone else's rows
 //   • earning: $5 to the inviter when the invitee completes a session, once
 //   • no reward for a session with your own inviter; one invite per email, ever
@@ -35,19 +36,18 @@ const noRows = (r: { error: { message: string } | null; data: unknown[] | null }
   check(name, !!r.error || (r.data ?? []).length === 0, r.error?.message ?? `${(r.data ?? []).length} rows`);
 
 const created: string[] = [];
-/** A new account; `referralCode` is what they typed on the sign-up screen (auth metadata). */
+/** A new account; `referralCode` is what they typed on the sign-up screen, which the app
+ *  claims right after their first sign-in (lib/pendingInvite). */
 async function newUser(tag: string, referralCode?: string, email?: string): Promise<{ c: SupabaseClient; uid: string }> {
   email ??= `credits-${tag.toLowerCase()}-${Date.now()}${Math.floor(Math.random() * 1e4)}@crimson.ua.edu`;
-  const { data: u, error } = await svc.auth.admin.createUser({
-    email, password: PASSWORD, email_confirm: true,
-    ...(referralCode ? { user_metadata: { referral_code: referralCode } } : {}),
-  });
+  const { data: u, error } = await svc.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
   if (error) throw error;
   created.push(u.user!.id);
   await svc.from('users').update({ first_name: tag, last_name: 'Tester' }).eq('id', u.user!.id);
   const c = createClient(URL, ANON, { auth: { persistSession: false } });
   const { error: sErr } = await c.auth.signInWithPassword({ email, password: PASSWORD });
   if (sErr) throw sErr;
+  if (referralCode) await c.rpc('claim_invite', { p_code: referralCode }); // refusals are checked by the caller
   return { c, uid: u.user!.id };
 }
 
@@ -92,7 +92,13 @@ try {
   check('signing up with a code records the referral (case/space-insensitive)', (await referredBy(friend.uid)) === inviter.uid);
   const typo = await newUser('Typo', 'NOOT-NOPE00');
   check('signing up with an unknown code records nothing', (await referredBy(typo.uid)) === null);
-  blocked(await stranger.c.rpc('redeem_invite_code', { p_code: code }), 'there is no way to add a code after sign-up');
+  blocked(await friend.c.rpc('claim_invite', { p_code: code }), 'a second claim is refused');
+  blocked(await inviter.c.rpc('claim_invite', { p_code: (await friend.c.rpc('my_invite_code')).data }), 'claiming the code of someone who joined after you is refused (no loops)');
+  blocked(await inviter.c.rpc('claim_invite', { p_code: code }), 'your own code is refused');
+  const booked = await newUser('Booked');
+  await completedBooking(booked.uid);
+  blocked(await booked.c.rpc('claim_invite', { p_code: code }), 'a code can\'t be claimed after your first session');
+  blocked(await anon.rpc('claim_invite', { p_code: code }), 'signed out, nothing can be claimed');
   noRows(await stranger.c.from('referrals').insert({ ambassador_id: inviter.uid, referred_user_id: stranger.uid, referred_role: 'student', referral_code_used: code }).select(), 'student cannot insert a referral row directly');
 
   console.log('\n— the ledger is server-only —');
@@ -242,18 +248,15 @@ try {
   check('a session refunded before the award earns nothing later', (await svc.rpc('award_invite_rewards', { p_booking: lateB })).data === 0);
   blocked(await revInv.c.rpc('reverse_invite_rewards', { p_booking: revB }), 'student cannot call reverse_invite_rewards');
 
-  console.log('\n— the code counts only once the account signs in —');
-  // As in production (email confirmations ON): requesting a link creates an unconfirmed,
-  // never-signed-in account carrying the code. (Locally confirmations are off, which signs the
-  // account in at once, so this builds that state directly.)
-  const signupEmail = `otp${Date.now()}@crimson.ua.edu`;
-  const { data: pending } = await svc.auth.admin.createUser({ email: signupEmail, email_confirm: false, user_metadata: { referral_code: revCode } });
-  created.push(pending.user!.id);
-  check('an account nobody has signed into records no referral (anyone can type any address)', (await referredBy(pending.user!.id)) === null);
-  // Clicking the link confirms the email and signs in; that first sign-in attaches the code.
-  await svc.auth.admin.updateUserById(pending.user!.id, { email_confirm: true, password: PASSWORD });
-  await createClient(URL, ANON, { auth: { persistSession: false } }).auth.signInWithPassword({ email: signupEmail, password: PASSWORD });
-  check('the first sign-in records the referral', (await referredBy(pending.user!.id)) === revInv.uid);
+  console.log('\n— a code in the sign-up request is ignored (anyone can request for any address) —');
+  const planted = `planted${Date.now()}@crimson.ua.edu`;
+  const otp = createClient(URL, ANON, { auth: { persistSession: false } });
+  allowed(await otp.auth.signInWithOtp({ email: planted, options: { shouldCreateUser: true, data: { referral_code: revCode } } }), 'someone requests a link for that address with their code');
+  const { data: plantedUser } = await svc.from('users').select('id').eq('email', planted).single();
+  created.push(plantedUser!.id);
+  await svc.auth.admin.updateUserById(plantedUser!.id, { email_confirm: true, password: PASSWORD });
+  await createClient(URL, ANON, { auth: { persistSession: false } }).auth.signInWithPassword({ email: planted, password: PASSWORD });
+  check('…and when the real owner signs in, no referral was attached', (await referredBy(plantedUser!.id)) === null);
 
   console.log('\n— cash-out —');
   blocked(await inviter.c.rpc('request_credit_cashout', { p_cents: 1000 }), 'non-ambassadors cannot cash out');

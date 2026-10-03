@@ -270,9 +270,10 @@ reproduce against the real backend — do not port localStorage.
   Stripe (`payments-webhook`) top the student's returned credit up to the refunded share; a
   full refund or a new dispute takes back the $5 the session earned (either side's inviter,
   out of unspent credit only) and stops it counting toward goals; a lost dispute returns the
-  student's credit. A friend's code is entered ONLY at sign-up (auth metadata) and attached
-  at the account's first sign-in, so invites point back in time and can't loop, and nobody
-  can attach a code to an address they don't control. One booking per PaymentIntent
+  student's credit. A friend's code is typed at sign-up, kept on the device, and claimed by
+  the new account after it first signs in (`claim_invite`) — never read from the sign-up
+  request, which anyone can make for any address. Only an older account's code can be
+  claimed, so invites point back in time and can't loop. One booking per PaymentIntent
   (unique index). Ambassadors
   also earn milestone bonuses and can request a cash-out (paid by the team by hand for now).
 - Payments are **hosting-independent** — unchanged across Phase 1 and Phase 2.
