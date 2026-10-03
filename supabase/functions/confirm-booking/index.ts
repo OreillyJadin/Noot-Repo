@@ -201,6 +201,11 @@ Deno.serve(async (req) => {
       .single();
 
     if (bookingError) {
+      // Another confirm with this PaymentIntent got there first (bookings_one_per_payment_intent).
+      // Its booking uses the hold and any credit — leave both alone.
+      if (bookingError.code === '23505' && bookingError.message.includes('bookings_one_per_payment_intent')) {
+        return Response.json({ error: 'That payment has already been used' }, { status: 409, headers: cors });
+      }
       // No booking, so nothing for the credit or the hold to pay for: give both back.
       if (creditCents > 0) {
         const { error: backErr } = await db
