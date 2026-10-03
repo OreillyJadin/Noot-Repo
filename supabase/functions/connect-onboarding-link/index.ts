@@ -170,10 +170,15 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Stripe's live mode only accepts https here (the sandbox also took the app's noot://
+    // scheme, which is why this broke at the live cutover — ERR-002). So Stripe returns to
+    // the connect-return function, which redirects into the app. CONNECT_RETURN_BASE_URL
+    // overrides the base where SUPABASE_URL isn't the public address (the local stack).
+    const returnBase = `${(Deno.env.get('CONNECT_RETURN_BASE_URL') ?? url).replace(/\/+$/, '')}/functions/v1/connect-return`;
     const link = await stripe.accountLinks.create({
       account: accountId!,
-      refresh_url: 'noot://connect-refresh',
-      return_url: 'noot://connect-return',
+      refresh_url: `${returnBase}?to=refresh`,
+      return_url: `${returnBase}?to=return`,
       type: 'account_onboarding',
     });
 

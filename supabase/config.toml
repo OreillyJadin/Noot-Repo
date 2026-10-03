@@ -69,3 +69,9 @@ content_path = "./supabase/templates/invite.html"
 [auth.email.template.email_change]
 subject = "Confirm your new email address"
 content_path = "./supabase/templates/email_change.html"
+
+# Stripe redirects the tutor's browser here after Connect onboarding (ERR-002); a browser
+# carries no session, so this one function must run without JWT verification. It only
+# redirects into the app — see supabase/functions/connect-return/index.ts.
+[functions.connect-return]
+verify_jwt = false
