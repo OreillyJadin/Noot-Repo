@@ -322,6 +322,15 @@ export interface TutorAvailability {
   createdAt: Timestamp;
 }
 
+/** A verification interview the noot team has set with a tutor applicant (0042). */
+export interface TutorInterview {
+  id: UUID;
+  tutorId: UUID;
+  scheduledAt: Timestamp;
+  /** Where or how to meet — a link or a place. May be empty. */
+  details: string;
+}
+
 export interface AvailabilityOverride {
   id: UUID;
   tutorId: UUID;
