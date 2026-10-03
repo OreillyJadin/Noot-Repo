@@ -1,7 +1,10 @@
 // S3 Search / Browse — ported from screens-student.jsx (StudentHome). Browse-first
-// hub into the booking flow: tappable search bar + category tabs → a "popular"
-// carousel and a detailed tutor list, both opening the tutor profile (B2).
-// Tutor lists come live from @noot/core per-category search results (api.tutors.search).
+// hub into the booking flow: tappable search bar + category tabs → tutor cards that open
+// the tutor profile (B2). One live fetch of the approved tutors (api.tutors.search); what
+// each tab shows is decided in lib/browse.ts:
+//   • For you — a carousel picked for the student (their courses, else their major) above
+//     the popular list (ERR-010);
+//   • a tab per category that has tutors (ERR-011).
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,22 +17,7 @@ import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { useCourseSuggestions } from '../lib/useCourseSuggestions';
 import { VerifiedBadge } from '../lib/VerifiedBadge';
-
-const CATS = ['For you', 'Business', 'STEM', 'Humanities'] as const;
-const TITLES: Record<(typeof CATS)[number], string> = {
-  'For you': 'Popular this week',
-  Business: 'Top in Business',
-  STEM: 'Top in STEM',
-  Humanities: 'Top in Humanities',
-};
-// Category → department course-code prefixes, passed to api.tutors.search so each
-// tab returns a real, distinct set. 'For you' is unfiltered (everyone).
-const CAT_PREFIXES: Record<(typeof CATS)[number], string[] | undefined> = {
-  'For you': undefined,
-  Business: ['MGT', 'MKT', 'FI', 'AC', 'EC', 'LGS', 'ST', 'GBA'],
-  STEM: ['CH', 'BSC', 'MATH', 'PH', 'CS', 'ME', 'EE', 'BME', 'AEM', 'BIO', 'PHY', 'GEO'],
-  Humanities: ['EN', 'HY', 'PHL', 'PSC', 'SOC', 'ART', 'MUS', 'REL', 'PSY'],
-};
+import { byPopularity, forYou, populatedCategories, tutorsIn } from '../lib/browse';
 
 function courseFor(tutor: Tutor): string {
   return tutor.courses[0]?.[0] ?? '';
@@ -109,21 +97,17 @@ export default function StudentHome() {
   }, []);
   const results = trimmed ? allTutors.filter((tt) => tutorMatches(tt, trimmed)) : [];
 
-  const cat = CATS[tab] ?? CATS[0];
-  // Live tutors from the API, filtered by the selected category (course-code prefixes).
-  const [rows, setRows] = useState<Tutor[]>([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    const prefixes = CAT_PREFIXES[cat];
-    api.tutors
-      .search(prefixes ? { categoryPrefixes: prefixes } : {})
-      .then((list) => { if (active) setRows(list.map(toTutor)); })
-      .catch(() => { if (active) setRows([]); /* no session / no tutors → empty state */ })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [cat]);
+  // Tab 0 is "For you"; the rest are the categories some tutor actually teaches in.
+  const categories = populatedCategories(allTutors);
+  // A tab can vanish (its last tutor left): fall back to "For you" rather than select nothing.
+  const tabIndex = tab <= categories.length ? tab : 0;
+  const category = tabIndex > 0 ? categories[tabIndex - 1] : undefined;
+  const picked = category ? null : forYou(allTutors, me?.courses ?? [], me?.major ?? null);
+  // The list under the tabs: that category's tutors, or everyone by popularity.
+  const rows = category
+    ? tutorsIn(allTutors, category)
+    : byPopularity(allTutors).map((tutor) => ({ tutor, course: courseFor(tutor) }));
+  const loading = allLoading;
 
   const openSearch = () => router.push('/b1');
   const openTutor = (tutor: Tutor, course?: string) => {
@@ -232,48 +216,58 @@ export default function StudentHome() {
         </Body>
       ) : (
         <>
-      <View style={[styles.tabs, { borderBottomColor: t.border }]}>
-        {CATS.map((c, i) => {
-          const on = i === tab;
-          return (
-            <Pressable
-              key={c}
-              onPress={() => setTab(i)}
-              style={[styles.tabItem, { borderBottomColor: on ? t.accent : 'transparent' }]}
-            >
-              <Text style={[styles.tabLabel, { color: on ? t.accent : t.text3, fontWeight: on ? '700' : '500' }]}>
-                {c}
-              </Text>
-            </Pressable>
-          );
-        })}
+      <View style={[styles.tabsWrap, { borderBottomColor: t.border }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          accessibilityRole="tablist"
+          contentContainerStyle={styles.tabs}
+        >
+          {['For you', ...categories.map((c) => c.name)].map((c, i) => {
+            const on = i === tabIndex;
+            return (
+              <Pressable
+                key={c}
+                onPress={() => setTab(i)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                style={[styles.tabItem, { borderBottomColor: on ? t.accent : 'transparent' }]}
+              >
+                <Text style={[styles.tabLabel, { color: on ? t.accent : t.text3, fontWeight: on ? '700' : '500' }]}>
+                  {c}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <Body ref={scrollRef} pad={0} contentStyle={styles.bodyContent}>
-        <View style={styles.sectionHead}>
-          <H2 style={styles.sectionTitle}>{tab === 0 ? 'Popular this week' : cat}</H2>
-          <Text onPress={openSearch} style={[styles.seeAll, { color: t.accent }]}>
-            See all
-          </Text>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
-          {rows.map((tutor) => (
-            <Card key={tutor.id} onPress={() => openTutor(tutor)} style={styles.miniCard}>
-              <Avatar size={40} />
-              <Text style={[styles.miniName, { color: t.text }]}>{tutor.name}</Text>
-              {courseFor(tutor) ? <Badge label={courseFor(tutor)} tone="accentSoft" /> : null}
-              {tutor.verified ? (
-                <View style={styles.miniVerified}>
-                  <Ic name="check" size={13} color={t.good} strokeWidth={2.6} />
-                  <Text style={[styles.miniVerifiedLabel, { color: t.good }]}>Verified</Text>
-                </View>
-              ) : null}
-            </Card>
-          ))}
-        </ScrollView>
+        {picked ? (
+          <>
+            <View style={styles.sectionHead}>
+              <H2 style={styles.sectionTitle}>{picked.title}</H2>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
+              {picked.picks.map(({ tutor, course }) => (
+                <Card key={tutor.id} onPress={() => openTutor(tutor, course)} style={styles.miniCard}>
+                  <Avatar size={40} />
+                  <Text style={[styles.miniName, { color: t.text }]}>{tutor.name}</Text>
+                  {course ? <Badge label={course} tone="accentSoft" /> : null}
+                  {tutor.verified ? (
+                    <View style={styles.miniVerified}>
+                      <Ic name="check" size={13} color={t.good} strokeWidth={2.6} />
+                      <Text style={[styles.miniVerifiedLabel, { color: t.good }]}>Verified</Text>
+                    </View>
+                  ) : null}
+                </Card>
+              ))}
+            </ScrollView>
+          </>
+        ) : null}
 
-        <View style={[styles.sectionHead, styles.sectionHeadSpaced]}>
-          <H2 style={styles.sectionTitle}>{TITLES[cat] ?? cat}</H2>
+        <View style={[styles.sectionHead, picked ? styles.sectionHeadSpaced : null]}>
+          <H2 style={styles.sectionTitle}>{category ? `Top in ${category.name}` : 'Most popular'}</H2>
           <Text onPress={openSearch} style={[styles.seeAll, { color: t.accent }]}>
             See all
           </Text>
@@ -288,8 +282,8 @@ export default function StudentHome() {
           ) : rows.length === 0 ? (
             <EmptyState icon="search" title="No tutors yet" subtitle="Tutors for your courses will show up here soon." />
           ) : (
-            rows.map((tutor) => (
-              <TutorRow key={tutor.id} tutor={tutor} onPress={() => openTutor(tutor)} />
+            rows.map(({ tutor, course }) => (
+              <TutorRow key={tutor.id} tutor={tutor} course={course} onPress={() => openTutor(tutor, course)} />
             ))
           )}
         </View>
@@ -315,7 +309,8 @@ const styles = StyleSheet.create({
   filterBtn: { width: 50, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   welcome: { fontSize: 13 },
   name: { fontSize: 22 },
-  tabs: { flexDirection: 'row', gap: 18, paddingHorizontal: 20, borderBottomWidth: 1 },
+  tabsWrap: { borderBottomWidth: 1 },
+  tabs: { flexDirection: 'row', gap: 18, paddingHorizontal: 20 },
   tabItem: { paddingBottom: 10, borderBottomWidth: 2 },
   tabLabel: { fontSize: 15 },
   bodyContent: { paddingTop: 16 },
