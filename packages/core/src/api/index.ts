@@ -857,13 +857,10 @@ export const api = {
   // --- tutors (search / browse / saved) ---
   tutors: {
     /**
-     * Approved tutors. Narrow by an exact `course` (b1), or by `categoryPrefixes` —
-     * department code prefixes like ['MGT','FI'] — so the browse tabs (Business/STEM/…)
-     * actually filter instead of all showing the same list. Prefixes are matched
-     * against tutor_courses.course_code with ILIKE `<prefix>*`; they're app-provided
-     * (a fixed category map), not user free-text. Omit both for "everyone".
+     * Approved tutors, optionally narrowed to those who teach an exact `course` (b1). Omit it
+     * for everyone — the Search tab groups that one list into categories itself.
      */
-    async search(opts: { course?: string; categoryPrefixes?: string[] } = {}): Promise<TutorSummary[]> {
+    async search(opts: { course?: string } = {}): Promise<TutorSummary[]> {
       const sb = getSupabase();
       let ids: string[] | null = null;
       if (opts.course) {
@@ -874,18 +871,6 @@ export const api = {
         if (error) throw error;
         ids = [...new Set((data ?? []).map((r: { tutor_id: string }) => r.tutor_id))];
         if (ids.length === 0) return [];
-      } else if (opts.categoryPrefixes && opts.categoryPrefixes.length > 0) {
-        // Keep only clean alnum prefixes, then OR together course_code.ilike.<p>*
-        const orExpr = opts.categoryPrefixes
-          .filter((p) => /^[A-Za-z]{1,6}$/.test(p))
-          .map((p) => `course_code.ilike.${p}*`)
-          .join(',');
-        if (orExpr) {
-          const { data, error } = await sb.from('tutor_courses').select('tutor_id').or(orExpr);
-          if (error) throw error;
-          ids = [...new Set((data ?? []).map((r: { tutor_id: string }) => r.tutor_id))];
-          if (ids.length === 0) return [];
-        }
       }
       // deleted_at: a tutor who deletes their account keeps an approved tutor_profiles row
       // (0026 retains the de-identified user for the financial history), so filtering on

@@ -61,7 +61,7 @@ now used for signup verification and password reset, **not** as the day-to-day s
 
 | Feature | Status | Notes |
 |---|---|---|
-| Search tutors (all / by course / by category) | ✅ | `tutors.search` (`course` + `categoryPrefixes`). Browse tabs filter by category. Only `approved` tutors shown. |
+| Search tutors (all / by course / by category) | ✅ | `tutors.search` (`course`). Browse tabs group that list by category in `apps/mobile/lib/browse.ts`. Only `approved` tutors shown. |
 | Tutor detail | 🟢 | `tutors.getById`. |
 | Save / unsave / list saved | ✅ | Verified (RLS-scoped writes). |
 
