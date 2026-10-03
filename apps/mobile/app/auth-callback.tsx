@@ -57,11 +57,6 @@ export default function AuthCallback() {
         return;
       }
 
-      // Already signed in before this link was exchanged → the link isn't what signs them in.
-      // completeAuthFromUrl reports that as success, so it must not be read as a new sign-up.
-      const alreadySignedIn = !!(await auth.getSessionUserId());
-      if (cancelled) return;
-
       // Shared across duplicate mounts of this screen for the same link.
       const res = await authLinks.exchangeOnce(params, () => auth.completeAuthFromUrl(url));
       if (cancelled) return;
@@ -83,12 +78,9 @@ export default function AuthCallback() {
         // a device whose link ledger doesn't know it) and goes home instead — ERR-001.
         // routeAfterAuth also claims the friend's code typed at sign-up, on this first sign-in,
         // before they can book anything (the claim is refused after a first booking).
-        const routed = await routeAfterAuth(router, setRole);
-        if (cancelled || routed.ok) return;
-        // Couldn't read the account. A link that just signed them in is spent, so carry on
-        // into onboarding as before; a session that was already there can simply retry.
-        if (alreadySignedIn) unavailable();
-        else router.replace('/verified');
+        // If the account can't be read, offer a retry (the link is recorded as used by now,
+        // so the retry routes on the live session) — never guess "new account".
+        if (!(await routeAfterAuth(router, setRole)).ok) unavailable();
       }
     })();
     return () => {

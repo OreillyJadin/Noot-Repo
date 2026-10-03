@@ -57,7 +57,7 @@ export default function SignIn() {
     try {
       const res = await auth.signInWithPassword(trimmed, password);
       if (!res.ok) { setError(res.error ?? "That email and password don't match."); return; }
-      if (!(await routeAfterAuth(router, setRole)).ok) setError(ACCOUNT_UNAVAILABLE);
+      if (!(await routeAfterAuth(router, setRole, true)).ok) setError(ACCOUNT_UNAVAILABLE);
     } catch {
       setError("Couldn't reach noot. Check your connection and try again.");
     } finally {

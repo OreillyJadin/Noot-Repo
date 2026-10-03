@@ -28,13 +28,19 @@ export const ACCOUNT_UNAVAILABLE = "Couldn't load your account. Check your conne
  * existing user back into onboarding (ERR-001). Uses router.replace so auth screens don't
  * linger in the back stack.
  */
-export async function routeAfterAuth(router: ImperativeRouter, setRole: (r: Role) => void): Promise<RouteAfterAuthResult> {
+export async function routeAfterAuth(
+  router: ImperativeRouter,
+  setRole: (r: Role) => void,
+  /** They just signed in by typing their password — proof they have one, whatever is stamped
+   *  (an account made in the dashboard or by a script is created with its password). */
+  provenPassword = false,
+): Promise<RouteAfterAuthResult> {
   // A friend's code from the sign-up screen, if this is the account it was typed for. Not
   // awaited: it must never hold up or fail a sign-in.
   void claimPendingInvite();
   const read = await lookupWithRetry(async () => {
     const me = await api.getMe();
-    return me ? { hasPassword: me.passwordSetAt != null, activeRole: me.activeRole } : null;
+    return me ? { hasPassword: provenPassword || me.passwordSetAt != null, activeRole: me.activeRole } : null;
   });
   const route = decidePostAuthRoute(read.ok ? { ok: true, account: read.value } : { ok: false });
   if (route.kind === 'unavailable') return { ok: false, role: 'student', onboarding: false };

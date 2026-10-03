@@ -119,7 +119,11 @@ try {
     step(9, r.kind === 'unavailable', `after sign-out → ${show(r)}`)
   }
 } finally {
-  if (newId) await admin.auth.admin.deleteUser(newId)
+  // The app row no longer cascades from auth.users (0026), so remove both.
+  if (newId) {
+    await admin.auth.admin.deleteUser(newId)
+    await admin.from('users').delete().eq('id', newId)
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)
