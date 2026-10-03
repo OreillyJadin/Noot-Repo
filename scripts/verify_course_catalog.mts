@@ -50,8 +50,13 @@ check('"MATH 2" narrows to the 200 level', level.length > 0 && level.every((c) =
 const noSpace = await api.courses.search('math125', 5);
 check('"math125" (no space) finds MATH 125', noSpace[0]?.courseCode === 'MATH 125', noSpace[0]?.courseCode ?? 'none');
 const short = await api.courses.search('CS', 20);
-check('"CS" lists CS courses first', short.length > 0 && short[0]!.courseCode.startsWith('CS'),
+check('"CS" lists CS courses first', short.length > 0 && short.slice(0, Math.min(5, short.length)).every((c) => c.courseCode.startsWith('CS ')),
   short.slice(0, 5).map((c) => c.courseCode).join(', '));
+
+// Title matches still come through, after the code matches: "calc" is no course code.
+const titleOnly = await api.courses.search('calc', 10);
+check('a query that is no code still finds courses by title', titleOnly.length > 0 && titleOnly.every((c) => /calc/i.test(`${c.courseCode} ${c.courseTitle} ${c.subjectName}`)),
+  titleOnly.slice(0, 3).map((c) => c.courseCode).join(', '));
 
 // Rows must carry the metadata the picker renders.
 const one = byCode.find((c) => c.courseCode === 'MATH 125');
