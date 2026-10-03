@@ -12,7 +12,7 @@
 --   • Cancelled booking → the credit comes back in the same proportion as the cash refund.
 --   • No reward for a session between the inviter and the person they invited.
 --   • Ambassadors whom the TEAM has approved (ambassador_approvals) also earn milestone
---     bonuses (ambassador_milestones — placeholder amounts) and can cash credit out, except
+--     bonuses (ambassador_milestones) and can cash credit out, except
 --     credit earned in the last 7 days. Joining as an ambassador alone unlocks neither.
 
 -- ---------------------------------------------------------------------------------------
@@ -183,7 +183,7 @@ revoke execute on function check_invite_code(text) from public;
 grant execute on function check_invite_code(text) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------------------
--- 3) Ambassador milestones. PLACEHOLDER amounts — the team will set the real ones. Edit
+-- 3) Ambassador milestones. Amounts set by Jadin 2026-10-03 ($500 across all five). Edit
 --    rows in Studio; no app update needed.
 -- ---------------------------------------------------------------------------------------
 create table ambassador_milestones (
@@ -194,7 +194,7 @@ alter table ambassador_milestones enable row level security;
 create policy ambassador_milestones_select on ambassador_milestones for select to authenticated
   using (true);
 insert into ambassador_milestones (threshold, bonus_cents) values
-  (5, 2500), (10, 5000), (25, 15000), (50, 35000), (100, 80000);
+  (5, 2500), (10, 2500), (25, 5000), (50, 10000), (100, 30000);
 
 -- Team approval for an ambassador's cash-out and milestone bonuses. Its own table because
 -- the owner can update their ambassador_profiles row. Written by the team (Studio for now).

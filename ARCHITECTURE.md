@@ -132,7 +132,7 @@ CreditLedger                  Noot credit (0040). Append-only; balance = sum(amo
   booking_return|cashout|reward_reversal|adjustment) · referral_id · booking_id · payment_intent_id
   milestone · cashout_id · created_at      — partial unique indexes make each event once-only
 
-AmbassadorMilestones          threshold(pk) · bonus_cents   (placeholder amounts; team-editable)
+AmbassadorMilestones          threshold(pk) · bonus_cents   (5→$25, 10→$25, 25→$50, 50→$100, 100→$300; team-editable)
 AmbassadorApprovals           user_id(pk) · approved_at · approved_by — team-written; unlocks
                               milestone bonuses + cash-out (credit ≥ 7 days old, $10 min)
 CreditCashouts                id · user_id · amount_cents(≥1000) · status(pending|paid|rejected)
