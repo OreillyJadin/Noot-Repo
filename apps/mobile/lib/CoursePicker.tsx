@@ -19,6 +19,9 @@ export interface CoursePickerProps {
   onSelect: (course: CatalogCourse) => void;
   label?: string;
   placeholder?: string;
+  /** Leave the search and its results up after a pick, so several courses can be added in a
+   *  row from one search (ERR-004). Default: the search clears after each pick. */
+  keepOpen?: boolean;
 }
 
 export function CoursePicker({
@@ -26,6 +29,7 @@ export function CoursePicker({
   onSelect,
   label = 'Add a course',
   placeholder = 'Search e.g. MATH 125, calculus, chemistry',
+  keepOpen = false,
 }: CoursePickerProps) {
   const t = useTheme();
   const [query, setQuery] = useState('');
@@ -58,6 +62,7 @@ export function CoursePicker({
 
   const pick = (c: CatalogCourse) => {
     onSelect(c);
+    if (keepOpen) return;
     setQuery('');
     setResults([]);
   };
