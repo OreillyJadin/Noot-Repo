@@ -296,7 +296,7 @@ export default function TutorProfile() {
           </Card>
         </View>
         <Text style={[styles.footer, { color: t.text3 }]}>
-          noot · {versionLabel(Constants.expoConfig?.ios?.buildNumber)} · Peer tutoring for campus
+          noot · {versionLabel(Constants.platform?.ios?.buildNumber ?? Constants.expoConfig?.ios?.buildNumber)} · Peer tutoring for campus
         </Text>
       </Body>
       <TabBar active={active} onTab={onTab} role={role} />

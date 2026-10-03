@@ -12,4 +12,5 @@ test('an unknown build still reads as a version', () => {
   assert.equal(versionLabel(undefined), 'v0.dev');
   assert.equal(versionLabel(null), 'v0.dev');
   assert.equal(versionLabel(''), 'v0.dev');
+  assert.equal(versionLabel('   '), 'v0.dev');
 });
