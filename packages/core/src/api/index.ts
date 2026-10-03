@@ -9,6 +9,7 @@
 //     review, award bonus) are NOT here — they're Edge Functions (service role). See §5.
 import { getSupabase } from '../supabase';
 import { notifyUserChanged } from '../changes';
+import { normalizeCourseQuery, rankCourseMatches } from '../courseSearch';
 import type {
   AmbassadorProfile,
   Booking,
@@ -1830,25 +1831,29 @@ export const api = {
   // offer the actual catalog and store a code that provably exists.
   courses: {
     /**
-     * Catalog search for a picker. Matches on code, title, or subject name, so "calc",
-     * "MATH 125" and "mathematics" all find the right rows. Ordered by code; capped because
-     * a bare prefix like "M" matches hundreds.
+     * Catalog search for a picker. Courses whose CODE starts with the query come first
+     * ("math" → MATH 005, MATH 100…; "math 2" → the 200-level ones), then matches on title or
+     * subject name fill the rest, so "calc" and "mathematics" still find the right rows
+     * (courseSearch.ts). Capped because a bare prefix like "M" matches hundreds.
      */
     async search(query: string, limit = 25): Promise<CatalogCourse[]> {
-      const q = query.trim();
-      let sel = getSupabase().from('courses').select(CATALOG_SELECT).eq('is_active', true);
-      if (q) {
-        // Commas and parens would be read as PostgREST filter syntax inside or(); strip them.
-        const safe = q.replace(/[,()*]/g, ' ').trim();
-        if (safe) {
-          sel = sel.or(
-            `course_code.ilike.%${safe}%,course_title.ilike.%${safe}%,subject_name.ilike.%${safe}%`,
-          );
-        }
+      const q = normalizeCourseQuery(query);
+      const active = () => getSupabase().from('courses').select(CATALOG_SELECT).eq('is_active', true);
+      if (!q) {
+        const { data, error } = await active().order('course_code').limit(limit);
+        if (error) throw error;
+        return (data ?? []).map(mapCatalogCourse);
       }
-      const { data, error } = await sel.order('course_code').limit(limit);
-      if (error) throw error;
-      return (data ?? []).map(mapCatalogCourse);
+      const byCode = await active().ilike('course_code', `${q}%`).order('course_code').limit(limit);
+      if (byCode.error) throw byCode.error;
+      const first = (byCode.data ?? []).map(mapCatalogCourse);
+      if (first.length >= limit) return first;
+      const anywhere = await active()
+        .or(`course_code.ilike.%${q}%,course_title.ilike.%${q}%,subject_name.ilike.%${q}%`)
+        .order('course_code')
+        .limit(limit);
+      if (anywhere.error) throw anywhere.error;
+      return rankCourseMatches(first, (anywhere.data ?? []).map(mapCatalogCourse), limit);
     },
 
     /**

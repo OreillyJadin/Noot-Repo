@@ -39,6 +39,20 @@ check('search by course TITLE (the point of the catalog)', byTitle.length > 0,
 const bySubject = await api.courses.search('chemistry', 10);
 check('search by subject name', bySubject.length > 0, `${bySubject.length} hits`);
 
+// ERR-008 / ERR-009: typing a subject code lists THAT subject's courses first — not every
+// course whose title happens to contain the letters (MATH used to lead with CEE, CS and EC).
+const subj = await api.courses.search('MATH', 20);
+check('"MATH" lists MATH courses first', subj.length > 0 && subj.slice(0, Math.min(10, subj.length)).every((c) => c.courseCode.startsWith('MATH ')),
+  subj.slice(0, 5).map((c) => c.courseCode).join(', '));
+const level = await api.courses.search('MATH 2', 20);
+check('"MATH 2" narrows to the 200 level', level.length > 0 && level.every((c) => c.courseCode.startsWith('MATH 2')),
+  level.map((c) => c.courseCode).join(', '));
+const noSpace = await api.courses.search('math125', 5);
+check('"math125" (no space) finds MATH 125', noSpace[0]?.courseCode === 'MATH 125', noSpace[0]?.courseCode ?? 'none');
+const short = await api.courses.search('CS', 20);
+check('"CS" lists CS courses first', short.length > 0 && short[0]!.courseCode.startsWith('CS'),
+  short.slice(0, 5).map((c) => c.courseCode).join(', '));
+
 // Rows must carry the metadata the picker renders.
 const one = byCode.find((c) => c.courseCode === 'MATH 125');
 check('result carries title + subject for display', !!one?.courseTitle && !!one?.subjectName,
