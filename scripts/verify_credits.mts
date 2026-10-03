@@ -197,8 +197,10 @@ try {
   const spentB = await completedBooking(inviter.uid, 'cancelled');
   await svc.from('credit_ledger').update({ booking_id: spentB }).eq('payment_intent_id', 'pi_spend_1');
   check('a 50% refund returns $2.50', (await svc.rpc('return_booking_credit', { p_booking: spentB, p_percent: 50 })).data === 250);
+  check('…repeating it changes nothing', (await svc.rpc('return_booking_credit', { p_booking: spentB, p_percent: 50 })).data === 0 && (await balance(inviter.c)) === 250);
+  check('a later full refund tops it up to 100%', (await svc.rpc('return_booking_credit', { p_booking: spentB, p_percent: 100 })).data === 250 && (await balance(inviter.c)) === 500, String(await balance(inviter.c)));
   await svc.rpc('return_booking_credit', { p_booking: spentB, p_percent: 100 });
-  check('…and only once', (await balance(inviter.c)) === 250, String(await balance(inviter.c)));
+  check('…and never past it', (await balance(inviter.c)) === 500);
   blocked(await svc.rpc('spend_credit', { p_user: inviter.uid, p_cents: 100, p_payment_intent: 'pi_spend_1' }), 'the same PaymentIntent cannot spend twice');
   // A spend that never got linked to its booking is still found through the PaymentIntent.
   await svc.from('credit_ledger').insert({ user_id: inviter.uid, amount_cents: 300, kind: 'adjustment' });
@@ -212,23 +214,46 @@ try {
 
   console.log('\n— a refunded or disputed session is reversed —');
   const revInv = await newUser('RevInv');
-  const revFriend = await newUser('RevFriend', (await revInv.c.rpc('my_invite_code')).data as string);
+  const revCode = (await revInv.c.rpc('my_invite_code')).data as string;
+  const revFriend = await newUser('RevFriend', revCode);
   const revB = await completedBooking(revFriend.uid);
   await svc.rpc('award_invite_rewards', { p_booking: revB });
   check('the inviter has the $5', (await balance(revInv.c)) === 500);
-  allowed(await svc.rpc('reverse_booking_credit', { p_booking: revB }), 'reverse the refunded session');
+  allowed(await svc.rpc('reverse_invite_rewards', { p_booking: revB }), 'reverse the refunded session');
   check('…the $5 is taken back', (await balance(revInv.c)) === 0);
-  await svc.rpc('reverse_booking_credit', { p_booking: revB });
-  check('…only once', (await balance(revInv.c)) === 0);
-  check('…and my_invites shows $0 for that friend', ((await revInv.c.rpc('my_invites')).data ?? [])[0]?.reward_cents === 0);
-  const spentInv = await newUser('SpentInv');
-  const spentFriend = await newUser('SpentFriend', (await spentInv.c.rpc('my_invite_code')).data as string);
-  const spentFriendB = await completedBooking(spentFriend.uid);
-  await svc.rpc('award_invite_rewards', { p_booking: spentFriendB });
-  await svc.rpc('spend_credit', { p_user: spentInv.uid, p_cents: 500, p_payment_intent: `pi_spent_${spentInv.uid}` });
-  await svc.rpc('reverse_booking_credit', { p_booking: spentFriendB });
-  check('a reward already spent is not taken back below $0', (await balance(spentInv.c)) === 0, String(await balance(spentInv.c)));
-  blocked(await revInv.c.rpc('reverse_booking_credit', { p_booking: revB }), 'student cannot call reverse_booking_credit');
+  await svc.from('credit_ledger').insert({ user_id: revInv.uid, amount_cents: 700, kind: 'adjustment' });
+  await svc.rpc('reverse_invite_rewards', { p_booking: revB });
+  check('…only once, even with new credit since', (await balance(revInv.c)) === 700, String(await balance(revInv.c)));
+  const revRow = ((await revInv.c.rpc('my_invites')).data ?? [])[0];
+  check('…and my_invites marks it reversed at $0', revRow?.reversed === true && revRow?.reward_cents === 0, JSON.stringify(revRow));
+
+  const partInv = await newUser('PartInv');
+  const partFriend = await newUser('PartFriend', (await partInv.c.rpc('my_invite_code')).data as string);
+  const partB = await completedBooking(partFriend.uid);
+  await svc.rpc('award_invite_rewards', { p_booking: partB });
+  await svc.rpc('spend_credit', { p_user: partInv.uid, p_cents: 200, p_payment_intent: `pi_part_${partInv.uid}` });
+  await svc.rpc('reverse_invite_rewards', { p_booking: partB });
+  check('only the unspent part is taken back ($3 of $5), never below $0', (await balance(partInv.c)) === 0, String(await balance(partInv.c)));
+
+  const lateInv = await newUser('LateInv');
+  const lateFriend = await newUser('LateFriend', (await lateInv.c.rpc('my_invite_code')).data as string);
+  const lateB = await completedBooking(lateFriend.uid);
+  await svc.rpc('reverse_invite_rewards', { p_booking: lateB }); // refunded before the award ran
+  check('a session refunded before the award earns nothing later', (await svc.rpc('award_invite_rewards', { p_booking: lateB })).data === 0);
+  blocked(await revInv.c.rpc('reverse_invite_rewards', { p_booking: revB }), 'student cannot call reverse_invite_rewards');
+
+  console.log('\n— the code counts only once the account signs in —');
+  // As in production (email confirmations ON): requesting a link creates an unconfirmed,
+  // never-signed-in account carrying the code. (Locally confirmations are off, which signs the
+  // account in at once, so this builds that state directly.)
+  const signupEmail = `otp${Date.now()}@crimson.ua.edu`;
+  const { data: pending } = await svc.auth.admin.createUser({ email: signupEmail, email_confirm: false, user_metadata: { referral_code: revCode } });
+  created.push(pending.user!.id);
+  check('an account nobody has signed into records no referral (anyone can type any address)', (await referredBy(pending.user!.id)) === null);
+  // Clicking the link confirms the email and signs in; that first sign-in attaches the code.
+  await svc.auth.admin.updateUserById(pending.user!.id, { email_confirm: true, password: PASSWORD });
+  await createClient(URL, ANON, { auth: { persistSession: false } }).auth.signInWithPassword({ email: signupEmail, password: PASSWORD });
+  check('the first sign-in records the referral', (await referredBy(pending.user!.id)) === revInv.uid);
 
   console.log('\n— cash-out —');
   blocked(await inviter.c.rpc('request_credit_cashout', { p_cents: 1000 }), 'non-ambassadors cannot cash out');

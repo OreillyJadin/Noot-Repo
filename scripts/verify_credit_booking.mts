@@ -5,10 +5,14 @@
 //   • confirm spends it; a tampered PaymentIntent and a double-spend are both refused
 //   • cancelling returns it in proportion to the refund
 //   • award-referral-bonus credits the inviter, and refuses an end-user token
+//   • payments-webhook: refunds return credit pro rata, a full refund or a dispute takes back
+//     the inviter's reward, a lost dispute returns the student's credit (signed test events;
+//     serve with STRIPE_WEBHOOK_SECRET=whsec_local_verify in the env file too)
 //   supabase functions serve --env-file <file with STRIPE_SECRET_KEY=sk_test_…>
 //   pnpm dlx tsx scripts/verify_credit_booking.mts
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 import { createClient } from '@supabase/supabase-js';
+import { createHmac } from 'node:crypto';
 import { authorizeHold, cancelHold, getPaymentIntent, setPaymentIntentMetadata, stripeTestMode } from './_stripe_test.mts';
 
 const URL = 'http://127.0.0.1:54321';
@@ -183,6 +187,7 @@ try {
   const { data: f2 } = await svc.auth.admin.createUser({
     email: fe2, password: PASSWORD, email_confirm: true, user_metadata: { referral_code: invCode.code },
   });
+  await createClient(URL, ANON, { auth: { persistSession: false } }).auth.signInWithPassword({ email: fe2, password: PASSWORD }); // attaches the code
   const { data: done2 } = await svc.from('bookings').insert({
     student_id: f2.user!.id, tutor_id: tutorId, subject: courseCode, scheduled_at: new Date(Date.now() - 864e5).toISOString(),
     duration_minutes: 60, price: 28, platform_fee: 4.9, tutor_payout_amount: 23.1, status: 'completed', session_type: 'in_person',
@@ -225,6 +230,69 @@ try {
   await svc.from('credit_cashouts').delete().eq('user_id', a.user!.id);
   await svc.from('credit_ledger').delete().eq('user_id', a.user!.id);
   await svc.auth.admin.deleteUser(a.user!.id);
+
+  console.log('\n— payments-webhook (signed test events) —');
+  const WHSEC = 'whsec_local_verify';
+  const sendEvent = async (type: string, object: Record<string, unknown>, secret = WHSEC) => {
+    const payload = JSON.stringify({ id: `evt_${Date.now()}${Math.random()}`, object: 'event', type, data: { object } });
+    const ts = Math.floor(Date.now() / 1000);
+    const sig = createHmac('sha256', secret).update(`${ts}.${payload}`).digest('hex');
+    return fetch(`${URL}/functions/v1/payments-webhook`, {
+      method: 'POST',
+      // The anon key only gets past the local gateway's JWT check; the function's own auth is
+      // the Stripe signature.
+      headers: { Authorization: `Bearer ${ANON}`, 'stripe-signature': `t=${ts},v1=${sig}`, 'Content-Type': 'application/json' },
+      body: payload,
+    });
+  };
+  const bal = async (id: string) => (await svc.rpc('credit_balance_cents', { p_user: id })).data as number;
+  /** An invitee of the test user with a completed $28 session that used $3 of credit. */
+  const creditSession = async (tag: string) => {
+    const em = `wh${tag}${Date.now()}@crimson.ua.edu`;
+    const { data: w } = await svc.auth.admin.createUser({ email: em, password: PASSWORD, email_confirm: true, user_metadata: { referral_code: await api.credits.myCode() } });
+    await createClient(URL, ANON, { auth: { persistSession: false } }).auth.signInWithPassword({ email: em, password: PASSWORD });
+    const pi = `pi_wh_${tag}_${Date.now()}`;
+    await svc.from('credit_ledger').insert({ user_id: w.user!.id, amount_cents: 300, kind: 'adjustment' });
+    await svc.rpc('spend_credit', { p_user: w.user!.id, p_cents: 300, p_payment_intent: pi });
+    const { data: b } = await svc.from('bookings').insert({
+      student_id: w.user!.id, tutor_id: tutorId, subject: courseCode, scheduled_at: new Date(Date.now() - 864e5).toISOString(),
+      duration_minutes: 60, price: 28, platform_fee: 4.9, tutor_payout_amount: 23.1, credit_applied: 3, status: 'completed',
+      session_type: 'in_person', cancellation_deadline: new Date(Date.now() - 2 * 864e5).toISOString(), stripe_payment_intent_id: pi,
+    }).select('id').single();
+    await svc.from('credit_ledger').update({ booking_id: b!.id }).eq('payment_intent_id', pi).eq('kind', 'booking_spend');
+    await svc.rpc('award_invite_rewards', { p_booking: b!.id });
+    return { userId: w.user!.id, bookingId: b!.id as string, pi };
+  };
+  const charge = (pi: string, refunded: number, full: boolean) =>
+    ({ id: `ch_${pi}`, object: 'charge', payment_intent: pi, amount_captured: 2500, amount_refunded: refunded, refunded: full, refunds: { data: [] } });
+
+  check('an unsigned/badly signed event is rejected', (await sendEvent('charge.refunded', charge('pi_x', 2500, true), 'whsec_wrong')).status === 400);
+
+  const r1 = await creditSession('r');
+  const invBefore = await bal(uid);
+  check('partial refund (50%) is accepted', (await sendEvent('charge.refunded', charge(r1.pi, 1250, false))).ok);
+  check('…returns half the student\'s credit', (await bal(r1.userId)) === 150, String(await bal(r1.userId)));
+  check('…and leaves the inviter\'s $5 alone', (await bal(uid)) === invBefore);
+  await sendEvent('charge.refunded', charge(r1.pi, 2500, true));
+  check('full refund returns the rest of the credit', (await bal(r1.userId)) === 300, String(await bal(r1.userId)));
+  check('…and takes back the inviter\'s $5', (await bal(uid)) === invBefore - 500, `${await bal(uid)} vs ${invBefore}`);
+  await sendEvent('charge.refunded', charge(r1.pi, 2500, true));
+  check('a redelivered event changes nothing', (await bal(r1.userId)) === 300 && (await bal(uid)) === invBefore - 500);
+
+  const d1 = await creditSession('d');
+  const invD = await bal(uid);
+  const dispute = (status: string) => ({ id: `dp_${d1.pi}`, object: 'dispute', payment_intent: d1.pi, status });
+  await sendEvent('charge.dispute.created', dispute('needs_response'));
+  check('a new dispute takes back the inviter\'s $5', (await bal(uid)) === invD - 500, `${await bal(uid)} vs ${invD}`);
+  check('…but not yet the student\'s credit', (await bal(d1.userId)) === 0);
+  await sendEvent('charge.dispute.closed', dispute('lost'));
+  check('a lost dispute returns the student\'s credit', (await bal(d1.userId)) === 300, String(await bal(d1.userId)));
+
+  for (const x of [r1, d1]) {
+    await svc.from('credit_ledger').delete().or(`user_id.eq.${x.userId},booking_id.eq.${x.bookingId}`);
+    await svc.from('bookings').delete().eq('id', x.bookingId);
+    await svc.auth.admin.deleteUser(x.userId);
+  }
 } finally {
   for (const pi of holds) await cancelHold(pi).catch(() => {});
   await svc.from('credit_ledger').delete().eq('user_id', uid);
