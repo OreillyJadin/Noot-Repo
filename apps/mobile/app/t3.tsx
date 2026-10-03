@@ -93,12 +93,13 @@ export default function T3() {
   // let a tutor store "MATH125" and never match a student's "MATH 125". The grade is picked
   // on the course's card afterwards, so the search never has to be reopened.
   const addCourse = (picked: CatalogCourse) => {
-    if (courses.some((c) => c.courseCode === picked.courseCode)) return;
     if (courses.length >= MAX_COURSES) return Alert.alert('Limit reached', `You can add up to ${MAX_COURSES} courses.`);
-    setCourses((cs) => [
-      ...cs,
-      { courseCode: picked.courseCode, grade: '', hourlyRate: 0, sessions: 0, title: picked.courseTitle },
-    ]);
+    // Checked again inside the update: two quick taps can both run before a re-render.
+    setCourses((cs) =>
+      cs.length >= MAX_COURSES || cs.some((c) => c.courseCode === picked.courseCode)
+        ? cs
+        : [...cs, { courseCode: picked.courseCode, grade: '', hourlyRate: 0, sessions: 0, title: picked.courseTitle }],
+    );
   };
 
   const setGrade = (code: string, grade: string) =>
@@ -110,9 +111,11 @@ export default function T3() {
       { text: 'Remove', style: 'destructive', onPress: () => setCourses((cs) => cs.filter((c) => c.courseCode !== code)) },
     ]);
 
+  // Only courses with a grade are ever saved: nothing after this step asks for one again, so
+  // an ungraded course would otherwise ride through to a submitted (or live) profile.
   const persist = async (): Promise<boolean> => {
     try {
-      await api.profile.setTutorCourses(courses.map((c) => ({ ...c, grade: c.grade || null })));
+      await api.profile.setTutorCourses(courses.filter((c) => c.grade));
       return true;
     } catch {
       Alert.alert('Could not save', 'Please check your connection and try again.');
@@ -136,8 +139,22 @@ export default function T3() {
   };
 
   const saveAndExit = async () => {
-    await persist();
-    router.replace('/');
+    // Still loading (or the load failed): the list on screen isn't the saved one, and saving
+    // it would wipe their courses.
+    if (loading) return router.replace('/');
+    const ungraded = courses.filter((c) => !c.grade);
+    if (ungraded.length === 0) {
+      await persist();
+      return router.replace('/');
+    }
+    Alert.alert(
+      'Pick your grades',
+      `${ungraded.map((c) => c.courseCode).join(', ')} ${ungraded.length === 1 ? 'has' : 'have'} no grade yet and won’t be saved.`,
+      [
+        { text: 'Pick grades', style: 'cancel' },
+        { text: 'Exit anyway', onPress: async () => { await persist(); router.replace('/'); } },
+      ],
+    );
   };
 
   return (
@@ -150,6 +167,20 @@ export default function T3() {
         onExit={saveAndExit}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
+        <Card flat style={[styles.addingCard, { borderColor: t.borderStrong, backgroundColor: t.surfaceAlt }]}>
+          <Eyebrow style={{ marginBottom: 10 }}>Add courses</Eyebrow>
+          <CoursePicker
+            label=""
+            keepOpen
+            selected={courses.map((c) => c.courseCode)}
+            onSelect={addCourse}
+            placeholder="Search e.g. MATH or calculus"
+          />
+          <Text style={[styles.addHint, { color: t.text3 }]}>
+            Tap every course you want — the list stays open. Then pick your grade for each one below.
+          </Text>
+        </Card>
+
         <View style={styles.headRow}>
           <H2 style={{ fontSize: 16 }}>Your courses</H2>
           <Badge label={`${courses.length} / ${MAX_COURSES}`} tone="neutral" />
@@ -161,7 +192,7 @@ export default function T3() {
             <Skeleton height={62} radius={14} />
           </View>
         ) : courses.length === 0 ? (
-          <Text style={{ fontSize: 13, color: t.text3 }}>No courses yet — search below and tap the ones you aced.</Text>
+          <Text style={{ fontSize: 13, color: t.text3 }}>No courses yet — search above and tap the ones you aced.</Text>
         ) : (
           <View style={{ gap: 10 }}>
             {courses.map((c) => (
@@ -210,20 +241,6 @@ export default function T3() {
           </View>
         )}
 
-        <Card flat style={[styles.addingCard, { borderColor: t.borderStrong, backgroundColor: t.surfaceAlt }]}>
-          <Eyebrow style={{ marginBottom: 10 }}>Add courses</Eyebrow>
-          <CoursePicker
-            label=""
-            keepOpen
-            selected={courses.map((c) => c.courseCode)}
-            onSelect={addCourse}
-            placeholder="Search e.g. MATH or calculus"
-          />
-          <Text style={[styles.addHint, { color: t.text3 }]}>
-            Tap every course you want — the list stays open. Then pick your grade for each one above.
-          </Text>
-        </Card>
-
         <Text style={[styles.anytime, { color: t.text3 }]}>
           You can add or remove courses at any time from your tutor profile.
         </Text>
@@ -258,7 +275,7 @@ const styles = StyleSheet.create({
   gradeChipText: { fontWeight: '700', fontSize: 14 },
   courseCode: { fontSize: 16, fontWeight: '600' },
   courseSem: { fontSize: 13 },
-  addingCard: { marginTop: 12, padding: 16, borderWidth: 1.5, borderStyle: 'dashed' },
+  addingCard: { marginBottom: 18, padding: 16, borderWidth: 1.5, borderStyle: 'dashed' },
   addHint: { fontSize: 12.5, lineHeight: 18, marginTop: 10 },
   anytime: { fontSize: 13, lineHeight: 19, marginTop: 14, textAlign: 'center' },
 });
