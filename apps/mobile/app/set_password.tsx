@@ -5,7 +5,7 @@
 //     password and drops straight into the app.
 // Requires an active session (the magic-link / recovery exchange already ran in
 // /auth-callback); setPassword() operates on that session via updateUser.
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -33,6 +33,9 @@ export default function SetPassword() {
   // content before a user can post any. Onboarding only — someone resetting a forgotten
   // password accepted them when they signed up.
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  // The password this screen has already saved. A retry after a later step failed must not
+  // save it again — the server refuses a new password that equals the current one.
+  const saved = useRef<string | null>(null);
 
   const handleSubmit = async () => {
     if (password.length < MIN_LEN) { setError(`Use at least ${MIN_LEN} characters.`); return; }
@@ -40,10 +43,13 @@ export default function SetPassword() {
     if (!isReset && !acceptedTerms) { setError('Please accept the Terms of Use to continue.'); return; }
     setBusy(true); setError(null);
     try {
-      const res = await auth.setPassword(password);
-      if (!res.ok) {
-        setError(res.error ?? "Couldn't set your password. Try again.");
-        return;
+      if (saved.current !== password) {
+        const res = await auth.setPassword(password);
+        if (!res.ok) {
+          setError(res.error ?? "Couldn't set your password. Try again.");
+          return;
+        }
+        saved.current = password;
       }
       if (isReset) {
         // Existing user; already authenticated via the recovery session → into the app.

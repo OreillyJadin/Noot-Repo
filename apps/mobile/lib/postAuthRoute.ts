@@ -9,48 +9,36 @@
 //     the caller retries; nobody is sent into onboarding because a request failed.
 //   • the emailed sign-up link reaching /auth-callback again (the platform re-delivers the
 //     launch URL on a reopen) used to restart onboarding whenever the device's link ledger
-//     didn't know the link. An account that already finished the password step goes home.
+//     didn't know the link. Onboarding starts by creating a password, so an account that
+//     has chosen one (users.password_set_at, 0041) is past it and goes home — however it
+//     got here.
 import type { Role } from './store';
 
-/** The fields of the signed-in user this decision reads. */
-export interface RoutedUser {
-  firstName: string;
+/** What the decision reads about the signed-in account. */
+export interface AccountState {
+  /** The user has chosen a password (not the random one a link-only sign-up starts with). */
+  hasPassword: boolean;
   activeRole: string;
-  termsAcceptedAt: string | null;
 }
 
-/** The result of reading the signed-in user: found (or no row yet), or the read failed. */
-export type MeLookup = { ok: true; me: RoutedUser | null } | { ok: false };
-
-/**
- * How the session got here. 'signup_link' is the emailed verification link, whose only
- * legitimate next step for a NEW account is creating a password.
- */
-export type AuthEntry = 'session' | 'signup_link';
+/** The result of reading the account: found (or no users row yet), or the read failed. */
+export type AccountLookup = { ok: true; account: AccountState | null } | { ok: false };
 
 export type PostAuthRoute =
   | { kind: 'home'; role: Role; route: '/home' | '/tutor_home' | '/ambassador_home' }
   | { kind: 'onboarding' }
   | { kind: 'unavailable' };
 
-/** The home for the user's persisted mode. Admin is not a mode, so it lands as a student. */
-function homeFor(activeRole: string): PostAuthRoute {
-  if (activeRole === 'tutor') return { kind: 'home', role: 'tutor', route: '/tutor_home' };
-  if (activeRole === 'ambassador') return { kind: 'home', role: 'ambassador', route: '/ambassador_home' };
-  return { kind: 'home', role: 'student', route: '/home' };
-}
-
-export function decidePostAuthRoute(lookup: MeLookup, entry: AuthEntry): PostAuthRoute {
+export function decidePostAuthRoute(lookup: AccountLookup): PostAuthRoute {
   if (!lookup.ok) return { kind: 'unavailable' };
-  const me = lookup.me;
-  // No users row yet (it can lag a fresh sign-up) → a new account.
-  if (!me) return { kind: 'onboarding' };
-  if (entry === 'signup_link') {
-    // Terms are accepted on the same tap that saves the first password, so a recorded
-    // acceptance means that step is behind them — this link is a replay, not a sign-up.
-    return me.termsAcceptedAt ? homeFor(me.activeRole) : { kind: 'onboarding' };
-  }
-  return me.firstName.trim() ? homeFor(me.activeRole) : { kind: 'onboarding' };
+  const account = lookup.account;
+  // No users row yet (it can lag a fresh sign-up), or no password → still signing up.
+  if (!account || !account.hasPassword) return { kind: 'onboarding' };
+  // The home for the user's persisted mode. Admin is not a mode — an admin still browses
+  // as student/tutor, so it lands on the student home.
+  if (account.activeRole === 'tutor') return { kind: 'home', role: 'tutor', route: '/tutor_home' };
+  if (account.activeRole === 'ambassador') return { kind: 'home', role: 'ambassador', route: '/ambassador_home' };
+  return { kind: 'home', role: 'student', route: '/home' };
 }
 
 /**

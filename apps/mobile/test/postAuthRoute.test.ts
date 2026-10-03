@@ -1,55 +1,41 @@
 // Run: pnpm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decidePostAuthRoute, lookupWithRetry, type RoutedUser } from '../lib/postAuthRoute.ts';
+import { decidePostAuthRoute, lookupWithRetry, type AccountState } from '../lib/postAuthRoute.ts';
 
-const setUp: RoutedUser = { firstName: 'Tony', activeRole: 'student', termsAcceptedAt: '2026-09-17T00:45:00Z' };
-const found = (me: RoutedUser | null) => ({ ok: true as const, me });
+const setUp: AccountState = { hasPassword: true, activeRole: 'student' };
+const found = (account: AccountState | null) => ({ ok: true as const, account });
 const noSleep = async () => {};
 
 test('a failed lookup never sends anyone into onboarding (ERR-001)', () => {
-  assert.deepEqual(decidePostAuthRoute({ ok: false }, 'session'), { kind: 'unavailable' });
-  assert.deepEqual(decidePostAuthRoute({ ok: false }, 'signup_link'), { kind: 'unavailable' });
+  assert.deepEqual(decidePostAuthRoute({ ok: false }), { kind: 'unavailable' });
 });
 
-test('a replayed sign-up link takes a set-up account home, not to "Create your password" (ERR-001)', () => {
-  assert.deepEqual(decidePostAuthRoute(found(setUp), 'signup_link'), {
-    kind: 'home', role: 'student', route: '/home',
-  });
+test('an account with a password goes home, not to "Create your password" (ERR-001)', () => {
+  assert.deepEqual(decidePostAuthRoute(found(setUp)), { kind: 'home', role: 'student', route: '/home' });
 });
 
-test('a sign-up link for an account with no password yet starts onboarding', () => {
-  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, termsAcceptedAt: null }), 'signup_link'), {
-    kind: 'onboarding',
-  });
+test('an account with no password yet starts onboarding', () => {
+  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, hasPassword: false })), { kind: 'onboarding' });
+  // Whatever mode is saved: without a password they have not finished signing up.
+  assert.deepEqual(decidePostAuthRoute(found({ hasPassword: false, activeRole: 'tutor' })), { kind: 'onboarding' });
 });
 
-test('no users row yet is a new account on either path', () => {
-  assert.deepEqual(decidePostAuthRoute(found(null), 'session'), { kind: 'onboarding' });
-  assert.deepEqual(decidePostAuthRoute(found(null), 'signup_link'), { kind: 'onboarding' });
+test('no users row yet is a new account', () => {
+  assert.deepEqual(decidePostAuthRoute(found(null)), { kind: 'onboarding' });
 });
 
-test('a returning session lands on the home for its saved mode', () => {
-  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, activeRole: 'tutor' }), 'session'), {
+test('home follows the saved mode', () => {
+  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, activeRole: 'tutor' })), {
     kind: 'home', role: 'tutor', route: '/tutor_home',
   });
-  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, activeRole: 'ambassador' }), 'session'), {
+  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, activeRole: 'ambassador' })), {
     kind: 'home', role: 'ambassador', route: '/ambassador_home',
   });
   // Admin is a permission, not a mode.
-  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, activeRole: 'admin' }), 'session'), {
+  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, activeRole: 'admin' })), {
     kind: 'home', role: 'student', route: '/home',
   });
-});
-
-test('an account from before terms were recorded still goes home on a normal launch', () => {
-  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, termsAcceptedAt: null }), 'session'), {
-    kind: 'home', role: 'student', route: '/home',
-  });
-});
-
-test('a session with a blank name starts onboarding', () => {
-  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, firstName: '  ' }), 'session'), { kind: 'onboarding' });
 });
 
 test('lookupWithRetry returns the first success without retrying', async () => {
@@ -69,6 +55,7 @@ test('lookupWithRetry recovers from a failure that clears up', async () => {
   );
   assert.deepEqual(res, { ok: true, value: 'me' });
   assert.deepEqual(waits, [400, 1200]);
+  assert.equal(calls, 3);
 });
 
 test('lookupWithRetry gives up after its retries and reports the failure', async () => {

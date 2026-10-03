@@ -11,7 +11,6 @@ import { Button, useTheme } from '@noot/ui';
 import { auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
-import { claimPendingInvite } from '../lib/pendingInvite';
 import { authLinks } from '../lib/authLinks';
 
 export default function AuthCallback() {
@@ -79,13 +78,12 @@ export default function AuthCallback() {
         authLinks.setRecoveryLink(params);
         router.replace('/set_password?mode=reset');
       } else {
-        // The new account's first sign-in: claim the friend's code typed at sign-up now, before
-        // they can book anything (the claim is refused after a first booking). Not awaited.
-        void claimPendingInvite();
-        // A new account goes on to create its password. One that already did is here on a
-        // replayed link (the platform re-delivering the launch URL after a quit, on a device
-        // whose link ledger doesn't know it) and goes home instead — ERR-001.
-        const routed = await routeAfterAuth(router, setRole, 'signup_link');
+        // A new account goes on to create its password (/verified). One that already has is
+        // here on a replayed link (the platform re-delivering the launch URL after a quit, on
+        // a device whose link ledger doesn't know it) and goes home instead — ERR-001.
+        // routeAfterAuth also claims the friend's code typed at sign-up, on this first sign-in,
+        // before they can book anything (the claim is refused after a first booking).
+        const routed = await routeAfterAuth(router, setRole);
         if (cancelled || routed.ok) return;
         // Couldn't read the account. A link that just signed them in is spent, so carry on
         // into onboarding as before; a session that was already there can simply retry.
@@ -106,14 +104,18 @@ export default function AuthCallback() {
         <View style={styles.center}>
           <Text style={{ fontSize: 40 }}>⚠️</Text>
           <Text style={[styles.title, { color: t.text }]}>
-            {unreachable ? 'No connection' : "Couldn't sign you in"}
+            {unreachable ? "Couldn't load your account" : "Couldn't sign you in"}
           </Text>
           <Text style={[styles.sub, { color: t.text2 }]}>{error}</Text>
           {unreachable ? (
-            <Button
-              label="Try again"
-              onPress={() => { setError(null); setUnreachable(false); setAttempt((n) => n + 1); }}
-            />
+            <>
+              <Button
+                label="Try again"
+                onPress={() => { setError(null); setUnreachable(false); setAttempt((n) => n + 1); }}
+              />
+              {/* Never a dead end if the failure isn't the network after all. */}
+              <Button label="Back to sign in" kind="secondary" onPress={() => router.replace('/signin')} />
+            </>
           ) : (
             <Button label="Back to sign in" onPress={() => router.replace('/signup')} />
           )}
