@@ -10,8 +10,9 @@
 //
 // While an application is in review, the banner also shows the interview the noot team has
 // scheduled with the tutor, once there is one (ERR-005).
-import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, Pressable, Linking, StyleSheet } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Ic, useTheme, type IconName } from '@noot/ui';
 import { api, type TutorInterview } from '@noot/core';
 import type { TutorStatus } from './useMe';
@@ -57,15 +58,22 @@ export function TutorStatusBanner({
 }) {
   const t = useTheme();
   const [interview, setInterview] = useState<TutorInterview | null>(null);
-  useEffect(() => {
-    if (status !== 'pending') return setInterview(null);
-    let active = true;
-    api.profile
-      .getMyInterview()
-      .then((i) => { if (active) setInterview(i); })
-      .catch(() => { /* the banner still says "in review" without it */ });
-    return () => { active = false; };
-  }, [status]);
+  // Re-read whenever the screen comes back into view: tab roots stay mounted, and the tutor
+  // usually arrives here straight from the notification that the time was set or changed.
+  useFocusEffect(
+    useCallback(() => {
+      if (status !== 'pending') {
+        setInterview(null);
+        return;
+      }
+      let active = true;
+      api.profile
+        .getMyInterview()
+        .then((i) => { if (active) setInterview(i); })
+        .catch(() => { /* the banner still says "in review" without it */ });
+      return () => { active = false; };
+    }, [status]),
+  );
 
   if (status === 'approved') return null;
   // An interview still ahead (or under an hour past its start) replaces the generic copy.
@@ -74,9 +82,12 @@ export function TutorStatusBanner({
     ? {
         ...COPY.pending,
         title: `Interview: ${interviewLabel(new Date(upcoming.scheduledAt))}`,
-        body: `${upcoming.details ? `${upcoming.details}. ` : ''}A noot team member will meet you then to finish reviewing your application.`,
+        body: 'A noot team member will meet you then to finish reviewing your application.',
       }
     : COPY[status];
+  // Where to meet, as the admin typed it. A link in it opens on tap; the text can be copied.
+  const where = upcoming?.details ?? '';
+  const link = /https?:\/\/\S+/.exec(where)?.[0];
 
   const body = (
     <View style={styles.row}>
@@ -86,6 +97,16 @@ export function TutorStatusBanner({
       <View style={{ flex: 1 }}>
         <Text style={[styles.title, { color: t.text }]}>{copy.title}</Text>
         <Text style={[styles.body, { color: t.text2 }]}>{copy.body}</Text>
+        {where ? (
+          <Text
+            selectable
+            onPress={link ? () => { void Linking.openURL(link).catch(() => {}); } : undefined}
+            accessibilityRole={link ? 'link' : 'text'}
+            style={[styles.where, { color: link ? t.accent : t.text }]}
+          >
+            {where}
+          </Text>
+        ) : null}
       </View>
       {copy.cta ? <Text style={[styles.cta, { color: t.accent }]}>{copy.cta}</Text> : null}
     </View>
@@ -98,7 +119,7 @@ export function TutorStatusBanner({
       {body}
     </Pressable>
   ) : (
-    <View accessibilityLabel={`${copy.title}. ${copy.body}`} style={style}>
+    <View accessibilityLabel={`${copy.title}. ${copy.body}${where ? ` ${where}` : ''}`} style={style}>
       {body}
     </View>
   );
@@ -110,5 +131,6 @@ const styles = StyleSheet.create({
   icon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 13.5, fontWeight: '700' },
   body: { fontSize: 12, lineHeight: 16.8, marginTop: 3 },
+  where: { fontSize: 12.5, lineHeight: 18, fontWeight: '600', marginTop: 5 },
   cta: { fontSize: 13, fontWeight: '700', marginTop: 6 },
 });

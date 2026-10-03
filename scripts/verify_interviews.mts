@@ -123,6 +123,19 @@ try {
       `rescheduling keeps one live interview (${rows?.length} rows, ${live.length} live)`)
   }
 
+  // Two admins at once: both calls succeed, and exactly one interview is left live.
+  {
+    const [a, b] = await Promise.allSettled([
+      api.admin.scheduleInterview(tutorId, offered[2]!.toISOString(), 'first'),
+      api.admin.scheduleInterview(tutorId, offered[3]!.toISOString(), 'second'),
+    ])
+    const { data: rows } = await admin.from('tutor_interviews').select('cancelled_at').eq('tutor_id', tutorId)
+    const live = (rows ?? []).filter((r) => !r.cancelled_at)
+    step(n++, a.status === 'fulfilled' && b.status === 'fulfilled' && live.length === 1,
+      `two schedule calls at once → ${a.status}, ${b.status}; ${live.length} live interview`)
+    await api.admin.scheduleInterview(tutorId, second, 'Zoom')
+  }
+
   // --- the applicant again: can read theirs, cannot change it ---
   await as(email)
   {
@@ -131,15 +144,29 @@ try {
       `the tutor sees their interview → ${mine?.scheduledAt} · "${mine?.details}"`)
   }
   {
+    const before = (await admin.from('tutor_interviews').select('id').eq('tutor_id', tutorId)).data?.length
     await getSupabase().from('tutor_interviews').update({ scheduled_at: inDays(30), details: 'moved by tutor' }).eq('tutor_id', tutorId)
     await getSupabase().from('tutor_interviews').delete().eq('tutor_id', tutorId)
     const { data: rows } = await admin.from('tutor_interviews').select('details, cancelled_at').eq('tutor_id', tutorId)
     const live = (rows ?? []).filter((r) => !r.cancelled_at)
-    step(n++, rows?.length === 2 && live.length === 1 && live[0]!.details === 'Zoom', 'DENY the tutor editing or deleting their interview → unchanged')
+    step(n++, live.length === 1 && live[0]!.details === 'Zoom' && rows?.length === before, 'DENY the tutor editing or deleting their interview → unchanged')
+  }
+  {
+    // Which admin set it is not the tutor's to read.
+    const { data, error } = await getSupabase().from('tutor_interviews').select('scheduled_by').eq('tutor_id', tutorId)
+    step(n++, !!error && !data, `DENY the tutor reading who scheduled it → ${error?.message ?? 'READABLE'}`)
   }
   {
     const why = await refused(() => api.admin.cancelInterview(tutorId!))
     step(n++, !!why && /admin/i.test(why), `DENY the tutor cancelling through the admin call → ${why ?? 'WENT THROUGH'}`)
+  }
+
+  // --- another tutor (a different applicant-side account): cannot see this one's interview ---
+  await as('sara@crimson.ua.edu')
+  {
+    const seen = await api.admin.listInterviews([tutorId])
+    const { data: raw } = await getSupabase().from('tutor_interviews').select('id')
+    step(n++, Object.keys(seen).length === 0 && (raw ?? []).length === 0, `DENY another tutor reading it → ${(raw ?? []).length} rows visible`)
   }
 
   // --- the student: cannot see anyone's interview ---
@@ -161,6 +188,25 @@ try {
   }
   await as(email)
   step(n++, (await api.profile.getMyInterview()) === null, 'the tutor no longer has an interview')
+
+  // A decision on the application closes a live interview, without another notification.
+  await as('admin@crimson.ua.edu')
+  await api.admin.scheduleInterview(tutorId, second, 'Zoom')
+  {
+    const notesBefore = (await admin.from('notifications').select('id').eq('user_id', tutorId)).data?.length
+    const { error } = await admin.from('tutor_profiles').update({ approval_status: 'rejected' }).eq('user_id', tutorId)
+    const set = await api.admin.listInterviews([tutorId])
+    const notesAfter = (await admin.from('notifications').select('id').eq('user_id', tutorId)).data?.length
+    step(n++, !error && !set[tutorId] && notesAfter === notesBefore,
+      `rejecting the application closes the interview quietly (${error?.message ?? 'no live interview, no new notification'})`)
+  }
+
+  // A deleted account can't be given an interview.
+  {
+    await admin.from('users').update({ deleted_at: new Date().toISOString() }).eq('id', tutorId)
+    const why = await refused(() => api.admin.scheduleInterview(tutorId!, second))
+    step(n++, !!why && /application/i.test(why), `DENY an interview for a deleted account → ${why ?? 'WENT THROUGH'}`)
+  }
 } finally {
   await auth.signOut()
   if (tutorId) {

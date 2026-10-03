@@ -19,21 +19,23 @@ const LOOKAHEAD_DAYS = 14;
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function parseHM(s: string): [number, number] {
-  const [h, m] = s.split(':').map(Number);
-  return [h ?? 0, m ?? 0];
+/** "14:30" (or "14:30:00") → [14, 30]; null for anything that isn't a time. */
+function parseHM(s: string): [number, number] | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(s.trim());
+  return m ? [Number(m[1]), Number(m[2])] : null;
 }
 
 /** The next `count` window starts at least 12 hours out, within two weeks, soonest first. */
 export function nextInterviewSlots(windows: WeeklyWindow[], now: Date, count = 6): Date[] {
   const earliest = now.getTime() + MIN_NOTICE_MS;
   const out: Date[] = [];
-  for (let d = 0; d <= LOOKAHEAD_DAYS; d++) {
+  for (let d = 0; d < LOOKAHEAD_DAYS; d++) {
     const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d);
     for (const w of windows) {
       if (w.dayOfWeek !== day.getDay()) continue;
-      const [h, m] = parseHM(w.startTime);
-      const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
+      const hm = parseHM(w.startTime);
+      if (!hm) continue;
+      const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), hm[0], hm[1]);
       if (at.getTime() >= earliest) out.push(at);
     }
   }

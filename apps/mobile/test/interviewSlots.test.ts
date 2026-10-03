@@ -24,7 +24,8 @@ test('no availability means nothing to offer', () => {
 
 test('a window later today is too soon (under 12 hours of notice)', () => {
   const satEvening: WeeklyWindow = { dayOfWeek: 6, startTime: '18:00', endTime: '20:00' };
-  assert.deepEqual(labels(nextInterviewSlots([satEvening], now, 2)), ['Sat, Oct 10 · 6:00 PM', 'Sat, Oct 17 · 6:00 PM']);
+  // …and Oct 17 is the 15th day, outside the two-week window.
+  assert.deepEqual(labels(nextInterviewSlots([satEvening], now, 2)), ['Sat, Oct 10 · 6:00 PM']);
 });
 
 test('a window tomorrow with enough notice is offered', () => {
@@ -40,6 +41,16 @@ test('never looks further than two weeks ahead, and respects the count', () => {
 
 test('two windows starting at the same time are offered once', () => {
   assert.equal(nextInterviewSlots([tue, { ...tue, endTime: '18:00' }], now, 10).length, 2);
+});
+
+test('a window with no usable start time is skipped, not offered at midnight', () => {
+  assert.deepEqual(nextInterviewSlots([{ dayOfWeek: 2, startTime: '', endTime: '17:00' }], now), []);
+  assert.equal(labels(nextInterviewSlots([{ dayOfWeek: 2, startTime: '15:00:00', endTime: '17:00:00' }], now, 1))[0], 'Tue, Oct 6 · 3:00 PM');
+});
+
+test('days are counted across a month end', () => {
+  const lateOct = new Date(2026, 9, 28, 10, 0); // Wed 28 Oct
+  assert.deepEqual(labels(nextInterviewSlots([tue], lateOct, 2)), ['Tue, Nov 3 · 3:00 PM', 'Tue, Nov 10 · 3:00 PM']);
 });
 
 test('midnight and noon read as 12', () => {

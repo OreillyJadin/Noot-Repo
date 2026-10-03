@@ -6,7 +6,7 @@
 // Each new application also offers interview times taken from the applicant's own weekly
 // availability (ERR-005): tap one to schedule it; the tutor is notified. Scheduling is
 // admin-only on the server (schedule_tutor_interview, 0042) and does not gate approval.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Alert, Linking, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Button, Badge, Field, Ic, Eyebrow, EmptyState, Skeleton, useTheme } from '@noot/ui';
@@ -30,6 +30,12 @@ export default function AdminTutors() {
   const [slots, setSlots] = useState<Record<string, Date[]>>({});
   const [details, setDetails] = useState<Record<string, string>>({});
   const [changing, setChanging] = useState<string | null>(null);
+  // Applicants whose interview or availability couldn't be read. Never shown as "none set" or
+  // "no availability": scheduling over an interview we failed to load would notify them twice.
+  const [unread, setUnread] = useState<Record<string, boolean>>({});
+  // The Alert callbacks below outlive the render they were created in, so the in-flight
+  // check reads a ref rather than the `busy` they captured.
+  const inFlight = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -41,13 +47,14 @@ export default function AdminTutors() {
         // Interviews are only for applications still to be decided, not live tutors' grade checks.
         const applicants = list.filter((p) => p.awaiting === 'application').map((p) => p.userId);
         const [set, windows] = await Promise.all([
-          api.admin.listInterviews(applicants).catch(() => ({})),
-          Promise.all(applicants.map((id) => api.tutors.getAvailability(id).catch(() => []))),
+          api.admin.listInterviews(applicants).catch(() => null),
+          Promise.all(applicants.map((id) => api.tutors.getAvailability(id).catch(() => null))),
         ]);
         if (!alive) return;
-        setInterviews(set);
+        setInterviews(set ?? {});
         const now = new Date();
         setSlots(Object.fromEntries(applicants.map((id, i) => [id, nextInterviewSlots(windows[i] ?? [], now)])));
+        setUnread(Object.fromEntries(applicants.map((id, i) => [id, set === null || windows[i] === null])));
       })
       .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
@@ -65,7 +72,8 @@ export default function AdminTutors() {
     tutor: PendingTutor,
     action: 'approve' | 'approveAndVerify' | 'reject' | 'verify',
   ) => {
-    if (busy) return;
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(tutor.userId);
     try {
       if (action === 'verify') await api.admin.verifyTutorGrades(tutor.userId);
@@ -75,6 +83,7 @@ export default function AdminTutors() {
     } catch (e) {
       Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
     } finally {
+      inFlight.current = false;
       setBusy(null);
     }
   };
@@ -89,7 +98,8 @@ export default function AdminTutors() {
         {
           text: 'Schedule',
           onPress: async () => {
-            if (busy) return;
+            if (inFlight.current) return;
+            inFlight.current = true;
             setBusy(tutor.userId);
             try {
               const saved = await api.admin.scheduleInterview(tutor.userId, at.toISOString(), where);
@@ -98,6 +108,7 @@ export default function AdminTutors() {
             } catch (e) {
               Alert.alert('Could not schedule', errText(e, 'Please try again.'));
             } finally {
+              inFlight.current = false;
               setBusy(null);
             }
           },
@@ -113,7 +124,8 @@ export default function AdminTutors() {
         text: 'Cancel interview',
         style: 'destructive',
         onPress: async () => {
-          if (busy) return;
+          if (inFlight.current) return;
+          inFlight.current = true;
           setBusy(tutor.userId);
           try {
             await api.admin.cancelInterview(tutor.userId);
@@ -124,6 +136,7 @@ export default function AdminTutors() {
           } catch (e) {
             Alert.alert('Could not cancel', errText(e, 'Please try again.'));
           } finally {
+            inFlight.current = false;
             setBusy(null);
           }
         },
@@ -185,7 +198,11 @@ export default function AdminTutors() {
                 {tutor.awaiting === 'application' ? (
                   <View style={[styles.interview, { borderTopColor: t.border }]}>
                     <Eyebrow style={{ color: t.text3 }}>Interview</Eyebrow>
-                    {interviews[tutor.userId] && changing !== tutor.userId ? (
+                    {unread[tutor.userId] ? (
+                      <Text style={[styles.interviewDetails, { color: t.text3 }]}>
+                        Couldn’t load this applicant’s interview details. Reopen this screen to try again.
+                      </Text>
+                    ) : interviews[tutor.userId] && changing !== tutor.userId ? (
                       <>
                         <View style={styles.interviewSet}>
                           <Ic name="clock" size={16} color={t.accent} strokeWidth={1.9} />
@@ -206,19 +223,31 @@ export default function AdminTutors() {
                               setDetails((m) => ({ ...m, [tutor.userId]: interviews[tutor.userId]!.details }));
                               setChanging(tutor.userId);
                             }}
+                            accessibilityRole="button"
                             style={[styles.link, { color: t.accent }]}
                           >
                             Change time
                           </Text>
-                          <Text onPress={() => cancelInterview(tutor)} style={[styles.link, { color: t.text3 }]}>
+                          <Text
+                            onPress={() => cancelInterview(tutor)}
+                            accessibilityRole="button"
+                            style={[styles.link, { color: t.text3 }]}
+                          >
                             Cancel interview
                           </Text>
                         </View>
                       </>
                     ) : (slots[tutor.userId] ?? []).length === 0 ? (
-                      <Text style={[styles.interviewDetails, { color: t.text3 }]}>
-                        {slots[tutor.userId] ? 'No availability in the next two weeks to suggest a time from.' : 'Loading their availability…'}
-                      </Text>
+                      <>
+                        <Text style={[styles.interviewDetails, { color: t.text3 }]}>
+                          {slots[tutor.userId] ? 'No availability in the next two weeks to suggest a time from.' : 'Loading their availability…'}
+                        </Text>
+                        {changing === tutor.userId ? (
+                          <Text onPress={() => setChanging(null)} accessibilityRole="button" style={[styles.link, { color: t.text3 }]}>
+                            Keep the current time
+                          </Text>
+                        ) : null}
+                      </>
                     ) : (
                       <>
                         <Field
@@ -228,14 +257,19 @@ export default function AdminTutors() {
                           placeholder="e.g. a video link, or Gorgas Library lobby"
                         />
                         <Text style={[styles.interviewDetails, { color: t.text3 }]}>
-                          Times from their availability — tap one to schedule.
+                          Times from their availability, shown in this phone’s time zone — tap one to schedule.
                         </Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.slotRow}>
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          keyboardShouldPersistTaps="handled"
+                          contentContainerStyle={styles.slotRow}
+                        >
                           {(slots[tutor.userId] ?? []).map((at) => (
                             <Pressable
                               key={at.getTime()}
                               onPress={() => schedule(tutor, at)}
-                              disabled={busy === tutor.userId}
+                              disabled={busy !== null}
                               accessibilityRole="button"
                               accessibilityLabel={`Schedule interview ${interviewLabel(at)}`}
                               style={[styles.slot, { borderColor: t.accentBorder, backgroundColor: t.accentWeak }]}
@@ -245,7 +279,7 @@ export default function AdminTutors() {
                           ))}
                         </ScrollView>
                         {changing === tutor.userId ? (
-                          <Text onPress={() => setChanging(null)} style={[styles.link, { color: t.text3 }]}>
+                          <Text onPress={() => setChanging(null)} accessibilityRole="button" style={[styles.link, { color: t.text3 }]}>
                             Keep the current time
                           </Text>
                         ) : null}

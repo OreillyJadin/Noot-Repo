@@ -31,8 +31,9 @@ create policy tutor_interviews_select on tutor_interviews for select to authenti
   using (tutor_id = auth.uid() or is_admin());
 -- (No insert / update / delete policy — see the functions below.)
 
+-- Column by column: scheduled_by (which admin set it) is not for the tutor to read.
 revoke all on tutor_interviews from anon, authenticated;
-grant select on tutor_interviews to authenticated;
+grant select (id, tutor_id, scheduled_at, details, cancelled_at, created_at) on tutor_interviews to authenticated;
 
 -- "Tue, Oct 6 at 3:00 PM CT" — the campus is in Central time, and a notification is plain
 -- text read on a lock screen, so say the zone rather than assume the phone's.
@@ -59,8 +60,14 @@ begin
   if p_tutor is null or p_at is null then
     raise exception 'a tutor and a time are required' using errcode = 'check_violation';
   end if;
-  -- Only someone who has actually applied: a submitted application, whatever its outcome.
-  if not exists (select 1 from tutor_profiles where user_id = p_tutor and submitted_at is not null) then
+  -- Two admins scheduling the same tutor at once: one waits for the other, then replaces
+  -- their time, rather than failing on the one-live-interview index.
+  perform pg_advisory_xact_lock(hashtext('tutor_interview:' || p_tutor::text));
+  -- Only someone who has actually applied (a submitted application) and still has an account.
+  if not exists (
+    select 1 from tutor_profiles tp join users u on u.id = tp.user_id
+     where tp.user_id = p_tutor and tp.submitted_at is not null and u.deleted_at is null
+  ) then
     raise exception 'this person has not submitted a tutor application' using errcode = 'check_violation';
   end if;
   if p_at <= now() then
@@ -110,6 +117,27 @@ begin
   end if;
   return true;
 end $$;
+
+-- Once the application is decided (approved or rejected) the interview has served its purpose.
+-- Close it quietly, so it can't linger on the tutor's banner or resurface on a re-application.
+-- No notification: the decision itself is what the tutor hears about.
+create or replace function close_interview_on_decision()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update tutor_interviews set cancelled_at = now() where tutor_id = new.user_id and cancelled_at is null;
+  return new;
+end $$;
+revoke all on function close_interview_on_decision() from public, anon, authenticated;
+
+create trigger close_interview_on_decision_trg
+  after update of approval_status on tutor_profiles
+  for each row
+  when (new.approval_status is distinct from old.approval_status and new.approval_status in ('approved', 'rejected'))
+  execute function close_interview_on_decision();
 
 -- Supabase grants new functions to anon/authenticated directly, not only via PUBLIC. Signed-in
 -- users may call these; the admin check inside is what decides.

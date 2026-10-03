@@ -1232,8 +1232,8 @@ export const api = {
   // --- admin (RLS is_admin() already permits these reads; writes go through Edge Functions) ---
   admin: {
     /**
-     * The live interview for each of these tutors, keyed by tutor id (ERR-005). Admin-only by
-     * RLS — anyone else gets an empty map.
+     * The live interview for each of these tutors, keyed by tutor id (ERR-005). RLS shows an
+     * admin all of them; anyone else sees at most their own.
      */
     async listInterviews(tutorIds: string[]): Promise<Record<string, TutorInterview>> {
       if (tutorIds.length === 0) return {};
@@ -1258,7 +1258,8 @@ export const api = {
         p_details: details,
       });
       if (error) throw error;
-      return { id: data as string, tutorId, scheduledAt, details: details.trim() };
+      // As the server stored it (it trims the details and caps them at 500 characters).
+      return { id: data as string, tutorId, scheduledAt, details: details.trim().slice(0, 500) };
     },
 
     /** Call off a tutor's interview and tell them (cancel_tutor_interview, 0042). */
