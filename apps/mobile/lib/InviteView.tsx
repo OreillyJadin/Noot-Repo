@@ -61,7 +61,8 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
     }
   };
 
-  const completed = (invites ?? []).filter((i) => i.completed).length;
+  // Counts toward goals the same way the server does: refunded/disputed sessions don't.
+  const completed = (invites ?? []).filter((i) => i.completed && !i.reversed).length;
   const nextGoal = milestones.find((m) => m.threshold > completed);
 
   const cashOut = () => {
@@ -238,10 +239,17 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
                 <Text style={[styles.sub, { color: t.text3 }]}>
-                  {i.completed ? 'Completed a session' : 'Joined — your $5 comes after their first session'}
+                  {i.reversed
+                    ? 'Their session was refunded, so no credit'
+                    : i.completed
+                      ? 'Completed a session'
+                      : 'Joined — your $5 comes after their first session'}
                 </Text>
               </View>
-              <Badge label={i.completed ? `+${dollars(i.rewardCents)}` : 'Joined'} tone={i.completed ? 'good' : 'neutral'} />
+              <Badge
+                label={i.reversed ? 'Refunded' : i.completed ? `+${dollars(i.rewardCents)}` : 'Joined'}
+                tone={i.completed && !i.reversed ? 'good' : 'neutral'}
+              />
             </Card>
           ))}
         </View>

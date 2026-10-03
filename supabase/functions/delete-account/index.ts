@@ -69,12 +69,13 @@ Deno.serve(async (req: Request) => {
 
     // Same for a cash-out the team hasn't paid yet: once the email is scrubbed below, there's
     // no way to reach them to send it (0040).
-    const { data: owed } = await db
+    const { data: owed, error: owedErr } = await db
       .from('credit_cashouts')
       .select('id')
       .eq('user_id', uid)
       .eq('status', 'pending')
       .limit(1);
+    if (owedErr) throw owedErr; // fail closed: never delete past a check that didn't run
     if (owed?.length) {
       return Response.json(
         { error: 'Your cash-out is still being processed. You can delete your account once it’s been paid.' },

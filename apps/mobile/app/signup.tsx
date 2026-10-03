@@ -55,7 +55,7 @@ export default function SignUp() {
     if (!trimmedName) { setError('Enter your full name.'); return; }
     if (!trimmedEmail) { setError('Enter your campus email.'); return; }
     if (codeStatus === 'missing') { setError('That invite code wasn’t found. Fix it, or clear it to continue.'); return; }
-    if (codeStatus === 'checking') return;
+    if (codeStatus === 'checking') { setError('Still checking your invite code — try again in a moment.'); return; }
     setBusy(true); setError(null);
     try {
       // noot://auth-callback on device, http://<host>/auth-callback on web — must be
@@ -114,7 +114,7 @@ export default function SignUp() {
               autoCapitalize="characters"
               hint={
                 codeStatus === 'ok'
-                  ? 'Code applied ✓ — your friend gets credit after your first session.'
+                  ? 'Code found ✓ — it’s applied when you verify your email.'
                   : codeStatus === 'missing'
                     ? 'We couldn’t find that code.'
                     : codeStatus === 'checking'

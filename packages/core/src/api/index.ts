@@ -38,6 +38,8 @@ export interface Invite {
   joinedAt: string;
   /** They've completed a session, so the inviter's $5 credit has been earned. */
   completed: boolean;
+  /** That session was refunded or disputed, so the $5 was taken back. */
+  reversed: boolean;
   rewardCents: number;
 }
 /** An ambassador goal: complete `threshold` invites, earn `bonusCents`. */
@@ -1142,6 +1144,7 @@ export const api = {
         name: (r.display_name as string) || 'A classmate',
         joinedAt: r.joined_at as string,
         completed: Boolean(r.completed),
+        reversed: Boolean(r.reversed),
         rewardCents: Number(r.reward_cents ?? 0),
       }));
     },

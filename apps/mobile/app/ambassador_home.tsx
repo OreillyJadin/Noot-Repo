@@ -42,7 +42,7 @@ export default function AmbassadorHome() {
   }, [reloadKey]);
 
   const previewing = !(me?.roles ?? []).includes('ambassador');
-  const completed = invites.filter((i) => i.completed).length;
+  const completed = invites.filter((i) => i.completed && !i.reversed).length;
   const nextGoal = milestones.find((m) => m.threshold > completed);
 
   return (
@@ -110,10 +110,13 @@ export default function AmbassadorHome() {
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
                   <Text style={[styles.roleSub, { color: t.text3 }]}>
-                    {i.completed ? 'Completed a session' : 'Waiting for their first session'}
+                    {i.reversed ? 'Session refunded — no credit' : i.completed ? 'Completed a session' : 'Waiting for their first session'}
                   </Text>
                 </View>
-                <Badge label={i.completed ? `+${dollars(i.rewardCents)}` : 'Joined'} tone={i.completed ? 'good' : 'neutral'} />
+                <Badge
+                  label={i.reversed ? 'Refunded' : i.completed ? `+${dollars(i.rewardCents)}` : 'Joined'}
+                  tone={i.completed && !i.reversed ? 'good' : 'neutral'}
+                />
               </Card>
             ))}
           </View>
