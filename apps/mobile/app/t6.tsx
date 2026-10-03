@@ -5,14 +5,13 @@
 // Can't be passed without either a transcript or the explicit "sign up as unverified"
 // choice (tracker T4/T6), which is explained up front: no badge and the higher fee.
 
-const pct = (rate: number) => `${+(rate * 100).toFixed(1)}%`;
 import React, { useState } from 'react';
 import { View, Text, Pressable, Alert, ActivityIndicator, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
-import { api, VERIFIED_FEE_RATE as VERIFIED_FEE, UNVERIFIED_FEE_RATE as UNVERIFIED_FEE } from '@noot/core';
+import { api } from '@noot/core';
 import { useTutorApplication } from '../lib/useTutorApplication';
 import { errText } from '../lib/errText';
 import { readUriBytes } from '../lib/bytes';
@@ -93,7 +92,7 @@ export default function T6() {
   const skip = () =>
     Alert.alert(
       'Sign up as unverified?',
-      `You can tutor without a transcript, but you won’t get the Verified badge and noot’s fee is ${pct(UNVERIFIED_FEE)} of each session instead of ${pct(VERIFIED_FEE)}. You can upload a transcript later to get verified.`,
+      'You can tutor without a transcript, but you won’t get the Verified badge and noot keeps a larger share of each session. You can upload a transcript later to get verified.',
       [
         { text: 'Upload instead', style: 'cancel' },
         {
@@ -172,7 +171,7 @@ export default function T6() {
           <Ic name="shield" size={18} color={t.accent} strokeWidth={1.7} />
           <Text style={[styles.lockText, { color: t.text2 }]}>
             <Text style={{ color: t.text, fontWeight: '700' }}>Why verify?</Text> Verified tutors get a ✓ badge
-            students can see, and noot’s fee is {pct(VERIFIED_FEE)} instead of {pct(UNVERIFIED_FEE)}.
+            students can see, and keep more of every session.
           </Text>
         </Card>
       </Body>

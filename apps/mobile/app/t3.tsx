@@ -2,11 +2,15 @@
 // Loads the tutor's real courses (api.tutors.getById self), lets them add/remove, and
 // persists via api.profile.setTutorCourses on continue. Rates are set on T4 — or, when
 // opened from Courses & rates (?from=rates), back on that screen.
+//
+// Adding is one tap per course (ERR-004): the search stays open, each pick goes straight
+// onto the list, and its grade is chosen on its own card. It used to be search → pick →
+// grade → "+ Add" → search again for every single course.
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, Select, Badge, Eyebrow, H2, Muted, ProgressDots, H1, Sub, Ic, Skeleton, useTheme } from '@noot/ui';
+import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, H2, ProgressDots, H1, Sub, Ic, Skeleton, useTheme } from '@noot/ui';
 import { api, type CatalogCourse } from '@noot/core';
 import { CoursePicker } from '../lib/CoursePicker';
 
@@ -57,9 +61,6 @@ export default function T3() {
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  // The catalog course chosen but not yet committed (a grade is required alongside it).
-  const [picked, setPicked] = useState<CatalogCourse | null>(null);
-  const [grade, setGrade] = useState('');
 
   // Opened from Courses & rates ("Add a course") or the step-9 review rather than walking
   // through onboarding: saving returns there instead of going on to step 4 (T1, T5).
@@ -88,22 +89,21 @@ export default function T3() {
     return () => { active = false; };
   }, []);
 
-  const addCourse = () => {
-    // The code can only come from the catalog now — no more accepting whatever was typed,
-    // which is what let a tutor store "MATH125" and never match a student's "MATH 125".
-    if (!picked) return Alert.alert('Pick a course', 'Search the catalog and choose your course.');
-    if (!grade) return Alert.alert('Pick your grade', 'Select the grade you earned in this course.');
+  // The code can only come from the catalog — no accepting whatever was typed, which is what
+  // let a tutor store "MATH125" and never match a student's "MATH 125". The grade is picked
+  // on the course's card afterwards, so the search never has to be reopened.
+  const addCourse = (picked: CatalogCourse) => {
     if (courses.length >= MAX_COURSES) return Alert.alert('Limit reached', `You can add up to ${MAX_COURSES} courses.`);
-    if (courses.some((c) => c.courseCode === picked.courseCode)) {
-      return Alert.alert('Already added', `${picked.courseCode} is already in your list.`);
-    }
-    setCourses((cs) => [
-      ...cs,
-      { courseCode: picked.courseCode, grade, hourlyRate: 0, sessions: 0, title: picked.courseTitle },
-    ]);
-    setPicked(null);
-    setGrade('');
+    // Checked again inside the update: two quick taps can both run before a re-render.
+    setCourses((cs) =>
+      cs.length >= MAX_COURSES || cs.some((c) => c.courseCode === picked.courseCode)
+        ? cs
+        : [...cs, { courseCode: picked.courseCode, grade: '', hourlyRate: 0, sessions: 0, title: picked.courseTitle }],
+    );
   };
+
+  const setGrade = (code: string, grade: string) =>
+    setCourses((cs) => cs.map((c) => (c.courseCode === code ? { ...c, grade } : c)));
 
   const removeCourse = (code: string) =>
     Alert.alert('Remove course', `Remove ${code} from your list?`, [
@@ -111,9 +111,11 @@ export default function T3() {
       { text: 'Remove', style: 'destructive', onPress: () => setCourses((cs) => cs.filter((c) => c.courseCode !== code)) },
     ]);
 
+  // Only courses with a grade are ever saved: nothing after this step asks for one again, so
+  // an ungraded course would otherwise ride through to a submitted (or live) profile.
   const persist = async (): Promise<boolean> => {
     try {
-      await api.profile.setTutorCourses(courses);
+      await api.profile.setTutorCourses(courses.filter((c) => c.grade));
       return true;
     } catch {
       Alert.alert('Could not save', 'Please check your connection and try again.');
@@ -124,6 +126,10 @@ export default function T3() {
   const saveAndContinue = async () => {
     if (saving) return;
     if (courses.length === 0) return Alert.alert('Add a course', 'Add at least one course you can tutor.');
+    const ungraded = courses.filter((c) => !c.grade);
+    if (ungraded.length > 0) {
+      return Alert.alert('Pick your grades', `Select the grade you earned in ${ungraded.map((c) => c.courseCode).join(', ')}.`);
+    }
     setSaving(true);
     const ok = await persist();
     setSaving(false);
@@ -133,8 +139,22 @@ export default function T3() {
   };
 
   const saveAndExit = async () => {
-    await persist();
-    router.replace('/');
+    // Still loading (or the load failed): the list on screen isn't the saved one, and saving
+    // it would wipe their courses.
+    if (loading) return router.replace('/');
+    const ungraded = courses.filter((c) => !c.grade);
+    if (ungraded.length === 0) {
+      await persist();
+      return router.replace('/');
+    }
+    Alert.alert(
+      'Pick your grades',
+      `${ungraded.map((c) => c.courseCode).join(', ')} ${ungraded.length === 1 ? 'has' : 'have'} no grade yet and won’t be saved.`,
+      [
+        { text: 'Pick grades', style: 'cancel' },
+        { text: 'Exit anyway', onPress: async () => { await persist(); router.replace('/'); } },
+      ],
+    );
   };
 
   return (
@@ -147,6 +167,20 @@ export default function T3() {
         onExit={saveAndExit}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
+        <Card flat style={[styles.addingCard, { borderColor: t.borderStrong, backgroundColor: t.surfaceAlt }]}>
+          <Eyebrow style={{ marginBottom: 10 }}>Add courses</Eyebrow>
+          <CoursePicker
+            label=""
+            keepOpen
+            selected={courses.map((c) => c.courseCode)}
+            onSelect={addCourse}
+            placeholder="Search e.g. MATH or calculus"
+          />
+          <Text style={[styles.addHint, { color: t.text3 }]}>
+            Tap every course you want — the list stays open. Then pick your grade for each one below.
+          </Text>
+        </Card>
+
         <View style={styles.headRow}>
           <H2 style={{ fontSize: 16 }}>Your courses</H2>
           <Badge label={`${courses.length} / ${MAX_COURSES}`} tone="neutral" />
@@ -158,62 +192,64 @@ export default function T3() {
             <Skeleton height={62} radius={14} />
           </View>
         ) : courses.length === 0 ? (
-          <Text style={{ fontSize: 13, color: t.text3 }}>No courses yet — add the ones you aced below.</Text>
+          <Text style={{ fontSize: 13, color: t.text3 }}>No courses yet — search above and tap the ones you aced.</Text>
         ) : (
           <View style={{ gap: 10 }}>
             {courses.map((c) => (
-              <Card key={c.courseCode} onPress={() => removeCourse(c.courseCode)} style={styles.courseCard}>
-                <View style={[styles.gradeChip, { backgroundColor: t.accent }]}>
-                  <Text style={[styles.gradeChipText, { color: t.onAccent }]}>{c.grade || '—'}</Text>
+              <Card key={c.courseCode} style={styles.courseCard}>
+                <View style={styles.courseHead}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.courseCode, { color: t.text }]}>{c.courseCode}</Text>
+                    {c.title ? (
+                      <Text numberOfLines={1} style={[styles.courseSem, { color: t.text3 }]}>{c.title}</Text>
+                    ) : null}
+                  </View>
+                  <Pressable
+                    onPress={() => removeCourse(c.courseCode)}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${c.courseCode}`}
+                  >
+                    <Ic name="x" size={18} color={t.text3} strokeWidth={2} />
+                  </Pressable>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.courseCode, { color: t.text }]}>{c.courseCode}</Text>
-                  <Text numberOfLines={1} style={[styles.courseSem, { color: t.text3 }]}>
-                    {c.title ? `${c.title} · ` : ''}Grade {c.grade || '—'} · tap to remove
+                <View style={styles.gradeRow}>
+                  <Text style={[styles.gradeLabel, { color: c.grade ? t.text3 : t.accent }]}>
+                    {c.grade ? 'Your grade' : 'Pick your grade'}
                   </Text>
+                  {GRADE_OPTIONS.map((g) => {
+                    const on = c.grade === g;
+                    return (
+                      <Pressable
+                        key={g}
+                        onPress={() => setGrade(c.courseCode, g)}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        accessibilityLabel={`Grade ${g} in ${c.courseCode}`}
+                        style={[
+                          styles.gradeChip,
+                          { backgroundColor: on ? t.accent : t.surface, borderColor: on ? t.accent : t.borderStrong },
+                        ]}
+                      >
+                        <Text style={[styles.gradeChipText, { color: on ? t.onAccent : t.text2 }]}>{g}</Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
-                <Ic name="x" size={18} color={t.text3} strokeWidth={2} />
               </Card>
             ))}
           </View>
         )}
 
-        <Card flat style={[styles.addingCard, { borderColor: t.borderStrong, backgroundColor: t.surfaceAlt }]}>
-          <Eyebrow style={{ marginBottom: 10 }}>Adding</Eyebrow>
-          {picked ? (
-            <View style={[styles.pickedRow, { backgroundColor: t.surface, borderColor: t.accentBorder }]}>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.courseCode, { color: t.text }]}>{picked.courseCode}</Text>
-                <Text numberOfLines={1} style={[styles.courseSem, { color: t.text3 }]}>{picked.courseTitle}</Text>
-              </View>
-              <Pressable onPress={() => setPicked(null)} hitSlop={8} accessibilityLabel="Choose a different course">
-                <Ic name="x" size={16} color={t.text3} strokeWidth={2.2} />
-              </Pressable>
-            </View>
-          ) : (
-            <CoursePicker
-              label=""
-              selected={courses.map((c) => c.courseCode)}
-              onSelect={setPicked}
-              placeholder="Search e.g. MATH 125 or calculus"
-            />
-          )}
-          <View style={[styles.row, { marginTop: 10 }]}>
-            <View style={{ flex: 1 }}>
-              <Select placeholder="Grade" value={grade} options={GRADE_OPTIONS} onChange={setGrade} />
-            </View>
-          </View>
-          <Text style={[styles.professorHint, { color: t.text3 }]}>
-            Professor <Muted>(optional, v1)</Muted>
-          </Text>
-        </Card>
+        <Text style={[styles.anytime, { color: t.text3 }]}>
+          You can add or remove courses at any time from your tutor profile.
+        </Text>
       </Body>
       <ActionBar>
-        <Button label="+ Add" kind="secondary" size="md" style={{ flex: 1 }} onPress={addCourse} />
         <Button
           label={saving ? 'Saving…' : 'Save & Continue'}
           kind="primary"
-          style={{ flex: 1.6 }}
+          full
           disabled={saving}
           onPress={saveAndContinue}
         />
@@ -231,13 +267,15 @@ const styles = StyleSheet.create({
   stepTitle: { fontSize: 24, marginTop: 14 },
   stepSub: { marginTop: 6, fontSize: 14 },
   headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 },
-  courseCard: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
-  gradeChip: { width: 38, height: 38, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  gradeChipText: { fontWeight: '700', fontSize: 15 },
+  courseCard: { gap: 10, padding: 12 },
+  courseHead: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  gradeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  gradeLabel: { flex: 1, fontSize: 13, fontWeight: '600' },
+  gradeChip: { minWidth: 40, height: 34, paddingHorizontal: 8, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  gradeChipText: { fontWeight: '700', fontSize: 14 },
   courseCode: { fontSize: 16, fontWeight: '600' },
   courseSem: { fontSize: 13 },
-  pickedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, paddingVertical: 11, borderRadius: 13, borderWidth: 1.5 },
-  addingCard: { marginTop: 12, padding: 16, borderWidth: 1.5, borderStyle: 'dashed' },
-  row: { flexDirection: 'row', gap: 10 },
-  professorHint: { fontSize: 13, marginTop: 10 },
+  addingCard: { marginBottom: 18, padding: 16, borderWidth: 1.5, borderStyle: 'dashed' },
+  addHint: { fontSize: 12.5, lineHeight: 18, marginTop: 10 },
+  anytime: { fontSize: 13, lineHeight: 19, marginTop: 14, textAlign: 'center' },
 });

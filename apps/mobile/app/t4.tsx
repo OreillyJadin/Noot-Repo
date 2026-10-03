@@ -9,7 +9,7 @@ import { View, Text, TextInput, Pressable, Alert, StyleSheet, type ViewStyle } f
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, ProgressDots, H1, Sub, Skeleton, useTheme, Ic } from '@noot/ui';
-import { api, tutorPayoutFor, MIN_HOURLY_RATE, MAX_HOURLY_RATE } from '@noot/core';
+import { api, MIN_HOURLY_RATE, MAX_HOURLY_RATE } from '@noot/core';
 
 /** One course from step 3 with the rate being edited here (a string while typing). */
 interface RateRow {
@@ -134,11 +134,6 @@ export default function T4() {
     router.replace('/');
   };
 
-  const first = rates.find((r) => Number(r.rate) > 0);
-  // Verification happens on step 6, so show both takes (tracker T6).
-  const payoutVerified = first ? tutorPayoutFor(Number(first.rate), true).toFixed(2) : null;
-  const payoutUnverified = first ? tutorPayoutFor(Number(first.rate), false).toFixed(2) : null;
-
   return (
     <Screen>
       <StepHead
@@ -194,14 +189,6 @@ export default function T4() {
             always see your exact payout before you accept — set your rate to what feels fair.
           </Text>
         </Card>
-
-        {first && payoutVerified ? (
-          <Text style={[styles.payoutLine, { color: t.text2 }]}>
-            Your payout for a 1-hour {first.courseCode} session:{' '}
-            <Text style={{ color: t.accent, fontWeight: '700' }}>${payoutVerified}</Text> with verified grades,{' '}
-            ${payoutUnverified} without.
-          </Text>
-        ) : null}
       </Body>
       <ActionBar>
         <Button
@@ -232,5 +219,4 @@ const styles = StyleSheet.create({
   rateBox: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 13, borderWidth: 1.5 },
   rateInput: { width: 40, fontWeight: '700', fontSize: 19, textAlign: 'center', padding: 0 },
   infoCard: { marginTop: 14, padding: 14, borderWidth: 1 },
-  payoutLine: { marginTop: 16, fontSize: 15 },
 });

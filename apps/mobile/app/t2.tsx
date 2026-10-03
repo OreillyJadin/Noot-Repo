@@ -55,7 +55,6 @@ export default function T2() {
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
   const [year, setYear] = useState('');
-  const [grad, setGrad] = useState('');
   const [major, setMajor] = useState('');
   const [bio, setBio] = useState('');
   const [prefilled, setPrefilled] = useState(false);
@@ -160,13 +159,8 @@ export default function T2() {
           </View>
         </View>
 
-        <View style={[styles.row, { marginTop: 14 }]}>
-          <View style={{ flex: 1 }}>
-            <Select label="Year" value={year} options={YEAR_OPTIONS} onChange={setYear} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Field label="Grad" value={grad} onChangeText={setGrad} />
-          </View>
+        <View style={{ marginTop: 14 }}>
+          <Select label="Year" value={year} options={YEAR_OPTIONS} onChange={setYear} />
         </View>
 
         <View style={{ marginTop: 14 }}>
