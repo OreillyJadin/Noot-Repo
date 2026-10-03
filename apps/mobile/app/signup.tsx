@@ -2,8 +2,8 @@
 // proves the .edu address is real. There is NO password here by design; the user
 // sets their password later, inside onboarding (verified → set-password). The name
 // rides along in the OTP's user_metadata so the handle_new_user trigger fills in
-// public.users on first insert. So does an optional friend's invite code, which is the only
-// way to join with one — it can't be added later (0040).
+// public.users on first insert. An optional friend's invite code is kept on the device and
+// claimed once they sign in from the link (lib/pendingInvite, 0040).
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import * as Linking from 'expo-linking';
 import { Button, Card, Field, useTheme } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
+import { savePendingInvite } from '../lib/pendingInvite';
 
 /** "Ada Lovelace" → ["Ada", "Lovelace"]; single word → first name only. */
 function splitName(full: string): { first: string; last: string } {
@@ -62,8 +63,11 @@ export default function SignUp() {
       // on the project's redirect allow-list (config.toml / dashboard URL config).
       const redirectTo = Linking.createURL('/auth-callback');
       const { first, last } = splitName(trimmedName);
-      const res = await auth.sendSignupVerification(trimmedEmail, first, last, redirectTo, code.trim() || undefined);
-      if (res.ok) setSent(true);
+      const res = await auth.sendSignupVerification(trimmedEmail, first, last, redirectTo);
+      if (res.ok) {
+        if (codeStatus === 'ok') await savePendingInvite(code);
+        setSent(true);
+      }
       else setError(res.error ?? "Couldn't send the link. Try again.");
     } catch {
       setError("Couldn't reach noot. Check your connection and try again.");
@@ -114,7 +118,7 @@ export default function SignUp() {
               autoCapitalize="characters"
               hint={
                 codeStatus === 'ok'
-                  ? 'Code found ✓ — it’s applied when you verify your email.'
+                  ? 'Code found ✓ — it’s applied when you open the link on this phone.'
                   : codeStatus === 'missing'
                     ? 'We couldn’t find that code.'
                     : codeStatus === 'checking'

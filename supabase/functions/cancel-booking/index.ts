@@ -119,7 +119,8 @@ Deno.serve(async (req: Request) => {
       return Response.json({ error: updateError.message }, { status: 400, headers: cors });
     }
 
-    // Noot credit comes back in the same proportion as the cash refund. Once per booking.
+    // Noot credit comes back in the same proportion as the cash refund (cumulative, so a
+    // later full refund in Stripe tops it up; repeating changes nothing).
     if (Number(booking.credit_applied ?? 0) > 0) {
       const { error: creditErr } = await db.rpc('return_booking_credit', { p_booking: bookingId, p_percent: refundPercent });
       if (creditErr) console.error('cancel-booking: credit return failed', bookingId, creditErr.message);

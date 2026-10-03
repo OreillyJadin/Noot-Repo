@@ -110,7 +110,7 @@ export default function AmbassadorHome() {
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
                   <Text style={[styles.roleSub, { color: t.text3 }]}>
-                    {i.reversed ? 'Session refunded — no credit' : i.completed ? 'Completed a session' : 'Waiting for their first session'}
+                    {i.reversed ? 'Session refunded' : i.completed ? 'Completed a session' : 'Waiting for their first session'}
                   </Text>
                 </View>
                 <Badge

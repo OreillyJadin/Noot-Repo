@@ -240,7 +240,7 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
                 <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
                 <Text style={[styles.sub, { color: t.text3 }]}>
                   {i.reversed
-                    ? 'Their session was refunded, so no credit'
+                    ? 'Their session was refunded'
                     : i.completed
                       ? 'Completed a session'
                       : 'Joined — your $5 comes after their first session'}

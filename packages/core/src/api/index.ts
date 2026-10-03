@@ -1119,9 +1119,16 @@ export const api = {
     },
 
     /**
-     * Does this invite code exist? For the sign-up screen, so works signed out. The code
-     * itself is applied by auth.sendSignupVerification — there's no way to add one later.
+     * Use a friend's invite code as the signed-in (new) account. The app calls this right
+     * after first sign-in with the code typed at sign-up. Server rules: once, before any
+     * booking, and only the code of someone who joined before you (claim_invite, 0040).
      */
+    async claim(code: string): Promise<void> {
+      const { error } = await getSupabase().rpc('claim_invite', { p_code: code });
+      if (error) throw error;
+    },
+
+    /** Does this invite code exist? For the sign-up screen, so works signed out. */
     async checkCode(code: string): Promise<boolean> {
       const { data, error } = await getSupabase().rpc('check_invite_code', { p_code: code });
       if (error) throw error;

@@ -54,12 +54,13 @@ Deno.serve(async (req: Request) => {
 
     // Refuse if they still owe or are owed money on a live session — deleting mid-booking
     // would strand the counterparty with a session they can't complete or be paid for.
-    const { data: live } = await db
+    const { data: live, error: liveErr } = await db
       .from('bookings')
       .select('id')
       .in('status', ['pending', 'confirmed'])
       .or(`student_id.eq.${uid},tutor_id.eq.${uid}`)
       .limit(1);
+    if (liveErr) throw liveErr; // fail closed, as below
     if (live?.length) {
       return Response.json(
         { error: 'You have an upcoming session. Cancel it before deleting your account.' },
