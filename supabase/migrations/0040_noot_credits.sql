@@ -83,16 +83,11 @@ end $$;
 -- ---------------------------------------------------------------------------------------
 comment on column referrals.ambassador_id is 'The inviter. Any user since 0040, not only ambassadors.';
 
--- The friend's code typed at sign-up rides in the auth metadata. The referral is recorded at
--- the account's FIRST SIGN-IN, not when the link is requested: requesting a link creates the
--- auth.users row (already "confirmed" when email confirmations are off), so recording it then
--- would let anyone attach their own code to a classmate's address before the classmate ever
--- signs up. Signing in means clicking the link in that inbox, whatever the confirm setting.
+-- Invites are no longer read from the sign-up metadata: whoever requests a link for an
+-- address sets that metadata, so a code there can't be trusted to be the address owner's.
+-- (See claim_invite below.) Otherwise unchanged from 0008.
 create or replace function handle_new_user()
 returns trigger language plpgsql security definer set search_path = public, auth as $$
-declare
-  ref_code text := nullif(upper(trim(new.raw_user_meta_data ->> 'referral_code')), '');
-  inviter uuid;
 begin
   insert into public.users (id, email, first_name, last_name)
   values (
@@ -109,40 +104,6 @@ begin
 
   return new;
 end $$;
-
-create or replace function attach_referral(p_user uuid, p_email text, p_meta jsonb)
-returns void language plpgsql security definer set search_path = public as $$
-declare
-  ref_code text := nullif(upper(trim(p_meta ->> 'referral_code')), '');
-  inviter uuid;
-begin
-  if ref_code is null then
-    return;
-  end if;
-  select user_id into inviter from invite_codes where code = ref_code;
-  if inviter is null or inviter = p_user
-     or exists (select 1 from redeemed_invite_emails where email_hash = invite_email_hash(p_email)) then
-    return;
-  end if;
-  insert into redeemed_invite_emails (email_hash) values (invite_email_hash(p_email));
-  insert into referrals (ambassador_id, referred_user_id, referred_role, referral_code_used)
-  values (inviter, p_user, 'student', ref_code)
-  on conflict (referred_user_id) do nothing;
-  update ambassador_profiles
-    set total_referrals = total_referrals + 1, updated_at = now()
-    where user_id = inviter;
-end $$;
-revoke execute on function attach_referral(uuid, text, jsonb) from public, anon, authenticated;
-
-create or replace function on_auth_first_sign_in()
-returns trigger language plpgsql security definer set search_path = public, auth as $$
-begin
-  perform public.attach_referral(new.id, new.email, new.raw_user_meta_data);
-  return new;
-end $$;
-create trigger on_auth_first_sign_in after update of last_sign_in_at on auth.users
-  for each row when (old.last_sign_in_at is null and new.last_sign_in_at is not null)
-  execute function on_auth_first_sign_in();
 
 -- One invite per EMAIL, not per account: a new account for the same person (after
 -- delete-account, which keeps a scrubbed users row but frees the address) must not be able
@@ -161,10 +122,54 @@ returns text language sql immutable set search_path = public as $$
     regexp_replace(lower(trim(coalesce(p_email, ''))), '\+[^@]*@', '@'), 'UTF8')), 'hex');
 $$;
 
--- The code is entered on the sign-up screen and travels in the new account's metadata, so
--- attach_referral (above, at first sign-in) is the ONLY place a referral is made. You can only enter the code
--- of someone who already has an account, so invites only point back in time and a loop
--- (A→B→A, A→B→C→A, …) can't form. There's deliberately no "enter a code later" function.
+-- A friend's code is typed on the sign-up screen; the app keeps it and claims it as the new
+-- account right after it first signs in (i.e. by whoever controls the inbox). Rules:
+--   • once per person (no referral yet; one invite per email, ever) and before any booking;
+--   • never your own code;
+--   • only the code of an account created BEFORE yours — so invites point back in time and
+--     a loop (A→B→A, A→B→C→A, …) can't form, whenever the claim is made.
+create or replace function claim_invite(p_code text)
+returns void language plpgsql security definer set search_path = public, auth as $$
+declare
+  uid uuid := auth.uid();
+  c text := upper(trim(coalesce(p_code, '')));
+  inviter uuid;
+  n int;
+begin
+  if uid is null then
+    raise exception 'not authenticated' using errcode = 'insufficient_privilege';
+  end if;
+  select user_id into inviter from invite_codes where code = c;
+  if inviter is null then
+    raise exception 'That invite code doesn''t exist.';
+  end if;
+  if inviter = uid then
+    raise exception 'You can''t use your own invite code.';
+  end if;
+  if exists (select 1 from referrals where referred_user_id = uid) then
+    raise exception 'You''ve already used an invite code.';
+  end if;
+  if exists (select 1 from bookings where student_id = uid or tutor_id = uid) then
+    raise exception 'Invite codes can only be used before your first session.';
+  end if;
+  if (select created_at from users where id = inviter) >= (select created_at from users where id = uid) then
+    raise exception 'You can only use the code of someone who joined before you.';
+  end if;
+  insert into redeemed_invite_emails (email_hash)
+  select invite_email_hash(email) from auth.users where id = uid
+  on conflict do nothing;
+  get diagnostics n = row_count;
+  if n = 0 then
+    raise exception 'You''ve already used an invite code.';
+  end if;
+  insert into referrals (ambassador_id, referred_user_id, referred_role, referral_code_used)
+  values (inviter, uid, 'student', c);
+  update ambassador_profiles
+    set total_referrals = total_referrals + 1, updated_at = now()
+    where user_id = inviter;
+end $$;
+revoke execute on function claim_invite(text) from public, anon;
+grant execute on function claim_invite(text) to authenticated;
 
 -- Lets the sign-up screen say "code applied" / "not found" before the account exists, so
 -- anon may call it. Reveals only whether a code exists — never whose it is.
@@ -353,7 +358,9 @@ declare
   awarded int := 0;
   n int;
 begin
-  select id, student_id, tutor_id, status, credit_reversed_at into b from bookings where id = p_booking;
+  -- FOR UPDATE: a concurrent reverse_invite_rewards (which updates this row) can't slip in
+  -- between this check and the reward insert.
+  select id, student_id, tutor_id, status, credit_reversed_at into b from bookings where id = p_booking for update;
   -- Refunded in full or disputed (e.g. before a complete-session retry got here): no reward.
   if b.id is null or b.status <> 'completed' or b.credit_reversed_at is not null then
     return 0;
