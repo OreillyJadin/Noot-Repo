@@ -271,7 +271,8 @@ reproduce against the real backend — do not port localStorage.
   full refund or a new dispute takes back the $5 the session earned (either side's inviter,
   out of unspent credit only) and stops it counting toward goals; a lost dispute returns the
   student's credit. A friend's code is typed at sign-up, kept on the device, and claimed by
-  the new account after it first signs in (`claim_invite`) — never read from the sign-up
+  the new account when it first signs in from the link (`claim_invite`; join dates compared on
+  `auth.users`, which the owner can't edit) — never read from the sign-up
   request, which anyone can make for any address. Only an older account's code can be
   claimed, so invites point back in time and can't loop. One booking per PaymentIntent
   (unique index). Ambassadors

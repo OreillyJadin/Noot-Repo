@@ -65,7 +65,9 @@ export default function SignUp() {
       const { first, last } = splitName(trimmedName);
       const res = await auth.sendSignupVerification(trimmedEmail, first, last, redirectTo);
       if (res.ok) {
-        if (codeStatus === 'ok') await savePendingInvite(code);
+        // A code known to be wrong was stopped above. If the check couldn't run (offline),
+        // it's saved anyway: the server validates it when it's claimed.
+        if (code.trim()) await savePendingInvite(code, trimmedEmail);
         setSent(true);
       }
       else setError(res.error ?? "Couldn't send the link. Try again.");

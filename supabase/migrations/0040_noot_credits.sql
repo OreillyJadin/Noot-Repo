@@ -152,7 +152,9 @@ begin
   if exists (select 1 from bookings where student_id = uid or tutor_id = uid) then
     raise exception 'Invite codes can only be used before your first session.';
   end if;
-  if (select created_at from users where id = inviter) >= (select created_at from users where id = uid) then
+  -- auth.users, not public.users: the owner can update their own public.users row, so its
+  -- created_at can't be trusted. `is not true` so a missing row refuses instead of allowing.
+  if ((select created_at from auth.users where id = inviter) < (select created_at from auth.users where id = uid)) is not true then
     raise exception 'You can only use the code of someone who joined before you.';
   end if;
   insert into redeemed_invite_emails (email_hash)

@@ -93,11 +93,19 @@ try {
   const typo = await newUser('Typo', 'NOOT-NOPE00');
   check('signing up with an unknown code records nothing', (await referredBy(typo.uid)) === null);
   blocked(await friend.c.rpc('claim_invite', { p_code: code }), 'a second claim is refused');
-  blocked(await inviter.c.rpc('claim_invite', { p_code: (await friend.c.rpc('my_invite_code')).data }), 'claiming the code of someone who joined after you is refused (no loops)');
+  const refusedFor = async (c: SupabaseClient, p_code: string, why: RegExp, name: string) => {
+    const r = await c.rpc('claim_invite', { p_code });
+    check(name, !!r.error && why.test(r.error.message), r.error?.message ?? 'ALLOWED');
+  };
+  const friendCode = (await friend.c.rpc('my_invite_code')).data as string;
+  await refusedFor(inviter.c, friendCode, /joined before you/, 'claiming the code of someone who joined after you is refused (no loops)');
+  // The join date that counts is the sign-in account's, not the profile row the owner can edit.
+  await inviter.c.from('users').update({ created_at: '2099-01-01T00:00:00Z' }).eq('id', inviter.uid);
+  await refusedFor(inviter.c, friendCode, /joined before you/, '…even after rewriting your own profile\'s join date');
   blocked(await inviter.c.rpc('claim_invite', { p_code: code }), 'your own code is refused');
   const booked = await newUser('Booked');
   await completedBooking(booked.uid);
-  blocked(await booked.c.rpc('claim_invite', { p_code: code }), 'a code can\'t be claimed after your first session');
+  await refusedFor(booked.c, code, /before your first session/, 'a code can\'t be claimed after your first session');
   blocked(await anon.rpc('claim_invite', { p_code: code }), 'signed out, nothing can be claimed');
   noRows(await stranger.c.from('referrals').insert({ ambassador_id: inviter.uid, referred_user_id: stranger.uid, referred_role: 'student', referral_code_used: code }).select(), 'student cannot insert a referral row directly');
 
