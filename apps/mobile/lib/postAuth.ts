@@ -1,45 +1,54 @@
 // What to do once a session exists, regardless of HOW it was established
 // (magic-link callback, email+password, or biometric unlock). Keeping this in one
-// place means every auth path lands users in the same spot: onboarded users go to
-// their role's home, brand-new users start the onboarding flow.
+// place means every auth path lands users in the same spot: accounts with a password go to
+// their role's home, brand-new ones start the onboarding flow. The decision itself is
+// lib/postAuthRoute.ts.
 import type { ImperativeRouter } from 'expo-router';
 import { api } from '@noot/core';
 import { claimPendingInvite } from './pendingInvite';
+import { decidePostAuthRoute, lookupWithRetry } from './postAuthRoute';
 import type { Role } from './store';
 
 export interface RouteAfterAuthResult {
-  /** The role we routed as (student unless the user's active role is tutor). */
+  /** False if the account couldn't be read — nothing was navigated; let the user retry. */
+  ok: boolean;
+  /** The role we routed as (student unless the user's active role is tutor/ambassador). */
   role: Role;
-  /** True if we sent them into onboarding (no profile yet) rather than a home. */
+  /** True if we sent them into onboarding (no password yet) rather than a home. */
   onboarding: boolean;
 }
 
+/** Shown by callers when routeAfterAuth returns ok: false. */
+export const ACCOUNT_UNAVAILABLE = "Couldn't load your account. Check your connection and try again.";
+
 /**
- * Read the signed-in user and navigate. Onboarded users (they have a first name)
- * land on their role's home; everyone else starts onboarding at /verified. Any
- * lookup failure falls back to onboarding, which is the safe default for a fresh
- * account. Uses router.replace so auth screens don't linger in the back stack.
+ * Read the signed-in account and navigate. One that has created its password lands on its
+ * role's home; a new one starts onboarding at /verified. If the account can't be read (after
+ * retries) it navigates NOWHERE and returns ok: false — a failed request must never put an
+ * existing user back into onboarding (ERR-001). Uses router.replace so auth screens don't
+ * linger in the back stack.
  */
-export async function routeAfterAuth(router: ImperativeRouter, setRole: (r: Role) => void): Promise<RouteAfterAuthResult> {
+export async function routeAfterAuth(
+  router: ImperativeRouter,
+  setRole: (r: Role) => void,
+  /** They just signed in by typing their password — proof they have one, whatever is stamped
+   *  (an account made in the dashboard or by a script is created with its password). */
+  provenPassword = false,
+): Promise<RouteAfterAuthResult> {
   // A friend's code from the sign-up screen, if this is the account it was typed for. Not
   // awaited: it must never hold up or fail a sign-in.
   void claimPendingInvite();
-  try {
+  const read = await lookupWithRetry(async () => {
     const me = await api.getMe();
-    if (me && me.firstName.trim()) {
-      // Land on the home for the user's persisted active mode. Admin is not a mode —
-      // an admin still browses as student/tutor, so it falls through to the student home
-      // (the admin panel is a separate gated entry point off Profile).
-      const role: Role =
-        me.activeRole === 'tutor' ? 'tutor' : me.activeRole === 'ambassador' ? 'ambassador' : 'student';
-      setRole(role);
-      const home = role === 'tutor' ? '/tutor_home' : role === 'ambassador' ? '/ambassador_home' : '/home';
-      router.replace(home);
-      return { role, onboarding: false };
-    }
-  } catch {
-    /* fall through to onboarding */
+    return me ? { hasPassword: provenPassword || me.passwordSetAt != null, activeRole: me.activeRole } : null;
+  });
+  const route = decidePostAuthRoute(read.ok ? { ok: true, account: read.value } : { ok: false });
+  if (route.kind === 'unavailable') return { ok: false, role: 'student', onboarding: false };
+  if (route.kind === 'home') {
+    setRole(route.role);
+    router.replace(route.route);
+    return { ok: true, role: route.role, onboarding: false };
   }
   router.replace('/verified');
-  return { role: 'student', onboarding: true };
+  return { ok: true, role: 'student', onboarding: true };
 }

@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { Button, useTheme } from '@noot/ui';
 import { auth } from '@noot/core';
 import { useApp } from './store';
-import { routeAfterAuth } from './postAuth';
+import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from './postAuth';
 import { getBiometricCapability, isBiometricEnabled, unlockWithBiometric } from './biometrics';
 
 type Phase = 'checking' | 'locked' | 'open';
@@ -25,7 +25,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const { setRole } = useApp();
   // Web never gates; native starts in a brief "checking" splash to avoid a landing flash.
   const [phase, setPhase] = useState<Phase>(Platform.OS === 'web' ? 'open' : 'checking');
-  const [failed, setFailed] = useState(false);
+  // Why the overlay is showing a retry: the biometric check didn't pass, or it did (or wasn't
+  // needed) and the account then couldn't be read.
+  const [failed, setFailed] = useState<null | 'unlock' | 'unreachable'>(null);
   const ran = useRef(false); // guard against StrictMode double-mount double-prompting
 
   useEffect(() => {
@@ -51,23 +53,27 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       }
       // Authenticated but no biometric lock → skip the marketing landing and go
       // straight to their home (a returning user shouldn't have to tap "Log in").
-      await routeAfterAuth(router, setRole);
-      setPhase('open');
+      await enter();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Navigate to the home UNDER the overlay first, then lift it — otherwise dropping
+  // the overlay briefly reveals the landing (with its "Log in" button) mid-navigation.
+  // If the account can't be read, keep the overlay and offer a retry: opening the
+  // navigation here would leave a signed-in user on the landing (ERR-001).
+  const enter = async () => {
+    setFailed(null);
+    const routed = await routeAfterAuth(router, setRole);
+    if (routed.ok) setPhase('open');
+    else setFailed('unreachable');
+  };
+
   const attemptUnlock = async () => {
-    setFailed(false);
+    setFailed(null);
     const res = await unlockWithBiometric();
-    if (res.ok) {
-      // Navigate to the home UNDER the overlay first, then lift it — otherwise dropping
-      // the overlay briefly reveals the landing (with its "Log in" button) mid-navigation.
-      await routeAfterAuth(router, setRole);
-      setPhase('open');
-    } else {
-      setFailed(true); // show retry + password fallback (never dead-end)
-    }
+    if (res.ok) await enter();
+    else setFailed('unlock'); // show retry + password fallback (never dead-end)
   };
 
   const usePassword = () => {
@@ -85,8 +91,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             <ActivityIndicator size="large" color={t.accent} />
           ) : (
             <View style={styles.actions}>
-              <Text style={[styles.hint, { color: t.text2 }]}>Unlock to continue</Text>
-              <Button label="Try again" onPress={attemptUnlock} />
+              <Text style={[styles.hint, { color: t.text2 }]}>
+                {failed === 'unlock' ? 'Unlock to continue' : ACCOUNT_UNAVAILABLE}
+              </Text>
+              {/* Already unlocked → retry the read only, without prompting Face ID again. */}
+              <Button label="Try again" onPress={failed === 'unlock' ? attemptUnlock : enter} />
               <Button label="Use password" kind="secondary" onPress={usePassword} />
             </View>
           )}

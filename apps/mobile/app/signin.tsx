@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { Button, Field, useTheme } from '@noot/ui';
 import { auth } from '@noot/core';
 import { useApp } from '../lib/store';
-import { routeAfterAuth } from '../lib/postAuth';
+import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
 import {
   getBiometricCapability,
   getSavedBiometricEmail,
@@ -57,7 +57,7 @@ export default function SignIn() {
     try {
       const res = await auth.signInWithPassword(trimmed, password);
       if (!res.ok) { setError(res.error ?? "That email and password don't match."); return; }
-      await routeAfterAuth(router, setRole);
+      if (!(await routeAfterAuth(router, setRole, true)).ok) setError(ACCOUNT_UNAVAILABLE);
     } catch {
       setError("Couldn't reach noot. Check your connection and try again.");
     } finally {
@@ -69,7 +69,9 @@ export default function SignIn() {
     setBusy(true); setError(null);
     const res = await unlockWithBiometric();
     if (res.ok) {
-      await routeAfterAuth(router, setRole);
+      if ((await routeAfterAuth(router, setRole)).ok) return;
+      setError(ACCOUNT_UNAVAILABLE);
+      setBusy(false);
     } else {
       setError(res.error ?? 'Biometric unlock failed.');
       const stillSaved = await getSavedBiometricEmail();

@@ -114,6 +114,10 @@ async function ensureUser(email) {
   if (existing.has(email)) return existing.get(email);
   const { data, error } = await admin.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
   if (error) throw new Error(`createUser ${email}: ${error.message}`);
+  // Created WITH its password, so the "password changed" trigger (0041) never fires for it.
+  // Stamp it here or the app would start every seeded account at "Create your password".
+  const stamp = await admin.from('users').update({ password_set_at: new Date().toISOString() }).eq('id', data.user.id);
+  if (stamp.error) throw new Error(`password_set_at ${email}: ${stamp.error.message}`);
   return data.user.id;
 }
 

@@ -5,14 +5,14 @@
 //     password and drops straight into the app.
 // Requires an active session (the magic-link / recovery exchange already ran in
 // /auth-callback); setPassword() operates on that session via updateUser.
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Button, Field, Ic, useTheme } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
-import { routeAfterAuth } from '../lib/postAuth';
+import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
 import { authLinks } from '../lib/authLinks';
 import { TERMS_VERSION, openLegal } from '../lib/legal';
 
@@ -33,6 +33,9 @@ export default function SetPassword() {
   // content before a user can post any. Onboarding only — someone resetting a forgotten
   // password accepted them when they signed up.
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  // The password this screen has already saved. A retry after a later step failed must not
+  // save it again — the server refuses a new password that equals the current one.
+  const saved = useRef<string | null>(null);
 
   const handleSubmit = async () => {
     if (password.length < MIN_LEN) { setError(`Use at least ${MIN_LEN} characters.`); return; }
@@ -40,17 +43,20 @@ export default function SetPassword() {
     if (!isReset && !acceptedTerms) { setError('Please accept the Terms of Use to continue.'); return; }
     setBusy(true); setError(null);
     try {
-      const res = await auth.setPassword(password);
-      if (!res.ok) {
-        setError(res.error ?? "Couldn't set your password. Try again.");
-        return;
+      if (saved.current !== password) {
+        const res = await auth.setPassword(password);
+        if (!res.ok) {
+          setError(res.error ?? "Couldn't set your password. Try again.");
+          return;
+        }
+        saved.current = password;
       }
       if (isReset) {
         // Existing user; already authenticated via the recovery session → into the app.
         // Recorded first and persisted, so the same link reopening the app later — a
         // duplicate delivery or a relaunch after force-close — goes home (tracker T2).
         await authLinks.markPasswordResetDone();
-        await routeAfterAuth(router, setRole);
+        if (!(await routeAfterAuth(router, setRole)).ok) setError(ACCOUNT_UNAVAILABLE);
       } else {
         // Record the acceptance before moving on, so no account can reach the rest of the
         // app without one. A failure here is not fatal to sign-up — surface it and let

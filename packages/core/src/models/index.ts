@@ -33,6 +33,8 @@ export interface User {
   courses: string[];
   /** Public URL of the profile photo, or null if none uploaded. */
   avatarUrl: string | null;
+  /** When they chose their password (0041, server-stamped). Null = still signing up. */
+  passwordSetAt: Timestamp | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
