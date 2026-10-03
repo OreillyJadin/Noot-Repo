@@ -2,7 +2,7 @@
 // i.e. a modified client, not the app — and tries to mint, move or read credit they
 // shouldn't. Then drives the server-side paths (as the Edge Functions would, with the
 // service role) and checks the money adds up:
-//   • invite codes: one per user, never client-chosen; redeem rules
+//   • invite codes: one per user, never client-chosen; applied only at sign-up
 //   • the ledger: no client writes, no reading anyone else's rows
 //   • earning: $5 to the inviter when the invitee completes a session, once
 //   • no reward for a session with your own inviter; one invite per email, ever
@@ -35,9 +35,13 @@ const noRows = (r: { error: { message: string } | null; data: unknown[] | null }
   check(name, !!r.error || (r.data ?? []).length === 0, r.error?.message ?? `${(r.data ?? []).length} rows`);
 
 const created: string[] = [];
-async function newUser(tag: string): Promise<{ c: SupabaseClient; uid: string }> {
-  const email = `credits-${tag}+${Date.now()}${Math.floor(Math.random() * 1e4)}@crimson.ua.edu`;
-  const { data: u, error } = await svc.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
+/** A new account; `referralCode` is what they typed on the sign-up screen (auth metadata). */
+async function newUser(tag: string, referralCode?: string, email?: string): Promise<{ c: SupabaseClient; uid: string }> {
+  email ??= `credits-${tag.toLowerCase()}-${Date.now()}${Math.floor(Math.random() * 1e4)}@crimson.ua.edu`;
+  const { data: u, error } = await svc.auth.admin.createUser({
+    email, password: PASSWORD, email_confirm: true,
+    ...(referralCode ? { user_metadata: { referral_code: referralCode } } : {}),
+  });
   if (error) throw error;
   created.push(u.user!.id);
   await svc.from('users').update({ first_name: tag, last_name: 'Tester' }).eq('id', u.user!.id);
@@ -65,8 +69,9 @@ const balance = async (c: SupabaseClient) => (await c.rpc('my_credit_balance')).
 
 try {
   const inviter = await newUser('Inviter');
-  const friend = await newUser('Friend');
   const stranger = await newUser('Stranger');
+  const referredBy = async (uid: string) =>
+    (await svc.from('referrals').select('ambassador_id').eq('referred_user_id', uid).maybeSingle()).data?.ambassador_id ?? null;
 
   console.log('— invite codes —');
   const code1 = await inviter.c.rpc('my_invite_code');
@@ -79,16 +84,15 @@ try {
   const peek = await stranger.c.from('invite_codes').select('code').eq('user_id', inviter.uid);
   check("student cannot read someone else's code row", (peek.data ?? []).length === 0);
 
-  console.log('\n— redeeming —');
-  blocked(await friend.c.rpc('redeem_invite_code', { p_code: 'NOOT-NOPE00' }), 'unknown code is rejected');
-  blocked(await inviter.c.rpc('redeem_invite_code', { p_code: code }), 'your own code is rejected');
-  allowed(await friend.c.rpc('redeem_invite_code', { p_code: ` ${code.toLowerCase()} ` }), 'friend redeems (case/space-insensitive)');
-  blocked(await friend.c.rpc('redeem_invite_code', { p_code: code }), 'a second redeem is rejected');
-  const friendCode = (await friend.c.rpc('my_invite_code')).data as string;
-  blocked(await inviter.c.rpc('redeem_invite_code', { p_code: friendCode }), "inviter can't redeem the code of someone they invited");
-  const late = await newUser('Late');
-  await completedBooking(late.uid);
-  blocked(await late.c.rpc('redeem_invite_code', { p_code: code }), 'a user who already had a session cannot redeem');
+  console.log('\n— joining with a code (sign-up only) —');
+  const anon = createClient(URL, ANON, { auth: { persistSession: false } });
+  check('signed out, the sign-up screen can check a real code', (await anon.rpc('check_invite_code', { p_code: code.toLowerCase() })).data === true);
+  check('…and a made-up one', (await anon.rpc('check_invite_code', { p_code: 'NOOT-NOPE00' })).data === false);
+  const friend = await newUser('Friend', ` ${code.toLowerCase()} `);
+  check('signing up with a code records the referral (case/space-insensitive)', (await referredBy(friend.uid)) === inviter.uid);
+  const typo = await newUser('Typo', 'NOOT-NOPE00');
+  check('signing up with an unknown code records nothing', (await referredBy(typo.uid)) === null);
+  blocked(await stranger.c.rpc('redeem_invite_code', { p_code: code }), 'there is no way to add a code after sign-up');
   noRows(await stranger.c.from('referrals').insert({ ambassador_id: inviter.uid, referred_user_id: stranger.uid, referred_role: 'student', referral_code_used: code }).select(), 'student cannot insert a referral row directly');
 
   console.log('\n— the ledger is server-only —');
@@ -124,8 +128,7 @@ try {
   console.log('\n— self-dealing, re-signups, legacy —');
   const tutorInviter = await newUser('TutorInv');
   const tiCode = (await tutorInviter.c.rpc('my_invite_code')).data as string;
-  const buddy = await newUser('Buddy');
-  await buddy.c.rpc('redeem_invite_code', { p_code: tiCode });
+  const buddy = await newUser('Buddy', tiCode);
   const { data: selfDeal } = await svc.from('bookings').insert({
     student_id: buddy.uid, tutor_id: tutorInviter.uid, subject: 'MGT 300',
     scheduled_at: new Date(Date.now() - 864e5).toISOString(), duration_minutes: 60, price: 28, platform_fee: 4.9,
@@ -133,9 +136,9 @@ try {
   }).select('id').single();
   check('a session with the person who invited you earns them nothing', (await svc.rpc('award_invite_rewards', { p_booking: selfDeal!.id })).data === 0);
 
-  const again = await newUser('Again');
+  const again = await newUser('Again', code);
   const { data: againUser } = await svc.from('users').select('email').eq('id', again.uid).single();
-  allowed(await again.c.rpc('redeem_invite_code', { p_code: code }), 'a new user redeems');
+  check('a new user joins with the code', (await referredBy(again.uid)) === inviter.uid);
   // As delete-account does: scrub the users row (it's kept), revoke the code, drop the login.
   await svc.from('users').update({ email: `deleted+${again.uid}@removed.invalid`, first_name: '', last_name: '' }).eq('id', again.uid);
   await svc.from('invite_codes').delete().eq('user_id', again.uid);
@@ -143,16 +146,11 @@ try {
   if (del.error) throw del.error;
   const tagged = againUser!.email.replace('@', '+2@');
   for (const addr of [againUser!.email, tagged]) {
-    const { data: reborn, error: rErr } = await svc.auth.admin.createUser({ email: addr, password: PASSWORD, email_confirm: true });
-    if (rErr) throw rErr;
-    created.push(reborn.user!.id);
-    const rc = createClient(URL, ANON, { auth: { persistSession: false } });
-    await rc.auth.signInWithPassword({ email: addr, password: PASSWORD });
-    blocked(await rc.rpc('redeem_invite_code', { p_code: code }), `a new account as ${addr === tagged ? 'a +tag of the same email' : 'the same email'} cannot redeem again`);
+    const reborn = await newUser('Reborn', code, addr);
+    check(`a new account as ${addr === tagged ? 'a +tag of the same email' : 'the same email'} can't use a code again`, (await referredBy(reborn.uid)) === null);
   }
 
-  const legacy = await newUser('Legacy');
-  await legacy.c.rpc('redeem_invite_code', { p_code: code });
+  const legacy = await newUser('Legacy', code);
   const { data: lref } = await svc.from('referrals').select('id').eq('referred_user_id', legacy.uid).single();
   await svc.from('referral_bonuses').insert({ ambassador_id: inviter.uid, referral_id: lref!.id, status: 'paid' });
   check('a referral already paid under the old cash bonus earns nothing more', (await svc.rpc('award_invite_rewards', { p_booking: await completedBooking(legacy.uid) })).data === 0);
@@ -164,8 +162,7 @@ try {
   const ambCode = (await amb.c.rpc('create_my_ambassador_profile')).data as string;
   check('ambassador code is the same as their invite code', ambCode === (await amb.c.rpc('my_invite_code')).data);
   for (let i = 0; i < 5; i++) {
-    const f = await newUser(`Pal${i}`);
-    await f.c.rpc('redeem_invite_code', { p_code: ambCode });
+    const f = await newUser(`Pal${i}`, ambCode);
     await svc.rpc('award_invite_rewards', { p_booking: await completedBooking(f.uid) });
   }
   check('unapproved: 5 completed invites earn 5×$5 and no milestone', (await balance(amb.c)) === 2500, String(await balance(amb.c)));
@@ -175,7 +172,7 @@ try {
   allowed(await svc.from('ambassador_approvals').insert({ user_id: amb.uid }), 'team approves the ambassador');
   const { data: m5 } = await svc.from('ambassador_milestones').select('bonus_cents').eq('threshold', 5).single();
   check('approval pays the goal they already reached', (await balance(amb.c)) === 2500 + m5!.bonus_cents, String(await balance(amb.c)));
-  await svc.rpc('award_invite_rewards', { p_booking: await completedBooking((await newUser('Pal5')).uid) });
+  await svc.rpc('award_invite_rewards', { p_booking: await completedBooking((await newUser('Pal5', ambCode)).uid) });
   const bonuses = await amb.c.from('credit_ledger').select('milestone').eq('kind', 'milestone_bonus');
   check('the milestone is paid exactly once', (bonuses.data ?? []).length === 1);
   check('a non-ambassador inviter gets no milestone', ((await inviter.c.from('credit_ledger').select('id').eq('kind', 'milestone_bonus')).data ?? []).length === 0);
@@ -184,8 +181,7 @@ try {
   const roleLate = await newUser('LateRole');
   const lateCode = (await roleLate.c.rpc('my_invite_code')).data as string;
   for (let i = 0; i < 5; i++) {
-    const f = await newUser(`LPal${i}`);
-    await f.c.rpc('redeem_invite_code', { p_code: lateCode });
+    const f = await newUser(`LPal${i}`, lateCode);
     await svc.rpc('award_invite_rewards', { p_booking: await completedBooking(f.uid) });
   }
   await svc.from('ambassador_approvals').insert({ user_id: roleLate.uid });
@@ -213,6 +209,26 @@ try {
     session_type: 'in_person', cancellation_deadline: new Date().toISOString(), stripe_payment_intent_id: 'pi_unlinked',
   }).select('id').single();
   check('an unlinked spend is still returned on cancel', (await svc.rpc('return_booking_credit', { p_booking: unlinked!.id, p_percent: 100 })).data === 300);
+
+  console.log('\n— a refunded or disputed session is reversed —');
+  const revInv = await newUser('RevInv');
+  const revFriend = await newUser('RevFriend', (await revInv.c.rpc('my_invite_code')).data as string);
+  const revB = await completedBooking(revFriend.uid);
+  await svc.rpc('award_invite_rewards', { p_booking: revB });
+  check('the inviter has the $5', (await balance(revInv.c)) === 500);
+  allowed(await svc.rpc('reverse_booking_credit', { p_booking: revB }), 'reverse the refunded session');
+  check('…the $5 is taken back', (await balance(revInv.c)) === 0);
+  await svc.rpc('reverse_booking_credit', { p_booking: revB });
+  check('…only once', (await balance(revInv.c)) === 0);
+  check('…and my_invites shows $0 for that friend', ((await revInv.c.rpc('my_invites')).data ?? [])[0]?.reward_cents === 0);
+  const spentInv = await newUser('SpentInv');
+  const spentFriend = await newUser('SpentFriend', (await spentInv.c.rpc('my_invite_code')).data as string);
+  const spentFriendB = await completedBooking(spentFriend.uid);
+  await svc.rpc('award_invite_rewards', { p_booking: spentFriendB });
+  await svc.rpc('spend_credit', { p_user: spentInv.uid, p_cents: 500, p_payment_intent: `pi_spent_${spentInv.uid}` });
+  await svc.rpc('reverse_booking_credit', { p_booking: spentFriendB });
+  check('a reward already spent is not taken back below $0', (await balance(spentInv.c)) === 0, String(await balance(spentInv.c)));
+  blocked(await revInv.c.rpc('reverse_booking_credit', { p_booking: revB }), 'student cannot call reverse_booking_credit');
 
   console.log('\n— cash-out —');
   blocked(await inviter.c.rpc('request_credit_cashout', { p_cents: 1000 }), 'non-ambassadors cannot cash out');

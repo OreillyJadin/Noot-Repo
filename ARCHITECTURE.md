@@ -129,7 +129,7 @@ Referrals                     who invited whom (ambassador_id = the inviter, any
 
 CreditLedger                  Noot credit (0040). Append-only; balance = sum(amount_cents)
   id · user_id · amount_cents(±) · kind(invite_reward|milestone_bonus|booking_spend|
-  booking_return|cashout|adjustment) · referral_id · booking_id · payment_intent_id
+  booking_return|cashout|reward_reversal|adjustment) · referral_id · booking_id · payment_intent_id
   milestone · cashout_id · created_at      — partial unique indexes make each event once-only
 
 AmbassadorMilestones          threshold(pk) · bonus_cents   (placeholder amounts; team-editable)
@@ -266,7 +266,11 @@ reproduce against the real backend — do not port localStorage.
   the invitee completes a session. Credit comes off the next booking automatically
   (`create-payment-intent`); the tutor's payout is still on the full price, so noot absorbs
   it; the card is always charged at least $1. Spent under a per-user lock in
-  `confirm-booking`, returned pro rata on cancel and in full on a tutor no-show. Ambassadors
+  `confirm-booking`, returned pro rata on cancel and in full on a tutor no-show; a full
+  refund or dispute in Stripe (`payments-webhook`) returns it and takes back the $5 the
+  session earned, out of unspent credit only. A friend's code is entered ONLY at sign-up
+  (auth metadata → `handle_new_user`), so invites point back in time and can't loop. One
+  booking per PaymentIntent (unique index). Ambassadors
   also earn milestone bonuses and can request a cash-out (paid by the team by hand for now).
 - Payments are **hosting-independent** — unchanged across Phase 1 and Phase 2.
 

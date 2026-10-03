@@ -117,6 +117,21 @@ try {
   const held6 = await getPaymentIntent(pi6.paymentIntentId);
   check('…and the booking that went through keeps its card hold', held6.status === 'requires_capture', held6.status);
 
+  // The same with no credit: nothing to spend, so it's the one-booking-per-payment index
+  // that has to stop the second insert — without cancelling the first booking's hold.
+  const t7 = at(80);
+  const bal7 = await api.credits.balance();
+  if (bal7 > 0) await svc.from('credit_ledger').insert({ user_id: uid, amount_cents: -bal7, kind: 'adjustment' });
+  const pi7 = await hold(t7);
+  const both7 = await Promise.allSettled([
+    api.bookings.confirm({ tutorId, courseCode, scheduledAt: t7, durationMinutes: 60, sessionType: 'in_person', paymentIntentId: pi7.paymentIntentId }),
+    api.bookings.confirm({ tutorId, courseCode, scheduledAt: t7, durationMinutes: 60, sessionType: 'in_person', paymentIntentId: pi7.paymentIntentId }),
+  ]);
+  for (const r of both7) if (r.status === 'fulfilled') bookings.push(r.value.bookingId);
+  check('a double-submit with no credit also books once', pi7.creditCents === 0 && both7.filter((r) => r.status === 'fulfilled').length === 1, both7.map((r) => r.status).join(','));
+  check('…and keeps its card hold', (await getPaymentIntent(pi7.paymentIntentId)).status === 'requires_capture');
+  if (bal7 > 0) await svc.from('credit_ledger').insert({ user_id: uid, amount_cents: bal7, kind: 'adjustment' });
+
   console.log('\n— cancelling returns credit —');
   const bal0 = await api.credits.balance();
   const r100 = await api.bookings.cancel(b1);
@@ -138,11 +153,12 @@ try {
   const inviter = { id: uid };
   const invCode = { code: await api.credits.myCode() };
   // A fresh invitee with a completed session.
-  const fe = `invitee+${Date.now()}@crimson.ua.edu`;
-  const { data: f } = await svc.auth.admin.createUser({ email: fe, password: PASSWORD, email_confirm: true });
+  const fe = `invitee${Date.now()}@crimson.ua.edu`;
+  const { data: f } = await svc.auth.admin.createUser({
+    email: fe, password: PASSWORD, email_confirm: true, user_metadata: { referral_code: invCode.code },
+  });
   const fc = createClient(URL, ANON, { auth: { persistSession: false } });
   await fc.auth.signInWithPassword({ email: fe, password: PASSWORD });
-  await fc.rpc('redeem_invite_code', { p_code: invCode.code });
   const { data: done } = await svc.from('bookings').insert({
     student_id: f.user!.id, tutor_id: tutorId, subject: courseCode, scheduled_at: new Date(Date.now() - 864e5).toISOString(),
     duration_minutes: 60, price: 28, platform_fee: 4.9, tutor_payout_amount: 23.1, status: 'completed', session_type: 'in_person',
@@ -160,9 +176,55 @@ try {
   check('award-referral-bonus credits the inviter', body.awarded === true, JSON.stringify(body));
   const { data: reward } = await svc.from('credit_ledger').select('amount_cents').eq('user_id', inviter.id).eq('booking_id', done!.id).eq('kind', 'invite_reward').single();
   check('…$5', reward?.amount_cents === 500);
+
+  // complete-session retried on an already-completed booking (e.g. after a failed payout)
+  // still fires the award. A second invitee, completed with no reward yet, then a "retry".
+  const fe2 = `invitee2x${Date.now()}@crimson.ua.edu`;
+  const { data: f2 } = await svc.auth.admin.createUser({
+    email: fe2, password: PASSWORD, email_confirm: true, user_metadata: { referral_code: invCode.code },
+  });
+  const { data: done2 } = await svc.from('bookings').insert({
+    student_id: f2.user!.id, tutor_id: tutorId, subject: courseCode, scheduled_at: new Date(Date.now() - 864e5).toISOString(),
+    duration_minutes: 60, price: 28, platform_fee: 4.9, tutor_payout_amount: 23.1, status: 'completed', session_type: 'in_person',
+    cancellation_deadline: new Date(Date.now() - 2 * 864e5).toISOString(),
+  }).select('id').single();
+  const tutorClient = createClient(URL, ANON, { auth: { persistSession: false } });
+  const { data: tutorUser } = await svc.from('users').select('email').eq('id', tutorId).single(); // seeded, password123
+  await tutorClient.auth.signInWithPassword({ email: tutorUser!.email as string, password: PASSWORD });
+  const { data: { session: ts } } = await tutorClient.auth.getSession();
+  const retry = await fetch(`${URL}/functions/v1/complete-session`, {
+    method: 'POST', headers: { Authorization: `Bearer ${ts!.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: done2!.id }),
+  });
+  const retryBody = await retry.json();
+  const { data: reward2 } = await svc.from('credit_ledger').select('amount_cents').eq('booking_id', done2!.id).eq('kind', 'invite_reward').maybeSingle();
+  check('a retried complete-session still pays the invite reward', retryBody.alreadyComplete === true && reward2?.amount_cents === 500, JSON.stringify(retryBody));
+  await svc.from('credit_ledger').delete().eq('booking_id', done2!.id);
+  await svc.from('bookings').delete().eq('id', done2!.id);
+  await svc.auth.admin.deleteUser(f2.user!.id);
+
   await svc.from('credit_ledger').delete().eq('booking_id', done!.id);
   await svc.from('bookings').delete().eq('id', done!.id);
   await svc.auth.admin.deleteUser(f.user!.id);
+
+  console.log('\n— account deletion waits for a pending cash-out —');
+  // A separate approved ambassador with $10 of (old) credit and a pending cash-out.
+  const ae = `cashout+${Date.now()}@crimson.ua.edu`;
+  const { data: a } = await svc.auth.admin.createUser({ email: ae, password: PASSWORD, email_confirm: true });
+  const ac = createClient(URL, ANON, { auth: { persistSession: false } });
+  await ac.auth.signInWithPassword({ email: ae, password: PASSWORD });
+  await svc.from('user_roles').insert({ user_id: a.user!.id, role: 'ambassador' });
+  await svc.from('ambassador_approvals').insert({ user_id: a.user!.id });
+  await svc.from('credit_ledger').insert({ user_id: a.user!.id, amount_cents: 1000, kind: 'adjustment' });
+  await ac.rpc('request_credit_cashout', { p_cents: 1000 });
+  const { data: { session: as } } = await ac.auth.getSession();
+  const delRes = await fetch(`${URL}/functions/v1/delete-account`, {
+    method: 'POST', headers: { Authorization: `Bearer ${as!.access_token}`, 'Content-Type': 'application/json' }, body: '{}',
+  });
+  const delBody = await delRes.json();
+  check('delete-account refuses while a cash-out is pending', delRes.status === 409 && /cash-out/i.test(delBody.error ?? ''), JSON.stringify(delBody));
+  await svc.from('credit_cashouts').delete().eq('user_id', a.user!.id);
+  await svc.from('credit_ledger').delete().eq('user_id', a.user!.id);
+  await svc.auth.admin.deleteUser(a.user!.id);
 } finally {
   for (const pi of holds) await cancelHold(pi).catch(() => {});
   await svc.from('credit_ledger').delete().eq('user_id', uid);
