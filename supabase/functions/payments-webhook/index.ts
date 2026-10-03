@@ -2,10 +2,25 @@
 // `stripe-webhook`, which is a separate endpoint). verify_jwt is OFF; auth is the Stripe
 // signature (STRIPE_WEBHOOK_SECRET). Handles the events our payout/refund flow cares about:
 //   - account.updated   → cache the tutor's Connect charges/payouts readiness
-//   - charge.refunded   → mark the booking refunded (reconciliation)
+//   - charge.refunded   → mark the booking refunded (reconciliation); on a FULL refund,
+//                         reverse its Noot credit (reverse_booking_credit, 0040)
+//   - charge.dispute.created → reverse the disputed booking's Noot credit
 //   - payment_intent.succeeded → no-op (money moves synchronously in complete-session)
 import Stripe from 'https://esm.sh/stripe@16?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// Credit used on, and invite rewards earned by, the booking behind this PaymentIntent.
+// deno-lint-ignore no-explicit-any
+async function reverseCredit(db: any, paymentIntentId: string): Promise<void> {
+  const { data: booking } = await db
+    .from('bookings')
+    .select('id')
+    .eq('stripe_payment_intent_id', paymentIntentId)
+    .maybeSingle();
+  if (!booking) return;
+  const { error } = await db.rpc('reverse_booking_credit', { p_booking: booking.id });
+  if (error) console.error('payments-webhook: credit reversal failed', booking.id, error.message);
+}
 
 Deno.serve(async (req: Request) => {
   const sig = req.headers.get('stripe-signature');
@@ -48,7 +63,14 @@ Deno.serve(async (req: Request) => {
             .from('bookings')
             .update({ refund_status: 'refunded', stripe_refund_id: charge.refunds?.data?.[0]?.id ?? null })
             .eq('stripe_payment_intent_id', pi);
+          if (charge.refunded) await reverseCredit(db, pi); // `refunded` = fully refunded
         }
+        break;
+      }
+      case 'charge.dispute.created': {
+        const dispute = event.data.object as Stripe.Dispute;
+        const pi = typeof dispute.payment_intent === 'string' ? dispute.payment_intent : dispute.payment_intent?.id;
+        if (pi) await reverseCredit(db, pi);
         break;
       }
       default:
