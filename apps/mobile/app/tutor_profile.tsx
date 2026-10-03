@@ -18,6 +18,8 @@ import { useRoleSwitch } from '../lib/useRoleSwitch';
 import { openPayoutSetup } from '../lib/payoutSetup';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { pickAndUploadAvatar } from '../lib/avatar';
+import Constants from 'expo-constants';
+import { versionLabel } from '../lib/appVersion';
 
 function Row({
   icon,
@@ -293,7 +295,9 @@ export default function TutorProfile() {
             <Row icon="logout" label="Sign out" danger onPress={() => router.replace('/')} last />
           </Card>
         </View>
-        <Text style={[styles.footer, { color: t.text3 }]}>noot · v1.0 · Peer tutoring for campus</Text>
+        <Text style={[styles.footer, { color: t.text3 }]}>
+          noot · {versionLabel(Constants.platform?.ios?.buildNumber ?? Constants.expoConfig?.ios?.buildNumber)} · Peer tutoring for campus
+        </Text>
       </Body>
       <TabBar active={active} onTab={onTab} role={role} />
     </Screen>

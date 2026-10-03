@@ -17,6 +17,8 @@ import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import { openLegal } from '../lib/legal';
+import Constants from 'expo-constants';
+import { versionLabel } from '../lib/appVersion';
 
 function Row({
   icon,
@@ -342,7 +344,9 @@ export default function Profile() {
             />
           </Card>
         </View>
-        <Text style={[styles.footer, { color: t.text3 }]}>noot · v1.0 · Peer tutoring for campus</Text>
+        <Text style={[styles.footer, { color: t.text3 }]}>
+          noot · {versionLabel(Constants.platform?.ios?.buildNumber ?? Constants.expoConfig?.ios?.buildNumber)} · Peer tutoring for campus
+        </Text>
       </Body>
       <TabBar active={active} onTab={onTab} role={role} />
     </Screen>
