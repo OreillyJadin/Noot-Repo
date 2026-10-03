@@ -85,19 +85,22 @@ export async function completeAuthFromUrl(url: string): Promise<SignInResult> {
  * user_metadata so the `handle_new_user` trigger populates public.users.first_name
  * /last_name on insert (migration 0003). `shouldCreateUser` is true — this is how a
  * brand-new account is provisioned. `redirectTo` is the app's /auth-callback deep
- * link (must be on the project's redirect allow-list).
+ * link (must be on the project's redirect allow-list). `referralCode` is a friend's invite
+ * code; handle_new_user records the referral when the account is created (0040).
  */
 export async function sendSignupVerification(
   email: string,
   firstName: string,
   lastName: string,
   redirectTo?: string,
+  referralCode?: string,
 ): Promise<SignInResult> {
+  const code = referralCode?.trim();
   const { error } = await getSupabase().auth.signInWithOtp({
     email: email.trim(),
     options: {
       shouldCreateUser: true,
-      data: { first_name: firstName.trim(), last_name: lastName.trim() },
+      data: { first_name: firstName.trim(), last_name: lastName.trim(), ...(code ? { referral_code: code } : {}) },
       ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
     },
   });

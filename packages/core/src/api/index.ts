@@ -51,6 +51,7 @@ export type CreditKind =
   | 'booking_spend'
   | 'booking_return'
   | 'cashout'
+  | 'reward_reversal'
   | 'adjustment';
 /** One line of the caller's credit history. Positive = earned, negative = spent. */
 export interface CreditEntry {
@@ -1115,10 +1116,14 @@ export const api = {
       return data as string;
     },
 
-    /** Use a friend's invite code. Once, and only before your first session. */
-    async redeem(code: string): Promise<void> {
-      const { error } = await getSupabase().rpc('redeem_invite_code', { p_code: code });
+    /**
+     * Does this invite code exist? For the sign-up screen, so works signed out. The code
+     * itself is applied by auth.sendSignupVerification — there's no way to add one later.
+     */
+    async checkCode(code: string): Promise<boolean> {
+      const { data, error } = await getSupabase().rpc('check_invite_code', { p_code: code });
       if (error) throw error;
+      return Boolean(data);
     },
 
     /** Current balance in cents. */
