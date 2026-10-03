@@ -83,8 +83,11 @@ end $$;
 -- ---------------------------------------------------------------------------------------
 comment on column referrals.ambassador_id is 'The inviter. Any user since 0040, not only ambassadors.';
 
--- Signup-time attribution (a referral_code in the auth metadata) now reads invite_codes.
--- Body otherwise unchanged from 0008.
+-- The friend's code typed at sign-up rides in the auth metadata. The referral is recorded at
+-- the account's FIRST SIGN-IN, not when the link is requested: requesting a link creates the
+-- auth.users row (already "confirmed" when email confirmations are off), so recording it then
+-- would let anyone attach their own code to a classmate's address before the classmate ever
+-- signs up. Signing in means clicking the link in that inbox, whatever the confirm setting.
 create or replace function handle_new_user()
 returns trigger language plpgsql security definer set search_path = public, auth as $$
 declare
@@ -104,22 +107,42 @@ begin
   values (new.id, 'student')
   on conflict do nothing;
 
-  if ref_code is not null then
-    select user_id into inviter from public.invite_codes where code = ref_code;
-    if inviter is not null and inviter <> new.id
-       and not exists (select 1 from public.redeemed_invite_emails where email_hash = public.invite_email_hash(new.email)) then
-      insert into public.redeemed_invite_emails (email_hash) values (public.invite_email_hash(new.email));
-      insert into public.referrals (ambassador_id, referred_user_id, referred_role, referral_code_used)
-      values (inviter, new.id, 'student', ref_code)
-      on conflict (referred_user_id) do nothing;
-      update public.ambassador_profiles
-        set total_referrals = total_referrals + 1, updated_at = now()
-        where user_id = inviter;
-    end if;
-  end if;
-
   return new;
 end $$;
+
+create or replace function attach_referral(p_user uuid, p_email text, p_meta jsonb)
+returns void language plpgsql security definer set search_path = public as $$
+declare
+  ref_code text := nullif(upper(trim(p_meta ->> 'referral_code')), '');
+  inviter uuid;
+begin
+  if ref_code is null then
+    return;
+  end if;
+  select user_id into inviter from invite_codes where code = ref_code;
+  if inviter is null or inviter = p_user
+     or exists (select 1 from redeemed_invite_emails where email_hash = invite_email_hash(p_email)) then
+    return;
+  end if;
+  insert into redeemed_invite_emails (email_hash) values (invite_email_hash(p_email));
+  insert into referrals (ambassador_id, referred_user_id, referred_role, referral_code_used)
+  values (inviter, p_user, 'student', ref_code)
+  on conflict (referred_user_id) do nothing;
+  update ambassador_profiles
+    set total_referrals = total_referrals + 1, updated_at = now()
+    where user_id = inviter;
+end $$;
+revoke execute on function attach_referral(uuid, text, jsonb) from public, anon, authenticated;
+
+create or replace function on_auth_first_sign_in()
+returns trigger language plpgsql security definer set search_path = public, auth as $$
+begin
+  perform public.attach_referral(new.id, new.email, new.raw_user_meta_data);
+  return new;
+end $$;
+create trigger on_auth_first_sign_in after update of last_sign_in_at on auth.users
+  for each row when (old.last_sign_in_at is null and new.last_sign_in_at is not null)
+  execute function on_auth_first_sign_in();
 
 -- One invite per EMAIL, not per account: a new account for the same person (after
 -- delete-account, which keeps a scrubbed users row but frees the address) must not be able
@@ -139,7 +162,7 @@ returns text language sql immutable set search_path = public as $$
 $$;
 
 -- The code is entered on the sign-up screen and travels in the new account's metadata, so
--- handle_new_user (above) is the ONLY place a referral is made. You can only enter the code
+-- attach_referral (above, at first sign-in) is the ONLY place a referral is made. You can only enter the code
 -- of someone who already has an account, so invites only point back in time and a loop
 -- (A→B→A, A→B→C→A, …) can't form. There's deliberately no "enter a code later" function.
 
@@ -242,7 +265,6 @@ create index credit_ledger_user_idx on credit_ledger (user_id);
 create unique index credit_ledger_one_reward  on credit_ledger (referral_id)         where kind = 'invite_reward';
 create unique index credit_ledger_one_bonus   on credit_ledger (user_id, milestone)  where kind = 'milestone_bonus';
 create unique index credit_ledger_one_spend   on credit_ledger (payment_intent_id)   where kind = 'booking_spend';
-create unique index credit_ledger_one_return  on credit_ledger (booking_id)          where kind = 'booking_return';
 create unique index credit_ledger_one_cashout on credit_ledger (cashout_id)          where kind = 'cashout';
 create unique index credit_ledger_one_reversal on credit_ledger (referral_id)        where kind = 'reward_reversal';
 -- confirm-booking gives an unused spend back as an adjustment keyed by its PaymentIntent.
@@ -255,6 +277,10 @@ create policy credit_ledger_select on credit_ledger for select to authenticated
 -- once (double tap, retry) could both insert. Production had no duplicates (checked 2026-10-03).
 create unique index bookings_one_per_payment_intent on bookings (stripe_payment_intent_id)
   where stripe_payment_intent_id is not null;
+
+-- Set by reverse_invite_rewards when the session is fully refunded or disputed: it earns no
+-- invite reward and doesn't count toward goals. Also what makes the reversal once-only.
+alter table bookings add column credit_reversed_at timestamptz;
 
 alter table bookings add column credit_applied numeric(10,2) not null default 0
   check (credit_applied >= 0 and credit_applied <= price);
@@ -287,7 +313,8 @@ grant execute on function my_credit_balance() to authenticated;
 --    booking, once per invited person ever, then any ambassador milestone it unlocks.
 -- ---------------------------------------------------------------------------------------
 -- Milestone bonuses an approved ambassador has reached, paid once each. Counts every reward
--- they've earned, so approval pays out goals reached before it (see the trigger below).
+-- they've earned (not ones whose session was later refunded or disputed), so approval pays
+-- out goals reached before it (see the trigger below).
 create or replace function award_milestones(p_user uuid)
 returns void language plpgsql security definer set search_path = public as $$
 declare
@@ -296,7 +323,9 @@ begin
   if not is_approved_ambassador(p_user) then
     return;
   end if;
-  select count(*) into done from credit_ledger where user_id = p_user and kind = 'invite_reward';
+  select count(*) into done
+    from credit_ledger l left join bookings b on b.id = l.booking_id
+   where l.user_id = p_user and l.kind = 'invite_reward' and b.credit_reversed_at is null;
   insert into credit_ledger (user_id, amount_cents, kind, milestone)
   select p_user, m.bonus_cents, 'milestone_bonus', m.threshold
     from ambassador_milestones m where m.threshold <= done
@@ -324,8 +353,9 @@ declare
   awarded int := 0;
   n int;
 begin
-  select id, student_id, tutor_id, status into b from bookings where id = p_booking;
-  if b.id is null or b.status <> 'completed' then
+  select id, student_id, tutor_id, status, credit_reversed_at into b from bookings where id = p_booking;
+  -- Refunded in full or disputed (e.g. before a complete-session retry got here): no reward.
+  if b.id is null or b.status <> 'completed' or b.credit_reversed_at is not null then
     return 0;
   end if;
   for r in
@@ -375,14 +405,16 @@ end $$;
 revoke execute on function spend_credit(uuid, int, text) from public, anon, authenticated;
 grant execute on function spend_credit(uuid, int, text) to service_role;
 
--- Gives back p_percent of the credit a booking used. Once per booking.
+-- Brings the credit given back for a booking up to p_percent of what it used. Cumulative, so
+-- a 50% in-app cancel followed by a full refund in Stripe ends at 100%, and repeating a call
+-- changes nothing. Serialised per user by credit_lock.
 create or replace function return_booking_credit(p_booking uuid, p_percent int)
 returns int language plpgsql security definer set search_path = public as $$
 declare
   spent int;
+  already int;
   back int;
   who uuid;
-  n int;
 begin
   -- By booking, or by its PaymentIntent in case linking the spend to the booking failed.
   select -l.amount_cents, l.user_id into spent, who from credit_ledger l
@@ -393,30 +425,37 @@ begin
   if spent is null or who is null then
     return 0;
   end if;
-  back := round(spent * greatest(0, least(100, p_percent)) / 100.0)::int;
+  perform credit_lock(who);
+  select coalesce(sum(amount_cents), 0) into already from credit_ledger
+   where booking_id = p_booking and kind = 'booking_return';
+  back := round(spent * greatest(0, least(100, p_percent)) / 100.0)::int - already;
   if back <= 0 then
     return 0;
   end if;
   insert into credit_ledger (user_id, amount_cents, kind, booking_id)
-  values (who, back, 'booking_return', p_booking)
-  on conflict (booking_id) where kind = 'booking_return' do nothing;
-  get diagnostics n = row_count;
-  return case when n > 0 then back else 0 end;
+  values (who, back, 'booking_return', p_booking);
+  return back;
 end $$;
 revoke execute on function return_booking_credit(uuid, int) from public, anon, authenticated;
 grant execute on function return_booking_credit(uuid, int) to service_role;
 
--- A session refunded in full or disputed outside the app (Stripe dashboard, chargeback),
--- reported by payments-webhook. The student gets back all the credit they used on it, and
--- the $5 it earned an inviter is taken back — but only out of credit they still hold, never
--- below $0. Once each. Milestone bonuses already paid are not taken back.
-create or replace function reverse_booking_credit(p_booking uuid)
+-- A session refunded in full or disputed in Stripe (payments-webhook). The $5 it earned an
+-- inviter (on either side) is taken back — only out of credit they still hold, never below
+-- $0 — and the session stops counting toward goals. Once per booking (credit_reversed_at).
+-- Milestone bonuses already paid are not taken back. The student's own credit is returned
+-- separately (return_booking_credit), in proportion to the refund or when a dispute is lost.
+create or replace function reverse_invite_rewards(p_booking uuid)
 returns void language plpgsql security definer set search_path = public as $$
 declare
   r record;
   take int;
+  n int;
 begin
-  perform return_booking_credit(p_booking, 100);
+  update bookings set credit_reversed_at = now() where id = p_booking and credit_reversed_at is null;
+  get diagnostics n = row_count;
+  if n = 0 then
+    return; -- unknown booking, or already reversed
+  end if;
   for r in
     select user_id, referral_id, amount_cents from credit_ledger
      where booking_id = p_booking and kind = 'invite_reward' and user_id is not null
@@ -430,8 +469,8 @@ begin
     end if;
   end loop;
 end $$;
-revoke execute on function reverse_booking_credit(uuid) from public, anon, authenticated;
-grant execute on function reverse_booking_credit(uuid) to service_role;
+revoke execute on function reverse_invite_rewards(uuid) from public, anon, authenticated;
+grant execute on function reverse_invite_rewards(uuid) to service_role;
 
 -- ---------------------------------------------------------------------------------------
 -- 8) Ambassador cash-out. Approved ambassadors only, $10 minimum, and not credit earned in
@@ -493,16 +532,19 @@ returns table (
   display_name text,
   joined_at    timestamptz,
   completed    boolean,
+  reversed     boolean,  -- that session was refunded or disputed; the $5 was taken back
   reward_cents int
 ) language sql stable security definer set search_path = public as $$
   select r.id,
          trim(coalesce(u.first_name, '') || ' ' || coalesce(nullif(left(u.last_name, 1), '') || '.', '')),
          r.created_at,
          l.id is not null,
+         b.credit_reversed_at is not null,
          coalesce(l.amount_cents, 0) + coalesce(v.amount_cents, 0)  -- net of any reversal
     from referrals r
     left join users u on u.id = r.referred_user_id
     left join credit_ledger l on l.referral_id = r.id and l.kind = 'invite_reward'
+    left join bookings b on b.id = l.booking_id
     left join credit_ledger v on v.referral_id = r.id and v.kind = 'reward_reversal'
    where r.ambassador_id = auth.uid()
    order by r.created_at desc;
