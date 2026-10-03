@@ -24,6 +24,7 @@ import type {
   Notification,
   ReviewSummary,
   TutorAvailability,
+  TutorInterview,
   TutorCourse,
   MyTutorProfile,
   TutorSummary,
@@ -268,6 +269,10 @@ function mapTutorCourse(row: any): TutorCourse {
     sessions: row.sessions ?? 0,
     createdAt: row.created_at,
   };
+}
+
+function mapTutorInterview(row: any): TutorInterview {
+  return { id: row.id, tutorId: row.tutor_id, scheduledAt: row.scheduled_at, details: row.details ?? '' };
 }
 
 function mapTutorAvailability(row: any): TutorAvailability {
@@ -680,6 +685,19 @@ export const api = {
       if (!data) return { status: 'none', gradesVerified };
       if (s === 'approved' || s === 'rejected') return { status: s, gradesVerified };
       return { status: data.submitted_at ? 'pending' : 'draft', gradesVerified };
+    },
+
+    /** The signed-in tutor's own scheduled interview, if the team has set one (0042). */
+    async getMyInterview(): Promise<TutorInterview | null> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('tutor_interviews')
+        .select('id, tutor_id, scheduled_at, details')
+        .eq('tutor_id', uid)
+        .is('cancelled_at', null)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? mapTutorInterview(data) : null;
     },
 
     /** Just the status part of getTutorStanding. */
@@ -1213,6 +1231,42 @@ export const api = {
 
   // --- admin (RLS is_admin() already permits these reads; writes go through Edge Functions) ---
   admin: {
+    /**
+     * The live interview for each of these tutors, keyed by tutor id (ERR-005). Admin-only by
+     * RLS — anyone else gets an empty map.
+     */
+    async listInterviews(tutorIds: string[]): Promise<Record<string, TutorInterview>> {
+      if (tutorIds.length === 0) return {};
+      const { data, error } = await getSupabase()
+        .from('tutor_interviews')
+        .select('id, tutor_id, scheduled_at, details')
+        .in('tutor_id', tutorIds)
+        .is('cancelled_at', null);
+      if (error) throw error;
+      return Object.fromEntries((data ?? []).map((r) => [r.tutor_id as string, mapTutorInterview(r)]));
+    },
+
+    /**
+     * Set (or move) a tutor applicant's interview. The server checks the caller is an admin,
+     * the tutor has applied and the time is ahead, then notifies the tutor
+     * (schedule_tutor_interview, 0042). Returns the interview as saved.
+     */
+    async scheduleInterview(tutorId: string, scheduledAt: string, details = ''): Promise<TutorInterview> {
+      const { data, error } = await getSupabase().rpc('schedule_tutor_interview', {
+        p_tutor: tutorId,
+        p_at: scheduledAt,
+        p_details: details,
+      });
+      if (error) throw error;
+      return { id: data as string, tutorId, scheduledAt, details: details.trim() };
+    },
+
+    /** Call off a tutor's interview and tell them (cancel_tutor_interview, 0042). */
+    async cancelInterview(tutorId: string): Promise<void> {
+      const { error } = await getSupabase().rpc('cancel_tutor_interview', { p_tutor: tutorId });
+      if (error) throw error;
+    },
+
     /** Tutors awaiting approval (oldest first). Admin-only via RLS. */
     async listPendingTutors(): Promise<PendingTutor[]> {
       const sb = getSupabase();

@@ -7,10 +7,15 @@
 // profile. The copy states the situation plainly and, where there's something to do, offers
 // exactly one action; where there isn't, it deliberately offers none rather than a button
 // that does nothing.
-import React from 'react';
+//
+// While an application is in review, the banner also shows the interview the noot team has
+// scheduled with the tutor, once there is one (ERR-005).
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ic, useTheme, type IconName } from '@noot/ui';
+import { api, type TutorInterview } from '@noot/core';
 import type { TutorStatus } from './useMe';
+import { interviewLabel } from './interviewSlots';
 
 const COPY: Record<
   Exclude<TutorStatus, 'approved'>,
@@ -51,8 +56,27 @@ export function TutorStatusBanner({
   onApply: () => void;
 }) {
   const t = useTheme();
+  const [interview, setInterview] = useState<TutorInterview | null>(null);
+  useEffect(() => {
+    if (status !== 'pending') return setInterview(null);
+    let active = true;
+    api.profile
+      .getMyInterview()
+      .then((i) => { if (active) setInterview(i); })
+      .catch(() => { /* the banner still says "in review" without it */ });
+    return () => { active = false; };
+  }, [status]);
+
   if (status === 'approved') return null;
-  const copy = COPY[status];
+  // An interview still ahead (or under an hour past its start) replaces the generic copy.
+  const upcoming = interview && new Date(interview.scheduledAt).getTime() > Date.now() - 60 * 60 * 1000 ? interview : null;
+  const copy = upcoming
+    ? {
+        ...COPY.pending,
+        title: `Interview: ${interviewLabel(new Date(upcoming.scheduledAt))}`,
+        body: `${upcoming.details ? `${upcoming.details}. ` : ''}A noot team member will meet you then to finish reviewing your application.`,
+      }
+    : COPY[status];
 
   const body = (
     <View style={styles.row}>
