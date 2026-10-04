@@ -27,12 +27,17 @@ test('a gap splits the day into two windows', () => {
   ]);
 });
 
-test('Sunday is day_of_week 0 and the last hour ends at 10pm', () => {
-  assert.deepEqual(windowsFromGrid(paint([['Sun', 21]])), [{ dayOfWeek: 0, startTime: '21:00', endTime: '22:00' }]);
+test('Sunday is day_of_week 0 and the last hour ends at 11pm', () => {
+  assert.deepEqual(windowsFromGrid(paint([['Sun', 22]])), [{ dayOfWeek: 0, startTime: '22:00', endTime: '23:00' }]);
+});
+
+test('the old step-5 evening block (8–11pm) survives a re-save whole', () => {
+  const saved = [{ dayOfWeek: 1, startTime: '20:00:00', endTime: '23:00:00' }];
+  assert.deepEqual(windowsFromGrid(gridFromWindows(saved)), [{ dayOfWeek: 1, startTime: '20:00', endTime: '23:00' }]);
 });
 
 test('what is saved reads back as the same grid', () => {
-  const g = paint([['Mon', 8], ['Mon', 9], ['Wed', 17], ['Sun', 21], ['Fri', 14]]);
+  const g = paint([['Mon', 8], ['Mon', 9], ['Wed', 17], ['Sun', 22], ['Fri', 14]]);
   assert.deepEqual(gridFromWindows(windowsFromGrid(g)), g);
 });
 

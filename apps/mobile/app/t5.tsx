@@ -13,7 +13,7 @@
 // per-tutor location — `tutoring_locations` (0027) is a read-only campus list maintained
 // out of band, and B3's spot picker has its own list — so the field only ever discarded
 // what the tutor typed.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -68,12 +68,14 @@ export default function T5() {
   // 8am to 10pm, so re-saving an untouched one could round away anything saved outside that.
   const [hadSaved, setHadSaved] = useState(false);
   const [dirty, setDirty] = useState(false);
+  // Mirrors `dirty` for the load below, which must not replace hours tapped while it ran.
+  const touched = useRef(false);
   useEffect(() => {
     let active = true;
     api.profile
       .getMyTutorProfile()
       .then((p) => {
-        if (!active || p.availability.length === 0) return;
+        if (!active || touched.current || p.availability.length === 0) return;
         setGrid(gridFromWindows(p.availability));
         setHadSaved(true);
       })
@@ -86,6 +88,7 @@ export default function T5() {
   const next = () => (from === 'review' ? router.back() : router.push('/t6'));
 
   const edit = (next: WeekGrid) => {
+    touched.current = true;
     setDirty(true);
     setGrid(next);
   };

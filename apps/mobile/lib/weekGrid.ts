@@ -13,9 +13,11 @@ export const WEEKDAYS: Day[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 // dayOfWeek per the API contract: 0 = Sunday … 6 = Saturday.
 const DAY_OF_WEEK: Record<Day, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
-// Selectable hours, as the hour a session would START. 8 = 8–9am … 21 = 9–10pm.
+// Selectable hours, as the hour a session would START. 8 = 8–9am … 22 = 10–11pm. The last
+// hour is there because step 5's old "8p" block saved 20:00–23:00: without it, editing such
+// a week would quietly drop its 10–11pm hour.
 const FIRST_HOUR = 8;
-const LAST_HOUR = 21;
+const LAST_HOUR = 22;
 export const HOURS: number[] = Array.from({ length: LAST_HOUR - FIRST_HOUR + 1 }, (_, i) => FIRST_HOUR + i);
 
 /** 9 → "09:00" */
