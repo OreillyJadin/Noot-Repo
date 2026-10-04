@@ -23,8 +23,9 @@ export default function T10() {
   const insets = useSafeAreaInsets();
   const { setRole } = useApp();
   // Only a tutor who uploaded a transcript is waiting on a grade check (ERR-030). One who
-  // signed up unverified — or whose application hasn't loaded yet — just hears "in review".
-  const { app } = useTutorApplication();
+  // signed up unverified — or whose application couldn't be read — just hears "in review".
+  // The line stays hidden until we know which, so it never swaps in front of them.
+  const { app, loading } = useTutorApplication();
   const awaitingGrades = !!app?.transcriptUploaded;
 
   // Enter TUTOR MODE, not just the tutor dashboard route. Without this the app's `role`
@@ -45,7 +46,7 @@ export default function T10() {
         <View style={styles.hero}>
           <HeroIcon name="clock" size={76} />
           <H1 style={{ fontSize: 27, marginTop: 18 }}>You&apos;re in review!</H1>
-          <Sub style={{ marginTop: 10, maxWidth: 250, textAlign: 'center' }}>
+          <Sub style={{ marginTop: 10, maxWidth: 250, textAlign: 'center', opacity: loading ? 0 : 1 }}>
             {awaitingGrades
               ? 'We’ll email you within 24 hours once your grade verification is approved.'
               : 'We’ll email you within 24 hours once your application is reviewed.'}
