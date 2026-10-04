@@ -111,6 +111,18 @@ try {
     [...back.Mon].join() === '15' && [...back.Wed].join() === '9,10' && back.Tue.size === 0,
   );
 
+  // ERR-027 — A+ and B- are offered on step 3 and save like any other grade
+  await api.profile.setTutorCourses([
+    { courseCode: codeA, grade: 'A+', hourlyRate: 25, sessions: 0 },
+    { courseCode: codeB, grade: 'B-', hourlyRate: 30, sessions: 0 },
+  ]);
+  p = await api.profile.getMyTutorProfile();
+  check(
+    'step 3: A+ and B- are saved',
+    p.courses.find((c) => c.courseCode === codeA)?.grade === 'A+' && p.courses.find((c) => c.courseCode === codeB)?.grade === 'B-',
+    p.courses.map((c) => `${c.courseCode}:${c.grade}`).join(' '),
+  );
+
   // DENY: a different user reads only their own (empty) application
   await auth.signOut();
   const r2 = await auth.signInWithPassword(other.email, PASSWORD);
