@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, ProgressDots, H1, Sub, Skeleton, useTheme, Ic } from '@noot/ui';
 import { api, MIN_HOURLY_RATE, MAX_HOURLY_RATE } from '@noot/core';
+import { useStepBack } from '../lib/useStepBack';
 
 /** One course from step 3 with the rate being edited here (a string while typing). */
 interface RateRow {
@@ -56,6 +57,7 @@ function StepHead({
 export default function T4() {
   const t = useTheme();
   const router = useRouter();
+  const stepBack = useStepBack(4);
   // The courses the tutor saved on step 3 — never a template. Empty until loaded.
   const [rates, setRates] = useState<RateRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,7 +142,7 @@ export default function T4() {
         step={4}
         title="Set your rates"
         sub="Charge what you're worth. Adjust anytime."
-        onBack={() => router.back()}
+        onBack={stepBack}
         onExit={saveAndExit}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>

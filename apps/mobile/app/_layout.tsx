@@ -63,6 +63,11 @@ function ThemedApp() {
             <Stack.Screen name="admin_bookings" options={{ animation: 'fade' }} />
             <Stack.Screen name="admin_reviews" options={{ animation: 'fade' }} />
             <Stack.Screen name="admin_reports" options={{ animation: 'fade' }} />
+            {/* The only replace INTO a tutor-application step is its back arrow after
+                resuming a draft (lib/stepBack.ts), so it slides the way a back does. */}
+            {['t2', 't3', 't4', 't5', 't6', 't7', 't8'].map((name) => (
+              <Stack.Screen key={name} name={name} options={{ animationTypeForReplace: 'pop' }} />
+            ))}
           </Stack>
         </AuthGate>
       </MeProvider>

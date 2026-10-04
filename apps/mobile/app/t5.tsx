@@ -19,6 +19,7 @@ import { Screen, Body, ActionBar, Button, Eyebrow, ProgressDots, H1, Sub, Ic, us
 import { api } from '@noot/core';
 
 import { DAY_LABELS, ROW_LABELS, BLOCK_HOURS, EMPTY_GRID, windowsFromGrid, gridFromWindows } from '../lib/weekGrid';
+import { useStepBack } from '../lib/useStepBack';
 
 function StepHead({
   step,
@@ -56,6 +57,7 @@ function StepHead({
 export default function T5() {
   const t = useTheme();
   const router = useRouter();
+  const stepBack = useStepBack(5);
   const [grid, setGrid] = useState<number[][]>(EMPTY_GRID);
   const [saving, setSaving] = useState(false);
   // Hours already saved (coming back to this step, or editing from step 9) are painted in.
@@ -110,7 +112,7 @@ export default function T5() {
 
   return (
     <Screen>
-      <StepHead step={5} title="When can you tutor?" onBack={() => router.back()} onExit={() => router.replace('/')} />
+      <StepHead step={5} title="When can you tutor?" onBack={stepBack} onExit={() => router.replace('/')} />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
         <View style={styles.headRow}>
           <Eyebrow style={{ color: t.text3 }}>Weekly availability</Eyebrow>

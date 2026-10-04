@@ -13,6 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, H2, ProgressDots, H1, Sub, Ic, Skeleton, useTheme } from '@noot/ui';
 import { api, type CatalogCourse } from '@noot/core';
 import { CoursePicker } from '../lib/CoursePicker';
+import { useStepBack } from '../lib/useStepBack';
 
 const GRADE_OPTIONS = ['A', 'A-', 'B+', 'B'];
 const MAX_COURSES = 10;
@@ -58,6 +59,7 @@ function StepHead({
 export default function T3() {
   const t = useTheme();
   const router = useRouter();
+  const stepBack = useStepBack(3);
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -163,7 +165,7 @@ export default function T3() {
         step={3}
         title="Courses you tutor"
         sub="Add up to 10. Add the ones you crushed."
-        onBack={() => router.back()}
+        onBack={stepBack}
         onExit={saveAndExit}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>

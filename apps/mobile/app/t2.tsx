@@ -10,6 +10,7 @@ import { api } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import { MajorPicker } from '../lib/MajorPicker';
+import { useStepBack } from '../lib/useStepBack';
 
 const YEAR_OPTIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate Student'];
 
@@ -50,6 +51,7 @@ function StepHead({
 export default function T2() {
   const t = useTheme();
   const router = useRouter();
+  const stepBack = useStepBack(2);
   // Prefill from the signed-in user's real profile (empty until loaded / if unset).
   const { me } = useMe();
   const [first, setFirst] = useState('');
@@ -125,7 +127,7 @@ export default function T2() {
         step={2}
         title="Your profile"
         sub="Students see this on your tutor card."
-        onBack={() => router.back()}
+        onBack={stepBack}
         onExit={saveAndExit}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>

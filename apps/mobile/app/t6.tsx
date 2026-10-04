@@ -15,6 +15,7 @@ import { api } from '@noot/core';
 import { useTutorApplication } from '../lib/useTutorApplication';
 import { errText } from '../lib/errText';
 import { readUriBytes } from '../lib/bytes';
+import { useStepBack } from '../lib/useStepBack';
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -53,6 +54,7 @@ function StepHead({
 export default function T6() {
   const t = useTheme();
   const router = useRouter();
+  const stepBack = useStepBack(6);
   const { app, reload } = useTutorApplication();
   const [uploaded, setUploaded] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -115,7 +117,7 @@ export default function T6() {
         step={6}
         title="Verify your grades"
         sub="Upload a transcript or grade screenshot."
-        onBack={() => router.back()}
+        onBack={stepBack}
         onExit={() => router.replace('/')}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>

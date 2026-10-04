@@ -9,6 +9,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, H2, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { openPayoutSetup } from '../lib/payoutSetup';
+import { useStepBack } from '../lib/useStepBack';
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -49,6 +50,7 @@ type Payouts = { connected: boolean; payoutsEnabled: boolean; detailsSubmitted: 
 export default function T8() {
   const t = useTheme();
   const router = useRouter();
+  const stepBack = useStepBack(8);
   const [status, setStatus] = useState<Payouts | null>(null);
   const [checking, setChecking] = useState(true);
   // Guards the double tap that used to create a second Stripe account (T24).
@@ -93,7 +95,7 @@ export default function T8() {
         step={8}
         title="Get paid"
         sub="Stripe handles your payouts and tax forms."
-        onBack={() => router.back()}
+        onBack={stepBack}
         onExit={() => router.replace('/')}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>

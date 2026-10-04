@@ -23,6 +23,7 @@ import { errText } from '../lib/errText';
 import { useMe } from '../lib/useMe';
 import { MajorPicker } from '../lib/MajorPicker';
 import { pickAndUploadAvatar } from '../lib/avatar';
+import { useStepBack } from '../lib/useStepBack';
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -239,6 +240,7 @@ function weeklyHours(windows: TutorAvailability[]): number {
 export default function T9() {
   const t = useTheme();
   const router = useRouter();
+  const stepBack = useStepBack(9);
   const { me, tutorStatus } = useMe();
   // The saved application, re-read on focus so an edit made on an earlier step shows here
   // when the tutor comes back (T1), plus what's still missing (T4). Name/major/photo come
@@ -271,7 +273,7 @@ export default function T9() {
 
   return (
     <Screen>
-      <StepHead step={9} title="How your profile looks" onBack={() => router.back()} onExit={() => router.replace('/')} />
+      <StepHead step={9} title="How your profile looks" onBack={stepBack} onExit={() => router.replace('/')} />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
         {!app ? (
           <Skeleton height={220} radius={16} />
