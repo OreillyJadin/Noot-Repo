@@ -1,12 +1,16 @@
 // Notification center — the signed-in user's in-app feed (0014). Lists notifications
 // newest-first, styles unread ones, marks everything read on open (clears the bell
 // badge), and routes to the relevant screen on tap. Rows are created by DB triggers.
+// Above the feed sits the phone's own notification permission (ERR-031): asked for here,
+// with the reason in view, rather than by a cold system prompt at launch.
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, AppState, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Card, Ic, EmptyState, Skeleton, useTheme, type IconName } from '@noot/ui';
+import { Screen, NavTop, Body, Button, Card, Ic, EmptyState, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api, type Notification } from '@noot/core';
 import { useApp } from '../lib/store';
+import { askForPush, getPushState, openPushSettings } from '../lib/push';
+import type { PushState } from '../lib/pushState';
 
 const ICON: Record<Notification['type'], IconName> = { message: 'chat', booking: 'cal', system: 'bell' };
 
@@ -19,6 +23,63 @@ function timeAgo(iso: string): string {
   if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
   return d < 7 ? `${d}d ago` : `${Math.floor(d / 7)}w ago`;
+}
+
+/**
+ * Whether these notifications also reach the phone. Never asked → explain, then the system
+ * prompt. Refused → only the Settings app can change it, so link there. Allowed → a quiet
+ * line with the same link. Re-read whenever the app comes back to the front, which is when
+ * someone returns from Settings.
+ */
+function PushPermission() {
+  const t = useTheme();
+  const [state, setState] = useState<PushState | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const read = () => { getPushState().then((s) => { if (active) setState(s); }).catch(() => {}); };
+    read();
+    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') read(); });
+    return () => { active = false; sub.remove(); };
+  }, []);
+
+  if (state === null || state === 'unavailable') return null;
+
+  if (state === 'on') {
+    return (
+      <Text style={[styles.pushOn, { color: t.text3 }]}>
+        Notifications are on for this phone.{' '}
+        <Text onPress={() => { void openPushSettings(); }} style={{ color: t.accent, fontWeight: '600' }}>
+          Manage in Settings
+        </Text>
+      </Text>
+    );
+  }
+
+  const blocked = state === 'blocked';
+  return (
+    <Card style={{ gap: 10, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
+      <Text style={[styles.pushTitle, { color: t.text }]}>
+        {blocked ? 'Notifications are off for noot' : 'Turn on notifications'}
+      </Text>
+      <Text style={[styles.pushBody, { color: t.text2 }]}>
+        {blocked
+          ? 'Turn them on in Settings to hear about new messages and bookings when noot is closed.'
+          : 'Hear about new messages and bookings when noot is closed. Everything still shows up here either way.'}
+      </Text>
+      <Button
+        label={blocked ? 'Open Settings' : busy ? 'Asking…' : 'Allow notifications'}
+        size="sm"
+        disabled={busy}
+        onPress={async () => {
+          if (blocked) { void openPushSettings(); return; }
+          setBusy(true);
+          try { setState(await askForPush()); } finally { setBusy(false); }
+        }}
+      />
+    </Card>
+  );
 }
 
 export default function Notifications() {
@@ -52,6 +113,9 @@ export default function Notifications() {
     <Screen>
       <NavTop title="Notifications" onBack={() => router.back()} />
       <Body pad={16}>
+        <View style={{ marginBottom: 12 }}>
+          <PushPermission />
+        </View>
         {items === null ? (
           <View style={{ gap: 10 }}>
             <Skeleton height={72} radius={14} />
@@ -101,4 +165,7 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   body: { fontSize: 13, marginTop: 2, lineHeight: 18 },
   time: { fontSize: 12, marginTop: 4 },
+  pushTitle: { fontSize: 15, fontWeight: '700' },
+  pushBody: { fontSize: 13.5, lineHeight: 19 },
+  pushOn: { fontSize: 12.5, lineHeight: 18, textAlign: 'center' },
 });
