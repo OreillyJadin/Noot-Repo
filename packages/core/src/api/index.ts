@@ -73,7 +73,24 @@ export interface AdminUser {
   name: string;
   email: string;
   roles: string[];
+  /** 'active' | 'suspended' | 'banned', or 'deleted' for an account its owner removed. */
   status: string;
+  /** When the owner deleted the account; its name and email are scrubbed by then. */
+  deletedAt: string | null;
+  createdAt: string;
+}
+export type AdminUserRole = 'student' | 'tutor' | 'ambassador' | 'admin';
+export type AdminUserStatus = 'active' | 'suspended' | 'banned' | 'deleted';
+/** What to list in admin user management. Everything is optional: no filter lists everyone. */
+export interface AdminUserQuery {
+  /** Matched against name and email. */
+  search?: string;
+  /** 'student' means an account that is nothing else — everyone holds the student role. */
+  role?: AdminUserRole | null;
+  status?: AdminUserStatus | null;
+  /** Page size, at most 100 (the server caps it). */
+  limit?: number;
+  offset?: number;
 }
 /** A pending review for the admin moderation queue. */
 export interface AdminReview {
@@ -1319,20 +1336,34 @@ export const api = {
       return invokeFn('approve-tutor', { tutorUserId, verifyGrades: true });
     },
 
-    /** All accounts with their roles + status (admin RLS). */
-    async listUsers(): Promise<AdminUser[]> {
-      const { data, error } = await getSupabase()
-        .from('users')
-        .select('id, first_name, last_name, email, status, user_roles(role)')
-        .order('created_at', { ascending: false });
+    /**
+     * One page of accounts, newest first, with how many match in all (admin_list_users,
+     * 0046). Search and filters run on the server, so the list stays usable however many
+     * accounts there are. The server refuses anyone who is not an admin.
+     */
+    async listUsers(query: AdminUserQuery = {}): Promise<{ users: AdminUser[]; total: number }> {
+      const { data, error } = await getSupabase().rpc('admin_list_users', {
+        p_search: query.search ?? '',
+        p_role: query.role ?? null,
+        p_status: query.status ?? null,
+        p_limit: query.limit ?? 50,
+        p_offset: query.offset ?? 0,
+      });
       if (error) throw error;
-      return (data ?? []).map((u) => ({
-        id: u.id,
-        name: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || '—',
-        email: u.email,
-        roles: (u.user_roles ?? []).map((r: { role: string }) => r.role),
-        status: u.status,
-      }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows = (data ?? []) as any[];
+      return {
+        total: Number(rows[0]?.total ?? 0),
+        users: rows.map((u) => ({
+          id: u.id,
+          name: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || '—',
+          email: u.email,
+          roles: u.roles ?? [],
+          status: u.status,
+          deletedAt: u.deleted_at ?? null,
+          createdAt: u.created_at,
+        })),
+      };
     },
 
     /** Suspend / ban / reactivate an account (admin-set-user-status Edge Function). */
