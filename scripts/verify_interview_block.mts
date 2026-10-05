@@ -1,6 +1,13 @@
 // Verify that a tutor's interview with the noot team blocks their time for booking (ERR-032)
 // against the LOCAL stack, through @noot/core exactly as the app books and reschedules.
 //
+// The demo tutor (sara) is approved AND given an interview here, which the admin screen
+// never does (it only schedules applicants, who can't be booked) but the database allows.
+//
+// Leaves behind on the LOCAL stack: sara's interview notifications, the conversation and
+// message confirm-booking creates, and stripe_charges_enabled = true on sara. A live
+// interview sara already had is replaced, then removed.
+//
 // Needs: supabase start && node supabase/seed_demo.mjs && supabase functions serve
 //        --env-file <file with STRIPE_SECRET_KEY=sk_test_…>, and the same key in this shell.
 //   pnpm dlx tsx scripts/verify_interview_block.mts
@@ -11,7 +18,9 @@ import { authorizeHold, cancelHold, stripeTestMode } from './_stripe_test.mts'
 const URL = 'http://127.0.0.1:54321'
 const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
 const SERVICE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
-const BUSY = 'That tutor is not available at that time. Please pick another slot.'
+// The same words as a slot another student took: an interview is not a student's business.
+const BUSY = 'That time was just booked. Please pick another slot.'
+const BUSY_MOVE = 'That time is already booked. Please pick another.'
 
 if (!stripeTestMode()) {
   console.error('Refusing to run: STRIPE_SECRET_KEY is not a test key (sk_test_…).')
@@ -63,7 +72,7 @@ try {
 
   await signIn('student@crimson.ua.edu')
   const during = await tryBook(0)
-  step(during === BUSY, `a student cannot book the interview's hour, and is not told why: "${during}"`)
+  step(during === BUSY, `a student cannot book the interview's hour, and is told only that it is taken: "${during}"`)
   const into = await tryBook(-30)
   step(into === BUSY, 'nor a session that runs into it')
   const outOf = await tryBook(30)
@@ -84,7 +93,7 @@ try {
   })
   bookingId = confirmed.bookingId
   const move = await api.bookings.reschedule({ bookingId, action: 'propose', newScheduledAt: iso(0) }).then(() => null, errMsg)
-  step(move === BUSY, `an existing session cannot be moved onto the interview: "${move}"`)
+  step(move === BUSY_MOVE, `an existing session cannot be moved onto the interview: "${move}"`)
   const moveOk = await api.bookings.reschedule({ bookingId, action: 'propose', newScheduledAt: iso(180) }).then(() => null, errMsg)
   step(moveOk === null, `but it can be moved to a free time${moveOk ? `: ${moveOk}` : ''}`)
 

@@ -18,7 +18,7 @@ import { isTimeOpen } from '../lib/availability';
 import { GeckoLogo } from '../lib/GeckoLogo';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
-import { interviewBlockedSlots, interviewRange } from '../lib/interviewBlock';
+import { INTERVIEW_MINUTES, interviewBlockedSlots, interviewRange } from '../lib/interviewBlock';
 
 // Something the noot team put on the calendar, not the tutor or a student: neither the
 // accent of open times nor the green of a booked session's pay.
@@ -141,7 +141,13 @@ export default function TutorCalendar() {
     return () => { active = false; };
   }, [reloadKey]);
   // Which day of the visible two weeks it falls on, and the rows it takes up there.
-  const interviewAt = useMemo(() => (interview ? new Date(interview.scheduledAt) : null), [interview]);
+  // An interview that is over comes off the calendar, though its row stays live until the
+  // application is decided (the "in review" banner drops it the same way).
+  const interviewAt = useMemo(() => {
+    if (!interview) return null;
+    const at = new Date(interview.scheduledAt);
+    return at.getTime() + INTERVIEW_MINUTES * 60 * 1000 > Date.now() ? at : null;
+  }, [interview]);
   const interviewDay = interviewAt ? dayIndexFor(interviewAt) : null;
   const interviewSlots = useMemo(
     () => new Set(interviewAt ? interviewBlockedSlots(interviewAt, CAL_TIMES) : []),
@@ -242,7 +248,9 @@ export default function TutorCalendar() {
                     <View style={[styles.dot, { backgroundColor: on ? t.onAccent : t.accent }]} />
                   )}
                   {interviewDay === d.i && (
-                    <View style={[styles.dot, { backgroundColor: on ? t.onAccent : ADMIN_EVENT }]} />
+                    // A square, so it still reads apart from the round dots on the selected day,
+                    // where every marker is the same light colour.
+                    <View style={[styles.dot, { borderRadius: 1, backgroundColor: on ? t.onAccent : ADMIN_EVENT }]} />
                   )}
                   {nOpen > 0 && (
                     <View

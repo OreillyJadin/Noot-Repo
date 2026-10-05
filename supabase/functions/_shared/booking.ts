@@ -174,9 +174,10 @@ export async function resolveBooking(
     }
   }
 
-  // An interview the noot team has scheduled with this tutor blocks its hour (ERR-032).
+  // An interview the noot team has scheduled with this tutor blocks its hour (ERR-032). Same
+  // words as a booked slot: a student should not be able to tell the two apart.
   if (await interviewClash(db, tutorId, startMs, endMs)) {
-    throw new BookingError(TUTOR_BUSY_MESSAGE, 409);
+    throw new BookingError('That time was just booked. Please pick another slot.', 409);
   }
 
   const price = round2((hourlyRate * durationMinutes) / 60);
@@ -204,12 +205,14 @@ export async function resolveBooking(
  */
 export const INTERVIEW_MINUTES = 60;
 
-/** Deliberately says nothing about why: a student has no business knowing about an interview. */
-export const TUTOR_BUSY_MESSAGE = 'That tutor is not available at that time. Please pick another slot.';
-
 /**
  * Whether [startMs, endMs) overlaps a live interview the noot team has scheduled with this
  * tutor (ERR-032). `db` must be a service-role client: students cannot read interviews.
+ *
+ * Today the admin screen only schedules interviews with applicants, who cannot be booked,
+ * and approving one closes its interview (0042) — so through the app this never fires. It is
+ * here so the rule holds if an interview is ever set for a tutor who is already bookable,
+ * which schedule_tutor_interview itself allows.
  */
 export async function interviewClash(
   db: SupabaseClient,
