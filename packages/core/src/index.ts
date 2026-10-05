@@ -33,6 +33,9 @@ export {
   type PendingTutor,
   type TutorApplicationStatus,
   type AdminUser,
+  type AdminUserQuery,
+  type AdminUserRole,
+  type AdminUserStatus,
   type AdminReview,
   type AdminBooking,
 } from './api';
