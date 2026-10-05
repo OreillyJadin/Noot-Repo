@@ -11,6 +11,7 @@ import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
 import { useRoleSwitch } from '../lib/useRoleSwitch';
+import { showsReferCard } from '../lib/roleTabs';
 import { errText } from '../lib/errText';
 import { useThemePref } from '../lib/themePref';
 import { useTabNav } from '../lib/useTabNav';
@@ -108,7 +109,8 @@ export default function Profile() {
   };
   // Referral CTA: everyone can invite and earn Noot credit (/invite). Ambassadors go to their
   // own tab, which adds goals and cash-out. Becoming an ambassador is its own card at the
-  // bottom of the page.
+  // bottom of the page. Hidden in ambassador mode (ERR-025): the Referrals tab is right there
+  // in the tab bar. An ambassador viewing as a student keeps it — that mode has no such tab.
   const isAmbassador = roles.includes('ambassador');
   const openReferrals = () => router.push(isAmbassador ? '/ambassador_referrals' : '/invite');
 
@@ -234,20 +236,22 @@ export default function Profile() {
         ) : null}
 
         {/* referral CTA — no fabricated credit balance */}
-        <Card onPress={openReferrals} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
-          <View style={[styles.promoIcon, { backgroundColor: t.accent }]}>
-            <Ic name="gift" size={20} color={t.onAccent} strokeWidth={1.7} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.promoTitle, { color: t.text }]}>{isAmbassador ? 'Refer & earn' : 'Refer a friend'}</Text>
-            <Text style={[styles.promoSub, { color: t.text2 }]}>
-              {isAmbassador
-                ? '$5 credit per friend who completes a session, plus goal bonuses'
-                : 'Get $5 in Noot credit when a friend completes a session'}
-            </Text>
-          </View>
-          <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
-        </Card>
+        {showsReferCard(role) ? (
+          <Card onPress={openReferrals} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
+            <View style={[styles.promoIcon, { backgroundColor: t.accent }]}>
+              <Ic name="gift" size={20} color={t.onAccent} strokeWidth={1.7} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.promoTitle, { color: t.text }]}>{isAmbassador ? 'Refer & earn' : 'Refer a friend'}</Text>
+              <Text style={[styles.promoSub, { color: t.text2 }]}>
+                {isAmbassador
+                  ? '$5 credit per friend who completes a session, plus goal bonuses'
+                  : 'Get $5 in Noot credit when a friend completes a session'}
+              </Text>
+            </View>
+            <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
+          </Card>
+        ) : null}
 
         {/* account */}
         <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Account</Eyebrow>
