@@ -8,6 +8,8 @@ import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { Button, Field, useTheme } from '@noot/ui';
 import { auth } from '@noot/core';
+import { EmailCodeEntry } from '../lib/EmailCodeEntry';
+import { authLinks } from '../lib/authLinks';
 
 export default function ForgotPassword() {
   const t = useTheme();
@@ -63,7 +65,20 @@ export default function ForgotPassword() {
           <>
             <Text style={[styles.h1, { color: t.text }]}>Check your inbox</Text>
             <Text style={[styles.sub, { color: t.text2 }]}>
-              We sent a reset link to {email}. Tap it to set a new password.
+              We sent a reset link and a code to {email}. Tap the link on this phone, or enter the code below,
+              to set a new password.
+            </Text>
+            <EmailCodeEntry
+              email={email}
+              kind="recovery"
+              onVerified={async () => {
+                // No link was used, so there is none for set_password to mark as finished.
+                authLinks.setRecoveryLink({});
+                router.replace('/set_password?mode=reset');
+              }}
+            />
+            <Text onPress={() => setSent(false)} style={[styles.link, { color: t.accent }]}>
+              Send it again
             </Text>
           </>
         )}

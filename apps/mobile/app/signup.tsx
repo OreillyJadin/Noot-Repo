@@ -13,6 +13,8 @@ import { Button, Card, Field, useTheme } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { savePendingInvite } from '../lib/pendingInvite';
+import { EmailCodeEntry } from '../lib/EmailCodeEntry';
+import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
 
 /** "Ada Lovelace" → ["Ada", "Lovelace"]; single word → first name only. */
 function splitName(full: string): { first: string; last: string } {
@@ -142,14 +144,19 @@ export default function SignUp() {
           <>
             <Text style={[styles.h1, { color: t.text }]}>Check your inbox</Text>
             <Text style={[styles.sub, { color: t.text2 }]}>
-              We sent a verification link to {email || 'your email'}. Tap it to continue and set your password.
+              We sent a verification link and a code to {email || 'your email'}. Tap the link on this phone, or
+              enter the code below, to continue and set your password.
             </Text>
-            <Card style={{ alignItems: 'center', gap: 14 }}>
-              <Text style={{ fontSize: 40 }}>✉️</Text>
-              {/* DEV ONLY — fakes the deep link into onboarding; establishes NO session,
-                  so it must never ship. Real magic-link deep-linking replaces it. */}
-              <Text onPress={() => setSent(false)} style={{ color: t.accent, fontWeight: '600' }}>Change details</Text>
-            </Card>
+            {/* Same landing as the link: routeAfterAuth sends a new account on to create its
+                password and claims the invite code typed above. */}
+            <EmailCodeEntry
+              email={email}
+              kind="signup"
+              onVerified={async () => ((await routeAfterAuth(router, setRole)).ok ? null : ACCOUNT_UNAVAILABLE)}
+            />
+            <Text onPress={() => setSent(false)} style={[styles.link, { color: t.accent, fontWeight: '600' }]}>
+              Change details or send again
+            </Text>
           </>
         )}
 

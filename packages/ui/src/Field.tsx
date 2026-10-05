@@ -14,6 +14,9 @@ export interface FieldProps {
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   secureTextEntry?: boolean;
   multiline?: boolean;
+  maxLength?: number;
+  /** A code sent by email or text: lets the keyboard offer it for one-tap entry. */
+  oneTimeCode?: boolean;
   hint?: string;
   prefix?: React.ReactNode;
   suffix?: React.ReactNode;
@@ -28,6 +31,8 @@ export function Field({
   autoCapitalize = 'none',
   secureTextEntry,
   multiline,
+  maxLength,
+  oneTimeCode,
   hint,
   prefix,
   suffix,
@@ -62,6 +67,9 @@ export function Field({
           autoCapitalize={autoCapitalize}
           secureTextEntry={secureTextEntry}
           multiline={multiline}
+          maxLength={maxLength}
+          textContentType={oneTimeCode ? 'oneTimeCode' : undefined}
+          autoComplete={oneTimeCode ? 'one-time-code' : undefined}
           style={[styles.input, { color: t.text }]}
         />
         {suffix}
