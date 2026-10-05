@@ -183,8 +183,22 @@ export async function verifyEmailCode(
   return { ok: false, error: error.message };
 }
 
+/**
+ * End the session on this device. The server is asked to revoke it first; if that request
+ * fails (offline, or the Auth server is down) supabase-js reports the error and KEEPS the
+ * session — for every scope, 'local' included — so the app would reopen signed in. Signing
+ * out must not depend on the network, so the device's copy is then dropped directly.
+ *
+ * That last step uses the client's own session-removal routine, which is not part of its
+ * public API (there is no public way to forget a session without the server).
+ * scripts/verify_sign_out.mts fails if a supabase-js upgrade ever takes it away. The server
+ * copy is left to expire; nothing on this device can use it any more.
+ */
 export async function signOut(): Promise<void> {
-  await getSupabase().auth.signOut();
+  const client = getSupabase().auth;
+  const { error } = await client.signOut();
+  if (!error) return;
+  await (client as unknown as { _removeSession?: () => Promise<void> })._removeSession?.();
 }
 
 /**
