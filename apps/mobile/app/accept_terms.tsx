@@ -15,6 +15,7 @@ import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
 import { TERMS_VERSION, openLegal } from '../lib/legal';
+import { forgetThisDevice } from '../lib/push';
 
 export default function AcceptTerms() {
   const t = useTheme();
@@ -49,6 +50,8 @@ export default function AcceptTerms() {
   };
 
   const signOut = async () => {
+    // The device registers on sign-in, before this screen: take it back while the session exists.
+    await forgetThisDevice();
     try { await auth.signOut(); } catch { /* leave regardless */ }
     router.replace('/');
   };
