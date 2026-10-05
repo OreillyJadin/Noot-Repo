@@ -41,25 +41,27 @@ try {
   const tutor = await make('tut', 'Yara', `${tag}son`)
   const banned = await make('ban', 'Xavi', `${tag}son`)
   const gone = await make('gone', 'Wren', `${tag}son`)
-  const wild = await make('wild', '100%', 'under_score')
+  const wild = await make('wild', `100%${tag}`, `under_${tag}`)
   for (const [uid, role] of [[tutor.id, 'tutor'], [banned.id, 'ambassador']] as const) {
     const { error } = await svc.from('user_roles').insert({ user_id: uid, role })
     if (error) throw error
   }
-  await svc.from('users').update({ status: 'banned' }).eq('id', banned.id)
+  const ban = await svc.from('users').update({ status: 'banned' }).eq('id', banned.id)
+  if (ban.error) throw ban.error
   // What account deletion leaves behind (functions/delete-account, step 3).
-  await svc.from('users').update({
+  const del = await svc.from('users').update({
     email: `deleted+${gone.id}@removed.invalid`, first_name: 'Deleted', last_name: 'account',
     deleted_at: new Date().toISOString(),
   }).eq('id', gone.id)
+  if (del.error) throw del.error
 
   // ---- who may list ----
   await signIn(student.email)
   const asStudent = await api.admin.listUsers().then(() => null, (e) => e as { code?: string; message?: string })
   step(asStudent?.code === '42501', `a student is refused the account list (${asStudent?.message ?? 'was NOT refused'})`)
   await auth.signOut()
-  const asNobody = await api.admin.listUsers().then(() => null, (e) => e as { message?: string })
-  step(!!asNobody, `so is someone who is not signed in (${asNobody?.message ?? 'was NOT refused'})`)
+  const asNobody = await api.admin.listUsers().then(() => null, (e) => e as { code?: string; message?: string })
+  step(asNobody?.code === '42501', `so is someone who is not signed in (${asNobody?.message ?? 'was NOT refused'})`)
 
   // ---- as an admin ----
   await signIn('admin@crimson.ua.edu')
@@ -100,8 +102,8 @@ try {
   step(ghost.total === 0 && ghost2.total === 0, "a deleted account's placeholder name and email are not searchable")
 
   // ---- the search is text, not a pattern ----
-  const pct = await api.admin.listUsers({ search: '100%' })
-  const under = await api.admin.listUsers({ search: 'under_score' })
+  const pct = await api.admin.listUsers({ search: `100%${tag}` })
+  const under = await api.admin.listUsers({ search: `under_${tag}` })
   const anyChar = await api.admin.listUsers({ search: `${tag}_s_n` })
   step(pct.total === 1 && pct.users[0]?.id === wild.id && under.total === 1 && anyChar.total === 0,
     '% and _ in a search mean themselves; they are not wildcards')

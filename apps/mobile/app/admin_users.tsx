@@ -79,9 +79,10 @@ export default function AdminUsers() {
       if (request.current !== mine) return;
       // A new sign-up since the first page shifts the rest down by one: skip repeats.
       setUsers((prev) => [...prev, ...page.users.filter((u) => !prev.some((p) => p.id === u.id))]);
-      setTotal(page.total);
+      // An empty page carries no count (the count rides on the rows), so it is not a zero.
+      setTotal((prev) => (page.users.length ? page.total : Math.min(prev, users.length)));
     } catch (e) {
-      Alert.alert('Could not load more', errText(e, 'Please try again.'));
+      if (request.current === mine) Alert.alert('Could not load more', errText(e, 'Please try again.'));
     } finally {
       setLoadingMore(false);
     }
@@ -92,7 +93,14 @@ export default function AdminUsers() {
     setBusy(u.id);
     try {
       await api.admin.setUserStatus(u.id, next);
-      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, status: next } : x)));
+      if (status !== null && status !== next) {
+        // It no longer matches the status being listed. Dropping it keeps the rows on screen
+        // in step with the server's list, which "Show more" pages through by position.
+        setUsers((prev) => prev.filter((x) => x.id !== u.id));
+        setTotal((prev) => Math.max(0, prev - 1));
+      } else {
+        setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, status: next } : x)));
+      }
     } catch (e) {
       Alert.alert('Could not update', errText(e, 'Please try again.'));
     } finally {
@@ -108,12 +116,12 @@ export default function AdminUsers() {
       <Body pad={20}>
         <View style={{ gap: 10, marginBottom: 14 }}>
           <Field placeholder="Search by name or email" value={typed} onChangeText={setTyped} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.chips}>
             {ROLES.map(([value, label]) => (
               <Chip key={label} label={label} on={role === value} onPress={() => setRole(value)} />
             ))}
           </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.chips}>
             {STATUSES.map(([value, label]) => (
               <Chip key={label} label={label} on={status === value} onPress={() => setStatus(value)} />
             ))}
