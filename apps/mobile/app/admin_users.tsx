@@ -52,9 +52,6 @@ export default function AdminUsers() {
   const [busy, setBusy] = useState<string | null>(null);
   // Each change of search or filter starts a new list; an answer for an older one is dropped.
   const request = useRef(0);
-  // The status filter as it is now, for an action that finishes after the filter was changed.
-  const statusNow = useRef(status);
-  statusNow.current = status;
   // Bumped to load the list again from the top.
   const [reload, setReload] = useState(0);
 
@@ -96,10 +93,15 @@ export default function AdminUsers() {
   const setUserStatus = async (u: AdminUser, next: 'active' | 'suspended' | 'banned') => {
     if (busy) return;
     setBusy(u.id);
+    const mine = request.current;
     try {
       await api.admin.setUserStatus(u.id, next);
-      const listed = statusNow.current;
-      if (listed !== null && listed !== next) {
+      if (request.current !== mine) {
+        // The search or filter changed while this was saving, so the list on screen is a
+        // different one, possibly read before the change landed. Read it again rather than
+        // patch it.
+        setReload((n) => n + 1);
+      } else if (status !== null && status !== next) {
         // It no longer matches the status being listed. Dropping it keeps the rows on screen
         // in step with the server's list, which "Show more" pages through by position.
         setUsers((prev) => prev.filter((x) => x.id !== u.id));
