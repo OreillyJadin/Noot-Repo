@@ -7,7 +7,7 @@ import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, type IconName } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
 import { useThemePref } from '../lib/themePref';
@@ -131,6 +131,13 @@ export default function TutorProfile() {
 
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
+
+  // End the session, as the student profile does. This row used to only navigate away, so a
+  // tutor who "signed out" stayed signed in and the app reopened as them.
+  const signOutNow = async () => {
+    try { await auth.signOut(); } catch { /* clear the UI regardless */ }
+    router.replace('/');
+  };
 
   const { roles, previewRoles, isAdmin, switchTo } = useRoleSwitch();
   // Reachable BEFORE the application is finished — that was the "can only access their tutor
@@ -292,7 +299,7 @@ export default function TutorProfile() {
         {/* sign out */}
         <View style={{ marginTop: 4 }}>
           <Card style={styles.cardNoPad}>
-            <Row icon="logout" label="Sign out" danger onPress={() => router.replace('/')} last />
+            <Row icon="logout" label="Sign out" danger onPress={signOutNow} last />
           </Card>
         </View>
         <Text style={[styles.footer, { color: t.text3 }]}>
