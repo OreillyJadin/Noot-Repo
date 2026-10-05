@@ -1,5 +1,5 @@
 // The friend's invite code typed on the sign-up screen, kept on the device until the new
-// account signs in (via the emailed link) and can claim it as itself (api.credits.claim).
+// account signs in (via the emailed link or code) and can claim it as itself (api.credits.claim).
 // Not sent with the sign-up request: anyone can request a link for any address, so a code
 // riding with it can't be trusted to be the address owner's (0040). The decisions live in
 // inviteClaim.ts.

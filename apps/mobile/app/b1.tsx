@@ -17,6 +17,7 @@ import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { nextFromWindows } from '../lib/availability';
 import { VerifiedBadge } from '../lib/VerifiedBadge';
+import { courseForQuery, searchTutors } from '../lib/browse';
 
 type SortKey = 'best' | 'sessions' | 'price' | 'soon';
 type AvailKey = 'any' | 'today' | 'week';
@@ -51,21 +52,6 @@ const SORTERS: Record<SortKey, (a: TutorWithAvail, b: TutorWithAvail) => number>
   soon: (a, b) => a.availDayIndex - b.availDayIndex,
 };
 
-/** True if the tutor's name or any of their course codes contains the (already-trimmed,
- *  non-empty) query. Case-insensitive so "mgt" matches "MGT 300". */
-function tutorMatches(tutor: Tutor, query: string): boolean {
-  const q = query.toLowerCase();
-  if (tutor.name.toLowerCase().includes(q)) return true;
-  return tutor.courses.some(([code]) => code.toLowerCase().includes(q));
-}
-
-/** The course to attribute to a tutor for the query — the matching course code if the
- *  query hit one, else the tutor's first course. Never fabricates a default. */
-function matchCourse(tutor: Tutor, query: string): string {
-  const q = query.toLowerCase();
-  const codes = tutor.courses.map(([code]) => code);
-  return (q && codes.find((c) => c.toLowerCase().includes(q))) || codes[0] || '';
-}
 
 export default function B1() {
   const t = useTheme();
@@ -134,7 +120,7 @@ export default function B1() {
   // it filters was hard-empty until you typed something, so changing price/availability/
   // gender visibly did nothing. Browsing with filters only is a real way to search.
   const matched = useMemo(
-    () => (trimmed ? tutors.filter((tt) => tutorMatches(tt, trimmed)) : tutors),
+    () => searchTutors(tutors, trimmed),
     [tutors, trimmed],
   );
 
@@ -160,14 +146,16 @@ export default function B1() {
   });
   const filtered = withAvail.filter(
     (tt) =>
-      tt.rate <= maxPrice &&
+      // At the top of the stepper there is no cap: rates run past MAX_PRICE, and the default
+      // used to hide every tutor above it with no filter chip to explain why.
+      (maxPrice >= MAX_PRICE || tt.rate <= maxPrice) &&
       (avail === 'any' || (avail === 'today' && tt.availDayIndex === 0) || (avail === 'week' && tt.availDayIndex <= 6)) &&
       (gender === 'any' || tt.gender === gender),
   );
   const list = [...filtered].sort(SORTERS[sort]);
 
   const open = (tutor: Tutor) => {
-    patchBooking({ tutor, course: matchCourse(tutor, trimmed) });
+    patchBooking({ tutor, course: courseForQuery(tutor, trimmed) });
     router.push('/b2');
   };
 
@@ -190,7 +178,7 @@ export default function B1() {
               // the keyboard over the results is the "interrupts the search" complaint.
               autoFocus={!trimmed && filters !== '1'}
               autoCorrect={false}
-              // Matching is case-insensitive (tutorMatches lowercases both sides), so forcing
+              // Matching is case-insensitive (searchTutors lowercases both sides), so forcing
               // ALL CAPS only made typing a tutor's name feel broken.
               autoCapitalize="none"
               returnKeyType="search"
@@ -297,7 +285,7 @@ export default function B1() {
                   </View>
                   <View style={styles.badgeRow}>
                     <VerifiedBadge verified={tt.verified} />
-                    {matchCourse(tt, trimmed) ? <Badge label={matchCourse(tt, trimmed)} tone="accentSoft" /> : null}
+                    {courseForQuery(tt, trimmed) ? <Badge label={courseForQuery(tt, trimmed)} tone="accentSoft" /> : null}
                   </View>
                 </View>
               </View>
@@ -353,7 +341,7 @@ export default function B1() {
           </View>
         }
       >
-        <FilterGroup label={`Max price · $${maxPrice}/hr`}>
+        <FilterGroup label={maxPrice < MAX_PRICE ? `Max price · $${maxPrice}/hr` : 'Max price · Any'}>
           <View style={styles.stepperRow}>
             <Pressable
               onPress={() => setMaxPrice((p) => Math.max(MIN_PRICE, p - 3))}
@@ -362,7 +350,7 @@ export default function B1() {
               <Ic name="minus" size={16} color={t.text} strokeWidth={2.2} />
             </Pressable>
             <Text style={{ flex: 1, textAlign: 'center', fontSize: 15, fontWeight: '700', color: t.text }}>
-              ${maxPrice}/hr
+              {maxPrice < MAX_PRICE ? `$${maxPrice}/hr` : 'Any price'}
             </Text>
             <Pressable
               onPress={() => setMaxPrice((p) => Math.min(MAX_PRICE, p + 3))}

@@ -135,3 +135,49 @@ export function forYou(tutors: Tutor[], myCourses: string[], myMajor: string | n
   }
   return null;
 }
+
+/** The tutor's code for exactly this course, if they teach it. */
+const teaches = (tutor: Tutor, course: string): string | undefined =>
+  tutor.courses.map(([code]) => code).find((code) => same(code, course));
+
+/**
+ * The tutors a search query finds. A query that is exactly a course some tutor teaches
+ * finds only that course's tutors — "IS 200" must not also list "MIS 200", which a plain
+ * substring match would. Anything else matches a tutor's name or any part of a course code,
+ * so "mgt" still finds "MGT 300". An empty query finds everyone.
+ */
+export function searchTutors(tutors: Tutor[], query: string): Tutor[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return tutors;
+  const exact = tutors.filter((tutor) => teaches(tutor, q));
+  if (exact.length > 0) return exact;
+  return tutors.filter(
+    (tutor) => tutor.name.toLowerCase().includes(q) || tutor.courses.some(([code]) => code.toLowerCase().includes(q)),
+  );
+}
+
+/** The course to show on (and book with) a tutor the query found: the exact course, else the
+ *  first code containing the query, else the tutor's first course. Never a made-up default. */
+export function courseForQuery(tutor: Tutor, query: string): string {
+  const q = query.trim().toLowerCase();
+  const codes = tutor.courses.map(([code]) => code);
+  return (q && (teaches(tutor, q) ?? codes.find((c) => c.toLowerCase().includes(q)))) || codes[0] || '';
+}
+
+/**
+ * ERR-015: the Home card "Studying MATH 227?" always named the student's FIRST course and
+ * its button opened whichever tutor happened to be first in the list, who usually didn't
+ * teach it. This picks the course the card should name: the first of the student's courses
+ * that a tutor actually teaches, spelled the way the tutor lists it so it can seed the
+ * search (searchTutors then finds exactly that course's tutors). Null when no tutor teaches
+ * any of them — the card is hidden rather than promising a tutor that isn't there.
+ */
+export function nudgeCourse(tutors: Tutor[], myCourses: string[]): string | null {
+  const codes = tutors.flatMap((tutor) => tutor.courses.map(([code]) => code));
+  for (const mine of myCourses) {
+    if (!mine.trim()) continue;
+    const taught = codes.find((code) => same(mine, code));
+    if (taught) return taught.trim();
+  }
+  return null;
+}

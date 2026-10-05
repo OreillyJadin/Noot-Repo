@@ -12,6 +12,7 @@ import { auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
 import { authLinks } from '../lib/authLinks';
+import { linkKey } from '../lib/authLinkOnce';
 
 export default function AuthCallback() {
   const t = useTheme();
@@ -56,6 +57,16 @@ export default function AuthCallback() {
         } else if (!(await routeAfterAuth(router, setRole)).ok) unavailable();
         return;
       }
+
+      // A link the server refused arrives with an error and nothing to exchange — most often
+      // one whose emailed code was typed in instead (ERR-023), tapped afterwards. Someone
+      // already signed in goes where they belong; they are not walked back into a reset.
+      if (!linkKey(params) && (params.error || params.error_code) && (await auth.getSessionUserId())) {
+        if (cancelled) return;
+        if (!(await routeAfterAuth(router, setRole)).ok) unavailable();
+        return;
+      }
+      if (cancelled) return;
 
       // Shared across duplicate mounts of this screen for the same link.
       const res = await authLinks.exchangeOnce(params, () => auth.completeAuthFromUrl(url));

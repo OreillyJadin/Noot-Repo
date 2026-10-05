@@ -133,6 +133,56 @@ export async function sendPasswordReset(email: string, redirectTo?: string): Pro
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
+// ─── the code in the email ──────────────────────────────────────────────────
+// Every auth email carries a link AND a code (supabase/templates: {{ .Token }}). The link
+// only works on the phone the app is installed on; the code is for someone reading the email
+// anywhere else (ERR-023). Both come from the same request and either one spends it.
+
+/** What a wrong, used or expired code gets told. */
+export const BAD_EMAIL_CODE = 'That code is wrong or has expired. Check it, or send a new one.';
+
+/**
+ * The digits of a typed or pasted code ("123 456" → "123456"), or null if that can't be one.
+ * The length is the project's setting (6 on the local stack, 8 in production), so a range is
+ * accepted here and the server decides.
+ */
+export function normalizeEmailCode(input: string): string | null {
+  const digits = input.replace(/[\s-]/g, '');
+  return /^\d{6,10}$/.test(digits) ? digits : null;
+}
+
+/**
+ * Finish a sign-up verification or a password reset with the emailed code instead of the
+ * link. On success a session exists, exactly as after completeAuthFromUrl: route a sign-up
+ * on to onboarding and a reset on to the set-password step. `email` must be the address the
+ * code was sent to. Guessing is limited by the Auth server (per-IP verification rate limit
+ * and the code's expiry), not here.
+ */
+export async function verifyEmailCode(
+  email: string,
+  code: string,
+  kind: 'signup' | 'recovery',
+): Promise<SignInResult> {
+  const token = normalizeEmailCode(code);
+  if (!token) return { ok: false, error: BAD_EMAIL_CODE };
+  const { error } = await getSupabase().auth.verifyOtp({
+    email: email.trim(),
+    token,
+    // sendSignupVerification sends through signInWithOtp, whose code verifies as 'email'.
+    type: kind === 'recovery' ? 'recovery' : 'email',
+  });
+  if (!error) return { ok: true };
+  // The server answers a wrong, used or expired code with this one code. Anything else it
+  // refuses for (a suspended account, say) keeps its own message.
+  if (error.code === 'otp_expired') return { ok: false, error: BAD_EMAIL_CODE };
+  if (error.status === 429) return { ok: false, error: 'Too many tries. Wait a minute, then try again.' };
+  // supabase-js returns a failed request rather than throwing it.
+  if (error.name === 'AuthRetryableFetchError' || !error.status) {
+    return { ok: false, error: "Couldn't reach noot. Check your connection and try again." };
+  }
+  return { ok: false, error: error.message };
+}
+
 /**
  * End the session on this device. The server is asked to revoke it first; if that request
  * fails (offline, or the Auth server is down) supabase-js reports the error and KEEPS the

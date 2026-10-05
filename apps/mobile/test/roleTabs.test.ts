@@ -1,7 +1,7 @@
 // Run: pnpm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { previewRolesFor } from '../lib/roleTabs.ts';
+import { previewRolesFor, showsReferCard } from '../lib/roleTabs.ts';
 
 test('a plain student gets no preview tabs', () => {
   assert.deepEqual(previewRolesFor(['student'], 'student', 'none'), []);
@@ -27,4 +27,10 @@ test('ambassador is never offered as a preview', () => {
 test('the mode you are in stays switchable so you can always get back', () => {
   assert.deepEqual(previewRolesFor(['student'], 'tutor', 'rejected'), ['tutor']);
   assert.deepEqual(previewRolesFor(['student'], 'tutor', 'draft'), ['tutor']);
+});
+
+test('the Profile referral card is hidden only in ambassador mode (ERR-025)', () => {
+  assert.equal(showsReferCard('ambassador'), false);
+  assert.equal(showsReferCard('student'), true);
+  assert.equal(showsReferCard('tutor'), true);
 });
