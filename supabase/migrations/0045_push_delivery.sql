@@ -21,7 +21,9 @@ alter table push_tokens
 -- The same phone signing in as someone else must stop getting the first account's
 -- notifications. The app removes its token on sign-out, but a session that simply expired
 -- never runs that, and RLS (own rows only) means the new account could not remove the old
--- row itself. So registering a token takes it from whoever had it.
+-- row itself. So registering a token takes it from whoever had it — on an insert, and
+-- equally on an update that changes a row's token, which would otherwise leave two accounts
+-- holding the same device.
 create or replace function claim_push_token()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -30,10 +32,13 @@ begin
 end $$;
 revoke all on function claim_push_token() from public, anon, authenticated;
 
-drop trigger if exists claim_push_token_before_insert on push_tokens;
-create trigger claim_push_token_before_insert
-  before insert on push_tokens
+drop trigger if exists claim_push_token_before_write on push_tokens;
+create trigger claim_push_token_before_write
+  before insert or update of token, user_id on push_tokens
   for each row execute function claim_push_token();
+
+-- The trigger above looks a token up on every registration.
+create index if not exists push_tokens_token_idx on push_tokens (token);
 
 -- ---------- send ----------
 create extension if not exists pg_net with schema extensions;
@@ -53,7 +58,9 @@ begin
            'title', new.title,
            'body', new.body,
            'sound', 'default',
-           'data', new.data || jsonb_build_object('type', new.type)))
+           -- data is an object everywhere it is written today; anything else is sent without it.
+           'data', case when jsonb_typeof(new.data) = 'object' then new.data else '{}'::jsonb end
+                   || jsonb_build_object('type', new.type)))
     into v_messages
     from (select token from push_tokens where user_id = new.user_id order by created_at desc limit 10) t;
   if v_messages is null then return new; end if;

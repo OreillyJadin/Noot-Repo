@@ -5,11 +5,14 @@
 // device's Expo push token to the server (push_tokens), and take it back on sign-out. The
 // server sends on every new notification row (migration 0045).
 //
-// expo-notifications is loaded lazily and every call is guarded: a binary built before the
-// library was added has no native module, and that must read as "unavailable", not crash.
+// A binary built before expo-notifications was added has no native module for it, and merely
+// loading the library there is a fatal error (Metro reports a failed module load itself, so
+// a try/catch around require() does not help). So the native module is looked for first, and
+// the library is only loaded when it is there; otherwise everything here reads 'unavailable'.
 import { Linking, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { requireOptionalNativeModule } from 'expo';
 import { api, auth } from '@noot/core';
 import { pushStateOf, type PushState } from './pushState';
 
@@ -17,18 +20,22 @@ type Lib = typeof import('expo-notifications');
 let cached: Lib | null | undefined;
 function lib(): Lib | null {
   if (cached === undefined) {
+    cached = null;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      cached = require('expo-notifications') as Lib;
-      // Show a notification that arrives while the app is open, without a sound.
-      cached.setNotificationHandler({
-        handleNotification: async () => ({
-          shouldShowBanner: true,
-          shouldShowList: true,
-          shouldPlaySound: false,
-          shouldSetBadge: false,
-        }),
-      });
+      if (requireOptionalNativeModule('ExpoPushTokenManager')) {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const loaded = require('expo-notifications') as Lib;
+        // Show a notification that arrives while the app is open, without a sound.
+        loaded.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
+          }),
+        });
+        cached = loaded;
+      }
     } catch {
       cached = null;
     }
@@ -70,7 +77,8 @@ export async function askForPush(): Promise<PushState> {
     /* fall through to whatever the system now reports */
   }
   const state = await getPushState();
-  if (state === 'on') await registerThisDevice();
+  // Not awaited: fetching the token talks to Apple and Expo, and the answer is already known.
+  if (state === 'on') void registerThisDevice();
   return state;
 }
 
@@ -103,29 +111,21 @@ export async function registerThisDevice(): Promise<void> {
 
 /**
  * Stop this account's notifications coming to this device. Call BEFORE signing out (it needs
- * the session). Best effort: if it can't reach the server, the next account to sign in on
- * this phone takes the token over anyway (0045).
+ * the session). Best effort and bounded: sign-out must not hang on a bad connection, and if
+ * this doesn't get through, the next account to sign in on this phone takes the token over
+ * anyway (0045).
  */
 export async function forgetThisDevice(): Promise<void> {
   registered = null;
-  try {
+  const forget = async () => {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
     if (!token) return;
     await api.notifications.unregisterPushToken(token);
     await AsyncStorage.removeItem(TOKEN_KEY);
+  };
+  try {
+    await Promise.race([forget(), new Promise((resolve) => setTimeout(resolve, 3000))]);
   } catch {
     /* best effort */
-  }
-}
-
-/** Run `fn` when the user taps a notification. Returns the unsubscribe function. */
-export function onPushTap(fn: () => void): () => void {
-  const n = lib();
-  if (!n) return () => {};
-  try {
-    const sub = n.addNotificationResponseReceivedListener(() => fn());
-    return () => sub.remove();
-  } catch {
-    return () => {};
   }
 }

@@ -4,7 +4,7 @@
 // Above the feed sits the phone's own notification permission (ERR-031): asked for here,
 // with the reason in view, rather than by a cold system prompt at launch.
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, AppState, StyleSheet } from 'react-native';
+import { View, Text, AppState, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Button, Card, Ic, EmptyState, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api, type Notification } from '@noot/core';
@@ -48,8 +48,8 @@ function PushPermission() {
 
   if (state === 'on') {
     return (
-      <Text style={[styles.pushOn, { color: t.text3 }]}>
-        Notifications are on for this phone.{' '}
+      <Text style={[styles.pushOn, { color: t.text3, marginBottom: 12 }]}>
+        Notifications are allowed on this phone.{' '}
         <Text onPress={() => { void openPushSettings(); }} style={{ color: t.accent, fontWeight: '600' }}>
           Manage in Settings
         </Text>
@@ -59,14 +59,14 @@ function PushPermission() {
 
   const blocked = state === 'blocked';
   return (
-    <Card style={{ gap: 10, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
+    <Card style={{ gap: 10, marginBottom: 12, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
       <Text style={[styles.pushTitle, { color: t.text }]}>
         {blocked ? 'Notifications are off for noot' : 'Turn on notifications'}
       </Text>
       <Text style={[styles.pushBody, { color: t.text2 }]}>
         {blocked
-          ? 'Turn them on in Settings to hear about new messages and bookings when noot is closed.'
-          : 'Hear about new messages and bookings when noot is closed. Everything still shows up here either way.'}
+          ? 'Turn them on in Settings to hear about new messages and other updates when noot is closed.'
+          : 'Hear about new messages and other updates when noot is closed. Everything still shows up here either way.'}
       </Text>
       <Button
         label={blocked ? 'Open Settings' : busy ? 'Asking…' : 'Allow notifications'}
@@ -113,9 +113,7 @@ export default function Notifications() {
     <Screen>
       <NavTop title="Notifications" onBack={() => router.back()} />
       <Body pad={16}>
-        <View style={{ marginBottom: 12 }}>
-          <PushPermission />
-        </View>
+        <PushPermission />
         {items === null ? (
           <View style={{ gap: 10 }}>
             <Skeleton height={72} radius={14} />

@@ -1,24 +1,21 @@
-// Keeps this device registered for the signed-in account's notifications, and opens the
-// notification center when one is tapped (ERR-031). Renders nothing. Mounted once, inside
-// the navigator's providers (app/_layout.tsx).
+// Keeps this device registered for the signed-in account's notifications (ERR-031). Renders
+// nothing. Mounted once, inside the app's providers (app/_layout.tsx).
+//
+// Tapping a notification just opens the app where it was: nothing navigates. Jumping to the
+// notification center from here would run before the app lock and the launch routing have
+// finished, and that screen marks everything read as it opens.
 import { useEffect } from 'react';
-import { useRouter } from 'expo-router';
 import { auth } from '@noot/core';
-import { onPushTap, registerThisDevice } from './push';
+import { registerThisDevice } from './push';
 
 export function PushRegistrar() {
-  const router = useRouter();
   useEffect(() => {
     // A returning launch with a live session, and every later sign-in. Both are no-ops
     // until the user has allowed notifications (the prompt is on the Notifications screen).
     void registerThisDevice();
-    const offAuth = auth.onAuthChange((change) => {
+    return auth.onAuthChange((change) => {
       if (change === 'signed_in') void registerThisDevice();
     });
-    const offTap = onPushTap(() => {
-      void auth.getSessionUserId().then((uid) => { if (uid) router.push('/notifications'); });
-    });
-    return () => { offAuth(); offTap(); };
-  }, [router]);
+  }, []);
   return null;
 }

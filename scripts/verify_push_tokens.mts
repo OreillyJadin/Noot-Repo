@@ -76,8 +76,16 @@ try {
   step(!takeover.error && anaAfter.length === 0 && benAfter.length === 1,
     "when the next account signs in on the same phone, the phone stops being the first account's")
 
+  // The same rule when a row's token is changed rather than a new row added.
+  const spare = `ExponentPushToken[${tag}_spare]`
+  await ana.client.from('push_tokens').insert({ user_id: ana.id, token: spare, platform: 'ios' })
+  const retarget = await ana.client.from('push_tokens').update({ token: phone }).eq('user_id', ana.id).eq('token', spare)
+  const { count: holders } = await svc.from('push_tokens').select('id', { count: 'exact', head: true }).eq('token', phone)
+  step(!retarget.error && holders === 1 && (await tokensOf(ben.id)).length === 0,
+    'changing a row to a token someone else holds also takes it over, so one phone never sits on two accounts')
+
   // ---- sign-out ----
-  await ben.client.from('push_tokens').delete().eq('user_id', ben.id) // free the phone for ana again
+  await ana.client.from('push_tokens').delete().eq('user_id', ana.id)
   await api.notifications.registerPushToken(phone, 'ios')
   await api.notifications.unregisterPushToken(phone)
   step((await tokensOf(ana.id)).length === 0, 'signing out removes the device from the account')
