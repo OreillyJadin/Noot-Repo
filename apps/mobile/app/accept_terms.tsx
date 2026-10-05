@@ -15,6 +15,7 @@ import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
 import { TERMS_VERSION, openLegal } from '../lib/legal';
+import { forgetThisDevice } from '../lib/push';
 
 export default function AcceptTerms() {
   const t = useTheme();
@@ -22,6 +23,8 @@ export default function AcceptTerms() {
   const { setRole } = useApp();
   const [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Signing out takes a moment (the device is unregistered first): no agreeing meanwhile.
+  const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Recorded already (a retry after the step after it failed): don't write it twice.
   const [saved, setSaved] = useState(false);
@@ -49,6 +52,10 @@ export default function AcceptTerms() {
   };
 
   const signOut = async () => {
+    if (busy || leaving) return;
+    setLeaving(true);
+    // The device registers on sign-in, before this screen: take it back while the session exists.
+    await forgetThisDevice();
     try { await auth.signOut(); } catch { /* leave regardless */ }
     router.replace('/');
   };
@@ -91,7 +98,7 @@ export default function AcceptTerms() {
 
         {error ? <Text style={{ color: '#C0392B', fontSize: 14 }}>{error}</Text> : null}
 
-        <Button label={busy ? 'Saving…' : 'Agree & continue'} disabled={busy || !accepted} onPress={handleContinue} />
+        <Button label={busy ? 'Saving…' : 'Agree & continue'} disabled={busy || leaving || !accepted} onPress={handleContinue} />
         <Text onPress={signOut} accessibilityRole="button" style={[styles.link, { color: t.text3 }]}>
           Not now — sign out
         </Text>

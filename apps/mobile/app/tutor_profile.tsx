@@ -20,6 +20,7 @@ import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import Constants from 'expo-constants';
 import { versionLabel } from '../lib/appVersion';
+import { forgetThisDevice } from '../lib/push';
 
 function Row({
   icon,
@@ -135,6 +136,8 @@ export default function TutorProfile() {
   // End the session, as the student profile does. This row used to only navigate away, so a
   // tutor who "signed out" stayed signed in and the app reopened as them.
   const signOutNow = async () => {
+    // While the session still exists: stop this account's notifications coming to this phone.
+    await forgetThisDevice();
     try { await auth.signOut(); } catch { /* clear the UI regardless */ }
     router.replace('/');
   };
