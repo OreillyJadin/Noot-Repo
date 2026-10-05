@@ -1,7 +1,7 @@
 // Run: pnpm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CATEGORIES, byPopularity, forYou, nudgeCourse, populatedCategories, subjectOf, tutorsIn } from '../lib/browse.ts';
+import { CATEGORIES, byPopularity, courseForQuery, forYou, nudgeCourse, populatedCategories, searchTutors, subjectOf, tutorsIn } from '../lib/browse.ts';
 import type { Tutor } from '../lib/data.ts';
 
 const tutor = (id: string, major: string, sessions: number, codes: string[]): Tutor => ({
@@ -106,8 +106,9 @@ test('the Home nudge names a course of mine that a tutor teaches (ERR-015)', () 
   assert.equal(nudgeCourse(all, ['CS 100', 'MATH 227']), 'MATH 227');
   // My order wins when several are taught.
   assert.equal(nudgeCourse(all, ['PHL 100', 'MATH 125']), 'PHL 100');
-  // Spelled the tutor's way, so it seeds the search exactly.
+  // Spelled the tutor's way, whichever side is untidy.
   assert.equal(nudgeCourse(all, [' math 227 ']), 'MATH 227');
+  assert.equal(nudgeCourse([tutor('odd', 'Math', 1, [' math 227 '])], ['MATH 227']), 'math 227');
 });
 
 test('no Home nudge when nobody teaches my courses', () => {
@@ -115,4 +116,26 @@ test('no Home nudge when nobody teaches my courses', () => {
   assert.equal(nudgeCourse(all, []), null);
   assert.equal(nudgeCourse(all, ['', '  ']), null);
   assert.equal(nudgeCourse([], ['MATH 125']), null);
+});
+
+test('an exact course query lists only that course\'s tutors (ERR-015)', () => {
+  // IS is a suffix of MIS: a substring match put MIS 200 tutors under "IS 200".
+  const is = tutor('is', 'MIS', 5, ['IS 200']);
+  const mis = tutor('mis', 'MIS', 9, ['MIS 200']);
+  const both = tutor('both', 'MIS', 1, ['MIS 200', 'IS 200']);
+  assert.deepEqual(searchTutors([is, mis, both], 'is 200 ').map((t) => t.id), ['is', 'both']);
+  assert.equal(courseForQuery(both, 'IS 200'), 'IS 200');
+  // The Home card's course always finds someone, and only tutors who teach it.
+  const course = nudgeCourse(all, ['MATH 227'])!;
+  assert.deepEqual(searchTutors(all, course).map((t) => t.id), ['ben']);
+});
+
+test('a partial query still matches names and parts of course codes', () => {
+  assert.deepEqual(searchTutors(all, 'math').map((t) => t.id), ['ben', 'sara']);
+  assert.deepEqual(searchTutors(all, 'PHI').map((t) => t.id), ['phil']);
+  assert.deepEqual(searchTutors(all, '  '), all);
+  assert.deepEqual(searchTutors(all, 'zzz'), []);
+  assert.equal(courseForQuery(sara, 'math'), 'MATH 125');
+  assert.equal(courseForQuery(sara, 'sara'), 'FI 302');
+  assert.equal(courseForQuery(sara, ''), 'FI 302');
 });

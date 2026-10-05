@@ -204,7 +204,7 @@ export default function Home() {
     patchBooking({ tutor: next.tutor });
     router.push('/chat');
   };
-  // Search results for that course — every tutor shown there teaches it.
+  // Search results for that course (an exact course query lists only its tutors).
   const findForCourse = (course: string) => router.push({ pathname: '/b1', params: { q: course } });
 
   return (
