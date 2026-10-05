@@ -80,6 +80,26 @@ export async function completeAuthFromUrl(url: string): Promise<SignInResult> {
 // setPassword() below. Sign IN is then email+password. The `.edu` gate is a
 // `before insert on auth.users` trigger (migration 0003), enforced for OTP too.
 
+/** What sign-up says to an address that isn't from an approved campus (ERR-022). */
+export const NOT_A_CAMPUS_EMAIL =
+  'noot is for campus email addresses. Sign up with your university email, like yourname@crimson.ua.edu.';
+
+/**
+ * Whether the address is on the campus allowlist — only so sign-up can say why it refused.
+ * The server's gate (migrations 0003 and 0044) rejects a non-campus address by raising inside
+ * a trigger, which reaches the app as an unreadable server error. This is NOT the control:
+ * null means "couldn't tell" (offline), and the caller goes on to let the server decide.
+ */
+async function isCampusEmail(email: string): Promise<boolean | null> {
+  // Same split as the server (split_part(email, '@', 2)), so both judge the same domain.
+  const domain = email.trim().split('@')[1]?.toLowerCase();
+  if (!domain) return false;
+  // campuses is readable before sign-in, active rows only (0003).
+  const { data, error } = await getSupabase().from('campuses').select('domain').eq('domain', domain).maybeSingle();
+  if (error) return null;
+  return data !== null;
+}
+
 /**
  * Send a sign-up verification magic link. The user's name is carried in the OTP's
  * user_metadata so the `handle_new_user` trigger populates public.users.first_name
@@ -93,6 +113,7 @@ export async function sendSignupVerification(
   lastName: string,
   redirectTo?: string,
 ): Promise<SignInResult> {
+  if ((await isCampusEmail(email).catch(() => null)) === false) return { ok: false, error: NOT_A_CAMPUS_EMAIL };
   const { error } = await getSupabase().auth.signInWithOtp({
     email: email.trim(),
     options: {
