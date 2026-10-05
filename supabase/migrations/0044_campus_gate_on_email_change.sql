@@ -9,7 +9,9 @@
 --
 -- Two columns are checked:
 --   • email_change — the address a change was REQUESTED for. Rejecting here fails the request
---     itself, before any confirmation email goes out.
+--     itself, so nothing is left pending. The Auth server sends its confirmation emails
+--     before it saves, so they still go out, but the codes in them were never stored and
+--     confirm nothing.
 --   • email — the address the account ends up with, whatever path set it.
 -- The WHEN clause keeps the trigger off every other update of the row (sign-in timestamps,
 -- password changes, bans), so an account whose campus is later deactivated can still sign in.
@@ -17,7 +19,8 @@
 -- THE DOMAIN IS WHATEVER FOLLOWS THE LAST '@'. 0003 used split_part(email, '@', 2), the text
 -- between the first and second '@', which reads 'x@crimson.ua.edu@gmail.com' as a campus
 -- address. The Auth server refuses such an address as malformed before it reaches the
--- database, so this was not reachable, but the gate should not depend on that. Both the new
+-- database, so this was not reachable, but the gate should not depend on that. The rule cuts
+-- both ways: 'x@gmail.com@crimson.ua.edu', refused before, now reads as campus. Both the new
 -- trigger and 0003's sign-up trigger (redefined below) now use campus_email_domain().
 --
 -- NOT COVERED, ON PURPOSE. Setting email to NULL is not a move to another address and is left

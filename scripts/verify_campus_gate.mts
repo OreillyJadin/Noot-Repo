@@ -28,12 +28,21 @@ const exists = async (email: string) => {
   return data !== null
 }
 
-// The code in the newest email to this address (the templates print it as {{ .Token }}).
-const emailedCode = async (to: string) => {
-  const list = await (await fetch(`${MAILPIT}/api/v1/search?query=to:${encodeURIComponent(to)}`)).json()
-  const id = list.messages?.[0]?.ID
-  const msg = id ? await (await fetch(`${MAILPIT}/api/v1/message/${id}`)).json() : {}
-  return `${msg.Text ?? ''}\n${msg.HTML ?? ''}`.match(/\b\d{6,8}\b/)?.[0] ?? null
+// The code in the newest email to this address sent at or after `since` (the templates print
+// it as {{ .Token }}). Polls, because the mail lands a moment after the request returns.
+const emailedCode = async (to: string, since: number) => {
+  for (let i = 0; i < 20; i++) {
+    const list = await (await fetch(`${MAILPIT}/api/v1/search?query=to:${encodeURIComponent(to)}`)).json()
+    const fresh = ((list.messages ?? []) as { ID: string; Created: string }[])
+      .filter((m) => Date.parse(m.Created) >= since)
+      .sort((x, y) => Date.parse(y.Created) - Date.parse(x.Created))[0]
+    if (fresh) {
+      const msg = await (await fetch(`${MAILPIT}/api/v1/message/${fresh.ID}`)).json()
+      return `${msg.Text ?? ''}\n${msg.HTML ?? ''}`.match(/\b\d{6,8}\b/)?.[0] ?? null
+    }
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  return null
 }
 
 try {
@@ -79,18 +88,27 @@ try {
   step(!!forced.error && afterForce.user?.email === email, 'nor can the address be set directly, even by the service role')
 
   const moved = `${tag}_moved@ua.edu`
+  // The refused request above still emailed the current address (the Auth server sends
+  // before it saves), so only mail from here on counts.
+  const since = Date.now()
   const toCampus = await me.auth.updateUser({ email: moved })
   step(!toCampus.error, `a change to another campus address is still accepted${toCampus.error ? `: ${toCampus.error.message}` : ''}`)
 
   // Confirm that change with the emailed codes, so the Auth server's own confirm step (which
-  // writes the new address into email) runs through the gate too.
-  await new Promise((r) => setTimeout(r, 1000)) // let the mail land
-  for (const [to, type] of [[email, 'email_change'], [moved, 'email_change']] as const) {
-    const code = await emailedCode(to)
-    if (code) await me.auth.verifyOtp({ email: to, token: code, type })
+  // writes the new address into email) runs through the gate too. Both addresses are sent a
+  // code; whether one confirmation is enough or both are needed is the server's setting.
+  const problems: string[] = []
+  const currentEmail = async () => (await svc.auth.admin.getUserById(uid)).data.user?.email
+  for (const to of [email, moved]) {
+    if ((await currentEmail()) === moved) break
+    const code = await emailedCode(to, since)
+    if (!code) { problems.push(`no code emailed to ${to}`); continue }
+    const res = await me.auth.verifyOtp({ email: to, token: code, type: 'email_change' })
+    if (res.error) problems.push(`${to}: ${res.error.message}`)
   }
-  const { data: afterConfirm } = await svc.auth.admin.getUserById(uid)
-  step(afterConfirm.user?.email === moved, `confirming it moves the account to the new campus address (now ${afterConfirm.user?.email})`)
+  const nowAt = await currentEmail()
+  step(nowAt === moved,
+    `confirming it moves the account to the new campus address${nowAt === moved ? '' : ` (still ${nowAt}: ${problems.join('; ')})`}`)
 
   // The gate only looks at email changes: everything else on the account still works.
   const pw = await me.auth.updateUser({ password: 'password456' })
