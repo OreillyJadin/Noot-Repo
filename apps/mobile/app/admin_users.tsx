@@ -52,6 +52,11 @@ export default function AdminUsers() {
   const [busy, setBusy] = useState<string | null>(null);
   // Each change of search or filter starts a new list; an answer for an older one is dropped.
   const request = useRef(0);
+  // The status filter as it is now, for an action that finishes after the filter was changed.
+  const statusNow = useRef(status);
+  statusNow.current = status;
+  // Bumped to load the list again from the top.
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(typed.trim()), 350);
@@ -66,7 +71,7 @@ export default function AdminUsers() {
       .then((page) => { if (request.current === mine) { setUsers(page.users); setTotal(page.total); } })
       .catch((e) => { if (request.current === mine) { setUsers([]); setTotal(0); setFailed(errText(e, 'Could not load accounts.')); } })
       .finally(() => { if (request.current === mine) setLoading(false); });
-  }, [search, role, status]);
+  }, [search, role, status, reload]);
 
   if (!meLoading && me && !isAdmin) { router.replace('/home'); return null; }
 
@@ -93,11 +98,14 @@ export default function AdminUsers() {
     setBusy(u.id);
     try {
       await api.admin.setUserStatus(u.id, next);
-      if (status !== null && status !== next) {
+      const listed = statusNow.current;
+      if (listed !== null && listed !== next) {
         // It no longer matches the status being listed. Dropping it keeps the rows on screen
         // in step with the server's list, which "Show more" pages through by position.
         setUsers((prev) => prev.filter((x) => x.id !== u.id));
         setTotal((prev) => Math.max(0, prev - 1));
+        // That was the last row on screen but not the last match: fetch the next ones.
+        if (users.length <= 1 && total > 1) setReload((n) => n + 1);
       } else {
         setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, status: next } : x)));
       }

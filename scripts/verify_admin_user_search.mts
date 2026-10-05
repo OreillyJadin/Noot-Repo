@@ -104,8 +104,10 @@ try {
   // ---- the search is text, not a pattern ----
   const pct = await api.admin.listUsers({ search: `100%${tag}` })
   const under = await api.admin.listUsers({ search: `under_${tag}` })
-  const anyChar = await api.admin.listUsers({ search: `${tag}_s_n` })
-  step(pct.total === 1 && pct.users[0]?.id === wild.id && under.total === 1 && anyChar.total === 0,
+  // As patterns these would both match "Zed <tag>son"; as text they match nothing.
+  const anyChar = await api.admin.listUsers({ search: `${tag}s_n` })
+  const anyRun = await api.admin.listUsers({ search: `zed%${tag}` })
+  step(pct.total === 1 && pct.users[0]?.id === wild.id && under.total === 1 && anyChar.total === 0 && anyRun.total === 0,
     '% and _ in a search mean themselves; they are not wildcards')
 
   // ---- paging ----
