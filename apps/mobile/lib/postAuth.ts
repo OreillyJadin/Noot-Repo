@@ -1,8 +1,8 @@
 // What to do once a session exists, regardless of HOW it was established
 // (magic-link callback, email+password, or biometric unlock). Keeping this in one
 // place means every auth path lands users in the same spot: accounts with a password go to
-// their role's home, brand-new ones start the onboarding flow. The decision itself is
-// lib/postAuthRoute.ts.
+// their role's home, brand-new ones start the onboarding flow, and one that has a password
+// but never accepted the Terms accepts them first. The decision itself is lib/postAuthRoute.ts.
 import type { ImperativeRouter } from 'expo-router';
 import { api } from '@noot/core';
 import { claimPendingInvite } from './pendingInvite';
@@ -40,10 +40,21 @@ export async function routeAfterAuth(
   void claimPendingInvite();
   const read = await lookupWithRetry(async () => {
     const me = await api.getMe();
-    return me ? { hasPassword: provenPassword || me.passwordSetAt != null, activeRole: me.activeRole } : null;
+    return me
+      ? {
+          hasPassword: provenPassword || me.passwordSetAt != null,
+          acceptedTerms: me.termsAcceptedAt != null,
+          activeRole: me.activeRole,
+        }
+      : null;
   });
   const route = decidePostAuthRoute(read.ok ? { ok: true, account: read.value } : { ok: false });
   if (route.kind === 'unavailable') return { ok: false, role: 'student', onboarding: false };
+  if (route.kind === 'terms') {
+    // Not onboarding (they have a password) and not home: one screen, then back through here.
+    router.replace('/accept_terms');
+    return { ok: true, role: 'student', onboarding: false };
+  }
   if (route.kind === 'home') {
     setRole(route.role);
     router.replace(route.route);

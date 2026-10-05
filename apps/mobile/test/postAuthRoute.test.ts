@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { decidePostAuthRoute, lookupWithRetry, type AccountState } from '../lib/postAuthRoute.ts';
 
-const setUp: AccountState = { hasPassword: true, activeRole: 'student' };
+const setUp: AccountState = { hasPassword: true, acceptedTerms: true, activeRole: 'student' };
 const found = (account: AccountState | null) => ({ ok: true as const, account });
 const noSleep = async () => {};
 
@@ -18,7 +18,7 @@ test('an account with a password goes home, not to "Create your password" (ERR-0
 test('an account with no password yet starts onboarding', () => {
   assert.deepEqual(decidePostAuthRoute(found({ ...setUp, hasPassword: false })), { kind: 'onboarding' });
   // Whatever mode is saved: without a password they have not finished signing up.
-  assert.deepEqual(decidePostAuthRoute(found({ hasPassword: false, activeRole: 'tutor' })), { kind: 'onboarding' });
+  assert.deepEqual(decidePostAuthRoute(found({ hasPassword: false, acceptedTerms: false, activeRole: 'tutor' })), { kind: 'onboarding' });
 });
 
 test('no users row yet is a new account', () => {
@@ -70,4 +70,15 @@ test('a null read (no row) is a success, not a failure to retry', async () => {
   const res = await lookupWithRetry(async () => { calls++; return null; }, [1, 1], noSleep);
   assert.deepEqual(res, { ok: true, value: null });
   assert.equal(calls, 1);
+});
+
+test('an account with a password that never accepted the Terms accepts them before any home', () => {
+  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, acceptedTerms: false })), { kind: 'terms' });
+  // Whatever mode is saved — a tutor or ambassador is held at the same door.
+  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, acceptedTerms: false, activeRole: 'tutor' })), { kind: 'terms' });
+  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, acceptedTerms: false, activeRole: 'ambassador' })), { kind: 'terms' });
+});
+
+test('without a password the Terms are accepted in onboarding, with the password', () => {
+  assert.deepEqual(decidePostAuthRoute(found({ hasPassword: false, acceptedTerms: false, activeRole: 'student' })), { kind: 'onboarding' });
 });
