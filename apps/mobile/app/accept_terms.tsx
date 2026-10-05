@@ -92,7 +92,7 @@ export default function AcceptTerms() {
         {error ? <Text style={{ color: '#C0392B', fontSize: 14 }}>{error}</Text> : null}
 
         <Button label={busy ? 'Saving…' : 'Agree & continue'} disabled={busy || !accepted} onPress={handleContinue} />
-        <Text onPress={signOut} style={[styles.link, { color: t.text3 }]}>
+        <Text onPress={signOut} accessibilityRole="button" style={[styles.link, { color: t.text3 }]}>
           Not now — sign out
         </Text>
       </ScrollView>

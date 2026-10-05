@@ -22,6 +22,15 @@ export interface RouteAfterAuthResult {
 export const ACCOUNT_UNAVAILABLE = "Couldn't load your account. Check your connection and try again.";
 
 /**
+ * The account that signed in by typing its password this launch. Remembered because the
+ * accept-Terms screen comes back through routeAfterAuth without that proof in hand, and an
+ * account created with its password (dashboard, script) has nothing stamped to show for it —
+ * it would be sent to "Create your password". Keyed by account, so it never carries over to
+ * whoever signs in next.
+ */
+let provenPasswordFor: string | null = null;
+
+/**
  * Read the signed-in account and navigate. One that has created its password lands on its
  * role's home; a new one starts onboarding at /verified. If the account can't be read (after
  * retries) it navigates NOWHERE and returns ok: false — a failed request must never put an
@@ -40,9 +49,10 @@ export async function routeAfterAuth(
   void claimPendingInvite();
   const read = await lookupWithRetry(async () => {
     const me = await api.getMe();
+    if (me && provenPassword) provenPasswordFor = me.id;
     return me
       ? {
-          hasPassword: provenPassword || me.passwordSetAt != null,
+          hasPassword: provenPassword || provenPasswordFor === me.id || me.passwordSetAt != null,
           acceptedTerms: me.termsAcceptedAt != null,
           activeRole: me.activeRole,
         }

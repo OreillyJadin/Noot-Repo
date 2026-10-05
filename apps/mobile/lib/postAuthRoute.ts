@@ -13,7 +13,8 @@
 //     has chosen one (users.password_set_at, 0041) is past it and goes home — however it
 //     got here.
 //
-// It also holds the door on the Terms of Use: nobody reaches a home without having accepted.
+// It also holds the door on the Terms of Use: no sign-in or launch ends at a home for an
+// account that has not accepted them.
 import type { Role } from './store';
 
 /** What the decision reads about the signed-in account. */
