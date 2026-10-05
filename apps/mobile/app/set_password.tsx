@@ -3,8 +3,9 @@
 //     first password → continues to the Face ID opt-in, then the rest of onboarding.
 //   • reset (mode=reset): an existing user who followed a recovery link → sets a new
 //     password and drops straight into the app.
-// Requires an active session (the magic-link / recovery exchange already ran in
-// /auth-callback); setPassword() operates on that session via updateUser.
+// Requires an active session (the emailed link was exchanged in /auth-callback, or the
+// emailed code was entered — lib/EmailCodeEntry); setPassword() operates on that session
+// via updateUser.
 import React, { useRef, useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';

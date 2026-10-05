@@ -172,9 +172,15 @@ export async function verifyEmailCode(
     type: kind === 'recovery' ? 'recovery' : 'email',
   });
   if (!error) return { ok: true };
-  // The server answers a wrong, used or expired code with one opaque message.
-  const bad = error.code === 'otp_expired' || error.status === 403;
-  return { ok: false, error: bad ? BAD_EMAIL_CODE : error.message };
+  // The server answers a wrong, used or expired code with this one code. Anything else it
+  // refuses for (a suspended account, say) keeps its own message.
+  if (error.code === 'otp_expired') return { ok: false, error: BAD_EMAIL_CODE };
+  if (error.status === 429) return { ok: false, error: 'Too many tries. Wait a minute, then try again.' };
+  // supabase-js returns a failed request rather than throwing it.
+  if (error.name === 'AuthRetryableFetchError' || !error.status) {
+    return { ok: false, error: "Couldn't reach noot. Check your connection and try again." };
+  }
+  return { ok: false, error: error.message };
 }
 
 export async function signOut(): Promise<void> {

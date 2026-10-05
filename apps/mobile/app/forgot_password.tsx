@@ -78,7 +78,7 @@ export default function ForgotPassword() {
               }}
             />
             <Text onPress={() => setSent(false)} style={[styles.link, { color: t.accent }]}>
-              Send it again
+              Didn&apos;t get it? Start over
             </Text>
           </>
         )}

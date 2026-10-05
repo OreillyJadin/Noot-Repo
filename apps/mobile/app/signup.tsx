@@ -122,7 +122,7 @@ export default function SignUp() {
               autoCapitalize="characters"
               hint={
                 codeStatus === 'ok'
-                  ? 'Code found ✓ — it’s applied when you open the link on this phone.'
+                  ? 'Code found ✓ — it’s applied when you verify your email on this phone.'
                   : codeStatus === 'missing'
                     ? 'We couldn’t find that code.'
                     : codeStatus === 'checking'

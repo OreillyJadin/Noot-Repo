@@ -2,7 +2,7 @@
 // emailed link only opens the app on the phone it is installed on; someone reading the email
 // on a laptop types the code here instead. Used on the "check your inbox" step of sign-up and
 // of password reset; onVerified runs once a session exists.
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Text } from 'react-native';
 import { Button, Field } from '@noot/ui';
 import { auth } from '@noot/core';
@@ -24,7 +24,13 @@ export function EmailCodeEntry({
   // not send it again — the session is already there.
   const [verified, setVerified] = useState(false);
 
+  // State alone lets two quick taps both through before the re-render, and the second
+  // would be refused as a used code.
+  const inFlight = useRef(false);
+
   const handleVerify = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setBusy(true); setError(null);
     try {
       if (!verified) {
@@ -37,6 +43,7 @@ export function EmailCodeEntry({
     } catch {
       setError("Couldn't reach noot. Check your connection and try again.");
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };

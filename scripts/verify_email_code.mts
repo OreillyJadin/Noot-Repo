@@ -54,7 +54,7 @@ try {
   const code = mail.code ?? ''
 
   const short = await auth.verifyEmailCode(email, '123', 'signup')
-  step(!short.ok && short.error === auth.BAD_EMAIL_CODE, 'something that cannot be a code is refused without asking the server')
+  step(!short.ok && short.error === auth.BAD_EMAIL_CODE, 'something too short to be a code is refused with the same readable message')
 
   const bad = await auth.verifyEmailCode(email, wrong(code), 'signup')
   step(!bad.ok && bad.error === auth.BAD_EMAIL_CODE && !(await auth.getSessionUserId()),
@@ -62,7 +62,8 @@ try {
 
   // Someone else's address with this code: the code only works for the address it was sent to.
   const other = `${tag}_other@crimson.ua.edu`
-  await svc.auth.admin.createUser({ email: other, password: 'password123', email_confirm: true })
+  const otherMade = await svc.auth.admin.createUser({ email: other, password: 'password123', email_confirm: true })
+  if (otherMade.error) throw otherMade.error
   const stolen = await auth.verifyEmailCode(other, code, 'signup')
   step(!stolen.ok && !(await auth.getSessionUserId()), 'the code does not sign in a different address')
 
@@ -95,6 +96,18 @@ try {
   await auth.signOut()
   const back = await auth.signInWithPassword(resetEmail, 'password456')
   step(pw.ok && back.ok, 'the new password is saved and signs in')
+
+  // A suspended account's code does not get it in, and it is told why rather than "wrong code".
+  const benched = await svc.auth.admin.createUser({ email: `${tag}_benched@crimson.ua.edu`, password: 'password123', email_confirm: true })
+  if (benched.error) throw benched.error
+  await auth.signOut()
+  since = Date.now()
+  await auth.sendPasswordReset(benched.data.user!.email!, `${redirectTo}?flow=recovery`)
+  const benchedCode = (await emailed(benched.data.user!.email!, since)).code ?? ''
+  await svc.auth.admin.updateUserById(benched.data.user!.id, { ban_duration: '24h' })
+  const refused = await auth.verifyEmailCode(benched.data.user!.email!, benchedCode, 'recovery')
+  step(!!benchedCode && !refused.ok && refused.error !== auth.BAD_EMAIL_CODE && !(await auth.getSessionUserId()),
+    `a suspended account's code does not sign it in, and it is not told the code is wrong: "${refused.error}"`)
 } finally {
   await auth.signOut().catch(() => {})
   const { data } = await svc.auth.admin.listUsers({ perPage: 1000 })
