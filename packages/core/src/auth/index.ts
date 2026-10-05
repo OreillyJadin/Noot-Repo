@@ -91,8 +91,9 @@ export const NOT_A_CAMPUS_EMAIL =
  * null means "couldn't tell" (offline), and the caller goes on to let the server decide.
  */
 async function isCampusEmail(email: string): Promise<boolean | null> {
-  // Same split as the server (split_part(email, '@', 2)), so both judge the same domain.
-  const domain = email.trim().split('@')[1]?.toLowerCase();
+  // Same reading as the server (campus_email_domain, 0044): whatever follows the last '@'.
+  const parts = email.trim().split('@');
+  const domain = parts.length > 1 ? parts[parts.length - 1]!.toLowerCase() : '';
   if (!domain) return false;
   // campuses is readable before sign-in, active rows only (0003).
   const { data, error } = await getSupabase().from('campuses').select('domain').eq('domain', domain).maybeSingle();

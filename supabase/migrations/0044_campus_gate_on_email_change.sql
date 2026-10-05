@@ -13,6 +13,37 @@
 --   • email — the address the account ends up with, whatever path set it.
 -- The WHEN clause keeps the trigger off every other update of the row (sign-in timestamps,
 -- password changes, bans), so an account whose campus is later deactivated can still sign in.
+--
+-- THE DOMAIN IS WHATEVER FOLLOWS THE LAST '@'. 0003 used split_part(email, '@', 2), the text
+-- between the first and second '@', which reads 'x@crimson.ua.edu@gmail.com' as a campus
+-- address. The Auth server refuses such an address as malformed before it reaches the
+-- database, so this was not reachable, but the gate should not depend on that. Both the new
+-- trigger and 0003's sign-up trigger (redefined below) now use campus_email_domain().
+--
+-- NOT COVERED, ON PURPOSE. Setting email to NULL is not a move to another address and is left
+-- alone. The Auth server's SOFT delete rewrites email to a hash with no '@', which this gate
+-- refuses; account deletion here is a hard delete (functions/delete-account), so nothing uses it.
+
+-- The mail domain of an address, lowercased; NULL when there is none.
+create or replace function campus_email_domain(addr text)
+returns text language sql immutable set search_path = public as $$
+  select nullif(lower(substring(addr from '@([^@]*)$')), '')
+$$;
+
+-- Sign-up gate from 0003, unchanged apart from how the domain is read.
+create or replace function enforce_campus_email()
+returns trigger language plpgsql security definer set search_path = public, auth as $$
+declare
+  dom text := public.campus_email_domain(new.email);
+begin
+  if new.email is null or dom is null then
+    raise exception 'A campus email is required' using errcode = 'check_violation';
+  end if;
+  if not exists (select 1 from public.campuses where domain = dom and is_active) then
+    raise exception 'Email domain "%" is not an approved campus', dom using errcode = 'check_violation';
+  end if;
+  return new;
+end $$;
 
 create or replace function enforce_campus_email_on_change()
 returns trigger language plpgsql security definer set search_path = public, auth as $$
@@ -25,9 +56,9 @@ begin
     case when new.email_change is distinct from old.email_change then nullif(new.email_change, '') end
   ] loop
     continue when addr is null;
-    dom := lower(split_part(addr, '@', 2));
-    if dom = '' or not exists (select 1 from public.campuses where domain = dom and is_active) then
-      raise exception 'Email domain "%" is not an approved campus', dom using errcode = 'check_violation';
+    dom := public.campus_email_domain(addr);
+    if dom is null or not exists (select 1 from public.campuses where domain = dom and is_active) then
+      raise exception 'Email domain "%" is not an approved campus', coalesce(dom, '') using errcode = 'check_violation';
     end if;
   end loop;
   return new;
@@ -35,6 +66,7 @@ end $$;
 
 -- A trigger function is never called directly.
 revoke all on function enforce_campus_email_on_change() from public, anon, authenticated;
+revoke all on function enforce_campus_email() from public, anon, authenticated;
 
 drop trigger if exists enforce_campus_email_before_update on auth.users;
 create trigger enforce_campus_email_before_update

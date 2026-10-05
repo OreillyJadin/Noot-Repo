@@ -1,6 +1,6 @@
 // Verify the campus email gate (ERR-022) against the LOCAL stack: an account can only be
-// created with an approved campus address (migration 0003), and can't be moved to another
-// address afterwards (0044). Every attempt is made the way an outsider could make it — a
+// created with an approved campus address (migration 0003), and can't be moved to a
+// non-campus address afterwards (0044). Every attempt is made the way an outsider could make it — a
 // plain anon client talking to the public Auth API, not through the app.
 //
 // Needs: supabase start (migrations applied)
@@ -10,6 +10,7 @@ import { initSupabase, auth } from '../packages/core/src/index.ts'
 import { NOT_A_CAMPUS_EMAIL } from '../packages/core/src/auth/index.ts'
 
 const URL = 'http://127.0.0.1:54321'
+const MAILPIT = 'http://127.0.0.1:54324'
 const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
 const SERVICE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
 
@@ -25,6 +26,14 @@ const tag = `gate_${Date.now()}`
 const exists = async (email: string) => {
   const { data } = await svc.from('users').select('id').eq('email', email.toLowerCase()).maybeSingle()
   return data !== null
+}
+
+// The code in the newest email to this address (the templates print it as {{ .Token }}).
+const emailedCode = async (to: string) => {
+  const list = await (await fetch(`${MAILPIT}/api/v1/search?query=to:${encodeURIComponent(to)}`)).json()
+  const id = list.messages?.[0]?.ID
+  const msg = id ? await (await fetch(`${MAILPIT}/api/v1/message/${id}`)).json() : {}
+  return `${msg.Text ?? ''}\n${msg.HTML ?? ''}`.match(/\b\d{6,8}\b/)?.[0] ?? null
 }
 
 try {
@@ -69,16 +78,29 @@ try {
   const { data: afterForce } = await svc.auth.admin.getUserById(uid)
   step(!!forced.error && afterForce.user?.email === email, 'nor can the address be set directly, even by the service role')
 
-  const toCampus = await me.auth.updateUser({ email: `${tag}_moved@ua.edu` })
+  const moved = `${tag}_moved@ua.edu`
+  const toCampus = await me.auth.updateUser({ email: moved })
   step(!toCampus.error, `a change to another campus address is still accepted${toCampus.error ? `: ${toCampus.error.message}` : ''}`)
+
+  // Confirm that change with the emailed codes, so the Auth server's own confirm step (which
+  // writes the new address into email) runs through the gate too.
+  await new Promise((r) => setTimeout(r, 1000)) // let the mail land
+  for (const [to, type] of [[email, 'email_change'], [moved, 'email_change']] as const) {
+    const code = await emailedCode(to)
+    if (code) await me.auth.verifyOtp({ email: to, token: code, type })
+  }
+  const { data: afterConfirm } = await svc.auth.admin.getUserById(uid)
+  step(afterConfirm.user?.email === moved, `confirming it moves the account to the new campus address (now ${afterConfirm.user?.email})`)
 
   // The gate only looks at email changes: everything else on the account still works.
   const pw = await me.auth.updateUser({ password: 'password456' })
-  const back = await anon().auth.signInWithPassword({ email, password: 'password456' })
+  const back = await anon().auth.signInWithPassword({ email: moved, password: 'password456' })
   step(!pw.error && !back.error, 'changing the password and signing in are unaffected')
 } finally {
   const { data } = await svc.auth.admin.listUsers({ perPage: 1000 })
   for (const u of data?.users ?? []) if (u.email?.startsWith(tag)) await svc.auth.admin.deleteUser(u.id)
+  // public.users no longer cascades from auth.users (0026), so its rows are removed too.
+  await svc.from('users').delete().like('email', `${tag}%`)
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)
