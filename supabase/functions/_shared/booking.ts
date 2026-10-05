@@ -174,6 +174,12 @@ export async function resolveBooking(
     }
   }
 
+  // An interview the noot team has scheduled with this tutor blocks its hour (ERR-032). Same
+  // words as a booked slot: a student should not be able to tell the two apart.
+  if (await interviewClash(db, tutorId, startMs, endMs)) {
+    throw new BookingError('That time was just booked. Please pick another slot.', 409);
+  }
+
   const price = round2((hourlyRate * durationMinutes) / 60);
   if (price <= 0) throw new BookingError('Computed price was zero', 409);
   // The tutor's verification decides noot's cut (fees.ts). Locked in on the booking row.
@@ -190,6 +196,41 @@ export async function resolveBooking(
     platformFee,
     tutorPayout,
   };
+}
+
+/**
+ * How long a tutor's interview with the noot team blocks their time, in minutes. Interviews
+ * are stored as a start time only (tutor_interviews, 0042) and are offered at the top of an
+ * availability window, so an hour is what they are given.
+ */
+export const INTERVIEW_MINUTES = 60;
+
+/**
+ * Whether [startMs, endMs) overlaps a live interview the noot team has scheduled with this
+ * tutor (ERR-032). `db` must be a service-role client: students cannot read interviews.
+ *
+ * Today the admin screen only schedules interviews with applicants, who cannot be booked,
+ * and approving one closes its interview (0042) — so through the app this never fires. It is
+ * here so the rule holds if an interview is ever set for a tutor who is already bookable,
+ * which schedule_tutor_interview itself allows.
+ */
+export async function interviewClash(
+  db: SupabaseClient,
+  tutorId: string,
+  startMs: number,
+  endMs: number,
+): Promise<boolean> {
+  const blockMs = INTERVIEW_MINUTES * 60 * 1000;
+  const { data, error } = await db
+    .from('tutor_interviews')
+    .select('scheduled_at')
+    .eq('tutor_id', tutorId)
+    .is('cancelled_at', null)
+    .gt('scheduled_at', new Date(startMs - blockMs).toISOString())
+    .lt('scheduled_at', new Date(endMs).toISOString())
+    .limit(1);
+  if (error) dbFail('interview lookup', error);
+  return (data ?? []).length > 0;
 }
 
 /**

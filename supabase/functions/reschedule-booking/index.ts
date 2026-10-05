@@ -6,7 +6,7 @@
 // captured before its ~7-day authorization lapses. So the same window and clash rules as
 // booking apply (APP_REVIEW_TICKETS.md T19).
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { BOOKING_HORIZON_DAYS, BookingError } from '../_shared/booking.ts';
+import { BOOKING_HORIZON_DAYS, BookingError, interviewClash } from '../_shared/booking.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -113,6 +113,15 @@ Deno.serve(async (req: Request) => {
             { status: 409, headers: cors },
           );
         }
+      }
+
+      // Nor one the noot team has taken for this tutor's interview (ERR-032) — in the same
+      // words, so the two can't be told apart.
+      if (await interviewClash(db, booking.tutor_id as string, startMs, endMs)) {
+        return Response.json(
+          { error: 'That time is already booked. Please pick another.' },
+          { status: 409, headers: cors },
+        );
       }
 
       // TODO: enforce the 3-reschedule auto-refund rule.
