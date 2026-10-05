@@ -21,8 +21,9 @@ export function previewRolesFor(held: Role[], active: Role, tutorStatus: TutorSt
 
 /**
  * ERR-025: whether Profile shows its referral card. Not in ambassador mode — the Referrals
- * tab already sits in that mode's tab bar. Every other mode keeps it, including an ambassador
- * viewing as a student or tutor, since those tab bars have no Referrals tab.
+ * tab already sits in that mode's tab bar. Student mode keeps it, including for an ambassador
+ * viewing as a student, since that tab bar has no Referrals tab. (Tutor mode has its own
+ * profile screen, which never had the card.)
  */
 export function showsReferCard(active: Role): boolean {
   return active !== 'ambassador';
