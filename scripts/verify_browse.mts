@@ -1,4 +1,4 @@
-// Verify what the Search tab shows (ERR-010, ERR-011) against the LOCAL stack: the real
+// Verify what the Search tab shows (ERR-010, ERR-011) and the Home course card (ERR-015) against the LOCAL stack: the real
 // api.tutors.search list run through the screen's grouping (apps/mobile/lib/browse.ts).
 // The layout itself needs a device — this covers which tutors land where.
 //
@@ -6,7 +6,7 @@
 //   pnpm dlx tsx scripts/verify_browse.mts
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 import { toTutor } from '../apps/mobile/lib/data.ts'
-import { CATEGORIES, byPopularity, forYou, populatedCategories, subjectOf, tutorsIn } from '../apps/mobile/lib/browse.ts'
+import { CATEGORIES, byPopularity, forYou, nudgeCourse, populatedCategories, subjectOf, tutorsIn } from '../apps/mobile/lib/browse.ts'
 
 const URL = 'http://127.0.0.1:54321'
 const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
@@ -62,6 +62,19 @@ const forThat = forYou(tutors, [some], null)
 const expected = tutors.filter((t) => t.courses.some(([code]) => code === some)).length
 step(7, forThat?.title === 'For your courses' && forThat.picks.length === expected && forThat.picks.every((p) => p.course === some),
   `a student taking ${some} sees ${forThat?.picks.length ?? 0} of ${expected} tutors for it`)
+
+// ERR-015: the Home card names a course of the student's that a tutor teaches, and its
+// button opens search seeded with it — so every tutor listed there teaches that course.
+// A course nobody teaches is skipped, and with none taught there is no card.
+const nudge = nudgeCourse(tutors, ['ZZZ 999', some])
+const listed = tutors.filter((t) => t.name.toLowerCase().includes(some.toLowerCase())
+  || t.courses.some(([code]) => code.toLowerCase().includes(some.toLowerCase())))
+// The signed-in demo student gets the card only if a tutor teaches one of their courses.
+const mine = nudgeCourse(tutors, me?.courses ?? [])
+const mineTaught = (me?.courses ?? []).some((c) => tutors.some((t) => t.courses.some(([code]) => code.toLowerCase() === c.trim().toLowerCase())))
+step(8, nudge === some && listed.length > 0 && listed.every((t) => t.courses.some(([code]) => code === some))
+  && nudgeCourse(tutors, ['ZZZ 999']) === null && (mine !== null) === mineTaught,
+  `the Home card for [ZZZ 999, ${some}] names ${nudge}; search for it lists ${listed.length} tutor(s), all teaching it; no card for ZZZ 999 alone`)
 
 await auth.signOut()
 console.log(`\n${pass} passed, ${fail} failed`)

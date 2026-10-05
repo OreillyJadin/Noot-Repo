@@ -16,6 +16,7 @@ import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
 import { NotificationBell } from '../lib/NotificationBell';
 import { VerifiedBadge, VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
+import { nudgeCourse } from '../lib/browse';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
 function formatWhen(iso: string): string {
@@ -168,15 +169,18 @@ export default function Home() {
   }, [reloadKey]);
 
   // "Pick up where you left off" — real tutors from search (student's courses drive it).
-  const [popular, setPopular] = useState<Tutor[]>([]);
+  const [tutors, setTutors] = useState<Tutor[]>([]);
   useEffect(() => {
     let active = true;
     api.tutors
       .search({})
-      .then((list) => { if (active) setPopular(list.map(toTutor).slice(0, 3)); })
+      .then((list) => { if (active) setTutors(list.map(toTutor)); })
       .catch(() => {});
     return () => { active = false; };
   }, [reloadKey]);
+  const popular = tutors.slice(0, 3);
+  // The course the nudge names: one of the student's that a tutor really teaches (ERR-015).
+  const nudge = nudgeCourse(tutors, me?.courses ?? []);
 
   // Real study stats (sessions completed / hours / upcoming). No streak or monthly-goal
   // data model exists, so those fabricated numbers are gone — these are honest zeros
@@ -200,11 +204,8 @@ export default function Home() {
     patchBooking({ tutor: next.tutor });
     router.push('/chat');
   };
-  const grabSlot = () => {
-    const first = popular[0];
-    if (first) openTutor(first, first.courses[0]?.[0] ?? '');
-    else router.replace('/student_home');
-  };
+  // Search results for that course — every tutor shown there teaches it.
+  const findForCourse = (course: string) => router.push({ pathname: '/b1', params: { q: course } });
 
   return (
     <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
@@ -274,17 +275,17 @@ export default function Home() {
           </View>
         )}
 
-        {/* Course-aware nudge — driven by the student's real enrolled courses */}
-        {me?.courses?.length ? (
+        {/* Course-aware nudge — a course the student takes that a tutor teaches */}
+        {nudge ? (
           <Card flat style={[styles.examCard, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>
             <View style={[styles.examIcon, { backgroundColor: t.surface }]}>
               <Ic name="cap" size={20} color={t.accent} strokeWidth={1.8} />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.examTitle, { color: t.text }]}>Studying {me.courses[0]}?</Text>
-              <Text style={[styles.examSub, { color: t.text2 }]}>Find a verified tutor who aced it</Text>
+              <Text style={[styles.examTitle, { color: t.text }]}>Studying {nudge}?</Text>
+              <Text style={[styles.examSub, { color: t.text2 }]}>Find a tutor who's taken it</Text>
             </View>
-            <Pressable onPress={grabSlot} style={[styles.examBtn, { backgroundColor: t.accent }]}>
+            <Pressable onPress={() => findForCourse(nudge)} style={[styles.examBtn, { backgroundColor: t.accent }]}>
               <Text style={[styles.examBtnLabel, { color: t.onAccent }]}>Find one</Text>
             </Pressable>
           </Card>

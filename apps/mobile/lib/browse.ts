@@ -135,3 +135,21 @@ export function forYou(tutors: Tutor[], myCourses: string[], myMajor: string | n
   }
   return null;
 }
+
+/**
+ * ERR-015: the Home card "Studying MATH 227?" always named the student's FIRST course and
+ * its button opened whichever tutor happened to be first in the list, who usually didn't
+ * teach it. This picks the course the card should name: the first of the student's courses
+ * that a tutor actually teaches, spelled the way the tutor lists it so it can seed the
+ * search. Null when no tutor teaches any of them — the card is hidden rather than promising
+ * a tutor that isn't there.
+ */
+export function nudgeCourse(tutors: Tutor[], myCourses: string[]): string | null {
+  const codes = tutors.flatMap((tutor) => tutor.courses.map(([code]) => code));
+  for (const mine of myCourses) {
+    if (!mine.trim()) continue;
+    const taught = codes.find((code) => same(mine, code));
+    if (taught) return taught.trim();
+  }
+  return null;
+}
