@@ -13,6 +13,7 @@ import { useMe, fullName } from '../lib/useMe';
 import { useTutorApplication } from '../lib/useTutorApplication';
 import { AGREEMENT_TITLE, AGREEMENT_SECTIONS, AGREEMENT_CHECKS } from '../lib/tutorAgreement';
 import { errText } from '../lib/errText';
+import { useStepBack } from '../lib/useStepBack';
 
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
@@ -52,6 +53,7 @@ function StepHead({
 export default function T7() {
   const t = useTheme();
   const router = useRouter();
+  const stepBack = useStepBack(7);
   const { me } = useMe();
   const { app } = useTutorApplication();
   // Every box starts unticked — they used to start two-thirds pre-ticked.
@@ -85,7 +87,7 @@ export default function T7() {
 
   return (
     <Screen>
-      <StepHead step={7} title="Tutor Agreement" onBack={() => router.back()} onExit={() => router.replace('/')} />
+      <StepHead step={7} title="Tutor Agreement" onBack={stepBack} onExit={() => router.replace('/')} />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
         <Card flat style={styles.agreementCard}>
           <Eyebrow style={{ color: t.text3, marginBottom: 10 }}>{AGREEMENT_TITLE}</Eyebrow>

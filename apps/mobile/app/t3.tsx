@@ -13,8 +13,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, H2, ProgressDots, H1, Sub, Ic, Skeleton, useTheme } from '@noot/ui';
 import { api, type CatalogCourse } from '@noot/core';
 import { CoursePicker } from '../lib/CoursePicker';
+import { useStepBack } from '../lib/useStepBack';
 
-const GRADE_OPTIONS = ['A', 'A-', 'B+', 'B'];
+const GRADE_OPTIONS = ['A+', 'A', 'A-', 'B+', 'B', 'B-'];
 const MAX_COURSES = 10;
 
 /** A course the tutor teaches. hourlyRate/sessions are preserved across saves (rates are
@@ -58,6 +59,7 @@ function StepHead({
 export default function T3() {
   const t = useTheme();
   const router = useRouter();
+  const stepBack = useStepBack(3);
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -163,7 +165,7 @@ export default function T3() {
         step={3}
         title="Courses you tutor"
         sub="Add up to 10. Add the ones you crushed."
-        onBack={() => router.back()}
+        onBack={stepBack}
         onExit={saveAndExit}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
@@ -213,10 +215,11 @@ export default function T3() {
                     <Ic name="x" size={18} color={t.text3} strokeWidth={2} />
                   </Pressable>
                 </View>
+                {/* The label sits above the chips: six grades (ERR-027) don't fit beside it. */}
+                <Text style={[styles.gradeLabel, { color: c.grade ? t.text3 : t.accent }]}>
+                  {c.grade ? 'Your grade' : 'Pick your grade'}
+                </Text>
                 <View style={styles.gradeRow}>
-                  <Text style={[styles.gradeLabel, { color: c.grade ? t.text3 : t.accent }]}>
-                    {c.grade ? 'Your grade' : 'Pick your grade'}
-                  </Text>
                   {GRADE_OPTIONS.map((g) => {
                     const on = c.grade === g;
                     return (
@@ -269,9 +272,9 @@ const styles = StyleSheet.create({
   headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 },
   courseCard: { gap: 10, padding: 12 },
   courseHead: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  gradeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  gradeLabel: { flex: 1, fontSize: 13, fontWeight: '600' },
-  gradeChip: { minWidth: 40, height: 34, paddingHorizontal: 8, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  gradeRow: { flexDirection: 'row', gap: 6 },
+  gradeLabel: { fontSize: 13, fontWeight: '600' },
+  gradeChip: { flex: 1, height: 34, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   gradeChipText: { fontWeight: '700', fontSize: 14 },
   courseCode: { fontSize: 16, fontWeight: '600' },
   courseSem: { fontSize: 13 },

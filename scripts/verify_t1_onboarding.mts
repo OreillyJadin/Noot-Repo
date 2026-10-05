@@ -9,6 +9,7 @@
 //   pnpm dlx tsx scripts/verify_t1_onboarding.mts
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
+import { emptyGrid, windowsFromGrid, gridFromWindows } from '../apps/mobile/lib/weekGrid.ts';
 
 const URL = 'http://127.0.0.1:54321';
 const ANON =
@@ -90,6 +91,37 @@ try {
   // Courses & rates / Availability tabs read the same rows after onboarding
   const tabAvail = await api.tutors.getAvailability(applicant.id);
   check('Set Availability tab sees the step-5 hours', tabAvail.length === 1);
+
+  // ERR-013 — step 5 is hour by hour: a lone hour saves as a one-hour window and the
+  // picker reads back exactly the hours that were picked.
+  const picked = emptyGrid();
+  picked.Mon.add(15);
+  picked.Wed.add(9).add(10);
+  await api.profile.updateAvailability(windowsFromGrid(picked));
+  p = await api.profile.getMyTutorProfile();
+  const mon = p.availability.find((w) => w.dayOfWeek === 1);
+  check(
+    'step 5: a single hour saves as a one-hour window',
+    p.availability.length === 2 && !!mon && mon.startTime.startsWith('15:00') && mon.endTime.startsWith('16:00'),
+    p.availability.map((w) => `${w.dayOfWeek} ${w.startTime}-${w.endTime}`).join(', '),
+  );
+  const back = gridFromWindows(p.availability);
+  check(
+    'step 5: the picker reads back the same hours',
+    [...back.Mon].join() === '15' && [...back.Wed].join() === '9,10' && back.Tue.size === 0,
+  );
+
+  // ERR-027 — A+ and B- are offered on step 3 and save like any other grade
+  await api.profile.setTutorCourses([
+    { courseCode: codeA, grade: 'A+', hourlyRate: 25, sessions: 0 },
+    { courseCode: codeB, grade: 'B-', hourlyRate: 30, sessions: 0 },
+  ]);
+  p = await api.profile.getMyTutorProfile();
+  check(
+    'step 3: A+ and B- are saved',
+    p.courses.find((c) => c.courseCode === codeA)?.grade === 'A+' && p.courses.find((c) => c.courseCode === codeB)?.grade === 'B-',
+    p.courses.map((c) => `${c.courseCode}:${c.grade}`).join(' '),
+  );
 
   // DENY: a different user reads only their own (empty) application
   await auth.signOut();

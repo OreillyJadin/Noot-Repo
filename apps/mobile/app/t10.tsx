@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, HeroIcon, H1, Sub, Eyebrow, Ic, useTheme, type IconName } from '@noot/ui';
 import { useApp } from '../lib/store';
+import { useTutorApplication } from '../lib/useTutorApplication';
 
 // These used to be Alert-only stubs, which read as unfinished on the very first screen a
 // new tutor sees. Each now goes to the screen that actually does the thing.
@@ -21,6 +22,11 @@ export default function T10() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { setRole } = useApp();
+  // Only a tutor who uploaded a transcript is waiting on a grade check (ERR-030). One who
+  // signed up unverified — or whose application couldn't be read — just hears "in review".
+  // The line stays hidden until we know which, so it never swaps in front of them.
+  const { app, loading } = useTutorApplication();
+  const awaitingGrades = !!app?.transcriptUploaded;
 
   // Enter TUTOR MODE, not just the tutor dashboard route. Without this the app's `role`
   // stayed 'student' while sitting on /tutor_home, so <TabBar> rendered the STUDENT tab set
@@ -40,8 +46,10 @@ export default function T10() {
         <View style={styles.hero}>
           <HeroIcon name="clock" size={76} />
           <H1 style={{ fontSize: 27, marginTop: 18 }}>You&apos;re in review!</H1>
-          <Sub style={{ marginTop: 10, maxWidth: 250, textAlign: 'center' }}>
-            We&apos;ll email you within 24 hours once your grade verification is approved.
+          <Sub style={{ marginTop: 10, maxWidth: 250, textAlign: 'center', opacity: loading ? 0 : 1 }}>
+            {awaitingGrades
+              ? 'We’ll email you within 24 hours once your grade verification is approved.'
+              : 'We’ll email you within 24 hours once your application is reviewed.'}
           </Sub>
         </View>
 

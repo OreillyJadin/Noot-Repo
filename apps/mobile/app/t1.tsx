@@ -23,7 +23,9 @@ export default function T1() {
   const { missing } = useTutorApplication();
   const resuming = tutorStatus === 'draft' || tutorStatus === 'rejected';
   const start = () => {
-    if (resuming && missing) router.push(`/t${firstIncompleteStep(missing)}` as never);
+    // ?resumed=1: the earlier steps aren't on the stack, so each step's back arrow walks to
+    // the one before it instead of popping straight back here (ERR-020, lib/stepBack.ts).
+    if (resuming && missing) router.push(`/t${firstIncompleteStep(missing)}?resumed=1` as never);
     else router.push('/t2');
   };
 
