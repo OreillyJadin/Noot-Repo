@@ -2017,12 +2017,23 @@ export const api = {
       if (error) throw error;
     },
 
-    /** Register an Expo push token for this device (upsert on user_id,token). */
+    /**
+     * Register this device's Expo push token, so notifications reach the phone (0045). Safe
+     * to repeat. A token another account registered on the same phone is taken over
+     * server-side — a device has one account.
+     */
     async registerPushToken(token: string, platform: 'ios' | 'android'): Promise<void> {
       const uid = await requireUid();
       const { error } = await getSupabase()
         .from('push_tokens')
         .upsert({ user_id: uid, token, platform }, { onConflict: 'user_id,token' });
+      if (error) throw error;
+    },
+
+    /** Stop sending this account's notifications to a device (sign-out). RLS: own only. */
+    async unregisterPushToken(token: string): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase().from('push_tokens').delete().eq('user_id', uid).eq('token', token);
       if (error) throw error;
     },
   },

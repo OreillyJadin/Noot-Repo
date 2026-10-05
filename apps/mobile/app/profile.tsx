@@ -20,6 +20,7 @@ import { pickAndUploadAvatar } from '../lib/avatar';
 import { openLegal } from '../lib/legal';
 import Constants from 'expo-constants';
 import { versionLabel } from '../lib/appVersion';
+import { forgetThisDevice } from '../lib/push';
 
 function Row({
   icon,
@@ -123,6 +124,8 @@ export default function Profile() {
 
   const signOutNow = async () => {
 
+    // While the session still exists: stop this account's notifications coming to this phone.
+    await forgetThisDevice();
     try { await auth.signOut(); } catch { /* clear the UI regardless */ }
 
     router.replace('/');
