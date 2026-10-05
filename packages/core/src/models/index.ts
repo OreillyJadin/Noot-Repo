@@ -35,6 +35,8 @@ export interface User {
   avatarUrl: string | null;
   /** When they chose their password (0041, server-stamped). Null = still signing up. */
   passwordSetAt: Timestamp | null;
+  /** When they accepted the Terms of Use (0030). Null = not yet, so the app asks before letting them in. */
+  termsAcceptedAt: Timestamp | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

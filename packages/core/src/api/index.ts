@@ -272,6 +272,7 @@ function mapUser(row: any): User {
     courses: row.courses ?? [],
     avatarUrl: row.avatar_url ?? null,
     passwordSetAt: row.password_set_at ?? null,
+    termsAcceptedAt: row.terms_accepted_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -573,8 +574,9 @@ export const api = {
     },
 
     /**
-     * Record that the user accepted the Terms of Use during onboarding (T9, Guideline 1.2).
-     * Called from set_password.tsx, where accepting is required to continue. Keep
+     * Record that the user accepted the Terms of Use (T9, Guideline 1.2). Called from
+     * set_password.tsx during onboarding, and from accept_terms.tsx for an account that got
+     * a password without passing through it. Keep
      * TERMS_VERSION in step with the effective date of legal/TERMS_OF_USE.md,
      * published at trynoot.com/terms.
      */

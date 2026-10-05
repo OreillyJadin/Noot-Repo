@@ -40,6 +40,9 @@ const email = `walls+${Date.now()}@crimson.ua.edu`;
 const { error: cErr } = await svc.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
 if (cErr) throw cErr;
 const { c: s, uid } = await signIn(email);
+// A student who finished onboarding, where the Terms are accepted — without that the server
+// refuses their chat messages (0047), which is not the wall this script is about.
+await s.from('users').update({ terms_accepted_at: new Date().toISOString(), terms_version: 'verify_student_walls' }).eq('id', uid);
 const { c: other } = await signIn('student@crimson.ua.edu');
 const { c: admin } = await signIn('admin@crimson.ua.edu');
 const { data: victim } = await svc.from('users').select('id').eq('email', 'student@crimson.ua.edu').single();

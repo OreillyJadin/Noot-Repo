@@ -1,8 +1,8 @@
 // What to do once a session exists, regardless of HOW it was established
 // (magic-link callback, email+password, or biometric unlock). Keeping this in one
 // place means every auth path lands users in the same spot: accounts with a password go to
-// their role's home, brand-new ones start the onboarding flow. The decision itself is
-// lib/postAuthRoute.ts.
+// their role's home, brand-new ones start the onboarding flow, and one that has a password
+// but never accepted the Terms accepts them first. The decision itself is lib/postAuthRoute.ts.
 import type { ImperativeRouter } from 'expo-router';
 import { api } from '@noot/core';
 import { claimPendingInvite } from './pendingInvite';
@@ -20,6 +20,15 @@ export interface RouteAfterAuthResult {
 
 /** Shown by callers when routeAfterAuth returns ok: false. */
 export const ACCOUNT_UNAVAILABLE = "Couldn't load your account. Check your connection and try again.";
+
+/**
+ * The account that signed in by typing its password this launch. Remembered because the
+ * accept-Terms screen comes back through routeAfterAuth without that proof in hand, and an
+ * account created with its password (dashboard, script) has nothing stamped to show for it —
+ * it would be sent to "Create your password". Keyed by account, so it never carries over to
+ * whoever signs in next.
+ */
+let provenPasswordFor: string | null = null;
 
 /**
  * Read the signed-in account and navigate. One that has created its password lands on its
@@ -40,10 +49,22 @@ export async function routeAfterAuth(
   void claimPendingInvite();
   const read = await lookupWithRetry(async () => {
     const me = await api.getMe();
-    return me ? { hasPassword: provenPassword || me.passwordSetAt != null, activeRole: me.activeRole } : null;
+    if (me && provenPassword) provenPasswordFor = me.id;
+    return me
+      ? {
+          hasPassword: provenPassword || provenPasswordFor === me.id || me.passwordSetAt != null,
+          acceptedTerms: me.termsAcceptedAt != null,
+          activeRole: me.activeRole,
+        }
+      : null;
   });
   const route = decidePostAuthRoute(read.ok ? { ok: true, account: read.value } : { ok: false });
   if (route.kind === 'unavailable') return { ok: false, role: 'student', onboarding: false };
+  if (route.kind === 'terms') {
+    // Not onboarding (they have a password) and not home: one screen, then back through here.
+    router.replace('/accept_terms');
+    return { ok: true, role: 'student', onboarding: false };
+  }
   if (route.kind === 'home') {
     setRole(route.role);
     router.replace(route.route);

@@ -12,12 +12,17 @@
 //     didn't know the link. Onboarding starts by creating a password, so an account that
 //     has chosen one (users.password_set_at, 0041) is past it and goes home — however it
 //     got here.
+//
+// It also holds the door on the Terms of Use: no sign-in or launch ends at a home for an
+// account that has not accepted them.
 import type { Role } from './store';
 
 /** What the decision reads about the signed-in account. */
 export interface AccountState {
   /** The user has chosen a password (not the random one a link-only sign-up starts with). */
   hasPassword: boolean;
+  /** The user has accepted the Terms of Use (users.terms_accepted_at, 0030). */
+  acceptedTerms: boolean;
   activeRole: string;
 }
 
@@ -27,6 +32,7 @@ export type AccountLookup = { ok: true; account: AccountState | null } | { ok: f
 export type PostAuthRoute =
   | { kind: 'home'; role: Role; route: '/home' | '/tutor_home' | '/ambassador_home' }
   | { kind: 'onboarding' }
+  | { kind: 'terms' }
   | { kind: 'unavailable' };
 
 export function decidePostAuthRoute(lookup: AccountLookup): PostAuthRoute {
@@ -34,6 +40,11 @@ export function decidePostAuthRoute(lookup: AccountLookup): PostAuthRoute {
   const account = lookup.account;
   // No users row yet (it can lag a fresh sign-up), or no password → still signing up.
   if (!account || !account.hasPassword) return { kind: 'onboarding' };
+  // Onboarding is where the Terms are accepted, on the same screen as the password. An
+  // account can end up with a password without it: Forgot password after abandoning
+  // onboarding, an acceptance that failed to save, or an account older than the Terms. None
+  // of them gets into the app until it has accepted.
+  if (!account.acceptedTerms) return { kind: 'terms' };
   // The home for the user's persisted mode. Admin is not a mode — an admin still browses
   // as student/tutor, so it lands on the student home.
   if (account.activeRole === 'tutor') return { kind: 'home', role: 'tutor', route: '/tutor_home' };
