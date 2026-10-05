@@ -174,6 +174,11 @@ export async function resolveBooking(
     }
   }
 
+  // An interview the noot team has scheduled with this tutor blocks its hour (ERR-032).
+  if (await interviewClash(db, tutorId, startMs, endMs)) {
+    throw new BookingError(TUTOR_BUSY_MESSAGE, 409);
+  }
+
   const price = round2((hourlyRate * durationMinutes) / 60);
   if (price <= 0) throw new BookingError('Computed price was zero', 409);
   // The tutor's verification decides noot's cut (fees.ts). Locked in on the booking row.
@@ -190,6 +195,39 @@ export async function resolveBooking(
     platformFee,
     tutorPayout,
   };
+}
+
+/**
+ * How long a tutor's interview with the noot team blocks their time, in minutes. Interviews
+ * are stored as a start time only (tutor_interviews, 0042) and are offered at the top of an
+ * availability window, so an hour is what they are given.
+ */
+export const INTERVIEW_MINUTES = 60;
+
+/** Deliberately says nothing about why: a student has no business knowing about an interview. */
+export const TUTOR_BUSY_MESSAGE = 'That tutor is not available at that time. Please pick another slot.';
+
+/**
+ * Whether [startMs, endMs) overlaps a live interview the noot team has scheduled with this
+ * tutor (ERR-032). `db` must be a service-role client: students cannot read interviews.
+ */
+export async function interviewClash(
+  db: SupabaseClient,
+  tutorId: string,
+  startMs: number,
+  endMs: number,
+): Promise<boolean> {
+  const blockMs = INTERVIEW_MINUTES * 60 * 1000;
+  const { data, error } = await db
+    .from('tutor_interviews')
+    .select('scheduled_at')
+    .eq('tutor_id', tutorId)
+    .is('cancelled_at', null)
+    .gt('scheduled_at', new Date(startMs - blockMs).toISOString())
+    .lt('scheduled_at', new Date(endMs).toISOString())
+    .limit(1);
+  if (error) dbFail('interview lookup', error);
+  return (data ?? []).length > 0;
 }
 
 /**

@@ -3,12 +3,14 @@
 // empty time to open/close it for booking. Sessions are tappable -> TB2 detail.
 // This is a tutor tab root (TabBar persists across tutor_home/tutor_calendar/
 // tutor_sessions/tutor_profile).
+// An interview the noot team has scheduled with the tutor sits on the same surface in its
+// own colour, and the times it covers are not shown as open (ERR-032).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, TabBar, Card, Avatar, Ic, Label, useTheme } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, type TutorInterview } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { DAYS, MONTHS } from '../lib/data';
@@ -16,6 +18,12 @@ import { isTimeOpen } from '../lib/availability';
 import { GeckoLogo } from '../lib/GeckoLogo';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
+import { interviewBlockedSlots, interviewRange } from '../lib/interviewBlock';
+
+// Something the noot team put on the calendar, not the tutor or a student: neither the
+// accent of open times nor the green of a booked session's pay.
+const ADMIN_EVENT = '#5B6CC2';
+const ADMIN_EVENT_WEAK = 'rgba(91,108,194,0.14)';
 
 const CAL_TIMES = ['9:00 AM', '10:30 AM', '12:00 PM', '1:30 PM', '3:00 PM', '4:30 PM', '6:00 PM', '7:30 PM'];
 
@@ -122,6 +130,25 @@ export default function TutorCalendar() {
     return () => { active = false; };
   }, [reloadKey]);
 
+  // The tutor's live interview with the noot team, if one is set (RLS: their own only).
+  const [interview, setInterview] = useState<TutorInterview | null>(null);
+  useEffect(() => {
+    let active = true;
+    api.profile
+      .getMyInterview()
+      .then((iv) => { if (active) setInterview(iv); })
+      .catch(() => { /* offline → no interview shown, same as the sessions above */ });
+    return () => { active = false; };
+  }, [reloadKey]);
+  // Which day of the visible two weeks it falls on, and the rows it takes up there.
+  const interviewAt = useMemo(() => (interview ? new Date(interview.scheduledAt) : null), [interview]);
+  const interviewDay = interviewAt ? dayIndexFor(interviewAt) : null;
+  const interviewSlots = useMemo(
+    () => new Set(interviewAt ? interviewBlockedSlots(interviewAt, CAL_TIMES) : []),
+    [interviewAt],
+  );
+  const blocked = (dayIndex: number, time: string) => interviewDay === dayIndex && interviewSlots.has(time);
+
   const days = DAYS.slice(week * 7, week * 7 + 7);
   const sessions = sessionsByDay[day] || {};
   const openSet = open[day] || new Set<string>();
@@ -157,11 +184,13 @@ export default function TutorCalendar() {
     let o = 0;
     let b = 0;
     days.forEach((d) => {
-      o += (open[d.i] || new Set<string>()).size;
+      // A time the interview covers is not open, whatever the weekly availability says.
+      o += [...(open[d.i] || new Set<string>())].filter((time) => !blocked(d.i, time)).length;
       b += Object.keys(sessionsByDay[d.i] || {}).length;
     });
     return { o, b };
-  }, [open, week, sessionsByDay]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, week, sessionsByDay, interviewDay, interviewSlots]);
 
   return (
     <Screen>
@@ -196,7 +225,7 @@ export default function TutorCalendar() {
           {days.map((d) => {
             const on = day === d.i;
             const booked = Object.keys(sessionsByDay[d.i] || {}).length > 0;
-            const nOpen = (open[d.i] || new Set<string>()).size;
+            const nOpen = [...(open[d.i] || new Set<string>())].filter((time) => !blocked(d.i, time)).length;
             return (
               <Pressable
                 key={d.i}
@@ -211,6 +240,9 @@ export default function TutorCalendar() {
                 <View style={styles.dayDots}>
                   {booked && (
                     <View style={[styles.dot, { backgroundColor: on ? t.onAccent : t.accent }]} />
+                  )}
+                  {interviewDay === d.i && (
+                    <View style={[styles.dot, { backgroundColor: on ? t.onAccent : ADMIN_EVENT }]} />
                   )}
                   {nOpen > 0 && (
                     <View
@@ -240,10 +272,25 @@ export default function TutorCalendar() {
 
       <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 12 }}>
         <Label style={{ fontSize: 13, marginBottom: 10 }}>{dayObj.label}</Label>
+        {interview && interviewAt && interviewDay === day ? (
+          <View style={[styles.interviewCard, { backgroundColor: ADMIN_EVENT_WEAK, borderColor: ADMIN_EVENT }]}>
+            <View style={[styles.interviewIcon, { backgroundColor: ADMIN_EVENT }]}>
+              <Ic name="cal" size={16} color="#FFFFFF" strokeWidth={1.9} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.sessionName, { color: t.text }]}>Interview with noot</Text>
+              <Text style={[styles.sessionMeta, { color: t.text2, marginTop: 2 }]}>
+                {interviewRange(interviewAt)}
+                {interview.details ? ` · ${interview.details}` : ''}
+              </Text>
+            </View>
+          </View>
+        ) : null}
         <View style={{ gap: 8 }}>
           {CAL_TIMES.map((time) => {
             const s = sessions[time];
-            const isOpen = openSet.has(time);
+            const isBlocked = blocked(day, time);
+            const isOpen = openSet.has(time) && !isBlocked;
             return (
               <View key={time} style={styles.slotRow}>
                 <Text
@@ -273,6 +320,14 @@ export default function TutorCalendar() {
                     </View>
                     <Ic name="chevR" size={16} color={t.text3} strokeWidth={2} />
                   </Card>
+                ) : isBlocked ? (
+                  <View style={[styles.openSlot, { backgroundColor: ADMIN_EVENT_WEAK, borderColor: ADMIN_EVENT }]}>
+                    <View style={styles.openSlotLeft}>
+                      <View style={[styles.dotSm, { backgroundColor: ADMIN_EVENT }]} />
+                      <Text style={[styles.openSlotLabel, { color: t.text }]}>Interview with noot</Text>
+                    </View>
+                    <Text style={[styles.openSlotHint, { color: t.text3 }]}>Not bookable</Text>
+                  </View>
                 ) : (
                   <Pressable
                     onPress={editAvailability}
@@ -363,6 +418,8 @@ const styles = StyleSheet.create({
   dotSm: { width: 7, height: 7, borderRadius: 3.5 },
   openSlotLabel: { fontSize: 13, fontWeight: '600' },
   openSlotHint: { fontSize: 11.5 },
+  interviewCard: { flexDirection: 'row', gap: 10, alignItems: 'center', borderWidth: 1.5, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 10 },
+  interviewIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   footnote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 16, paddingHorizontal: 2 },
   footnoteText: { flex: 1, fontSize: 12, lineHeight: 17 },
 });
