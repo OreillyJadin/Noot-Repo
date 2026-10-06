@@ -88,7 +88,11 @@ export default function SignUp() {
         <View style={{ width: 48 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         {!sent ? (
           <>
             <Text style={[styles.h1, { color: t.text }]}>Create your account</Text>

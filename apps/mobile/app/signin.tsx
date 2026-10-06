@@ -88,7 +88,11 @@ export default function SignIn() {
         <View style={{ width: 48 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         <Text style={[styles.h1, { color: t.text }]}>Welcome back</Text>
 
         <Field
