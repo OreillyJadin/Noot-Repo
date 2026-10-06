@@ -132,7 +132,7 @@ export default function StudentHome() {
         </View>
 
         {/* Live search input — filters tutors by name/course as you type. The sliders
-            button opens B1 with its filter sheet (price / availability / gender). */}
+            button opens B1 with its filter sheet (price / availability). */}
         <View style={styles.searchRow}>
           <View style={[styles.searchField, { backgroundColor: t.surface, borderColor: t.borderStrong }]}>
             <Ic name="search" size={18} color={t.text3} strokeWidth={1.8} />
