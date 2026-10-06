@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.watchmenventures.noot",
-      "buildNumber": "10",
+      "buildNumber": "11",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "noot needs access to your photos so you can set a profile picture and send images in chat.",
         "NSFaceIDUsageDescription": "Use Face ID to unlock noot.",
