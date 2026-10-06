@@ -18,6 +18,8 @@ import { api } from '@noot/core';
 import { registerPayoutSetupHost, type InAppOutcome } from './payoutSetup';
 
 interface Open {
+  /** Distinct per opening, so the SDK component starts fresh each time. */
+  id: number;
   instance: StripeConnectInstance;
   resolve: (outcome: InAppOutcome) => void;
 }
@@ -28,13 +30,18 @@ export function PayoutSetupHost() {
   theme.current = t;
   const [open, setOpen] = useState<Open | null>(null);
   const current = useRef<Open | null>(null);
+  const openings = useRef(0);
+  // Set when the form reports it could not load. Read when the tutor closes it.
+  const loadFailed = useRef(false);
 
   useEffect(() => {
     registerPayoutSetupHost(
       (clientSecret) =>
         new Promise<InAppOutcome>((resolve) => {
-          // One form at a time; a second request while one is up reports as not opened.
-          if (current.current) { resolve('failed'); return; }
+          // openPayoutSetup() runs one setup at a time, so this is not reached in practice.
+          // If it ever is, report the tutor as having closed: never open a second thing.
+          if (current.current) { resolve('closed'); return; }
+          loadFailed.current = false;
           // The secret the caller already fetched serves the first request. Stripe asks
           // again when a session expires mid-form, and that one is fetched fresh.
           let first: string | null = clientSecret;
@@ -54,31 +61,38 @@ export function PayoutSetupHost() {
               },
             },
           });
-          current.current = { instance, resolve };
+          current.current = { id: ++openings.current, instance, resolve };
           setOpen(current.current);
         }),
     );
     return () => {
       registerPayoutSetupHost(null);
-      // Never leave a caller waiting on a form that is gone.
-      current.current?.resolve('failed');
+      // The root layout going away with a form up. Don't leave the caller waiting, and
+      // don't send them to the hosted page on top of whatever is still on screen.
+      current.current?.resolve('closed');
       current.current = null;
     };
   }, []);
 
   if (!open) return null;
-  const finish = (outcome: InAppOutcome) => {
+  // The ONLY place the form is taken down, and only from the SDK's own exit. On iOS the form
+  // is a native modal that the SDK dismisses before it calls onExit; unmounting it any
+  // other way (on a load error, say) leaves the modal on screen with nothing behind it.
+  // So a failed load stays up, showing Stripe's error, until the tutor closes it — and
+  // only then does openPayoutSetup() fall back to the hosted page.
+  const onExit = () => {
     if (current.current !== open) return;
     current.current = null;
     setOpen(null);
-    open.resolve(outcome);
+    open.resolve(loadFailed.current ? 'failed' : 'closed');
   };
   return (
-    <ConnectComponentsProvider connectInstance={open.instance}>
+    <ConnectComponentsProvider key={open.id} connectInstance={open.instance}>
       <ConnectAccountOnboarding
         title="Payout setup"
-        onExit={() => finish('closed')}
-        onLoadError={() => finish('failed')}
+        onExit={onExit}
+        onLoadError={() => { loadFailed.current = true; }}
+        onPageDidLoad={() => { loadFailed.current = false; }}
       />
     </ConnectComponentsProvider>
   );

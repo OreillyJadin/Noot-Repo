@@ -12,7 +12,10 @@ import * as WebBrowser from 'expo-web-browser';
 import { api } from '@noot/core';
 import { errText } from './errText';
 
-/** How an in-app attempt ended: the tutor closed the form, or it never loaded. */
+/**
+ * How an in-app attempt ended, reported once the form is off screen: the tutor closed a
+ * form that loaded, or closed one that had failed to load.
+ */
 export type InAppOutcome = 'closed' | 'failed';
 type Host = (clientSecret: string) => Promise<InAppOutcome>;
 
@@ -23,7 +26,8 @@ export function registerPayoutSetupHost(next: Host | null): void {
 }
 
 async function openInApp(): Promise<boolean> {
-  if (!host) return false;
+  // No key, no form: the SDK would load with an empty one and show its own error.
+  if (!host || !process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY) return false;
   try {
     const { clientSecret } = await api.connect.accountSession();
     if (!clientSecret) return false;
@@ -34,8 +38,17 @@ async function openInApp(): Promise<boolean> {
   }
 }
 
+// One setup at a time, whoever asks. The callers' own guards are React state, which a fast
+// second tap can get past; a second form or browser on top of the first must not happen.
+let inFlight: Promise<boolean> | null = null;
+
 /** Opens payout setup and resolves once it is closed. False if it couldn't open. */
-export async function openPayoutSetup(): Promise<boolean> {
+export function openPayoutSetup(): Promise<boolean> {
+  inFlight ??= run().finally(() => { inFlight = null; });
+  return inFlight;
+}
+
+async function run(): Promise<boolean> {
   if (await openInApp()) return true;
   try {
     const { url } = await api.connect.onboardingLink();

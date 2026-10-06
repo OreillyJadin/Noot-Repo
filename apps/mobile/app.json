@@ -16,7 +16,7 @@
         "NSFaceIDUsageDescription": "Use Face ID to unlock noot.",
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryAddUsageDescription": "noot can save images you receive in chat to your photo library.",
-        "NSCameraUsageDescription": "noot does not take photos. A library noot uses can access the camera, so iOS requires this notice.",
+        "NSCameraUsageDescription": "noot uses the camera only if you choose to photograph an ID document while setting up tutor payouts with Stripe.",
         "NSMicrophoneUsageDescription": "noot does not record audio. A library noot uses can access the microphone, so iOS requires this notice."
       },
       "privacyManifests": {
@@ -94,7 +94,7 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow noot to access your photos so you can set a profile picture and send images in chat.",
-          "cameraPermission": "noot does not take photos. A library noot uses can access the camera, so iOS requires this notice.",
+          "cameraPermission": "noot uses the camera only if you choose to photograph an ID document while setting up tutor payouts with Stripe.",
           "microphonePermission": "noot does not record audio. A library noot uses can access the microphone, so iOS requires this notice."
         }
       ],

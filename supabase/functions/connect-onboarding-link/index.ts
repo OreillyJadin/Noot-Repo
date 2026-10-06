@@ -1,7 +1,8 @@
 // Edge Function: connect-onboarding-link.
 // The caller (user.id) is a TUTOR. Creates (or reuses) their Stripe Connect Express
-// account and returns a hosted onboarding link so they can enter payout details. The
-// account id is persisted on tutor_profiles.stripe_connect_account_id. When no Stripe key
+// account and returns a way to onboard it — a hosted link, or a session for the in-app
+// form (see TWO WAYS TO ONBOARD) — so they can enter payout details. The account id is
+// persisted on tutor_profiles.stripe_connect_account_id. When no Stripe key
 // is configured (dev), returns { url: null, simulated: true } so nothing crashes.
 //
 // TWO WAYS TO ONBOARD (ERR-018). With no body, or any mode but 'session', it returns the

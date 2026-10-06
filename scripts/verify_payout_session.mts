@@ -2,11 +2,15 @@
 // connect-onboarding-link Edge Function, which hands the app a client secret for Stripe's
 // embedded onboarding form instead of a hosted link.
 //
-// Part A runs against the LOCAL function runtime. With no Stripe key there (the default),
-// the function answers "simulated"; what is proven is the contract: who may call it, the
-// shape of both modes, and that the link mode older builds use is unchanged.
-// Part B talks to Stripe TEST MODE directly, with the same request the function makes, to
-// prove Stripe accepts it for an Express account at the function's API version. It needs
+// WHAT THIS DOES AND DOES NOT PROVE. Part A runs against the LOCAL function runtime, which
+// has no Stripe key by default. The function then answers "simulated" BEFORE it looks at
+// the mode, so the session branch itself never runs here. Part A proves only: a signed-out
+// caller is refused, the function still answers a body-less call (what builds up to 9
+// send), and @noot/core maps a secret-less answer to "use the hosted page". Checks that
+// are weaker than they look say so in their own line.
+// Part B talks to Stripe TEST MODE directly — not through the function — with the same
+// request the function makes, to prove Stripe accepts it for an Express account at the
+// function's API version. The function's own call and answer are not exercised. It needs
 // STRIPE_SECRET_KEY=sk_test_... in this script's environment and is skipped without it.
 // It opens one short-lived session on an Express account already in the sandbox.
 //
@@ -56,11 +60,11 @@ step(session.status === 200 && 'clientSecret' in session.body &&
         : session.body.clientSecret === null && session.body.simulated === true),
   live ? 'signed in as a tutor, session mode returns a client secret'
        : 'signed in as a tutor, session mode answers "simulated" with no secret (no Stripe key in the local runtime)')
-step(!live || !('url' in session.body), 'a session answer carries no hosted link')
+if (live) step(!('url' in session.body), 'a session answer carries no hosted link')
 
 const link = await call(token)
 step(link.status === 200 && 'url' in link.body && (link.body.clientSecret ?? null) === null,
-  `with no body — what builds up to 9 send — it still answers in link mode (url: ${JSON.stringify(link.body.url)})`)
+  `with no body — what builds up to 9 send — it still answers with a url field and no secret (url: ${JSON.stringify(link.body.url)})${live ? '' : ' (weak here: simulated)'}`)
 const switched: string[] = []
 for (const mode of ['link', 'SESSION', '', 7, null, { a: 1 }]) {
   const r = await call(token, { mode })
