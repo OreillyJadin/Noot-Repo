@@ -34,6 +34,8 @@ const tag = `badlang_${Date.now()}`
 const SWEAR = `this problem set is fucking impossible ${tag}`
 const CLEAN = `Can we go over the class assignment on Scunthorpe? ${tag}`
 const messageIds: string[] = []
+let bioBefore: string | null = null
+const startedAt = new Date().toISOString()
 const flagsFor = async (messageId: string) =>
   (await svc.from('content_reports').select('*').eq('target_message_id', messageId)).data ?? []
 
@@ -66,7 +68,25 @@ try {
   const direct = await student.c.from('messages')
     .insert({ conversation_id: convo!.id, sender_id: student.id, content: `oh shit ${tag}` }).select('id').single()
   if (direct.data) messageIds.push(direct.data.id)
-  step(!direct.error && (await flagsFor(direct.data!.id)).length === 1, 'a direct client insert is flagged too')
+  step(!direct.error && (await flagsFor(direct.data!.id)).length === 0 && (await flagsFor(sworn!.id)).length === 1,
+    'a direct client insert goes through the same trigger (sent; covered by the open flag)')
+
+  // A second sweary message from the same person in the same chat does not add a card.
+  const again = await api.chat.sendMessage(convo!.id, `and this one is shit too ${tag}`)
+  messageIds.push(again.id)
+  step((await flagsFor(again.id)).length === 0 && (await flagsFor(direct.data!.id)).length === 0,
+    'while a flag is open, more swearing from the same sender in the same chat adds no new flag')
+  // The other person swearing is a different sender, so it does.
+  const reply = await tutor.c.from('messages')
+    .insert({ conversation_id: convo!.id, sender_id: tutor.id, content: `no shit ${tag}` }).select('id').single()
+  if (reply.data) messageIds.push(reply.data.id)
+  step(!reply.error && (await flagsFor(reply.data!.id)).length === 1, 'the other person in the chat is flagged separately')
+  const accepted: string[] = []
+  for (const w of ['fuckers', 'motherfucking', 'shithead', 'Bitchy', 'CUNTS', 'pussies']) {
+    const r = await student.c.from('users').update({ major: `${w} studies` }).eq('id', student.id)
+    if (!RULES.test(r.error?.message ?? '')) accepted.push(w)
+  }
+  step(accepted.length === 0, `plurals and other forms of listed words are BLOCKED in a major${accepted.length ? ` — ACCEPTED: ${accepted.join(', ')}` : ''}`)
 
   // Changing the text again does not queue the same message twice.
   if (sworn) await svc.from('messages').update({ content: `still bullshit ${tag}` }).eq('id', sworn.id)
@@ -74,27 +94,33 @@ try {
 
   // ---- what a user can and cannot do with flags ----
   const seen = await student.c.from('content_reports').select('id').in('target_message_id', messageIds)
-  step((seen.data ?? []).length === 0, `the sender cannot see that they were flagged (${(seen.data ?? []).length} rows visible)`)
+  step(!seen.error && (seen.data ?? []).length === 0, `the sender cannot see that they were flagged (${(seen.data ?? []).length} rows visible)`)
   const seenByOther = await tutor.c.from('content_reports').select('id').in('target_message_id', messageIds)
-  step((seenByOther.data ?? []).length === 0, 'nor can the other person in the chat')
+  step(!seenByOther.error && (seenByOther.data ?? []).length === 0, 'nor can the other person in the chat')
 
   const forged = await tutor.c.from('content_reports').insert({
     reporter_id: null, auto_flagged: true, target_kind: 'message', target_message_id: clean.id, reason: 'inappropriate',
   })
-  step(forged.error !== null, `a user cannot forge an automatic flag: "${forged.error?.message ?? 'ACCEPTED'}"`)
+  step(/row-level security/i.test(forged.error?.message ?? ''), `a user cannot forge an automatic flag: "${forged.error?.message ?? 'ACCEPTED'}"`)
   const halfForged = await tutor.c.from('content_reports').insert({
     reporter_id: tutor.id, auto_flagged: true, target_kind: 'message', target_message_id: clean.id, reason: 'inappropriate',
   })
-  step(halfForged.error !== null, `nor mark their own report as automatic: "${halfForged.error?.message ?? 'ACCEPTED'}"`)
+  step(/content_reports_reporter_or_auto/.test(halfForged.error?.message ?? ''), `nor mark their own report as automatic: "${halfForged.error?.message ?? 'ACCEPTED'}"`)
   const real = await tutor.c.from('content_reports').insert({
     reporter_id: tutor.id, target_kind: 'message', target_message_id: sworn?.id ?? clean.id, reason: 'harassment',
   })
   step(real.error === null, `an ordinary report by a person still works, alongside the flag${real.error ? `: ${real.error.message}` : ''}`)
 
-  for (const fn of ['contains_profanity', 'contains_zero_tolerance_term']) {
-    const r = await student.c.rpc(fn, { p_text: 'shit retard' })
-    step(r.error !== null && r.data == null, `a user cannot call ${fn}() to probe the list: "${r.error?.message ?? `returned ${JSON.stringify(r.data)}`}"`)
+  const signedOut = createClient(URL, ANON, { auth: { persistSession: false } })
+  for (const fn of ['contains_blocked_term', 'contains_profanity', 'contains_zero_tolerance_term']) {
+    for (const [who, c] of [['a signed-in user', student.c], ['a signed-out caller', signedOut]] as const) {
+      const r = await c.rpc(fn, { p_text: 'shit retard' })
+      step(/permission denied/i.test(r.error?.message ?? '') && r.data == null,
+        `${who} cannot call ${fn}() to probe the list: "${r.error?.message ?? `returned ${JSON.stringify(r.data)}`}"`)
+    }
   }
+  const lastName = await student.c.from('users').update({ last_name: 'Shithead' }).eq('id', student.id)
+  step(RULES.test(lastName.error?.message ?? ''), 'writes still reach the filter with the list locked away (a last name is BLOCKED)')
 
   // ---- the admin queue ----
   await auth.signOut()
@@ -118,13 +144,13 @@ try {
   step(!inRoom.error && (await flagsFor(inRoom.data!.id)).length === 0, 'a message in the admin team room is not flagged')
 
   // ---- published text: blocked ----
-  const before = (await svc.from('tutor_profiles').select('bio').eq('user_id', tutor.id).single()).data!.bio
+  bioBefore = (await svc.from('tutor_profiles').select('bio').eq('user_id', tutor.id).single()).data!.bio
+  const before = bioBefore
   const bio = await tutor.c.from('tutor_profiles').update({ bio: 'I make accounting less shitty.' }).eq('user_id', tutor.id)
   const bioNow = (await svc.from('tutor_profiles').select('bio').eq('user_id', tutor.id).single()).data!.bio
   step(RULES.test(bio.error?.message ?? '') && bioNow === before, `a tutor bio with swearing is BLOCKED: "${bio.error?.message ?? 'ACCEPTED'}"`)
   const okBio = await tutor.c.from('tutor_profiles').update({ bio: 'I assess each class assignment with you. Cockburn Hall tutor.' }).eq('user_id', tutor.id)
   step(okBio.error === null, `an innocent bio still saves ("assess", "class", "Cockburn")${okBio.error ? `: ${okBio.error.message}` : ''}`)
-  await svc.from('tutor_profiles').update({ bio: before }).eq('user_id', tutor.id)
 
   const name = await student.c.from('users').update({ first_name: 'Bitch' }).eq('id', student.id)
   const major = await student.c.from('users').update({ major: 'Bullshit Studies' }).eq('id', student.id)
@@ -149,6 +175,9 @@ try {
   step(okReview.error === null, `an ordinary review still posts${okReview.error ? `: ${okReview.error.message}` : ''}`)
   await svc.from('bookings').delete().eq('id', booking!.id) // cascades the review
 } finally {
+  if (bioBefore !== null) await svc.from('tutor_profiles').update({ bio: bioBefore }).eq('user_id', tutor.id)
+  // Each message and the booking notified the other person; those rows carry the test text.
+  await svc.from('notifications').delete().in('user_id', [student.id, tutor.id]).gte('created_at', startedAt)
   await svc.from('content_reports').delete().in('target_message_id', messageIds)
   await svc.from('messages').delete().in('id', messageIds)
   await svc.from('bookings').delete().eq('stripe_payment_intent_id', `sim_pi_${tag}`)
