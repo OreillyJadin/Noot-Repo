@@ -1561,6 +1561,17 @@ export const api = {
     onboardingLink(): Promise<{ url: string | null; accountId?: string; simulated?: boolean }> {
       return invokeFn('connect-onboarding-link');
     },
+    /**
+     * Same account, but a client secret for Stripe's in-app onboarding form instead of a
+     * link (ERR-018). `clientSecret` is null when the server has no Stripe key (dev), or
+     * when the deployed function predates this mode and answered with a link.
+     */
+    async accountSession(): Promise<{ clientSecret: string | null; simulated?: boolean }> {
+      const res = await invokeFn<{ clientSecret?: string | null; simulated?: boolean }>(
+        'connect-onboarding-link', { mode: 'session' },
+      );
+      return { clientSecret: res?.clientSecret ?? null, simulated: res?.simulated };
+    },
     /** The tutor's Connect readiness — drives the payout-setup UI. */
     status(): Promise<{ connected: boolean; chargesEnabled: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean }> {
       return invokeFn('connect-status');

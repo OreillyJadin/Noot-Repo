@@ -1,8 +1,16 @@
 // Edge Function: connect-onboarding-link.
 // The caller (user.id) is a TUTOR. Creates (or reuses) their Stripe Connect Express
-// account and returns a hosted onboarding link so they can enter payout details. The
-// account id is persisted on tutor_profiles.stripe_connect_account_id. When no Stripe key
+// account and returns a way to onboard it — a hosted link, or a session for the in-app
+// form (see TWO WAYS TO ONBOARD) — so they can enter payout details. The account id is
+// persisted on tutor_profiles.stripe_connect_account_id. When no Stripe key
 // is configured (dev), returns { url: null, simulated: true } so nothing crashes.
+//
+// TWO WAYS TO ONBOARD (ERR-018). With no body, or any mode but 'session', it returns the
+// hosted link above — what every build up to 9 asks for. With { mode: 'session' } it
+// returns { clientSecret } for an Account Session instead, which lets the app show Stripe's
+// onboarding form inside itself (the SDK's ConnectAccountOnboarding). Same account, same
+// creation path and the same defences below; only the last step differs. The session is
+// scoped to onboarding and nothing else, and to the caller's own account.
 //
 // DUPLICATE ACCOUNTS (fixed 2026-09-19). The original read the stored account id, saw
 // null, and created a new account — a check-then-act race. Tapping the "Payout account"
@@ -51,9 +59,15 @@ Deno.serve(async (req: Request) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401, headers: cors });
 
+    // The body is optional: older builds send none.
+    const body = await req.json().catch(() => ({}));
+    const wantsSession = (body as { mode?: unknown } | null)?.mode === 'session';
+
     const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
-    if (!stripeKey) return Response.json({ url: null, simulated: true }, { headers: cors });
+    if (!stripeKey) {
+      return Response.json({ url: null, clientSecret: null, simulated: true }, { headers: cors });
+    }
 
     const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
     const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
@@ -168,6 +182,20 @@ Deno.serve(async (req: Request) => {
           }
         }
       }
+    }
+
+    if (wantsSession) {
+      // Onboarding only — no payouts, payments or account-management component is enabled,
+      // so the secret cannot be used to move money or read balances. It is short-lived and
+      // tied to this one account, which the lines above resolved from the caller's own row.
+      const session = await stripe.accountSessions.create({
+        account: accountId!,
+        components: { account_onboarding: { enabled: true } },
+      });
+      return Response.json(
+        { clientSecret: session.client_secret, accountId, simulated: false },
+        { headers: cors },
+      );
     }
 
     // Stripe's live mode only accepts https here (the sandbox also took the app's noot://
