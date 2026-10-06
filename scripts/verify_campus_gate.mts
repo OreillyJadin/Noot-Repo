@@ -50,7 +50,7 @@ try {
   const outsiders = [`${tag}@gmail.com`, `${tag}@harvard.edu`, `${tag}@crimson.ua.edu.evil.com`, `${tag}@notcrimson.ua.edu`]
   for (const email of outsiders) {
     const otp = await anon().auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
-    const pw = await anon().auth.signUp({ email, password: 'password123' })
+    const pw = await anon().auth.signUp({ email, password: 'Password123!' })
     step(!!otp.error && !!pw.error && !(await exists(email)),
       `${email.split('@')[1]}: emailed-code sign-up and password sign-up both refused, no account created`)
   }
@@ -59,7 +59,7 @@ try {
   step(!!admin.error, 'even the service role cannot create a non-campus account (the gate is in the database)')
 
   const campus = `${tag}@CRIMSON.UA.EDU`
-  const good = await anon().auth.signUp({ email: campus, password: 'password123' })
+  const good = await anon().auth.signUp({ email: campus, password: 'Password123!' })
   step(!good.error && (await exists(campus)), 'a campus address signs up, whatever its capitalisation')
 
   // ---- what the app tells them ----
@@ -111,8 +111,8 @@ try {
     `confirming it moves the account to the new campus address${nowAt === moved ? '' : ` (still ${nowAt}: ${problems.join('; ')})`}`)
 
   // The gate only looks at email changes: everything else on the account still works.
-  const pw = await me.auth.updateUser({ password: 'password456' })
-  const back = await anon().auth.signInWithPassword({ email: moved, password: 'password456' })
+  const pw = await me.auth.updateUser({ password: 'Password456!' })
+  const back = await anon().auth.signInWithPassword({ email: moved, password: 'Password456!' })
   step(!pw.error && !back.error, 'changing the password and signing in are unaffected')
 } finally {
   const { data } = await svc.auth.admin.listUsers({ perPage: 1000 })

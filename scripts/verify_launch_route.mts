@@ -78,7 +78,7 @@ try {
   //    it reports success without exchanging — and the account is past onboarding. It has
   //    not accepted the Terms yet, so it is held there rather than sent home.
   {
-    const set = await auth.setPassword('a-new-password-1')
+    const set = await auth.setPassword('A-new-password-1')
     const replay = await auth.completeAuthFromUrl(linkUrl)
     const stamp = await stampOf(newId!)
     const r = await route()

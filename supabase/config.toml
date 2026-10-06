@@ -42,6 +42,13 @@ additional_redirect_urls = [
 ]
 jwt_expiry = 3600
 enable_signup = true
+# Password rule (ERR-014): 8+ characters with a lowercase letter, an uppercase letter, a
+# number and a special character. GoTrue has no "special character only" setting — the one
+# that requires a symbol requires the other three too. Enforced by the auth server, so the
+# app's own check (packages/core/src/auth/passwordRule.ts) is a courtesy. Cloud is set separately:
+# scripts/push_auth_templates.mts.
+minimum_password_length = 8
+password_requirements = "lower_upper_letters_digits_symbols"
 
 [auth.email]
 enable_signup = true

@@ -92,9 +92,9 @@ try {
   step(recovered.ok && (await auth.getSessionUserId()) === made.data.user!.id,
     `the reset code signs that account in, ready for set-password${recovered.ok ? '' : `: ${recovered.error}`}`)
 
-  const pw = await auth.setPassword('password456')
+  const pw = await auth.setPassword('Password456!')
   await auth.signOut()
-  const back = await auth.signInWithPassword(resetEmail, 'password456')
+  const back = await auth.signInWithPassword(resetEmail, 'Password456!')
   step(pw.ok && back.ok, 'the new password is saved and signs in')
 
   // A suspended account's code does not get it in, and it is told why rather than "wrong code".
