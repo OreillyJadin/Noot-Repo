@@ -82,8 +82,11 @@ export default function AdminReports() {
                   <Text style={[styles.kind, { color: t.text3 }]}>{r.targetKind}</Text>
                 </View>
                 <Text style={[styles.meta, { color: t.text2 }]}>
-                  Reported by <Text style={{ fontWeight: '700', color: t.text }}>{r.reporterName}</Text>
+                  {r.autoFlagged ? 'Flagged automatically' : (
+                    <>Reported by <Text style={{ fontWeight: '700', color: t.text }}>{r.reporterName}</Text></>
+                  )}
                   {r.targetName ? <> · about <Text style={{ fontWeight: '700', color: t.text }}>{r.targetName}</Text></> : null}
+                  {r.messageSenderName ? <> · sent by <Text style={{ fontWeight: '700', color: t.text }}>{r.messageSenderName}</Text></> : null}
                 </Text>
                 {r.messageContent ? (
                   <View style={[styles.quote, { backgroundColor: t.surface2, borderLeftColor: t.borderStrong }]}>

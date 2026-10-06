@@ -230,7 +230,10 @@ export type ReportReason = 'spam' | 'harassment' | 'inappropriate' | 'academic_d
 /** A moderation report, for the admin queue (Guideline 1.2). */
 export interface ContentReport {
   id: UUID;
-  reporterId: UUID;
+  /** Null when the content filter raised it rather than a person (`autoFlagged`). */
+  reporterId: UUID | null;
+  /** Raised by the content filter for language in a chat message (0049). */
+  autoFlagged: boolean;
   targetKind: 'message' | 'user' | 'review';
   targetMessageId: UUID | null;
   targetUserId: UUID | null;
@@ -243,6 +246,8 @@ export interface ContentReport {
   reporterName?: string;
   targetName?: string;
   messageContent?: string | null;
+  /** Who wrote the reported message. */
+  messageSenderName?: string;
 }
 
 /** A row from the real UA course catalog (`courses`), used to pick instead of free-type. */
