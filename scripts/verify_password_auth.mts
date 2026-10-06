@@ -44,11 +44,11 @@ try {
   const created = await auth.signInWithPassword(pwEmail, 'password123');
   ok('throwaway account has a live session', created.ok && !!(await auth.getSessionUserId()), created.error ?? '');
 
-  const setP = await auth.setPassword('newpassword456');
+  const setP = await auth.setPassword('Newpassword456!');
   ok('setPassword succeeds on the live session', setP.ok, setP.error ?? '');
 
   await auth.signOut();
-  const newOk = await auth.signInWithPassword(pwEmail, 'newpassword456');
+  const newOk = await auth.signInWithPassword(pwEmail, 'Newpassword456!');
   ok('sign in with the NEW password works', newOk.ok, newOk.error ?? '');
 
   await auth.signOut();

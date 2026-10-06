@@ -5,6 +5,14 @@
 // (ARCHITECTURE.md §6/§10). `.edu` domain gating is enforced server-side (auth hook
 // + campuses allowlist), not here.
 import { getSupabase } from '../supabase';
+import { PASSWORD_RULE_HINT, passwordProblem } from './passwordRule';
+
+export {
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_RULE_HINT,
+  PASSWORD_SPECIAL_CHARACTERS,
+  passwordProblem,
+} from './passwordRule';
 
 export interface SignInResult {
   ok: boolean;
@@ -140,7 +148,12 @@ export async function signInWithPassword(email: string, password: string): Promi
  */
 export async function setPassword(password: string): Promise<SignInResult> {
   const { error } = await getSupabase().auth.updateUser({ password });
-  return error ? { ok: false, error: error.message } : { ok: true };
+  if (!error) return { ok: true };
+  // The server's own wording lists every character it accepts; say it the app's way.
+  if (error.code === 'weak_password') {
+    return { ok: false, error: passwordProblem(password) ?? PASSWORD_RULE_HINT };
+  }
+  return { ok: false, error: error.message };
 }
 
 /**

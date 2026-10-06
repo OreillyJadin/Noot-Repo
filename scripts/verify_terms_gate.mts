@@ -81,7 +81,7 @@ try {
   const reset = await auth.sendPasswordReset(email, 'http://localhost:8081/auth-callback?flow=recovery')
   const resetLink = await emailedLink(email, since)
   const recovered = resetLink ? await auth.completeAuthFromUrl(resetLink) : { ok: false, error: 'no link' }
-  const pw = recovered.ok ? await auth.setPassword('a-reset-password-1') : { ok: false }
+  const pw = recovered.ok ? await auth.setPassword('A-reset-password-1') : { ok: false }
   step(reset.ok && recovered.ok && pw.ok, `it comes back through Forgot password and sets one${recovered.ok ? '' : `: ${reset.error ?? recovered.error}`}`)
   if (!pw.ok) throw new Error('cannot continue without the reset session')
 
@@ -92,7 +92,7 @@ try {
 
   // ---- the server, for someone who skips the app ----
   const mine = createClient(URL, ANON, { auth: { persistSession: false } })
-  await mine.auth.signInWithPassword({ email, password: 'a-reset-password-1' })
+  await mine.auth.signInWithPassword({ email, password: 'A-reset-password-1' })
   const conversationId = await conversationFor(uid!)
   const refused = await send(mine, conversationId, uid!, 'hello before accepting')
   step(refused?.code === '42501' && /Terms of Use/.test(refused.message),
