@@ -1,5 +1,5 @@
-// T8 Payout Setup (Stripe) — ported from screens-tutor.jsx (T8). Stripe Connect's hosted
-// onboarding for payouts. Step 8 of the tutor application. → T9 Review profile.
+// T8 Payout Setup (Stripe) — ported from screens-tutor.jsx (T8). Stripe Connect's
+// onboarding for payouts, in the app where it can be (lib/payoutSetup). Step 8 of the tutor application. → T9 Review profile.
 // Continue unlocks only once Stripe reports payouts enabled (tracker T4); the old screen was
 // a mock form whose SSN and bank fields went nowhere.
 import React, { useCallback, useState } from 'react';

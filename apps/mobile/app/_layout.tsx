@@ -14,6 +14,7 @@ import { AppProvider } from '../lib/store';
 import { MeProvider } from '../lib/useMe';
 import { AuthGate } from '../lib/AuthGate';
 import { PushRegistrar } from '../lib/PushRegistrar';
+import { PayoutSetupHost } from '../lib/PayoutSetupHost';
 import { largeSecureStore } from '../lib/secureStorage';
 import { ThemePrefProvider, useThemePref } from '../lib/themePref';
 
@@ -72,6 +73,8 @@ function ThemedApp() {
             ))}
           </Stack>
         </AuthGate>
+        {/* Stripe's in-app payout form. Needs the native Stripe module, so not in Expo Go. */}
+        {inExpoGo ? null : <PayoutSetupHost />}
       </MeProvider>
     </AppProvider>
   );
