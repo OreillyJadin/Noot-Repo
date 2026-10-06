@@ -22,6 +22,14 @@ test('only the characters the auth server counts are special', () => {
   for (const c of [' ', 'é', '😀', '£']) assert.notEqual(passwordProblem(`Abcdefg1${c}`), null, c);
 });
 
+test('a password past the server\'s 72-byte cap is refused, counting bytes not characters', () => {
+  assert.equal(passwordProblem('Aa1!' + 'x'.repeat(68)), null);
+  assert.equal(passwordProblem('Aa1!' + 'x'.repeat(69)), 'That password is too long. Use a shorter one.');
+  // 39 characters, 74 bytes.
+  assert.equal(passwordProblem('Aa1!' + 'é'.repeat(35)), 'That password is too long. Use a shorter one.');
+  assert.equal(passwordProblem('Aa1!' + 'é'.repeat(34)), null);
+});
+
 test('non-ASCII letters and digits do not stand in for the required ones', () => {
   assert.equal(passwordProblem('ÀBCDEFG1!'), 'Add a lowercase letter.');
   assert.equal(passwordProblem('Abcdefg١!'), 'Add a number.');

@@ -91,7 +91,7 @@ export default function SetPassword() {
 
         <Field
           label="Password"
-          placeholder={`At least ${auth.PASSWORD_MIN_LENGTH} characters`}
+          placeholder="Choose a password"
           value={password}
           onChangeText={(v) => { setPassword(v); if (error) setError(null); }}
           secureTextEntry

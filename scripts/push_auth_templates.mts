@@ -67,11 +67,13 @@ const body = (name: string) =>
 /**
  * The password rule (ERR-014), mirroring `minimum_password_length` and
  * `password_requirements = "lower_upper_letters_digits_symbols"` in supabase/config.toml.
- * The cloud API takes the character classes spelled out, colon-separated.
+ * The cloud API takes one of a fixed set of strings: the character classes spelled out and
+ * colon-separated, with the colon inside the symbol class escaped as `\\:` — so the value
+ * sent has two backslashes there, and this literal needs four.
  */
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_REQUIRED_CHARACTERS =
-  'abcdefghijklmnopqrstuvwxyz:ABCDEFGHIJKLMNOPQRSTUVWXYZ:0123456789:!@#$%^&*()_+-=[]{};\'\\:"|<>?,./`~';
+  'abcdefghijklmnopqrstuvwxyz:ABCDEFGHIJKLMNOPQRSTUVWXYZ:0123456789:!@#$%^&*()_+-=[]{};\'\\\\:"|<>?,./`~';
 
 const payload: Record<string, string | number> = {
   site_url: SITE_URL,

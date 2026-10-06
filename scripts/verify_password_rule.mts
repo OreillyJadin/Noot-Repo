@@ -51,11 +51,17 @@ try {
     step(r.error !== null && r.error.code === 'weak_password', `refused: ${why}${r.error ? '' : ' — WAS ACCEPTED'}`)
     step(passwordProblem(pw) !== null, `the app's check also refuses: ${why}`)
   }
+  // The server's cap is 72 BYTES; both of these pass every other part of the rule.
+  for (const [pw, why] of [['Aa1!' + 'x'.repeat(69), '73 characters'], ['Aa1!' + 'é'.repeat(35), '39 characters that are 74 bytes']]) {
+    const r = await me.auth.updateUser({ password: pw })
+    step(r.error !== null, `refused: ${why}${r.error ? '' : ' — WAS ACCEPTED'}`)
+    step(passwordProblem(pw) !== null, `the app's check also refuses: ${why}`)
+  }
   const still = await anon().auth.signInWithPassword({ email, password: OLD })
   step(!still.error, 'after the refusals the original password is unchanged')
 
   // ---- passwords the server must accept ----
-  const strong = ['Abcdefg1!', 'Roll-Tide2026', 'xY9#' + 'a'.repeat(40)]
+  const strong = ['Abcdefg1!', 'Roll-Tide2026', 'xY9#' + 'a'.repeat(68), 'Aa1!' + 'é'.repeat(34)]
   for (const pw of strong) {
     const r = await me.auth.updateUser({ password: pw })
     const back = await anon().auth.signInWithPassword({ email, password: pw })
