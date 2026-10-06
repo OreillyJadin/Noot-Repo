@@ -405,13 +405,11 @@ function BottomSheet({
   );
 }
 
-function FilterGroup({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  const t = useTheme();
+function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <View style={{ marginBottom: 20 }}>
       <Label>{label}</Label>
       {children}
-      {hint ? <Text style={{ fontSize: 12, color: t.text3, marginTop: 8 }}>{hint}</Text> : null}
     </View>
   );
 }
