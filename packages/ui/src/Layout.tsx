@@ -80,8 +80,8 @@ export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       // Without this the keyboard sits on top of the page: a field low on the screen (a bio)
-      // is covered while you type and the page can't scroll far enough to reach it. iOS only;
-      // Android resizes the window itself.
+      // is covered while you type and the page can't scroll far enough to reach it. The prop
+      // does nothing on Android, which is not checked here.
       automaticallyAdjustKeyboardInsets
     >
       {children}
