@@ -119,22 +119,38 @@ begin
     from jsonb_to_recordset(p_courses) as c(course_code text, grade text, hourly_rate numeric);
 
   if exists (select 1 from jsonb_to_recordset(wanted) as n(course_code text, grade text, hourly_rate numeric)
-              where coalesce(n.course_code, '') = '' or n.hourly_rate is null or n.hourly_rate < 0) then
+              where coalesce(n.course_code, '') = '' or n.hourly_rate is null) then
     raise exception 'every course needs a code and a rate' using errcode = 'check_violation';
+  end if;
+  -- 0 is a course whose rate isn't set yet (onboarding step 3); 120 is MAX_HOURLY_RATE in
+  -- @noot/core. NaN is a valid numeric and compares above every number, so it is caught here.
+  if exists (select 1 from jsonb_to_recordset(wanted) as n(course_code text, grade text, hourly_rate numeric)
+              where n.hourly_rate < 0 or n.hourly_rate > 120) then
+    raise exception 'rates are up to $120 an hour' using errcode = 'check_violation';
   end if;
   if (select count(*) <> count(distinct n.course_code)
         from jsonb_to_recordset(wanted) as n(course_code text, grade text, hourly_rate numeric)) then
     raise exception 'a course is listed twice' using errcode = 'check_violation';
   end if;
 
-  if tutor_grades_verified(uid) and exists (
-    select 1
-      from jsonb_to_recordset(wanted) as n(course_code text, grade text, hourly_rate numeric)
-      left join tutor_courses t on t.tutor_id = uid and t.course_code = n.course_code
-     where t.id is null or t.grade is distinct from n.grade
-  ) then
-    raise exception 'Your grades are verified, so your courses and grades are locked. Contact noot support to add a course or change a grade.'
-      using errcode = 'insufficient_privilege';
+  if tutor_grades_verified(uid) then
+    -- The stored grade is compared the way the incoming one was cleaned up, so a row saved
+    -- as '' or with stray spaces before this migration doesn't lock its owner out of saving.
+    if exists (
+      select 1
+        from jsonb_to_recordset(wanted) as n(course_code text, grade text, hourly_rate numeric)
+        left join tutor_courses t on t.tutor_id = uid and t.course_code = n.course_code
+       where t.id is null or nullif(trim(t.grade), '') is distinct from n.grade
+    ) then
+      raise exception 'Your grades are verified, so your courses and grades are locked. Contact noot support to add a course or change a grade.'
+        using errcode = 'insufficient_privilege';
+    end if;
+    -- A verified tutor with no course rows is shown from tutor_profiles.subjects instead
+    -- (toTutor in the app), which nobody verified. Keep at least one verified course.
+    if jsonb_array_length(wanted) = 0 then
+      raise exception 'Keep at least one course. Contact noot support to change your courses.'
+        using errcode = 'insufficient_privilege';
+    end if;
   end if;
 
   delete from tutor_courses t
@@ -156,6 +172,8 @@ grant execute on function set_tutor_courses(jsonb) to authenticated;
 -- ---------- guard: a verified tutor's transcript ----------
 -- protect_tutor_approval as in 0038, plus one rule: the transcript on file (and the
 -- "signed up unverified" choice) cannot be changed by the tutor once it has been verified.
+-- Nor can `subjects`, the coarse course list on the profile: search matches on it, and the
+-- app falls back to it for a tutor with no course rows. The app never writes it for a tutor.
 create or replace function protect_tutor_approval()
 returns trigger
 language plpgsql
@@ -211,6 +229,10 @@ begin
      and (NEW.transcript_url        is distinct from OLD.transcript_url
           or NEW.transcript_skipped is distinct from OLD.transcript_skipped) then
     raise exception 'Your grades are verified, so your transcript is locked. Contact noot support to replace it.'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if OLD.grades_verified_at is not null and NEW.subjects is distinct from OLD.subjects then
+    raise exception 'Your grades are verified, so your course list is locked. Contact noot support to add a course.'
       using errcode = 'insufficient_privilege';
   end if;
   return NEW;

@@ -83,6 +83,11 @@ try {
   const noRate = await rejects(() => raw.rpc('set_tutor_courses', { p_courses: [{ course_code: codeA, grade: 'A' }] }));
   check('DENY: a course with no rate', /code and a rate/.test(noRate), noRate);
 
+  const nan = await rejects(() => raw.rpc('set_tutor_courses', { p_courses: [{ course_code: codeA, grade: 'A', hourly_rate: 'NaN' }] }));
+  const huge = await rejects(() => raw.rpc('set_tutor_courses', { p_courses: [{ course_code: codeA, grade: 'A', hourly_rate: 99999 }] }));
+  check('DENY: a rate that is not a number, or over $120', /up to \$120/.test(nan) && /up to \$120/.test(huge), `${nan} / ${huge}`);
+  check('…and those refused saves changed nothing', (await saved()) === `${codeA}:A:22:0 | ${codeB}:A-:25:0 | ${codeC}:B:30:0`, await saved());
+
   // Sessions a course has earned must survive a save (the old save rewrote the rows).
   await svc.from('tutor_courses').update({ sessions: 7 }).eq('tutor_id', uid).eq('course_code', codeA);
 
@@ -171,6 +176,29 @@ try {
     ]),
   );
   check('DENY: a removed course cannot be added back by the tutor', /grades are verified/.test(backMsg), backMsg);
+  const emptyMsg = await rejects(() => api.profile.setTutorCourses([]));
+  check('DENY: verified tutor cannot empty the list', /at least one course/.test(emptyMsg), emptyMsg);
+  // With no course rows the app would show tutor_profiles.subjects under the Verified badge.
+  const subjMsg = await rejects(() => raw.from('tutor_profiles').update({ subjects: [codeNew] }).eq('user_id', uid));
+  check('DENY: verified tutor cannot rewrite the profile’s subject list', /course list is locked/.test(subjMsg), subjMsg);
+
+  // A grade stored as '' before 0048 (direct inserts were never cleaned up) must not lock
+  // its owner out: the unchanged list still saves, and a real grade still can't be added.
+  await svc.from('tutor_courses').update({ grade: '' }).eq('tutor_id', uid).eq('course_code', codeB);
+  const blankOk = await rejects(() =>
+    api.profile.setTutorCourses([
+      { courseCode: codeA, grade: 'A', hourlyRate: 37 },
+      { courseCode: codeB, grade: null, hourlyRate: 25 },
+    ]),
+  );
+  check('ALLOW: a course stored with a blank grade still saves', blankOk === '', blankOk);
+  const blankUp = await rejects(() =>
+    api.profile.setTutorCourses([
+      { courseCode: codeA, grade: 'A', hourlyRate: 37 },
+      { courseCode: codeB, grade: 'A+', hourlyRate: 25 },
+    ]),
+  );
+  check('DENY: …but it cannot be given a grade', /grades are verified/.test(blankUp), blankUp);
   check('still verified after all of it', await verified());
 
   // --- someone else's rows are still someone else's -------------------------------------------

@@ -14,6 +14,7 @@ import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, H2, ProgressDots
 import { api, type CatalogCourse } from '@noot/core';
 import { CoursePicker } from '../lib/CoursePicker';
 import { useStepBack } from '../lib/useStepBack';
+import { errText } from '../lib/errText';
 
 const GRADE_OPTIONS = ['A+', 'A', 'A-', 'B+', 'B', 'B-'];
 const MAX_COURSES = 10;
@@ -119,8 +120,9 @@ export default function T3() {
     try {
       await api.profile.setTutorCourses(courses.filter((c) => c.grade));
       return true;
-    } catch {
-      Alert.alert('Could not save', 'Please check your connection and try again.');
+    } catch (e) {
+      // The server's reason, when it has one (e.g. grades locked once verified, 0048).
+      Alert.alert('Could not save', errText(e, 'Please check your connection and try again.'));
       return false;
     }
   };

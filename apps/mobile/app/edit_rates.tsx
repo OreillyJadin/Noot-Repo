@@ -13,8 +13,14 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Ic, useTheme } from '@noot/ui';
 import { api, MIN_HOURLY_RATE, MAX_HOURLY_RATE } from '@noot/core';
 import { useMe } from '../lib/useMe';
-import { errText } from '../lib/errText';
 import { SUPPORT_EMAIL } from '../lib/legal';
+
+// The server's own sentence when it refuses a save (e.g. the verified lock, 0048) — without
+// the SQLSTATE that errText appends, which means nothing to a tutor.
+function saveError(e: unknown): string {
+  const message = e && typeof e === 'object' ? (e as { message?: unknown }).message : null;
+  return typeof message === 'string' && message ? message : 'Please check your connection and try again.';
+}
 
 interface Rate {
   code: string;
@@ -96,7 +102,7 @@ export default function EditRates() {
       Alert.alert('Rates updated');
       router.back();
     } catch (e) {
-      Alert.alert('Could not save', errText(e, 'Please check your connection and try again.'));
+      Alert.alert('Could not save', saveError(e));
     } finally {
       setSaving(false);
     }
@@ -155,7 +161,11 @@ export default function EditRates() {
         {gradesVerified ? (
           <Card
             flat
-            onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Add%20a%20course`)}
+            onPress={() =>
+              Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Add%20a%20course`).catch(() =>
+                Alert.alert('Email noot support', SUPPORT_EMAIL),
+              )
+            }
             style={{ marginTop: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surfaceAlt }}
           >
             <Ic name="shield" size={17} color={t.good} strokeWidth={1.8} />
