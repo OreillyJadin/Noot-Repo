@@ -1,5 +1,5 @@
 // B1 Search Results — ported from design_handoff_noot_app/app/screens-booking.jsx (B1).
-// Live sort chips + a filter panel (price/availability/gender) narrow the tutor list.
+// Live sort chips + a filter panel (price/availability) narrow the tutor list.
 // Tapping a tutor saves it into the booking draft and opens B2.
 // Live data: tutors come from api.tutors.search({}) mapped via toTutor.
 //
@@ -21,7 +21,6 @@ import { courseForQuery, searchTutors } from '../lib/browse';
 
 type SortKey = 'best' | 'sessions' | 'price' | 'soon';
 type AvailKey = 'any' | 'today' | 'week';
-type GenderKey = 'any' | 'f' | 'm';
 
 const SORTS: [SortKey, string][] = [
   ['best', 'Best match'],
@@ -33,11 +32,6 @@ const AVAILS: [AvailKey, string][] = [
   ['any', 'Any time'],
   ['today', 'Today'],
   ['week', 'This week'],
-];
-const GENDERS: [GenderKey, string][] = [
-  ['any', 'Any'],
-  ['f', 'Female'],
-  ['m', 'Male'],
 ];
 
 const MIN_PRICE = 19;
@@ -86,11 +80,9 @@ export default function B1() {
   const [filterOpen, setFilterOpen] = useState(filters === '1');
   const [maxPrice, setMaxPrice] = useState(MAX_PRICE);
   const [avail, setAvail] = useState<AvailKey>('any');
-  const [gender, setGender] = useState<GenderKey>('any');
   const clearFilters = () => {
     setMaxPrice(MAX_PRICE);
     setAvail('any');
-    setGender('any');
   };
   // One entry per non-default filter, each able to clear just itself.
   const activeChips: { key: string; label: string; clear: () => void }[] = [
@@ -104,21 +96,14 @@ export default function B1() {
           clear: () => setAvail('any'),
         }]
       : []),
-    ...(gender !== 'any'
-      ? [{
-          key: 'gender',
-          label: GENDERS.find(([v]) => v === gender)?.[1] ?? 'Gender',
-          clear: () => setGender('any'),
-        }]
-      : []),
   ];
   const activeFilters = activeChips.length;
 
   const trimmed = query.trim();
   // Tutors whose name or any course code matches the query. An EMPTY query now means
   // "everyone" rather than "nobody": the filter panel was previously inert because the list
-  // it filters was hard-empty until you typed something, so changing price/availability/
-  // gender visibly did nothing. Browsing with filters only is a real way to search.
+  // it filters was hard-empty until you typed something, so changing price/availability
+  // visibly did nothing. Browsing with filters only is a real way to search.
   const matched = useMemo(
     () => searchTutors(tutors, trimmed),
     [tutors, trimmed],
@@ -149,8 +134,7 @@ export default function B1() {
       // At the top of the stepper there is no cap: rates run past MAX_PRICE, and the default
       // used to hide every tutor above it with no filter chip to explain why.
       (maxPrice >= MAX_PRICE || tt.rate <= maxPrice) &&
-      (avail === 'any' || (avail === 'today' && tt.availDayIndex === 0) || (avail === 'week' && tt.availDayIndex <= 6)) &&
-      (gender === 'any' || tt.gender === gender),
+      (avail === 'any' || (avail === 'today' && tt.availDayIndex === 0) || (avail === 'week' && tt.availDayIndex <= 6)),
   );
   const list = [...filtered].sort(SORTERS[sort]);
 
@@ -365,14 +349,6 @@ export default function B1() {
           <View style={styles.chipWrap}>
             {AVAILS.map(([v, l]) => (
               <Chip key={v} label={l} on={avail === v} onPress={() => setAvail(v)} />
-            ))}
-          </View>
-        </FilterGroup>
-
-        <FilterGroup label="Tutor gender" hint="Optional — for comfort or cultural preference.">
-          <View style={styles.chipWrap}>
-            {GENDERS.map(([v, l]) => (
-              <Chip key={v} label={l} on={gender === v} onPress={() => setGender(v)} />
             ))}
           </View>
         </FilterGroup>

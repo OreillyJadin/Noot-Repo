@@ -5,7 +5,7 @@ import { CATEGORIES, byPopularity, courseForQuery, forYou, nudgeCourse, populate
 import type { Tutor } from '../lib/data.ts';
 
 const tutor = (id: string, major: string, sessions: number, codes: string[]): Tutor => ({
-  id, name: id, year: '', major, rating: 0, sessions, rate: 20, gender: 'f', verified: false,
+  id, name: id, year: '', major, rating: 0, sessions, rate: 20, verified: false,
   verifiedGrade: '', next: 0, nextLabel: '', bio: '',
   courses: codes.map((c) => [c, 'A', 20, 0]),
 });
