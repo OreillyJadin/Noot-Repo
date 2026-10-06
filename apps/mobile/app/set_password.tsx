@@ -79,7 +79,11 @@ export default function SetPassword() {
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         <Text style={[styles.h1, { color: t.text }]}>
           {isReset ? 'Set a new password' : 'Create your password'}
         </Text>

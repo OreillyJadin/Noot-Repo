@@ -52,6 +52,10 @@ export function Field({
             alignItems: multiline ? 'flex-start' : 'center',
             paddingVertical: multiline ? 12 : 0,
             minHeight: multiline ? 88 : 50,
+            // Past this the text scrolls inside the box. The page only makes room for the
+            // keyboard when it appears, not as a box grows, so an unbounded one walks its
+            // last lines under the keyboard as you type.
+            maxHeight: multiline ? 180 : undefined,
           },
         ]}
       >
