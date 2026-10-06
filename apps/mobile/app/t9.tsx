@@ -130,7 +130,7 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
       }
       if (ratesDirty) {
         await api.profile.setTutorCourses(
-          app.courses.map((c) => ({ courseCode: c.courseCode, grade: c.grade, hourlyRate: Number(rates[c.courseCode]), sessions: c.sessions })),
+          app.courses.map((c) => ({ courseCode: c.courseCode, grade: c.grade, hourlyRate: Number(rates[c.courseCode]) })),
         );
       }
       await onSaved();
@@ -152,7 +152,7 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
             await api.profile.setTutorCourses(
               app.courses
                 .filter((c) => c.courseCode !== code)
-                .map((c) => ({ courseCode: c.courseCode, grade: c.grade, hourlyRate: c.hourlyRate, sessions: c.sessions })),
+                .map((c) => ({ courseCode: c.courseCode, grade: c.grade, hourlyRate: c.hourlyRate })),
             );
             await onSaved();
           } catch (e) {

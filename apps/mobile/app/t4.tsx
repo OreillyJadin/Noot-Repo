@@ -102,7 +102,6 @@ export default function T4() {
           grade: r.grade || null,
           // An unfinished rate is saved as 0 (not bookable) rather than dropped.
           hourlyRate: Number(r.rate) || 0,
-          sessions: r.sessions,
         })),
       );
       return true;

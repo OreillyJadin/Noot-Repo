@@ -848,25 +848,22 @@ export const api = {
     },
 
     /**
-     * Replace the tutor's per-course list (edit_courses for tutors). Not transactional:
-     * clears then re-inserts. Fine at launch scale; move to an RPC if it grows.
+     * Save the tutor's per-course list in one transaction (set_tutor_courses, 0048): courses
+     * left out are removed, the rest are added or updated in place, so a course keeps its
+     * session count. Once an admin has verified the tutor's grades the server only accepts
+     * rate changes and removals — a new course or a changed grade is refused (ERR-012).
      */
     async setTutorCourses(
-      courses: { courseCode: string; grade?: string | null; hourlyRate?: number; sessions?: number }[],
+      courses: { courseCode: string; grade?: string | null; hourlyRate?: number }[],
     ): Promise<void> {
-      const uid = await requireUid();
-      const sb = getSupabase();
-      const { error: delErr } = await sb.from('tutor_courses').delete().eq('tutor_id', uid);
-      if (delErr) throw delErr;
-      if (courses.length === 0) return notifyUserChanged();
-      const rows = courses.map((c) => ({
-        tutor_id: uid,
-        course_code: c.courseCode,
-        grade: c.grade ?? null,
-        hourly_rate: c.hourlyRate ?? 0,
-        sessions: c.sessions ?? 0,
-      }));
-      const { error } = await sb.from('tutor_courses').insert(rows);
+      await requireUid();
+      const { error } = await getSupabase().rpc('set_tutor_courses', {
+        p_courses: courses.map((c) => ({
+          course_code: c.courseCode,
+          grade: c.grade ?? null,
+          hourly_rate: c.hourlyRate ?? 0,
+        })),
+      });
       if (error) throw error;
       notifyUserChanged();
     },
