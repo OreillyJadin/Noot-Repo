@@ -50,7 +50,7 @@ try {
 
   // Courses saved before any tutor_profiles row exists: the old reader (inner join on
   // tutor_profiles) can't see them; getMyTutorProfile can.
-  await api.profile.setTutorCourses([{ courseCode: codeA, grade: 'A', hourlyRate: 0, sessions: 0 }]);
+  await api.profile.setTutorCourses([{ courseCode: codeA, grade: 'A', hourlyRate: 0 }]);
   check('old reader misses courses saved before the application row exists', (await api.tutors.getById(applicant.id)) === null);
   check('getMyTutorProfile sees them', (await api.profile.getMyTutorProfile()).courses.length === 1);
 
@@ -64,8 +64,8 @@ try {
 
   // Step 3 — courses with grades, no rates yet
   await api.profile.setTutorCourses([
-    { courseCode: codeA, grade: 'A', hourlyRate: 0, sessions: 0 },
-    { courseCode: codeB, grade: 'B+', hourlyRate: 0, sessions: 0 },
+    { courseCode: codeA, grade: 'A', hourlyRate: 0 },
+    { courseCode: codeB, grade: 'B+', hourlyRate: 0 },
   ]);
   p = await api.profile.getMyTutorProfile();
   check(
@@ -75,7 +75,7 @@ try {
   );
 
   // Step 4 — rates, keeping grades
-  await api.profile.setTutorCourses(p.courses.map((c, i) => ({ courseCode: c.courseCode, grade: c.grade, hourlyRate: 25 + i * 5, sessions: c.sessions })));
+  await api.profile.setTutorCourses(p.courses.map((c, i) => ({ courseCode: c.courseCode, grade: c.grade, hourlyRate: 25 + i * 5 })));
   p = await api.profile.getMyTutorProfile();
   check(
     'step 4: rates saved and grades kept',
@@ -113,8 +113,8 @@ try {
 
   // ERR-027 — A+ and B- are offered on step 3 and save like any other grade
   await api.profile.setTutorCourses([
-    { courseCode: codeA, grade: 'A+', hourlyRate: 25, sessions: 0 },
-    { courseCode: codeB, grade: 'B-', hourlyRate: 30, sessions: 0 },
+    { courseCode: codeA, grade: 'A+', hourlyRate: 25 },
+    { courseCode: codeB, grade: 'B-', hourlyRate: 30 },
   ]);
   p = await api.profile.getMyTutorProfile();
   check(

@@ -1,16 +1,20 @@
 // P4 Courses & Rates (Edit) — ported from screens-edit.jsx (EditRates). Tutor-only
 // settings editor for per-course hourly rates. "Add a course" jumps to the tutor
-// application's Courses step (T3). Wired to @noot/core: prefills the tutor's
+// application's Courses step (T3) — unless the tutor's grades are verified: then the
+// course list and grades are locked (0048, ERR-012) and this screen only changes rates
+// and removes courses. Wired to @noot/core: prefills the tutor's
 // per-course rows (api.getMe → tutors.getById) and persists them on save via
 // profile.setTutorCourses(...) — the contract method for per-course rate rows.
 // (profile.updateRates(number) sets only a single base rate, which this
 // per-course UI doesn't expose, so we persist each course row instead.)
 import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Alert, Linking, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Ic, useTheme } from '@noot/ui';
 import { api, MIN_HOURLY_RATE, MAX_HOURLY_RATE } from '@noot/core';
 import { useMe } from '../lib/useMe';
+import { errText } from '../lib/errText';
+import { SUPPORT_EMAIL } from '../lib/legal';
 
 interface Rate {
   code: string;
@@ -59,6 +63,19 @@ export default function EditRates() {
   const bump = (i: number, d: number) =>
     setRates((rs) => rs.map((r, j) => (j === i ? { ...r, rate: Math.min(MAX_HOURLY_RATE, Math.max(MIN_HOURLY_RATE, r.rate + d)) } : r)));
 
+  // Only offered to a verified tutor: everyone else adds and removes courses on step 3,
+  // which a verified tutor can't use (it also sets grades). Takes effect on "Save changes".
+  const remove = (code: string) => {
+    if (rates.length <= 1) {
+      Alert.alert('Keep one course', 'You need at least one course to stay bookable.');
+      return;
+    }
+    Alert.alert('Remove course', `Remove ${code}? To add it back later you’ll need to contact noot support.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => setRates((rs) => rs.filter((r) => r.code !== code)) },
+    ]);
+  };
+
   const save = async () => {
     if (saving) return;
     // A course just added from step 3 has no rate yet; saving it at $0 would make it unbookable.
@@ -74,13 +91,12 @@ export default function EditRates() {
           courseCode: r.code,
           grade: r.grade || null,
           hourlyRate: r.rate,
-          sessions: r.sessions,
         })),
       );
       Alert.alert('Rates updated');
       router.back();
-    } catch {
-      Alert.alert('Could not save', 'Please check your connection and try again.');
+    } catch (e) {
+      Alert.alert('Could not save', errText(e, 'Please check your connection and try again.'));
     } finally {
       setSaving(false);
     }
@@ -121,23 +137,50 @@ export default function EditRates() {
                     <Ic name="plus" size={15} color={t.text} strokeWidth={2.2} />
                   </Pressable>
                 </View>
+                {gradesVerified ? (
+                  <Pressable
+                    onPress={() => remove(r.code)}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${r.code}`}
+                  >
+                    <Ic name="x" size={18} color={t.text3} strokeWidth={2} />
+                  </Pressable>
+                ) : null}
               </View>
             </Card>
           ))}
         </View>
 
-        <Card
-          flat
-          onPress={() => router.push('/t3?from=rates')}
-          style={{ marginTop: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surfaceAlt }}
-        >
-          <Ic name="plus" size={17} color={t.accent} strokeWidth={2.2} />
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>Add a course</Text>
-            <Text style={{ fontSize: 12, color: t.text3, marginTop: 1 }}>New courses need grade verification (~24h)</Text>
-          </View>
-          <Ic name="chevR" size={16} color={t.text3} strokeWidth={2} />
-        </Card>
+        {gradesVerified ? (
+          <Card
+            flat
+            onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Add%20a%20course`)}
+            style={{ marginTop: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surfaceAlt }}
+          >
+            <Ic name="shield" size={17} color={t.good} strokeWidth={1.8} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>Your grades are verified</Text>
+              <Text style={{ fontSize: 12, color: t.text3, marginTop: 1 }}>
+                Courses and grades are locked. Email noot support to add a course or change a grade.
+              </Text>
+            </View>
+            <Ic name="chevR" size={16} color={t.text3} strokeWidth={2} />
+          </Card>
+        ) : (
+          <Card
+            flat
+            onPress={() => router.push('/t3?from=rates')}
+            style={{ marginTop: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surfaceAlt }}
+          >
+            <Ic name="plus" size={17} color={t.accent} strokeWidth={2.2} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>Add a course</Text>
+              <Text style={{ fontSize: 12, color: t.text3, marginTop: 1 }}>New courses need grade verification (~24h)</Text>
+            </View>
+            <Ic name="chevR" size={16} color={t.text3} strokeWidth={2} />
+          </Card>
+        )}
 
         <View style={styles.footNote}>
           <View style={{ marginTop: 1 }}>
