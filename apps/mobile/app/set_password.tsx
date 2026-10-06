@@ -17,8 +17,6 @@ import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
 import { authLinks } from '../lib/authLinks';
 import { TERMS_VERSION, openLegal } from '../lib/legal';
 
-const MIN_LEN = 8;
-
 export default function SetPassword() {
   const t = useTheme();
   const router = useRouter();
@@ -39,7 +37,8 @@ export default function SetPassword() {
   const saved = useRef<string | null>(null);
 
   const handleSubmit = async () => {
-    if (password.length < MIN_LEN) { setError(`Use at least ${MIN_LEN} characters.`); return; }
+    const problem = auth.passwordProblem(password);
+    if (problem) { setError(problem); return; }
     if (password !== confirm) { setError("Passwords don't match."); return; }
     if (!isReset && !acceptedTerms) { setError('Please accept the Terms of Use to continue.'); return; }
     setBusy(true); setError(null);
@@ -80,7 +79,11 @@ export default function SetPassword() {
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         <Text style={[styles.h1, { color: t.text }]}>
           {isReset ? 'Set a new password' : 'Create your password'}
         </Text>
@@ -92,11 +95,12 @@ export default function SetPassword() {
 
         <Field
           label="Password"
-          placeholder={`At least ${MIN_LEN} characters`}
+          placeholder="Choose a password"
           value={password}
           onChangeText={(v) => { setPassword(v); if (error) setError(null); }}
           secureTextEntry
         />
+        <Text style={[styles.rule, { color: t.text3 }]}>{auth.PASSWORD_RULE_HINT}</Text>
         <Field
           label="Confirm password"
           placeholder="Re-enter your password"
@@ -155,6 +159,7 @@ const styles = StyleSheet.create({
   body: { padding: 20, gap: 16, paddingTop: 40 },
   h1: { fontSize: 26, fontWeight: '700' },
   sub: { fontSize: 15, lineHeight: 21 },
+  rule: { fontSize: 12, lineHeight: 17, marginTop: -6 },
   termsRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginTop: 4 },
   box: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   termsText: { flex: 1, fontSize: 13.5, lineHeight: 19 },

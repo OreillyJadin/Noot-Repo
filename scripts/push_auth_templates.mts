@@ -64,11 +64,24 @@ const TEMPLATES = {
 const body = (name: string) =>
   readFileSync(resolve(ROOT, `supabase/templates/${name}.html`), 'utf8');
 
-const payload: Record<string, string> = {
+/**
+ * The password rule (ERR-014), mirroring `minimum_password_length` and
+ * `password_requirements = "lower_upper_letters_digits_symbols"` in supabase/config.toml.
+ * The cloud API takes one of a fixed set of strings: the character classes spelled out and
+ * colon-separated, with the colon inside the symbol class escaped as `\\:` — so the value
+ * sent has two backslashes there, and this literal needs four.
+ */
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_REQUIRED_CHARACTERS =
+  'abcdefghijklmnopqrstuvwxyz:ABCDEFGHIJKLMNOPQRSTUVWXYZ:0123456789:!@#$%^&*()_+-=[]{};\'\\\\:"|<>?,./`~';
+
+const payload: Record<string, string | number> = {
   site_url: SITE_URL,
   uri_allow_list: REDIRECT_URLS.join(','),
   smtp_admin_email: SENDER_EMAIL,
   smtp_sender_name: 'Noot',
+  password_min_length: PASSWORD_MIN_LENGTH,
+  password_required_characters: PASSWORD_REQUIRED_CHARACTERS,
 };
 for (const [name, subject] of Object.entries(TEMPLATES)) {
   payload[`mailer_subjects_${name}`] = subject;
@@ -95,10 +108,10 @@ console.log(`project ${PROJECT_REF}\n`);
 let changed = 0;
 for (const [key, next] of Object.entries(payload)) {
   const prev = String(before[key] ?? '');
-  if (prev === next) continue;
+  if (prev === String(next)) continue;
   changed++;
   const short = (s: string) => (s.length > 70 ? `${s.slice(0, 70).replace(/\n/g, ' ')}…` : s);
-  console.log(`~ ${key}\n    from: ${short(prev) || '(empty)'}\n      to: ${short(next)}`);
+  console.log(`~ ${key}\n    from: ${short(prev) || '(empty)'}\n      to: ${short(String(next))}`);
 }
 if (!changed) {
   console.log('already in sync — nothing to do.');

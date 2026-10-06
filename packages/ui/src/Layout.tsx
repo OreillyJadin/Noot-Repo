@@ -79,6 +79,10 @@ export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
       // away, so a search list can be browsed without reaching for "done".
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
+      // Without this the keyboard sits on top of the page: a field low on the screen (a bio)
+      // is covered while you type and the page can't scroll far enough to reach it. The prop
+      // does nothing on Android, which is not checked here.
+      automaticallyAdjustKeyboardInsets
     >
       {children}
     </ScrollView>
