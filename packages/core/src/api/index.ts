@@ -1413,14 +1413,19 @@ export const api = {
     async listReports(): Promise<ContentReport[]> {
       const { data, error } = await getSupabase()
         .from('content_reports')
-        .select('*, reporter:users!reporter_id(first_name,last_name), target:users!target_user_id(first_name,last_name), message:messages!target_message_id(content)')
+        .select('*, reporter:users!reporter_id(first_name,last_name), target:users!target_user_id(first_name,last_name), message:messages!target_message_id(content, sender:users!sender_id(first_name,last_name))')
         .eq('status', 'open')
+        // A flag whose message has since been deleted has nothing left to show or act on.
+        .or('auto_flagged.eq.false,target_message_id.not.is.null')
+        // Reports filed by a person come before automatic flags.
+        .order('auto_flagged', { ascending: true })
         .order('created_at', { ascending: false });
       if (error) throw error;
       /* eslint-disable @typescript-eslint/no-explicit-any */
       return (data ?? []).map((r: any): ContentReport => ({
         id: r.id,
-        reporterId: r.reporter_id,
+        reporterId: r.reporter_id ?? null,
+        autoFlagged: r.auto_flagged === true,
         targetKind: r.target_kind,
         targetMessageId: r.target_message_id ?? null,
         targetUserId: r.target_user_id ?? null,
@@ -1432,6 +1437,9 @@ export const api = {
         reporterName: `${r.reporter?.first_name ?? ''} ${r.reporter?.last_name ?? ''}`.trim() || 'Someone',
         targetName: r.target ? `${r.target.first_name ?? ''} ${r.target.last_name ?? ''}`.trim() : undefined,
         messageContent: r.message?.content ?? null,
+        messageSenderName: r.message?.sender
+          ? `${r.message.sender.first_name ?? ''} ${r.message.sender.last_name ?? ''}`.trim() || undefined
+          : undefined,
       }));
       /* eslint-enable @typescript-eslint/no-explicit-any */
     },
