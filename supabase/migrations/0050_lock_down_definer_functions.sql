@@ -50,8 +50,9 @@ alter function public.send_message_with_attachments(uuid, text, jsonb) set searc
 
 -- 4) check_invite_code stays callable signed out (the sign-up screen checks the code as it is
 --    typed), but is now rate-limited per caller so codes can't be guessed by brute force.
---    Caller = the signed-in user, else the client IP (cf-connecting-ip is set by Supabase's
---    edge and can't be forged; x-forwarded-for's first entry is the fallback). Over the limit
+--    Caller = the signed-in user, else the client IP: cf-connecting-ip, then the first
+--    x-forwarded-for entry. Both come from request headers; check client_key values in
+--    production to confirm the gateway sets them and clients can't override them. Over the limit
 --    it raises; the app treats any error as "couldn't check" and lets sign-up continue, and
 --    claim_invite still validates the code after sign-in.
 create table public.invite_code_checks (
