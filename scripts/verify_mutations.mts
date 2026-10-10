@@ -31,8 +31,31 @@ async function check(name: string, fn: () => Promise<unknown>) {
   }
 }
 
+async function assertBookingNotification(userId: string, bookingId: string, title: string) {
+  const { data, error } = await admin
+    .from('notifications')
+    .select('id, title, data')
+    .eq('user_id', userId)
+    .eq('type', 'booking')
+    .eq('title', title)
+    .contains('data', { bookingId })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error(`missing '${title}' notification for booking ${bookingId}`);
+  return data;
+}
+
 initSupabase({ url: URL, anonKey: ANON });
 console.log(`target: ${URL}`);
+
+const { data: studentRow, error: studentErr } = await admin
+  .from('users')
+  .select('id')
+  .eq('email', 'student@crimson.ua.edu')
+  .single();
+if (studentErr || !studentRow) throw studentErr ?? new Error('seeded student not found');
+const studentId = studentRow.id as string;
 
 await check('auth.signInWithPassword(student)', async () => {
   const r = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
@@ -103,11 +126,28 @@ await check('reviews.submit', () =>
 await check('bookings.reschedule(propose)', () =>
   api.bookings.reschedule({ bookingId: b1?.bookingId, action: 'propose', newScheduledAt: future(5) }),
 );
+await check('reschedule proposal notifies the tutor', () =>
+  assertBookingNotification(tutorId!, b1?.bookingId, 'New time proposed'),
+);
 {
   const { data: tutorRow } = await admin.from('users').select('email').eq('id', tutorId!).single();
   await auth.signInWithPassword(tutorRow!.email as string, 'password123');
   await check('bookings.reschedule(accept, as the tutor)', () =>
     api.bookings.reschedule({ bookingId: b1?.bookingId, action: 'accept' }),
+  );
+  await check('reschedule acceptance notifies the student', () =>
+    assertBookingNotification(studentId, b1?.bookingId, 'Session moved'),
+  );
+  await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  await check('bookings.reschedule(propose before decline)', () =>
+    api.bookings.reschedule({ bookingId: b1?.bookingId, action: 'propose', newScheduledAt: future(4) }),
+  );
+  await auth.signInWithPassword(tutorRow!.email as string, 'password123');
+  await check('bookings.reschedule(decline, as the tutor)', () =>
+    api.bookings.reschedule({ bookingId: b1?.bookingId, action: 'decline' }),
+  );
+  await check('reschedule decline notifies the student', () =>
+    assertBookingNotification(studentId, b1?.bookingId, 'New time declined'),
   );
   await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
 }
