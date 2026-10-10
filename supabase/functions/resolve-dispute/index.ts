@@ -3,6 +3,7 @@
 // booking dispute. bookings has no client write policy (0002), so this service-role function
 // is the only path that sets the dispute fields.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireActiveUser } from '../_shared/auth.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -24,6 +25,9 @@ Deno.serve(async (req: Request) => {
     if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401, headers: cors });
 
     const db = createClient(url, service);
+    const inactiveResponse = await requireActiveUser(db, user.id, cors);
+    if (inactiveResponse) return inactiveResponse;
+
     const { data: adminRow } = await db
       .from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
     if (!adminRow) return Response.json({ error: 'Forbidden' }, { status: 403, headers: cors });

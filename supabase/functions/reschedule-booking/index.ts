@@ -6,6 +6,7 @@
 // captured before its ~7-day authorization lapses. So the same window and clash rules as
 // booking apply (APP_REVIEW_TICKETS.md T19).
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireActiveUser } from '../_shared/auth.ts';
 import { BOOKING_HORIZON_DAYS, BookingError, interviewClash } from '../_shared/booking.ts';
 
 const cors = {
@@ -36,6 +37,8 @@ Deno.serve(async (req: Request) => {
     if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401, headers: cors });
 
     const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!); // service role: bypasses RLS
+    const inactiveResponse = await requireActiveUser(db, user.id, cors);
+    if (inactiveResponse) return inactiveResponse;
 
     const body: Body = await req.json().catch(() => ({}));
     const { bookingId, action, newScheduledAt } = body;

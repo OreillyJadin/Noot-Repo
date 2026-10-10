@@ -10,6 +10,7 @@
 //   • verifyGrades: true — an admin checked the transcript. Sets grades_verified_at/_by,
 //     which is the Verified badge and the 17.5% (vs 32.5%) fee. Needs an uploaded transcript.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireActiveUser } from '../_shared/auth.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -33,6 +34,8 @@ Deno.serve(async (req: Request) => {
     if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401, headers: cors });
 
     const db = createClient(url, service);
+    const inactiveResponse = await requireActiveUser(db, user.id, cors);
+    if (inactiveResponse) return inactiveResponse;
 
     // Re-verify admin server-side (do NOT trust the client).
     const { data: adminRow } = await db
