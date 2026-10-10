@@ -4,6 +4,7 @@
 // is the only path that flips approval_status. On approval, recomputes the rated tutor's
 // denormalized rating_avg from their approved reviews.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireActiveUser } from '../_shared/auth.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -25,6 +26,9 @@ Deno.serve(async (req: Request) => {
     if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401, headers: cors });
 
     const db = createClient(url, service);
+    const inactiveResponse = await requireActiveUser(db, user.id, cors);
+    if (inactiveResponse) return inactiveResponse;
+
     const { data: adminRow } = await db
       .from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
     if (!adminRow) return Response.json({ error: 'Forbidden' }, { status: 403, headers: cors });

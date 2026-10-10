@@ -9,6 +9,7 @@
 //
 // Money movement (Stripe charge/refund/payout) is OUT OF SCOPE here.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireActiveUser } from '../_shared/auth.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -28,6 +29,9 @@ Deno.serve(async (req: Request) => {
     if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401, headers: cors });
 
     const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!); // service role: bypasses RLS
+    const inactiveResponse = await requireActiveUser(db, user.id, cors);
+    if (inactiveResponse) return inactiveResponse;
+
     const body = await req.json().catch(() => ({}));
 
     const bookingId: string | undefined = body?.bookingId;

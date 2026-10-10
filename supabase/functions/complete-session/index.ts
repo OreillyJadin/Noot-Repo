@@ -5,6 +5,7 @@
 // already 'completed' is a no-op apart from re-firing the award. Simulated bookings
 // (sim_pi_…) just flip to completed.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireActiveUser } from '../_shared/auth.ts';
 import { BookingError, assertPayoutReady, assertSessionElapsed } from '../_shared/booking.ts';
 
 const cors = {
@@ -39,10 +40,13 @@ Deno.serve(async (req: Request) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401, headers: cors });
 
+    const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const inactiveResponse = await requireActiveUser(db, user.id, cors);
+    if (inactiveResponse) return inactiveResponse;
+
     const { bookingId } = await req.json().catch(() => ({}));
     if (!bookingId) return Response.json({ error: 'bookingId required' }, { status: 400, headers: cors });
 
-    const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const { data: booking } = await db
       .from('bookings')
       .select('id, tutor_id, status, scheduled_at, duration_minutes, stripe_payment_intent_id, tutor_payout_amount')

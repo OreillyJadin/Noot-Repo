@@ -9,6 +9,7 @@
 //
 // Deno runtime. Self-contained (no _shared import), mirrors cancel-booking.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireActiveUser } from '../_shared/auth.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -32,6 +33,8 @@ Deno.serve(async (req: Request) => {
 
     // service role: bypasses RLS
     const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const inactiveResponse = await requireActiveUser(db, user.id, cors);
+    if (inactiveResponse) return inactiveResponse;
 
     // Every booking the caller is a party to → collect the OTHER party's id.
     const { data: bookings, error: bErr } = await db

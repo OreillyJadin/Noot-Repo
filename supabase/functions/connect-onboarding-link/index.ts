@@ -33,6 +33,7 @@
 // not cross Stripe accounts, so every id from before the sandbox -> live cutover is dead
 // (APP_REVIEW_TICKETS.md T10); rather than failing forever, treat it as "no account".
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireActiveUser } from '../_shared/auth.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -59,11 +60,14 @@ Deno.serve(async (req: Request) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401, headers: cors });
 
+    const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const inactiveResponse = await requireActiveUser(db, user.id, cors);
+    if (inactiveResponse) return inactiveResponse;
+
     // The body is optional: older builds send none.
     const body = await req.json().catch(() => ({}));
     const wantsSession = (body as { mode?: unknown } | null)?.mode === 'session';
 
-    const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
     if (!stripeKey) {
       return Response.json({ url: null, clientSecret: null, simulated: true }, { headers: cors });

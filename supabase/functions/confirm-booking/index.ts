@@ -12,6 +12,7 @@
 // Self-contained: SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY
 // are auto-injected by the runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireActiveUser } from '../_shared/auth.ts';
 import { BookingError, resolveBooking } from '../_shared/booking.ts';
 import { creditToApply, parseCreditCents } from '../_shared/credits.ts';
 
@@ -33,6 +34,9 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401, headers: cors });
 
     const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!); // service role: bypasses RLS
+    const inactiveResponse = await requireActiveUser(db, user.id, cors);
+    if (inactiveResponse) return inactiveResponse;
+
     const body = await req.json().catch(() => ({}));
 
     const {

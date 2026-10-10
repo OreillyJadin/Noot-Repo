@@ -11,6 +11,7 @@
 // Noot credit (0040) comes off the charge automatically: the hold is for chargeCents, and
 // metadata.credit_cents records the credit so confirm-booking can check it and spend it.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireActiveUser } from '../_shared/auth.ts';
 import { BookingError, resolveBooking } from '../_shared/booking.ts';
 import { creditToApply } from '../_shared/credits.ts';
 
@@ -34,6 +35,8 @@ Deno.serve(async (req: Request) => {
     // Service-role client: resolveBooking must see rows RLS hides from the student
     // (a deleted tutor, the other direction of user_blocks).
     const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const inactiveResponse = await requireActiveUser(db, user.id, cors);
+    if (inactiveResponse) return inactiveResponse;
 
     const body = await req.json().catch(() => ({}));
     const resolved = await resolveBooking(db, {

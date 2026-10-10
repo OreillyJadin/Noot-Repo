@@ -3,6 +3,7 @@
 // "connected / payouts enabled / setup incomplete". Retrieves the account from Stripe and
 // write-through-caches charges/payouts flags on tutor_profiles. No account → not connected.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireActiveUser } from '../_shared/auth.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -22,6 +23,9 @@ Deno.serve(async (req: Request) => {
     if (!user) return Response.json({ error: 'Not authenticated' }, { status: 401, headers: cors });
 
     const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    const inactiveResponse = await requireActiveUser(db, user.id, cors);
+    if (inactiveResponse) return inactiveResponse;
+
     const { data: prof } = await db
       .from('tutor_profiles')
       .select('stripe_connect_account_id, stripe_charges_enabled, stripe_payouts_enabled')
