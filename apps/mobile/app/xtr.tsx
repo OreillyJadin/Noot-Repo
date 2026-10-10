@@ -121,7 +121,7 @@ export default function XReschedulePropose() {
           </Card>
         </Body>
         <ActionBar>
-          <Button kind="secondary" full label="See student's view →" onPress={() => router.push('/xsr')} />
+          <Button kind="primary" full label="Done" onPress={() => router.replace('/tutor_home')} />
         </ActionBar>
       </Screen>
     );
