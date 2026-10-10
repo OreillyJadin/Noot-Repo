@@ -122,6 +122,20 @@ try {
     claimError?.message ?? 'RPC succeeded',
   );
 
+  const { error: inviteCodeError } = await student.rpc('my_invite_code');
+  check(
+    'suspended student cannot call my_invite_code',
+    !!inviteCodeError && inviteCodeError.message.includes('account is not active'),
+    inviteCodeError?.message ?? 'RPC succeeded',
+  );
+
+  const { error: creditBalanceError } = await student.rpc('my_credit_balance');
+  check(
+    'suspended student cannot call my_credit_balance',
+    !!creditBalanceError && creditBalanceError.message.includes('account is not active'),
+    creditBalanceError?.message ?? 'RPC succeeded',
+  );
+
   const edgeResponse = await fetch(`${URL}/functions/v1/submit-rating`, {
     method: 'POST',
     headers: {

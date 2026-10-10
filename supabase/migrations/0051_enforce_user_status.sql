@@ -370,3 +370,92 @@ begin
 end $$;
 revoke execute on function public.submit_tutor_application() from public, anon;
 grant execute on function public.submit_tutor_application() to authenticated;
+
+create or replace function public.my_invite_code()
+returns text
+language plpgsql volatile security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  existing text;
+  candidate text;
+begin
+  if not public.is_active_user() then
+    raise exception 'account is not active' using errcode = '42501';
+  end if;
+  if uid is null then
+    raise exception 'not authenticated' using errcode = 'insufficient_privilege';
+  end if;
+  select code into existing from invite_codes where user_id = uid;
+  if existing is not null then
+    return existing;
+  end if;
+  loop
+    candidate := 'NOOT-' || upper(substr(md5(random()::text || clock_timestamp()::text), 1, 6));
+    exit when not exists (select 1 from invite_codes where code = candidate)
+          and not exists (select 1 from ambassador_profiles where referral_code = candidate);
+  end loop;
+  insert into invite_codes (user_id, code) values (uid, candidate) on conflict (user_id) do nothing;
+  select code into existing from invite_codes where user_id = uid;
+  return existing;
+end $$;
+revoke execute on function public.my_invite_code() from public, anon;
+grant execute on function public.my_invite_code() to authenticated;
+
+create or replace function public.my_credit_balance()
+returns int
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_active_user() then
+    raise exception 'account is not active' using errcode = '42501';
+  end if;
+  return credit_balance_cents(auth.uid());
+end $$;
+revoke execute on function public.my_credit_balance() from public, anon;
+grant execute on function public.my_credit_balance() to authenticated;
+
+create or replace function public.my_cashable_credit()
+returns int
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_active_user() then
+    raise exception 'account is not active' using errcode = '42501';
+  end if;
+  return case
+    when is_approved_ambassador(auth.uid()) then credit_cashable_cents(auth.uid())
+    else 0
+  end;
+end $$;
+revoke execute on function public.my_cashable_credit() from public, anon;
+grant execute on function public.my_cashable_credit() to authenticated;
+
+create or replace function public.my_invites()
+returns table (
+  referral_id  uuid,
+  display_name text,
+  joined_at    timestamptz,
+  completed    boolean,
+  reversed     boolean, -- that session was refunded or disputed; the $5 was taken back
+  reward_cents int
+)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_active_user() then
+    raise exception 'account is not active' using errcode = '42501';
+  end if;
+  return query
+  select r.id,
+         trim(coalesce(u.first_name, '') || ' ' || coalesce(nullif(left(u.last_name, 1), '') || '.', '')),
+         r.created_at,
+         l.id is not null,
+         b.credit_reversed_at is not null,
+         coalesce(l.amount_cents, 0) + coalesce(v.amount_cents, 0) -- net of any reversal
+    from referrals r
+    left join users u on u.id = r.referred_user_id
+    left join credit_ledger l on l.referral_id = r.id and l.kind = 'invite_reward'
+    left join bookings b on b.id = l.booking_id
+    left join credit_ledger v on v.referral_id = r.id and v.kind = 'reward_reversal'
+   where r.ambassador_id = auth.uid()
+   order by r.created_at desc;
+end $$;
+revoke execute on function public.my_invites() from public, anon;
+grant execute on function public.my_invites() to authenticated;
