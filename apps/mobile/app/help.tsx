@@ -10,7 +10,7 @@ import { SUPPORT_EMAIL } from '../lib/legal';
 
 const FAQ: [string, string][] = [
   ['How do payments work?', 'You pay when you book — the charge is held securely and only released to your tutor after the session is marked complete. Cancel 24h+ ahead for a full refund.'],
-  ['How do I become a tutor?', 'Go to Profile → "Become a tutor". You’ll add the courses you aced (with your grades), set your rates, and upload a transcript for verification. Once approved you can receive bookings.'],
+  ['How do I become a tutor?', 'Go to Profile → "Become a tutor". You’ll add the courses you aced (with your grades), set your rates, and upload an unofficial transcript for verification. Once approved you can receive bookings.'],
   ['When do tutors get paid?', 'After a session is marked complete, your payout is transferred to your connected Stripe account (set it up under Profile → Payout account). It typically lands within a couple business days.'],
   ['Is my info safe?', 'Transcripts are only seen by the noot team member who checks them, and are never shared publicly. Payments run through Stripe — we never store your card number.'],
   ['How do refunds work?', 'Cancel 24h+ before a session for a full refund, 50% within 2–24h, none under 2h. If a tutor no-shows you’re fully refunded.'],

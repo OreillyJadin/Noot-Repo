@@ -94,7 +94,7 @@ export default function T6() {
   const skip = () =>
     Alert.alert(
       'Sign up as unverified?',
-      'You can tutor without a transcript, but you won’t get the Verified badge and noot keeps a larger share of each session. You can upload a transcript later to get verified.',
+      'You can tutor without a transcript, but you won’t get the Verified badge and noot keeps a larger share of each session. You can upload an unofficial transcript later to get verified.',
       [
         { text: 'Upload instead', style: 'cancel' },
         {
@@ -116,7 +116,7 @@ export default function T6() {
       <StepHead
         step={6}
         title="Verify your grades"
-        sub="Upload a transcript or grade screenshot."
+        sub="Upload your unofficial transcript or a grade screenshot."
         onBack={stepBack}
         onExit={() => router.replace('/')}
       />
@@ -134,7 +134,7 @@ export default function T6() {
           ) : (
             <>
               <Ic name="upload" size={26} color={t.accent} strokeWidth={1.8} />
-              <Text style={[styles.dropTitle, { color: t.accent }]}>Tap to upload transcript or screenshot</Text>
+              <Text style={[styles.dropTitle, { color: t.accent }]}>Tap to upload unofficial transcript or screenshot</Text>
               <Text style={[styles.dropSub, { color: t.text3 }]}>PDF or image · max 10MB</Text>
             </>
           )}
@@ -154,7 +154,7 @@ export default function T6() {
           </Card>
         ) : (
           <Text style={[styles.fileName, { color: t.text3, paddingHorizontal: 2 }]}>
-            {skipped ? 'You chose to sign up unverified. Upload a transcript any time to get verified.' : 'No transcript uploaded yet.'}
+            {skipped ? 'You chose to sign up unverified. Upload an unofficial transcript any time to get verified.' : 'No transcript uploaded yet.'}
           </Text>
         )}
 
