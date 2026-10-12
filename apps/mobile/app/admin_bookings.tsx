@@ -1,12 +1,13 @@
 // Admin → Booking oversight. Recent bookings across the platform with party names + status,
 // and flag/resolve for disputes. Actions go through api.admin.resolveDispute → the
 // resolve-dispute Edge Function (admin-verified, service role). Client guard is UI-only.
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Alert, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Button, Badge, Eyebrow, EmptyState, Skeleton, useTheme, type BadgeTone } from '@noot/ui';
-import { api, type AdminBooking } from '@noot/core';
+import { api, type AdminBooking, type AdminHubCounts } from '@noot/core';
 import { useMe } from '../lib/useMe';
+import { AdminTabs, safetyTabs } from '../lib/AdminTabs';
 
 function when(iso: string): string {
   const d = new Date(iso);
@@ -19,11 +20,26 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 export default function AdminBookings() {
   const t = useTheme();
   const router = useRouter();
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const tab = tabParam === 'disputes' ? 'disputes' : 'all';
   const { me, loading: meLoading } = useMe();
   const isAdmin = !!me?.roles?.includes('admin');
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [counts, setCounts] = useState<AdminHubCounts>();
+
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      setCounts(undefined);
+      api.admin
+        .hubCounts()
+        .then((value) => { if (alive) setCounts(value); })
+        .catch(() => { if (alive) setCounts(undefined); });
+      return () => { alive = false; };
+    }, []),
+  );
 
   useEffect(() => {
     let alive = true;
@@ -32,6 +48,10 @@ export default function AdminBookings() {
   }, []);
 
   if (!meLoading && me && !isAdmin) { router.replace('/home'); return null; }
+
+  const visibleBookings = tab === 'disputes'
+    ? bookings.filter((booking) => booking.disputeStatus === 'flagged')
+    : bookings;
 
   const dispute = async (b: AdminBooking, action: 'flag' | 'resolve') => {
     if (busy) return;
@@ -48,19 +68,26 @@ export default function AdminBookings() {
 
   return (
     <Screen>
-      <NavTop title="Booking oversight" onBack={() => router.back()} />
+      <NavTop title="Bookings" onBack={() => router.back()} />
       <Body pad={20}>
+        <AdminTabs tabs={safetyTabs(counts)} active={tab} />
         {loading ? (
           <View style={{ gap: 10 }}>
             <Skeleton height={96} radius={16} />
             <Skeleton height={96} radius={16} />
           </View>
-        ) : bookings.length === 0 ? (
-          <EmptyState icon="cal" title="No bookings" subtitle="Bookings across the platform will appear here." />
+        ) : visibleBookings.length === 0 ? (
+          <EmptyState
+            icon={tab === 'disputes' ? 'alert' : 'cal'}
+            title={tab === 'disputes' ? 'No open disputes' : 'No bookings'}
+            subtitle={tab === 'disputes' ? 'Flagged bookings will appear here.' : 'Bookings across the platform will appear here.'}
+          />
         ) : (
           <View style={{ gap: 10 }}>
-            <Eyebrow style={{ color: t.text3 }}>{bookings.length} recent bookings</Eyebrow>
-            {bookings.map((b) => (
+            <Eyebrow style={{ color: t.text3 }}>
+              {tab === 'disputes' ? `${visibleBookings.length} open disputes` : `${visibleBookings.length} recent bookings`}
+            </Eyebrow>
+            {visibleBookings.map((b) => (
               <Card key={b.id} style={{ padding: 14 }}>
                 <View style={styles.row}>
                   <View style={{ flex: 1, minWidth: 0 }}>

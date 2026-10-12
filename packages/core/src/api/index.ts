@@ -10,6 +10,8 @@
 import { getSupabase } from '../supabase';
 import { notifyUserChanged } from '../changes';
 import { normalizeCourseQuery, rankCourseMatches } from '../courseSearch';
+import type { AdminHubCounts } from '../adminHub';
+export type { AdminHubCounts } from '../adminHub';
 import type {
   AmbassadorProfile,
   Booking,
@@ -1233,6 +1235,70 @@ export const api = {
 
   // --- admin (RLS is_admin() already permits these reads; writes go through Edge Functions) ---
   admin: {
+    /** Counts for the admin hub, using the same report queue as the reports screen. */
+    async hubCounts(): Promise<AdminHubCounts> {
+      const sb = getSupabase();
+      const now = new Date().toISOString();
+      const [
+        applications,
+        gradeChecks,
+        interviews,
+        nextInterview,
+        reviews,
+        disputes,
+        reports,
+      ] = await Promise.all([
+        sb
+          .from('tutor_profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('approval_status', 'pending')
+          .not('submitted_at', 'is', null),
+        sb
+          .from('tutor_profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('approval_status', 'approved')
+          .not('transcript_url', 'is', null)
+          .is('grades_verified_at', null),
+        sb
+          .from('tutor_interviews')
+          .select('id', { count: 'exact', head: true })
+          .is('cancelled_at', null)
+          .gt('scheduled_at', now),
+        sb
+          .from('tutor_interviews')
+          .select('scheduled_at')
+          .is('cancelled_at', null)
+          .gt('scheduled_at', now)
+          .order('scheduled_at', { ascending: true })
+          .limit(1)
+          .maybeSingle(),
+        sb
+          .from('reviews')
+          .select('*', { count: 'exact', head: true })
+          .eq('approval_status', 'pending'),
+        sb
+          .from('bookings')
+          .select('*', { count: 'exact', head: true })
+          .eq('dispute_status', 'flagged'),
+        api.admin.listReports(),
+      ]);
+      if (applications.error) throw applications.error;
+      if (gradeChecks.error) throw gradeChecks.error;
+      if (interviews.error) throw interviews.error;
+      if (nextInterview.error) throw nextInterview.error;
+      if (reviews.error) throw reviews.error;
+      if (disputes.error) throw disputes.error;
+      return {
+        applications: applications.count ?? 0,
+        gradeChecks: gradeChecks.count ?? 0,
+        interviews: interviews.count ?? 0,
+        nextInterviewAt: nextInterview.data?.scheduled_at ?? null,
+        reviews: reviews.count ?? 0,
+        complaints: reports.length,
+        disputes: disputes.count ?? 0,
+      };
+    },
+
     /**
      * The live interview for each of these tutors, keyed by tutor id (ERR-005). RLS shows an
      * admin all of them; anyone else sees at most their own.
