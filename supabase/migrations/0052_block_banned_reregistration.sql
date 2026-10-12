@@ -156,20 +156,9 @@ $$;
 revoke all on function public.check_signup_email(text) from public;
 grant execute on function public.check_signup_email(text) to anon, authenticated;
 
--- 0046_admin_user_search.sql — find an account without loading every account (ERR-021).
---
--- Admin → User management read the whole users table in one request and showed it as one
--- long list. That stops working as the user base grows, and it had no way to find a person
--- or look at one kind of account. This is the server side of search + filters + paging.
---
--- It also gives a deleted account its own state. 0026 marks deletion with users.deleted_at
--- and leaves users.status alone, so a deleted account listed as "active". Here its status
--- reads 'deleted'. The name and email of a deleted account are NOT kept: deletion scrubs
--- them on purpose (functions/delete-account), and this does not change that.
---
--- ⚠️ SECURITY-REVIEW: SECURITY INVOKER — it reads users and user_roles under the caller's
--- own RLS, so it can never show more than the caller could already select. The admin check
--- is there so anyone else gets a clear refusal instead of a misleading partial list.
+-- ---------- admin user list: hide deleted accounts unless asked for ----------
+-- Same as 0046 except one filter: with no status chosen, deleted accounts are left out.
+-- The 'deleted' filter still lists them. SECURITY INVOKER, as in 0046.
 create or replace function admin_list_users(
   p_search text default '',
   p_role   text default null,   -- 'student' | 'tutor' | 'ambassador' | 'admin'
