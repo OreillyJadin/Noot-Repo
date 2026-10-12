@@ -65,9 +65,10 @@ try {
 
   // ---- as an admin ----
   await signIn('admin@crimson.ua.edu')
-  const { count: everyone } = await svc.from('users').select('id', { count: 'exact', head: true })
+  const { count: liveAccounts } = await svc.from('users').select('id', { count: 'exact', head: true }).is('deleted_at', null)
   const all = await api.admin.listUsers({ limit: 100 })
-  step(all.total === everyone, `no filter counts every account (${all.total} of ${everyone})`)
+  step(all.total === liveAccounts && !all.users.some((u) => u.id === gone.id),
+    `no-status list excludes deleted accounts (${all.total} of ${liveAccounts})`)
 
   const family = await api.admin.listUsers({ search: `${tag}son` })
   const ids = (list: { users: { id: string }[] }) => list.users.map((u) => u.id).sort().join()

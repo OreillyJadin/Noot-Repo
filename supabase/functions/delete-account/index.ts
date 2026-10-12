@@ -116,6 +116,11 @@ Deno.serve(async (req: Request) => {
     await db.from('saved_tutors').delete().or(`student_id.eq.${uid},tutor_id.eq.${uid}`);
     await db.from('tutor_profiles').update({ bio: '', transcript_url: null }).eq('user_id', uid);
 
+    const { error: blockErr } = await db.rpc('block_signup_email', { p_user: uid });
+    if (blockErr) {
+      return Response.json({ error: blockErr.message }, { status: 400, headers: cors });
+    }
+
     // 3. De-identify the retained row. The email must stay unique and NOT NULL, and .invalid
     //    is a reserved TLD so the address can never be routed or re-registered.
     const { error: anonErr } = await db

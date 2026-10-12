@@ -1416,7 +1416,7 @@ export const api = {
         .select('*, reporter:users!reporter_id(first_name,last_name), target:users!target_user_id(first_name,last_name), message:messages!target_message_id(content, sender:users!sender_id(first_name,last_name))')
         .eq('status', 'open')
         // A flag whose message has since been deleted has nothing left to show or act on.
-        .or('auto_flagged.eq.false,target_message_id.not.is.null')
+        .or('auto_flagged.eq.false,target_message_id.not.is.null,target_kind.eq.user')
         // Reports filed by a person come before automatic flags.
         .order('auto_flagged', { ascending: true })
         .order('created_at', { ascending: false });
