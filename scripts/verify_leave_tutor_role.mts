@@ -239,6 +239,19 @@ try {
   const plainResult = await leave(plain.token);
   step(plainResult.status === 400 && plainResult.body.error === "You don't have a tutor profile.", 'a plain student cannot leave a tutor role', `HTTP ${plainResult.status}`);
 
+  const orphan = await createAccount('tutor-no-profile');
+  const { error: orphanRoleErr } = await svc.from('user_roles').upsert(
+    { user_id: orphan.id, role: 'tutor' },
+    { onConflict: 'user_id,role' },
+  );
+  if (orphanRoleErr) throw orphanRoleErr;
+  const { error: orphanUserErr } = await svc.from('users').update({ active_role: 'tutor' }).eq('id', orphan.id);
+  if (orphanUserErr) throw orphanUserErr;
+  const orphanResult = await leave(orphan.token);
+  const { data: orphanRole } = await svc.from('user_roles').select('role').eq('user_id', orphan.id).eq('role', 'tutor').maybeSingle();
+  const { data: orphanUser } = await svc.from('users').select('active_role').eq('id', orphan.id).single();
+  step(orphanResult.status === 200 && !orphanRole && orphanUser?.active_role === 'student', 'a tutor role without a profile can be removed', `HTTP ${orphanResult.status}`);
+
   const suspended = await makeTutor('suspended');
   const { error: suspendErr } = await svc.from('users').update({ status: 'suspended' }).eq('id', suspended.id);
   if (suspendErr) throw suspendErr;

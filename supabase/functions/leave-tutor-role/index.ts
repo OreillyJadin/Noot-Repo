@@ -36,9 +36,6 @@ Deno.serve(async (req: Request) => {
     if (!hasTutorRole && !hasApplication) {
       return Response.json({ error: "You don't have a tutor profile." }, { status: 400, headers: cors });
     }
-    if (!profile) {
-      return Response.json({ error: "You don't have a tutor profile." }, { status: 400, headers: cors });
-    }
 
     const { data: live, error: liveErr } = await db
       .from('bookings')
@@ -75,27 +72,29 @@ Deno.serve(async (req: Request) => {
       .eq('role', 'tutor');
     if (deleteRoleErr) throw deleteRoleErr;
 
-    const { data: updated, error: profileErrUpdate } = await db
-      .from('tutor_profiles')
-      .update({
-        approval_status: 'pending',
-        submitted_at: null,
-        reviewed_by: null,
-        reviewed_at: null,
-        grades_verified_at: null,
-        grades_verified_by: null,
-        verified_grade: null,
-        agreement_signed_at: null,
-        agreement_signed_name: null,
-        agreement_version: null,
-        transcript_url: null,
-        transcript_skipped: false,
-      })
-      .eq('user_id', user.id)
-      .select('user_id')
-      .maybeSingle();
-    if (profileErrUpdate) throw profileErrUpdate;
-    if (!updated) throw new Error('Tutor profile could not be reset.');
+    if (profile) {
+      const { data: updated, error: profileErrUpdate } = await db
+        .from('tutor_profiles')
+        .update({
+          approval_status: 'pending',
+          submitted_at: null,
+          reviewed_by: null,
+          reviewed_at: null,
+          grades_verified_at: null,
+          grades_verified_by: null,
+          verified_grade: null,
+          agreement_signed_at: null,
+          agreement_signed_name: null,
+          agreement_version: null,
+          transcript_url: null,
+          transcript_skipped: false,
+        })
+        .eq('user_id', user.id)
+        .select('user_id')
+        .maybeSingle();
+      if (profileErrUpdate) throw profileErrUpdate;
+      if (!updated) throw new Error('Tutor profile could not be reset.');
+    }
 
     await purgeFolder(db, 'transcripts', user.id);
     return Response.json({ ok: true }, { headers: cors });
