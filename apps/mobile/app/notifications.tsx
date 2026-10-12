@@ -4,15 +4,20 @@
 // Above the feed sits the phone's own notification permission (ERR-031): asked for here,
 // with the reason in view, rather than by a cold system prompt at launch.
 import React, { useEffect, useState } from 'react';
-import { View, Text, AppState, StyleSheet } from 'react-native';
+import { View, Text, AppState, StyleSheet, Switch, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Button, Card, Ic, EmptyState, Skeleton, useTheme, type IconName } from '@noot/ui';
-import { api, type Notification } from '@noot/core';
+import { Screen, NavTop, Body, Button, Card, Chip, Ic, EmptyState, Skeleton, useTheme, type IconName } from '@noot/ui';
+import { api, REMINDER_CHOICES, type Notification } from '@noot/core';
 import { useApp } from '../lib/store';
 import { askForPush, getPushState, openPushSettings } from '../lib/push';
 import type { PushState } from '../lib/pushState';
+import { errText } from '../lib/errText';
 
 const ICON: Record<Notification['type'], IconName> = { message: 'chat', booking: 'cal', system: 'bell' };
+const REMINDER_LABEL: Record<number, string> = {
+  5: '5 min', 10: '10 min', 15: '15 min', 30: '30 min',
+  60: '1 hr', 120: '2 hr', 1440: '1 day',
+};
 
 function timeAgo(iso: string): string {
   const s = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
@@ -87,6 +92,9 @@ export default function Notifications() {
   const router = useRouter();
   const { role } = useApp();
   const [items, setItems] = useState<Notification[] | null>(null);
+  const [reminderSettings, setReminderSettings] = useState<{ minutesBefore: number[]; morningOf: boolean } | null>(null);
+  const [savingReminders, setSavingReminders] = useState(false);
+  const [tooManyReminders, setTooManyReminders] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -102,6 +110,45 @@ export default function Notifications() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    api.notifications.getReminderSettings()
+      .then((settings) => { if (active) setReminderSettings(settings); })
+      .catch((e) => { if (active) Alert.alert("Couldn't load reminders", errText(e, 'Please try again.')); });
+    return () => { active = false; };
+  }, []);
+
+  const saveReminderSettings = async (next: { minutesBefore: number[]; morningOf: boolean }) => {
+    if (!reminderSettings || savingReminders) return;
+    const previous = reminderSettings;
+    setReminderSettings(next);
+    setSavingReminders(true);
+    setTooManyReminders(false);
+    try {
+      await api.notifications.setReminderSettings(next);
+    } catch (e) {
+      setReminderSettings(previous);
+      Alert.alert("Couldn't save reminders", errText(e, 'Please try again.'));
+    } finally {
+      setSavingReminders(false);
+    }
+  };
+
+  const toggleReminder = (minutes: number) => {
+    if (!reminderSettings || savingReminders) return;
+    const selected = reminderSettings.minutesBefore.includes(minutes);
+    if (!selected && reminderSettings.minutesBefore.length >= 4) {
+      setTooManyReminders(true);
+      return;
+    }
+    void saveReminderSettings({
+      ...reminderSettings,
+      minutesBefore: selected
+        ? reminderSettings.minutesBefore.filter((m) => m !== minutes)
+        : [...reminderSettings.minutesBefore, minutes],
+    });
+  };
+
   const open = (n: Notification) => {
     if (n.type === 'message') router.push(role === 'tutor' ? '/chat_tutor' : '/chat');
     else if (n.type === 'booking') router.push(role === 'tutor' ? '/tutor_sessions' : '/sessions');
@@ -114,6 +161,44 @@ export default function Notifications() {
       <NavTop title="Notifications" onBack={() => router.back()} />
       <Body pad={16}>
         <PushPermission />
+        <Card style={styles.reminderCard}>
+          <Text style={[styles.reminderTitle, { color: t.text }]}>Session reminders</Text>
+          <Text style={[styles.reminderSub, { color: t.text3 }]}>
+            Before each session you have, as a student or a tutor.
+          </Text>
+          {reminderSettings ? (
+            <>
+              <View style={styles.morningRow}>
+                <Text style={[styles.morningLabel, { color: t.text }]}>Morning of (7 AM)</Text>
+                <Switch
+                  value={reminderSettings.morningOf}
+                  disabled={savingReminders}
+                  onValueChange={(morningOf) => void saveReminderSettings({ ...reminderSettings, morningOf })}
+                  trackColor={{ false: t.borderStrong, true: t.accent }}
+                  accessibilityRole="switch"
+                  accessibilityLabel="Morning of (7 AM)"
+                />
+              </View>
+              <View style={styles.reminderChoices}>
+                {REMINDER_CHOICES.map((minutes) => (
+                  <Chip
+                    key={minutes}
+                    label={REMINDER_LABEL[minutes]!}
+                    on={reminderSettings.minutesBefore.includes(minutes)}
+                    onPress={() => toggleReminder(minutes)}
+                  />
+                ))}
+              </View>
+              {tooManyReminders ? (
+                <Text style={[styles.reminderNote, { color: t.text3 }]}>Up to 4 reminders.</Text>
+              ) : !reminderSettings.morningOf && reminderSettings.minutesBefore.length === 0 ? (
+                <Text style={[styles.reminderNote, { color: t.text3 }]}>Reminders are off.</Text>
+              ) : null}
+            </>
+          ) : (
+            <Text style={[styles.reminderNote, { color: t.text3 }]}>Loading reminders…</Text>
+          )}
+        </Card>
         {items === null ? (
           <View style={{ gap: 10 }}>
             <Skeleton height={72} radius={14} />
@@ -157,6 +242,13 @@ export default function Notifications() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  reminderCard: { gap: 12, marginBottom: 12 },
+  reminderTitle: { fontSize: 16, fontWeight: '700' },
+  reminderSub: { fontSize: 13, lineHeight: 18 },
+  morningRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  morningLabel: { fontSize: 14, fontWeight: '600' },
+  reminderChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  reminderNote: { fontSize: 12.5 },
   iconBox: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontSize: 15, flexShrink: 1 },
