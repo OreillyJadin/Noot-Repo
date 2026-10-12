@@ -27,6 +27,8 @@ export { UA_MAJORS, searchMajors, type Major } from './data/uaMajors';
 export { attentionTotal, type AdminHubCounts } from './adminHub';
 export {
   api,
+  REMINDER_CHOICES,
+  DEFAULT_REMINDERS,
   type Invite,
   type Milestone,
   type CreditKind,

@@ -540,6 +540,9 @@ function mapAmbassadorProfile(row: any): AmbassadorProfile {
 /** See api.profile.getTutorStanding. */
 export type TutorApplicationStatus = 'none' | 'draft' | 'pending' | 'approved' | 'rejected';
 
+export const REMINDER_CHOICES = [5, 10, 15, 30, 60, 120, 1440] as const;
+export const DEFAULT_REMINDERS = [60] as const;
+
 export const api = {
   // --- users / profiles ---
   async getMe(): Promise<User | null> {
@@ -739,6 +742,11 @@ export const api = {
      */
     async deleteAccount(): Promise<void> {
       await invokeFn('delete-account');
+    },
+
+    /** Leave tutor mode and reset the tutor application for a future re-application. */
+    async leaveTutorRole(): Promise<void> {
+      await invokeFn('leave-tutor-role');
     },
 
     /** Create/update the signed-in user's tutor profile (edit_tutor). Upsert on user_id. */
@@ -1482,7 +1490,7 @@ export const api = {
         .select('*, reporter:users!reporter_id(first_name,last_name), target:users!target_user_id(first_name,last_name), message:messages!target_message_id(content, sender:users!sender_id(first_name,last_name))')
         .eq('status', 'open')
         // A flag whose message has since been deleted has nothing left to show or act on.
-        .or('auto_flagged.eq.false,target_message_id.not.is.null')
+        .or('auto_flagged.eq.false,target_message_id.not.is.null,target_kind.eq.user')
         // Reports filed by a person come before automatic flags.
         .order('auto_flagged', { ascending: true })
         .order('created_at', { ascending: false });
@@ -2096,6 +2104,39 @@ export const api = {
 
   // --- notifications (in-app feed; rows created by DB triggers — 0014) ---
   notifications: {
+    /** The signed-in user's reminder choices; an absent row uses the one-hour default. */
+    async getReminderSettings(): Promise<{ minutesBefore: number[]; morningOf: boolean }> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('reminder_preferences')
+        .select('minutes_before, morning_of')
+        .eq('user_id', uid)
+        .maybeSingle();
+      if (error) throw error;
+      return data
+        ? { minutesBefore: data.minutes_before, morningOf: data.morning_of }
+        : { minutesBefore: [...DEFAULT_REMINDERS], morningOf: true };
+    },
+
+    /** Save up to four valid reminder offsets and the morning reminder toggle. */
+    async setReminderSettings(settings: { minutesBefore: number[]; morningOf: boolean }): Promise<void> {
+      const minutesBefore = [...new Set(settings.minutesBefore)];
+      if (minutesBefore.length > 4) throw new Error('Up to 4 reminders.');
+      if (minutesBefore.some((m) => !(REMINDER_CHOICES as readonly number[]).includes(m))) {
+        throw new Error('Choose a valid reminder time.');
+      }
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('reminder_preferences')
+        .upsert({
+          user_id: uid,
+          minutes_before: minutesBefore.sort((a, b) => b - a),
+          morning_of: settings.morningOf,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+      if (error) throw error;
+    },
+
     /** The signed-in user's notifications, newest first (capped). RLS: own only. */
     async list(): Promise<Notification[]> {
       const uid = await requireUid();

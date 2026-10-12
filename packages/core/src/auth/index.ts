@@ -93,6 +93,8 @@ export async function completeAuthFromUrl(url: string): Promise<SignInResult> {
 export const NOT_A_CAMPUS_EMAIL =
   'noot is for campus email addresses. Sign up with your university email, like yourname@crimson.ua.edu.';
 
+export const SIGNUP_EMAIL_BLOCKED = "This email can't be used to create a noot account.";
+
 /**
  * Whether the address is on the campus allowlist — only so sign-up can say why it refused.
  * The server's gate (migrations 0003 and 0044) rejects a non-campus address by raising inside
@@ -124,6 +126,12 @@ export async function sendSignupVerification(
   redirectTo?: string,
 ): Promise<SignInResult> {
   if ((await isCampusEmail(email).catch(() => null)) === false) return { ok: false, error: NOT_A_CAMPUS_EMAIL };
+  try {
+    const { data, error } = await getSupabase().rpc('check_signup_email', { p_email: email.trim() });
+    if (!error && data === false) return { ok: false, error: SIGNUP_EMAIL_BLOCKED };
+  } catch {
+    // This is best-effort feedback; the Auth trigger remains the authoritative backstop.
+  }
   const { error } = await getSupabase().auth.signInWithOtp({
     email: email.trim(),
     options: {
