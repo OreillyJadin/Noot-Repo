@@ -82,3 +82,6 @@ content_path = "./supabase/templates/email_change.html"
 # redirects into the app — see supabase/functions/connect-return/index.ts.
 [functions.connect-return]
 verify_jwt = false
+
+[functions.leave-tutor-role]
+verify_jwt = true

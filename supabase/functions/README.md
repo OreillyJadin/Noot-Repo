@@ -15,6 +15,7 @@ Server-only logic (ARCHITECTURE.md §5). Planned functions:
 | `report-no-show` | No-show thresholds + 3-strike escalation. |
 | `auto-complete` (cron) | 24h no-response → auto-complete + release. |
 | `send-reminders` (cron) | 24h + 1h session reminders. |
+| `leave-tutor-role` | Remove the tutor role and reset the application for a future re-application. |
 
 ## Stripe Connect return address (ERR-002)
 
@@ -28,4 +29,3 @@ back to the `connect-return` function, which redirects into the app (`noot://con
 - **Local:** inside the local stack `SUPABASE_URL` is an internal address a phone can't
   reach. Set `CONNECT_RETURN_BASE_URL` in the functions env (e.g. your tunnel or LAN URL for
   the API on :54321) to test the full return on a device.
-
