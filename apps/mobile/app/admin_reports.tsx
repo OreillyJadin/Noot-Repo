@@ -18,6 +18,10 @@ const REASON_LABEL: Record<string, string> = {
   other: 'Other',
 };
 
+function reportTargetName(report: ContentReport): string | undefined {
+  return report.autoFlagged && report.targetKind === 'user' ? 'Deleted account' : report.targetName;
+}
+
 export default function AdminReports() {
   const t = useTheme();
   const router = useRouter();
@@ -85,7 +89,7 @@ export default function AdminReports() {
                   {r.autoFlagged ? 'Flagged automatically' : (
                     <>Reported by <Text style={{ fontWeight: '700', color: t.text }}>{r.reporterName}</Text></>
                   )}
-                  {r.targetName ? <> · about <Text style={{ fontWeight: '700', color: t.text }}>{r.targetName}</Text></> : null}
+                  {reportTargetName(r) ? <> · about <Text style={{ fontWeight: '700', color: t.text }}>{reportTargetName(r)}</Text></> : null}
                   {r.messageSenderName ? <> · sent by <Text style={{ fontWeight: '700', color: t.text }}>{r.messageSenderName}</Text></> : null}
                 </Text>
                 {r.messageContent ? (

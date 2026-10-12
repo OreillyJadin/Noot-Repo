@@ -123,6 +123,11 @@ const studentClient = createClient(URL, ANON, { auth: { persistSession: false } 
       `ALLOW signed-out check_invite_code → real code ${good.error?.message ?? good.data}, bogus code ${bad.error?.message ?? bad.data}`)
   }
 }
+{
+  const { data, error } = await anon.rpc('check_signup_email', { p_email: 'student@crimson.ua.edu' })
+  step('3b', !error && data === true,
+    `ALLOW signed-out check_signup_email as the intentional signup-check exception → ${error?.message ?? data}`)
+}
 
 // 4) Rate limit: 30 checks per caller per 10 minutes. A forged cf-connecting-ip is the
 //    bucket key locally only if PostgREST forwards the header into request.headers.

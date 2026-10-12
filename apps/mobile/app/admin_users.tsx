@@ -22,7 +22,7 @@ const ROLES: [AdminUserRole | null, string][] = [
   ['admin', 'Admins'],
 ];
 const STATUSES: [AdminUserStatus | null, string][] = [
-  [null, 'Any status'],
+  [null, 'All (not deleted)'],
   ['active', 'Active'],
   ['suspended', 'Suspended'],
   ['banned', 'Banned'],
