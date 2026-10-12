@@ -15,12 +15,15 @@ export interface BookingDraft {
   /** Set once a real booking exists (confirm-booking, or an item from listUpcoming) —
    *  the completion (C*) and change (X*) flows act on this id. */
   bookingId?: string;
+  tutorId?: string;
   /** The session's student (tutor-side screens resolve their name via resolve-participants).
    *  Optional — when absent, useCounterpart falls back to the first booking counterparty. */
   studentId?: string;
   course?: string;
   /** ISO time of the real booking. Drives the live cancellation refund tier. */
   scheduledAt?: string;
+  rescheduleProposedAt?: string | null;
+  rescheduleProposedBy?: string | null;
   dayIndex?: number;
   slot?: string;
   lengthMin?: number;

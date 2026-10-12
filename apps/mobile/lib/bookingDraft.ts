@@ -8,8 +8,11 @@ export function draftFromBooking(b: Booking): Partial<BookingDraft> {
   return {
     bookingId: b.id,
     studentId: b.studentId,
+    tutorId: b.tutorId,
     course: b.subject,
     scheduledAt: b.scheduledAt,
+    rescheduleProposedAt: b.rescheduleProposedAt,
+    rescheduleProposedBy: b.rescheduleProposedBy,
     location: b.location ?? undefined,
     sessionType: b.sessionType === 'video' ? 'video' : 'in_person',
     lengthMin: b.durationMinutes,

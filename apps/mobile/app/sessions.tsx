@@ -13,6 +13,7 @@ import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { VerifiedBadge } from '../lib/VerifiedBadge';
+import { formatSessionTime } from '../lib/formatSessionTime';
 
 type SegmentKey = 'upcoming' | 'past' | 'saved';
 
@@ -20,18 +21,6 @@ type SegmentKey = 'upcoming' | 'past' | 'saved';
 interface UpcomingItem {
   booking: Booking;
   tutor: Tutor | null;
-}
-
-/** Format a booking's scheduledAt into the "Today · 3:00 PM" style the card uses. */
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  const today = new Date();
-  const tomorrow = new Date();
-  tomorrow.setDate(today.getDate() + 1);
-  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
-  const day = sameDay(d, today) ? 'Today' : sameDay(d, tomorrow) ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-  return `${day} · ${time}`;
 }
 
 /** Where a booking happens — meeting link for video, location for in-person. */
@@ -134,19 +123,24 @@ export default function Sessions() {
     patchBooking({ tutor: tutor ?? undefined });
     router.push('/chat');
   };
-  // Change/completion flows act on a real booking id. Upcoming items carry `b.id`;
-  // when reached without one (e.g. the dev launcher), we keep the old local behavior so
-  // nothing breaks. The X*/C* screens read booking.bookingId to run the real mutation.
-  const reschedule = (tutor: Tutor | null, bookingId?: string) => {
+  // Change/completion flows act on a real booking id. Upcoming items carry the full booking;
+  // when reached without one (e.g. the dev launcher), the proposer screen keeps its demo state.
+  const reschedule = (tutor: Tutor | null, b?: Booking) => {
     try {
-      if (!bookingId) {
-        // Dev launcher / no real booking — keep the current demo behavior.
+      if (!b) {
         patchBooking({ tutor: tutor ?? undefined });
-        router.push('/xsr');
+        router.push('/xtr');
         return;
       }
-      patchBooking({ tutor: tutor ?? undefined, bookingId });
-      router.push('/xsr');
+      patchBooking({
+        tutor: tutor ?? undefined,
+        bookingId: b.id,
+        tutorId: b.tutorId,
+        scheduledAt: b.scheduledAt,
+        rescheduleProposedAt: b.rescheduleProposedAt,
+        rescheduleProposedBy: b.rescheduleProposedBy,
+      });
+      router.push(b.rescheduleProposedAt && b.rescheduleProposedBy === b.tutorId ? '/xsr' : '/xtr');
     } catch (e) {
       Alert.alert('Something went wrong', 'Could not open reschedule. Please try again.');
     }
@@ -269,9 +263,12 @@ export default function Sessions() {
           <View style={{ gap: 12 }}>
             {upcoming.map(({ booking: b, tutor }) => {
               const tutorName = tutor?.name ?? 'Your tutor';
-              const when = formatWhen(b.scheduledAt);
+              const when = formatSessionTime(b.scheduledAt);
               const where = formatWhere(b);
               const online = b.sessionType === 'video';
+              const hasProposal = !!b.rescheduleProposedAt && !!b.rescheduleProposedBy;
+              const fromTutor = hasProposal && b.rescheduleProposedBy === b.tutorId;
+              const fromStudent = hasProposal && b.rescheduleProposedBy === b.studentId;
               // "Starts soon" if the session begins within the next hour.
               const soon = new Date(b.scheduledAt).getTime() - Date.now() < 3_600_000;
               return (
@@ -303,7 +300,14 @@ export default function Sessions() {
                     </View>
                     <View style={styles.btnRow}>
                       <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
-                      <Button label="Reschedule" kind="tint" size="sm" style={{ flex: 1 }} onPress={() => reschedule(tutor, b.id)} />
+                      <Button
+                        label={fromTutor ? 'Review new time' : fromStudent ? 'Request sent' : 'Reschedule'}
+                        kind="tint"
+                        size="sm"
+                        style={{ flex: 1 }}
+                        disabled={fromStudent}
+                        onPress={() => reschedule(tutor, b)}
+                      />
                     </View>
                     <View style={styles.linkRow}>
                       <Text onPress={() => cancelSession(tutor, b.id, b.scheduledAt)} style={[styles.link, { color: t.text3 }]}>Cancel session</Text>
@@ -333,7 +337,7 @@ export default function Sessions() {
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.nameSm, { color: t.text }]}>{tutor?.name ?? 'Your tutor'}</Text>
                       <Text style={[styles.sub, { color: t.text3 }]}>
-                        {b.subject} · {formatWhen(b.scheduledAt)}
+                        {b.subject} · {formatSessionTime(b.scheduledAt)}
                       </Text>
                     </View>
                     <Button label="Message" kind="secondary" size="sm" iconRight="chat" onPress={() => message(tutor)} />

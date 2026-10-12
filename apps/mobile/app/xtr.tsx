@@ -1,6 +1,6 @@
-// X3 Propose Reschedule (Tutor) — ported from screens-changes.jsx (XReschedulePropose).
+// X3 Propose Reschedule — ported from screens-changes.jsx (XReschedulePropose).
 // Day/time picker mirrors B3's day-scroller + slot-grid pattern. Sending a request
-// keeps payment unchanged and hands off to the student's Accept/Decline view (X4).
+// keeps payment unchanged and hands off to the other party's Accept/Decline view (X4).
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -8,10 +8,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Ic, H1, Sub, Label, HeroIcon, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
-import { DAYS } from '../lib/data';
+import { BOOKABLE_DAYS, DAYS } from '../lib/data';
 import { slotsFromWindows } from '../lib/availability';
 import { useMe } from '../lib/useMe';
 import { useCounterpart } from '../lib/useCounterpart';
+import { errText } from '../lib/errText';
+import { formatSessionTime } from '../lib/formatSessionTime';
 
 function sessionFacts(booking: BookingDraft) {
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1]!;
@@ -38,38 +40,35 @@ export default function XReschedulePropose() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { booking } = useApp();
+  const { booking, role } = useApp();
   const { me } = useMe();
-  const student = useCounterpart(booking.studentId);
-  // The tutor proposes a new time from their OWN real weekly availability.
+  const student = useCounterpart(role === 'tutor' ? booking.studentId : undefined);
+  const otherFirst = role === 'tutor' ? student.first : booking.tutor?.name.split(' ')[0] ?? 'your tutor';
+  const availabilityTutorId = role === 'tutor' ? me?.id : booking.tutorId ?? booking.tutor?.id;
   const [slots, setSlots] = useState<Record<number, string[]>>({});
-  const availableDays = DAYS.filter((d) => slots[d.i] && slots[d.i]!.length);
   const [day, setDay] = useState<number>(0);
   const [slot, setSlot] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
-    if (!me) return;
+    if (!availabilityTutorId) return;
     let active = true;
     api.tutors
-      .getAvailability(me.id)
+      .getAvailability(availabilityTutorId)
       .then((windows) => {
         if (!active) return;
         const next = slotsFromWindows(windows);
         setSlots(next);
-        const first = DAYS.find((d) => (next[d.i]?.length ?? 0) > 0);
+        const first = BOOKABLE_DAYS.find((d) => (next[d.i]?.length ?? 0) > 0);
         if (first) setDay(first.i);
       })
       .catch(() => {});
     return () => { active = false; };
-    // Keyed on the id, not the object: useMe re-reads in the background (S1), and
-    // re-seeding on every re-read would wipe edits in progress.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me?.id]);
+  }, [availabilityTutorId]);
 
   const f = sessionFacts(booking);
   const daySlots = slots[day] ?? [];
-  const dayObj = DAYS.find((d) => d.i === day) ?? DAYS[0]!;
+  const dayObj = BOOKABLE_DAYS.find((d) => d.i === day) ?? BOOKABLE_DAYS[0]!;
 
   const send = async () => {
     if (!slot) return;
@@ -86,7 +85,7 @@ export default function XReschedulePropose() {
       });
       setSent(true);
     } catch (e) {
-      Alert.alert('Could not send request', 'Please check your connection and try again.');
+      Alert.alert('Could not send request', errText(e, 'Please try again.'));
     }
   };
 
@@ -97,9 +96,9 @@ export default function XReschedulePropose() {
         <Body pad={24}>
           <View style={styles.doneWrap}>
             <HeroIcon name="clock" size={72} />
-            <H1 style={{ fontSize: 24, marginTop: 20 }}>Request sent</H1>
+            <H1 style={{ fontSize: 24, marginTop: 20 }}>Request sent to {otherFirst}</H1>
             <Sub style={{ marginTop: 10, maxWidth: 260, textAlign: 'center' }}>
-              {student.first} will get a notification to accept or decline your new time. Payment stays unchanged.
+              They will get a notification to accept or decline your new time. Payment stays unchanged.
             </Sub>
           </View>
           <Card style={{ marginTop: 24, padding: 16 }}>
@@ -107,21 +106,21 @@ export default function XReschedulePropose() {
               <View style={{ flex: 1 }}>
                 <Text style={[styles.compareLabel, { color: t.text3 }]}>From</Text>
                 <Text style={[styles.compareOld, { color: t.text3 }]}>
-                  {f.dayObj.label} · {f.slot}
+                  {booking.scheduledAt ? formatSessionTime(booking.scheduledAt) : `${f.dayObj.label} · ${f.slot}`}
                 </Text>
               </View>
               <Ic name="arrow" size={18} color={t.accent} strokeWidth={2} />
               <View style={{ flex: 1, alignItems: 'flex-end' }}>
                 <Text style={[styles.compareLabel, { color: t.text3 }]}>Proposed</Text>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: t.text }}>
-                  {dayObj.label} · {slot}
+                  {formatSessionTime(scheduledAtISO(day, slot ?? ''))}
                 </Text>
               </View>
             </View>
           </Card>
         </Body>
         <ActionBar>
-          <Button kind="primary" full label="Done" onPress={() => router.replace('/tutor_home')} />
+          <Button kind="primary" full label="Done" onPress={() => router.replace(role === 'tutor' ? '/tutor_home' : '/sessions')} />
         </ActionBar>
       </Screen>
     );
@@ -129,18 +128,21 @@ export default function XReschedulePropose() {
 
   return (
     <Screen>
-      <NavTop onBack={() => router.back()} title="Propose new time" />
+      <NavTop onBack={() => router.back()} title="Propose a new time" />
       <Body pad={20}>
         <Card flat style={{ padding: 12, backgroundColor: t.surfaceAlt, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Ic name="cal" size={17} color={t.text3} strokeWidth={1.8} />
           <Text style={{ fontSize: 13, color: t.text2 }}>
-            Current: <Text style={{ color: t.text, fontWeight: '700' }}>{f.dayObj.label} · {f.slot}</Text>
+            Current:{' '}
+            <Text style={{ color: t.text, fontWeight: '700' }}>
+              {booking.scheduledAt ? formatSessionTime(booking.scheduledAt) : `${f.dayObj.label} · ${f.slot}`}
+            </Text>
           </Text>
         </Card>
 
         <Label style={{ fontSize: 13, marginTop: 20, marginBottom: 10 }}>Pick a new day</Label>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRow}>
-          {DAYS.map((d) => {
+          {BOOKABLE_DAYS.map((d) => {
             const has = !!(slots[d.i] && slots[d.i]!.length);
             const on = day === d.i;
             return (
@@ -186,7 +188,7 @@ export default function XReschedulePropose() {
           kind="primary"
           full
           disabled={!slot}
-          label={slot ? `Send request to ${student.first}` : 'Pick a time'}
+          label={slot ? `Send request to ${otherFirst}` : 'Pick a time'}
           onPress={send}
         />
       </ActionBar>

@@ -1,35 +1,22 @@
-// X4 Reschedule Request (Student) — ported from screens-changes.jsx (XRescheduleRequest).
-// Old → new time comparison with an Accept / Decline choice. Price is unchanged
-// either way. Accepting or declining both land on a confirmation, then Done → Home.
+// X4 Reschedule Request — ported from screens-changes.jsx (XRescheduleRequest).
+// Old → proposed time comparison with an Accept / Decline choice.
 import React, { useState } from 'react';
 import { View, Text, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '@noot/core';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, Divider, Ic, H1, H2, Sub, HeroIcon, useTheme } from '@noot/ui';
-import { useApp, type BookingDraft } from '../lib/store';
-import { DAYS, type Tutor } from '../lib/data';
+import { useApp } from '../lib/store';
 import { NoSession } from '../lib/NoSession';
-
-function money(n: number): string {
-  return '$' + n.toFixed(2).replace('.00', '');
-}
-
-function sessionFacts(booking: BookingDraft, tutor: Tutor) {
-  const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1]!;
-  const slot = booking.slot ?? '3:00 PM';
-  const course = booking.course ?? tutor.courses[0]![0];
-  const courseRow = tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!;
-  const lengthMin = booking.lengthMin ?? 60;
-  const gross = courseRow[2] * (lengthMin / 60);
-  return { dayObj, slot, course, gross };
-}
+import { useCounterpart } from '../lib/useCounterpart';
+import { errText } from '../lib/errText';
+import { formatSessionTime } from '../lib/formatSessionTime';
 
 type Result = 'accepted' | 'declined' | null;
 
 export default function XRescheduleRequest() {
   const { booking } = useApp();
-  if (!booking.tutor) return <NoSession />;
+  if (!booking.bookingId && !booking.tutor) return <NoSession />;
   return <XRescheduleRequestInner />;
 }
 
@@ -37,13 +24,17 @@ function XRescheduleRequestInner() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { booking } = useApp();
-  const tutor = booking.tutor!;
-  const f = sessionFacts(booking, tutor);
-  // TODO(api): no read exposes a pending reschedule proposal's new time to the student,
-  // so the "New time" shown here is still a placeholder until that endpoint exists.
-  const newDay = DAYS[3]!;
-  const newSlot = '4:30 PM';
+  const { booking, role } = useApp();
+  const student = useCounterpart(role === 'tutor' ? booking.studentId : undefined);
+  const otherFirst = role === 'tutor' ? student.first : booking.tutor?.name.split(' ')[0] ?? 'your tutor';
+  const proposedByOther = role === 'tutor' ? booking.studentId : booking.tutorId ?? booking.tutor?.id;
+  const hasPendingProposal =
+    !!booking.rescheduleProposedAt &&
+    !!booking.rescheduleProposedBy &&
+    !!proposedByOther &&
+    booking.rescheduleProposedBy === proposedByOther;
+  const newTime = booking.rescheduleProposedAt ? formatSessionTime(booking.rescheduleProposedAt) : '';
+  const currentTime = booking.scheduledAt ? formatSessionTime(booking.scheduledAt) : '—';
   const [result, setResult] = useState<Result>(null);
   const [busy, setBusy] = useState(false);
 
@@ -58,8 +49,8 @@ function XRescheduleRequestInner() {
     try {
       await api.bookings.reschedule({ bookingId: booking.bookingId, action });
       setResult(action === 'accept' ? 'accepted' : 'declined');
-    } catch {
-      Alert.alert('Something went wrong', 'Please check your connection and try again.');
+    } catch (e) {
+      Alert.alert('Could not update request', errText(e, 'Please try again.'));
     } finally {
       setBusy(false);
     }
@@ -77,14 +68,14 @@ function XRescheduleRequestInner() {
             <Sub style={{ marginTop: 10, maxWidth: 264, textAlign: 'center' }}>
               {accepted ? (
                 <>
-                  Your session with {tutor.name.split(' ')[0]!} is now{' '}
+                  Your session with {otherFirst} is now{' '}
                   <Text style={{ color: t.text, fontWeight: '700' }}>
-                    {newDay.label} · {newSlot}
+                    {newTime}
                   </Text>
                   . Payment is unchanged and all reminders are updated.
                 </>
               ) : (
-                <>{tutor.name.split(' ')[0]!} will either honor the original time or cancel for a full refund.</>
+                <>{otherFirst} will either honor the original time or cancel for a full refund.</>
               )}
             </Sub>
           </View>
@@ -99,7 +90,21 @@ function XRescheduleRequestInner() {
           </Card>
         </Body>
         <ActionBar>
-          <Button kind="secondary" full label="Done" onPress={() => router.replace('/home')} />
+          <Button kind="secondary" full label="Done" onPress={() => router.replace(role === 'tutor' ? '/tutor_home' : '/sessions')} />
+        </ActionBar>
+      </Screen>
+    );
+  }
+
+  if (!hasPendingProposal) {
+    return (
+      <Screen>
+        <NavTop onBack={() => router.back()} title="Reschedule request" />
+        <Body pad={24}>
+          <Text style={{ fontSize: 16, color: t.text2 }}>No pending request</Text>
+        </Body>
+        <ActionBar>
+          <Button kind="secondary" full label="Back" onPress={() => router.back()} />
         </ActionBar>
       </Screen>
     );
@@ -112,7 +117,7 @@ function XRescheduleRequestInner() {
         <View style={styles.headRow}>
           <Avatar size={48} />
           <View>
-            <H2 style={{ fontSize: 18 }}>{tutor.name} wants to reschedule</H2>
+            <H2 style={{ fontSize: 18 }}>{otherFirst} wants to move your session</H2>
             <Text style={{ fontSize: 13, color: t.text3, marginTop: 2 }}>{booking.course ?? ''}</Text>
           </View>
         </View>
@@ -120,22 +125,20 @@ function XRescheduleRequestInner() {
         <Card style={{ marginTop: 20, padding: 16 }}>
           <View style={styles.compareRow}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, color: t.text3, marginBottom: 3 }}>Original</Text>
-              <Text style={[styles.strike, { color: t.text3 }]}>{f.dayObj.label}</Text>
-              <Text style={[styles.strikeSm, { color: t.text3 }]}>{f.slot}</Text>
+              <Text style={{ fontSize: 12, color: t.text3, marginBottom: 3 }}>Was</Text>
+              <Text style={[styles.strike, { color: t.text3 }]}>{currentTime}</Text>
             </View>
             <Ic name="arrow" size={20} color={t.accent} strokeWidth={2} />
             <View style={{ flex: 1, alignItems: 'flex-end' }}>
               <Text style={{ fontSize: 12, color: t.accent, fontWeight: '600', marginBottom: 3 }}>New time</Text>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: t.text }}>{newDay.label}</Text>
-              <Text style={{ fontSize: 13, color: t.text2 }}>{newSlot}</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: t.text }}>{newTime}</Text>
             </View>
           </View>
           <Divider style={{ marginVertical: 14 }} />
           <View style={styles.priceRow}>
             <Ic name="check" size={15} color={t.good} strokeWidth={2.4} />
             <Text style={{ fontSize: 13, color: t.text2 }}>
-              Same price · <Text style={{ color: t.text, fontWeight: '700' }}>{money(f.gross)}</Text>. Nothing else changes.
+              Same price. Nothing else changes.
             </Text>
           </View>
         </Card>
@@ -153,6 +156,5 @@ const styles = StyleSheet.create({
   headRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
   compareRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   strike: { fontSize: 15, textDecorationLine: 'line-through' },
-  strikeSm: { fontSize: 13, textDecorationLine: 'line-through' },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 });
