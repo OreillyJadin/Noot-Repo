@@ -6,15 +6,15 @@
 // Each new application also offers interview times taken from the applicant's own weekly
 // availability (ERR-005): tap one to schedule it; the tutor is notified. Scheduling is
 // admin-only on the server (schedule_tutor_interview, 0042) and does not gate approval.
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Alert, Linking, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Button, Badge, Field, Ic, Eyebrow, EmptyState, Skeleton, useTheme } from '@noot/ui';
-import { api, type AdminHubCounts, type PendingTutor, type TutorInterview } from '@noot/core';
+import { api, type PendingTutor, type TutorInterview } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
 import { interviewLabel, nextInterviewSlots } from '../lib/interviewSlots';
-import { AdminTabs, tutorTabs } from '../lib/AdminTabs';
+import { AdminTabs, tutorTabs, useAdminHubCounts } from '../lib/AdminTabs';
 
 export default function AdminTutors() {
   const t = useTheme();
@@ -26,7 +26,7 @@ export default function AdminTutors() {
 
   const [pending, setPending] = useState<PendingTutor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [counts, setCounts] = useState<AdminHubCounts>();
+  const counts = useAdminHubCounts();
   const [busy, setBusy] = useState<string | null>(null);
   // Per applicant: the interview already set, the times their availability offers, and the
   // meeting link/place the admin is typing. `changing` reopens the times for a set interview.
@@ -40,18 +40,6 @@ export default function AdminTutors() {
   // The Alert callbacks below outlive the render they were created in, so the in-flight
   // check reads a ref rather than the `busy` they captured.
   const inFlight = useRef(false);
-
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      setCounts(undefined);
-      api.admin
-        .hubCounts()
-        .then((value) => { if (alive) setCounts(value); })
-        .catch(() => { if (alive) setCounts(undefined); });
-      return () => { alive = false; };
-    }, []),
-  );
 
   useEffect(() => {
     let alive = true;

@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { usePathname, useRouter } from 'expo-router';
-import { type AdminHubCounts } from '@noot/core';
+import { useFocusEffect, usePathname, useRouter } from 'expo-router';
+import { api, type AdminHubCounts } from '@noot/core';
 import { useTheme } from '@noot/ui';
 
 export interface AdminTab {
@@ -26,6 +26,24 @@ export function safetyTabs(counts?: AdminHubCounts): AdminTab[] {
     { key: 'disputes', label: 'Disputes', count: counts?.disputes, href: '/admin_bookings?tab=disputes' },
     { key: 'all', label: 'All bookings', href: '/admin_bookings?tab=all' },
   ];
+}
+
+export function useAdminHubCounts(): AdminHubCounts | undefined {
+  const [counts, setCounts] = useState<AdminHubCounts>();
+
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      setCounts(undefined);
+      api.admin
+        .hubCounts()
+        .then((value) => { if (alive) setCounts(value); })
+        .catch(() => { if (alive) setCounts(undefined); });
+      return () => { alive = false; };
+    }, []),
+  );
+
+  return counts;
 }
 
 export function AdminTabs({ tabs, active }: { tabs: AdminTab[]; active: string }) {

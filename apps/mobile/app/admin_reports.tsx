@@ -4,12 +4,12 @@
 // reading content_reports gets zero rows, so the client guard here is defence in depth.
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Alert, StyleSheet } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Badge, Button, Ic, Skeleton, useTheme } from '@noot/ui';
-import { api, type AdminHubCounts, type ContentReport } from '@noot/core';
+import { api, type ContentReport } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
-import { AdminTabs, safetyTabs } from '../lib/AdminTabs';
+import { AdminTabs, safetyTabs, useAdminHubCounts } from '../lib/AdminTabs';
 
 const REASON_LABEL: Record<string, string> = {
   harassment: 'Harassment',
@@ -30,19 +30,7 @@ export default function AdminReports() {
   const [reports, setReports] = useState<ContentReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [counts, setCounts] = useState<AdminHubCounts>();
-
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      setCounts(undefined);
-      api.admin
-        .hubCounts()
-        .then((value) => { if (alive) setCounts(value); })
-        .catch(() => { if (alive) setCounts(undefined); });
-      return () => { alive = false; };
-    }, []),
-  );
+  const counts = useAdminHubCounts();
 
   const load = useCallback(async () => {
     try {

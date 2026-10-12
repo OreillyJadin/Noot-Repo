@@ -68,7 +68,7 @@ export default function AdminHome() {
       hint: counts
         ? knownCounts.interviews > 0 && knownCounts.nextInterviewAt
           ? `Next: ${interviewLabel(new Date(knownCounts.nextInterviewAt))}`
-          : 'All caught up · None scheduled'
+          : 'None scheduled'
         : 'Next: unavailable',
       count: counts?.interviews ?? null,
       href: '/admin_tutors?tab=interviews',
@@ -122,7 +122,13 @@ export default function AdminHome() {
           <Skeleton width={165} height={18} style={{ marginBottom: 14 }} />
         ) : (
           <Text style={[styles.subtitle, { color: t.text3 }]}>
-            {needsLook === null ? '— things need a look' : needsLook === 0 ? 'All caught up' : `${needsLook} things need a look`}
+            {needsLook === null
+              ? '— things need a look'
+              : needsLook === 0
+                ? 'All caught up'
+                : needsLook === 1
+                  ? '1 thing needs a look'
+                  : `${needsLook} things need a look`}
           </Text>
         )}
 

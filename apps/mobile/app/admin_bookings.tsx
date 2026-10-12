@@ -1,13 +1,13 @@
 // Admin → Booking oversight. Recent bookings across the platform with party names + status,
 // and flag/resolve for disputes. Actions go through api.admin.resolveDispute → the
 // resolve-dispute Edge Function (admin-verified, service role). Client guard is UI-only.
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Alert, StyleSheet } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Button, Badge, Eyebrow, EmptyState, Skeleton, useTheme, type BadgeTone } from '@noot/ui';
-import { api, type AdminBooking, type AdminHubCounts } from '@noot/core';
+import { api, type AdminBooking } from '@noot/core';
 import { useMe } from '../lib/useMe';
-import { AdminTabs, safetyTabs } from '../lib/AdminTabs';
+import { AdminTabs, safetyTabs, useAdminHubCounts } from '../lib/AdminTabs';
 
 function when(iso: string): string {
   const d = new Date(iso);
@@ -27,19 +27,7 @@ export default function AdminBookings() {
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [counts, setCounts] = useState<AdminHubCounts>();
-
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      setCounts(undefined);
-      api.admin
-        .hubCounts()
-        .then((value) => { if (alive) setCounts(value); })
-        .catch(() => { if (alive) setCounts(undefined); });
-      return () => { alive = false; };
-    }, []),
-  );
+  const counts = useAdminHubCounts();
 
   useEffect(() => {
     let alive = true;

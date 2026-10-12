@@ -2,13 +2,13 @@
 // everyone until approved) and lets an admin approve/reject. Actions go through
 // api.admin.moderateReview → the moderate-review Edge Function (re-verifies admin, is the
 // only writer of reviews.approval_status, and recomputes the tutor's rating on approve).
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Alert, StyleSheet } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Button, Badge, Ic, Eyebrow, EmptyState, Skeleton, useTheme } from '@noot/ui';
-import { api, type AdminHubCounts, type AdminReview } from '@noot/core';
+import { api, type AdminReview } from '@noot/core';
 import { useMe } from '../lib/useMe';
-import { AdminTabs, tutorTabs } from '../lib/AdminTabs';
+import { AdminTabs, tutorTabs, useAdminHubCounts } from '../lib/AdminTabs';
 
 export default function AdminReviews() {
   const t = useTheme();
@@ -18,19 +18,7 @@ export default function AdminReviews() {
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [counts, setCounts] = useState<AdminHubCounts>();
-
-  useFocusEffect(
-    useCallback(() => {
-      let alive = true;
-      setCounts(undefined);
-      api.admin
-        .hubCounts()
-        .then((value) => { if (alive) setCounts(value); })
-        .catch(() => { if (alive) setCounts(undefined); });
-      return () => { alive = false; };
-    }, []),
-  );
+  const counts = useAdminHubCounts();
 
   useEffect(() => {
     let alive = true;
