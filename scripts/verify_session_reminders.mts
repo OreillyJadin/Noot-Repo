@@ -164,6 +164,31 @@ try {
   const tooEarlySession = await makeBooking(central('07:45'));
   await runAt(central('07:05'));
   step((await reminders(tooEarlySession)).length === 0, 'morning reminder is skipped for a session before 8 AM');
+
+  await setPrefs(studentId, [60], true);
+  await setPrefs(tutorId, [60], true);
+  const exactlyEight = await makeBooking(central('08:00'));
+  await runAt(central('07:00'));
+  const eightAmReminders = await reminders(exactlyEight);
+  const eightAmBefore = eightAmReminders.filter((n) => n.title === 'Upcoming session');
+  const eightAmMorning = eightAmReminders.filter((n) => n.title === 'Session today');
+  step(
+    eightAmBefore.length === 2 &&
+      eightAmBefore.every((n) => n.body.includes('1 hour')) &&
+      eightAmMorning.length === 0,
+    'an 8 AM session gets the 60-minute reminder but no morning reminder',
+  );
+
+  await morningPrefs(true);
+  const shortlyAfterEight = await makeBooking(central('08:15'));
+  await runAt(central('07:05'));
+  const eightFifteenReminders = await reminders(shortlyAfterEight);
+  step(
+    eightFifteenReminders.length === 2 &&
+      eightFifteenReminders.every((n) => n.title === 'Session today'),
+    'an 8:15 AM session gets the 7:05 morning reminder',
+  );
+
   await morningPrefs(false);
   const morningOff = await makeBooking(central('15:00'));
   await runAt(central('07:05'));

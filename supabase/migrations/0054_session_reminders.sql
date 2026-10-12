@@ -150,7 +150,7 @@ begin
       if v_party.morning_of
         and p_now >= v_morning_at
         and p_now < v_morning_at + interval '15 minutes'
-        and v_booking.scheduled_at >= v_morning_at + interval '1 hour'
+        and v_booking.scheduled_at > v_morning_at + interval '1 hour'
         and not exists (
           select 1
           from public.session_reminders_sent sent
