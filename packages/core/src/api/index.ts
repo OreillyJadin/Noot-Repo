@@ -335,6 +335,8 @@ function mapBooking(row: any): Booking {
     tutorId: row.tutor_id,
     subject: row.subject,
     scheduledAt: row.scheduled_at,
+    rescheduleProposedAt: row.reschedule_proposed_at ?? null,
+    rescheduleProposedBy: row.reschedule_proposed_by ?? null,
     durationMinutes: row.duration_minutes,
     price: num(row.price),
     creditApplied: num(row.credit_applied),

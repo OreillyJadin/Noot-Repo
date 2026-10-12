@@ -14,6 +14,7 @@ import { useApp, type BookingDraft } from '../lib/store';
 import { DAYS, toTutor, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
+import { formatSessionTime } from '../lib/formatSessionTime';
 
 
 function sessionFacts(booking: BookingDraft, tutor: Tutor, feeRate: number) {
@@ -69,6 +70,14 @@ export default function TB2() {
   }, [booking.tutor, me?.id]);
   const student = useCounterpart(booking.studentId);
   const studentMeta = [student.year, student.major].filter(Boolean).join(' · ');
+  const studentProposed =
+    !!booking.rescheduleProposedAt &&
+    !!booking.rescheduleProposedBy &&
+    booking.rescheduleProposedBy === booking.studentId;
+  const ownProposalPending =
+    !!booking.rescheduleProposedAt &&
+    !!booking.rescheduleProposedBy &&
+    booking.rescheduleProposedBy === me?.id;
   const tutor = booking.tutor ?? fetchedTutor;
   if (!tutor) return <NoSession />;
   // Fee follows the tutor's verification (T6): 17.5% verified, 32.5% not.
@@ -79,6 +88,21 @@ export default function TB2() {
     <Screen>
       <NavTop onBack={() => router.back()} title="Session details" />
       <Body pad={20}>
+        {studentProposed && booking.rescheduleProposedAt ? (
+          <Card style={{ marginBottom: 12, padding: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>
+                  {student.first} asked to move this to
+                </Text>
+                <Text style={{ fontSize: 13, color: t.text2, marginTop: 3 }}>
+                  {formatSessionTime(booking.rescheduleProposedAt)}
+                </Text>
+              </View>
+              <Button label="Review" kind="tint" size="sm" onPress={() => router.push('/xsr')} />
+            </View>
+          </Card>
+        ) : null}
         {/* student */}
         <Card style={{ padding: 16 }}>
           <View style={styles.row}>
@@ -202,11 +226,11 @@ export default function TB2() {
           </Card>
 
           <Card
-            onPress={() => {
+            onPress={ownProposalPending ? undefined : () => {
               setMoreOpen(false);
               router.push('/xtr');
             }}
-            style={{ padding: 14, marginBottom: 10 }}
+            style={[{ padding: 14, marginBottom: 10 }, ownProposalPending && { opacity: 0.55 }]}
           >
             <View style={styles.choiceRow}>
               <View style={[styles.choiceIcon, { backgroundColor: t.accentWeak }]}>
@@ -214,9 +238,11 @@ export default function TB2() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.choiceTitle, { color: t.text }]}>Propose a new time</Text>
-                <Text style={[styles.choiceSub, { color: t.text3 }]}>{student.first} confirms the change</Text>
+                <Text style={[styles.choiceSub, { color: t.text3 }]}>
+                  {ownProposalPending ? `Waiting on ${student.first}` : `${student.first} confirms the change`}
+                </Text>
               </View>
-              <Ic name="chevron" size={16} color={t.text3} strokeWidth={2} />
+              {!ownProposalPending ? <Ic name="chevron" size={16} color={t.text3} strokeWidth={2} /> : null}
             </View>
           </Card>
 
