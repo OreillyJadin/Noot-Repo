@@ -739,6 +739,11 @@ export const api = {
       await invokeFn('delete-account');
     },
 
+    /** Leave tutor mode and reset the tutor application for a future re-application. */
+    async leaveTutorRole(): Promise<void> {
+      await invokeFn('leave-tutor-role');
+    },
+
     /** Create/update the signed-in user's tutor profile (edit_tutor). Upsert on user_id. */
     async updateTutorProfile(patch: {
       bio?: string;

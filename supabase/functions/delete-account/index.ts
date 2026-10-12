@@ -16,23 +16,13 @@
 //
 // Storage and messages are cleared explicitly — SQL cascades don't reach object storage.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { purgeFolder } from '../_shared/storage.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-
-/** Remove every object under a user-owned folder in `bucket`. Best-effort. */
-async function purgeFolder(db: ReturnType<typeof createClient>, bucket: string, folder: string) {
-  try {
-    const { data } = await db.storage.from(bucket).list(folder);
-    const paths = (data ?? []).map((o) => `${folder}/${o.name}`);
-    if (paths.length) await db.storage.from(bucket).remove(paths);
-  } catch {
-    /* a missing folder is not a failure */
-  }
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });

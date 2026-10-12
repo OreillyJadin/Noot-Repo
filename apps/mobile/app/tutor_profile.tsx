@@ -17,6 +17,7 @@ import { openLegal } from '../lib/legal';
 import { useRoleSwitch } from '../lib/useRoleSwitch';
 import { openPayoutSetup } from '../lib/payoutSetup';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
+import { errText } from '../lib/errText';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import Constants from 'expo-constants';
 import { versionLabel } from '../lib/appVersion';
@@ -67,8 +68,9 @@ export default function TutorProfile() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { role } = useApp();
-  const { me, loading, tutorStatus, gradesVerified } = useMe();
+  const { role, setRole } = useApp();
+  const { me, loading, tutorStatus, gradesVerified, refresh } = useMe();
+  const [deletingTutorProfile, setDeletingTutorProfile] = useState(false);
   const { dark, toggle: toggleDark, school, toggleSchool } = useThemePref();
 
   const meName = fullName(me, 'Tutor');
@@ -140,6 +142,32 @@ export default function TutorProfile() {
     await forgetThisDevice();
     try { await auth.signOut(); } catch { /* clear the UI regardless */ }
     router.replace('/');
+  };
+
+  const confirmLeaveTutorRole = () => {
+    Alert.alert(
+      'Delete your tutor profile?',
+      "You'll stop appearing to students and go back to your student account. Your student account, messages and payment history stay.\n\nTo tutor again you'll need to apply again, including a new transcript.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete tutor profile',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingTutorProfile(true);
+            try {
+              await api.profile.leaveTutorRole();
+              await refresh();
+              setRole('student');
+              router.replace('/home');
+            } catch (e) {
+              setDeletingTutorProfile(false);
+              Alert.alert("Couldn't delete your tutor profile", errText(e, 'Please try again.'));
+            }
+          },
+        },
+      ],
+    );
   };
 
   const { roles, previewRoles, isAdmin, switchTo } = useRoleSwitch();
@@ -302,7 +330,14 @@ export default function TutorProfile() {
         {/* sign out */}
         <View style={{ marginTop: 4 }}>
           <Card style={styles.cardNoPad}>
-            <Row icon="logout" label="Sign out" danger onPress={signOutNow} last />
+            <Row icon="logout" label="Sign out" danger onPress={signOutNow} />
+            <Row
+              icon="x"
+              label={deletingTutorProfile ? 'Deleting…' : 'Delete tutor profile'}
+              danger
+              onPress={deletingTutorProfile ? undefined : confirmLeaveTutorRole}
+              last
+            />
           </Card>
         </View>
         <Text style={[styles.footer, { color: t.text3 }]}>
