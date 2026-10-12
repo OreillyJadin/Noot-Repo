@@ -52,7 +52,7 @@ Deno.serve(async (req: Request) => {
     const { data: booking, error: loadErr } = await db
       .from('bookings')
       .select(
-        'id, student_id, tutor_id, status, scheduled_at, duration_minutes, reschedule_proposed_at, reschedule_proposed_by',
+        'id, student_id, tutor_id, subject, status, scheduled_at, duration_minutes, reschedule_proposed_at, reschedule_proposed_by',
       )
       .eq('id', bookingId)
       .single();
@@ -70,6 +70,36 @@ Deno.serve(async (req: Request) => {
         { status: 409, headers: cors },
       );
     }
+
+    const notifyOtherParty = async (title: string, body: (name: string) => string) => {
+      const recipient = booking.student_id === user.id ? booking.tutor_id : booking.student_id;
+      const fallbackName = booking.tutor_id === user.id ? 'Your tutor' : 'Your student';
+      let name = fallbackName;
+      try {
+        const { data: caller, error: callerErr } = await db
+          .from('users')
+          .select('first_name')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (callerErr) throw callerErr;
+        name = caller?.first_name?.trim() || fallbackName;
+      } catch (e) {
+        console.error('reschedule-booking notification name lookup failed', e);
+      }
+
+      try {
+        const { error: notificationErr } = await db.rpc('create_notification', {
+          p_user: recipient,
+          p_type: 'booking',
+          p_title: title,
+          p_body: body(name),
+          p_data: { bookingId: booking.id },
+        });
+        if (notificationErr) throw notificationErr;
+      } catch (e) {
+        console.error('reschedule-booking notification failed', e);
+      }
+    };
 
     if (action === 'propose') {
       if (!newScheduledAt) {
@@ -137,6 +167,10 @@ Deno.serve(async (req: Request) => {
         })
         .eq('id', bookingId);
       if (error) throw error;
+      await notifyOtherParty(
+        'New time proposed',
+        (name) => `${name} asked to move your ${booking.subject} session. Tap to accept or decline.`,
+      );
       return Response.json({ ok: true }, { headers: cors });
     }
 
@@ -177,6 +211,10 @@ Deno.serve(async (req: Request) => {
         .eq('id', bookingId);
       if (error) throw error;
       // TODO(stripe): no money movement — schedule change only.
+      await notifyOtherParty(
+        'Session moved',
+        (name) => `${name} accepted the new time for ${booking.subject}.`,
+      );
       return Response.json({ ok: true }, { headers: cors });
     }
 
@@ -189,6 +227,10 @@ Deno.serve(async (req: Request) => {
       })
       .eq('id', bookingId);
     if (error) throw error;
+    await notifyOtherParty(
+      'New time declined',
+      (name) => `${name} declined the new time for ${booking.subject}. Your session stays at its original time.`,
+    );
     return Response.json({ ok: true }, { headers: cors });
   } catch (e) {
     if (e instanceof BookingError) {
