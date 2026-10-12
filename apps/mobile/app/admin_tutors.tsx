@@ -8,21 +8,25 @@
 // admin-only on the server (schedule_tutor_interview, 0042) and does not gate approval.
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Alert, Linking, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Button, Badge, Field, Ic, Eyebrow, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { api, type PendingTutor, type TutorInterview } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
 import { interviewLabel, nextInterviewSlots } from '../lib/interviewSlots';
+import { AdminTabs, tutorTabs, useAdminHubCounts } from '../lib/AdminTabs';
 
 export default function AdminTutors() {
   const t = useTheme();
   const router = useRouter();
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const tab = tabParam === 'interviews' || tabParam === 'grades' ? tabParam : 'applications';
   const { me, loading: meLoading } = useMe();
   const isAdmin = !!me?.roles?.includes('admin');
 
   const [pending, setPending] = useState<PendingTutor[]>([]);
   const [loading, setLoading] = useState(true);
+  const counts = useAdminHubCounts();
   const [busy, setBusy] = useState<string | null>(null);
   // Per applicant: the interview already set, the times their availability offers, and the
   // meeting link/place the admin is typing. `changing` reopens the times for a set interview.
@@ -143,21 +147,44 @@ export default function AdminTutors() {
       },
     ]);
 
+  const visibleTutors = tab === 'grades'
+    ? pending.filter((p) => p.awaiting === 'grades')
+    : tab === 'interviews'
+      ? pending
+          .filter((p) => {
+            const interview = interviews[p.userId];
+            return p.awaiting === 'application' && interview !== undefined && Date.parse(interview.scheduledAt) > Date.now();
+          })
+          .sort((a, b) => Date.parse(interviews[a.userId]!.scheduledAt) - Date.parse(interviews[b.userId]!.scheduledAt))
+      : pending.filter((p) => p.awaiting === 'application');
+
+  const emptyState = tab === 'applications'
+    ? { icon: 'cap' as const, title: 'No applications waiting', subtitle: 'Submitted tutor applications will appear here.' }
+    : tab === 'interviews'
+      ? { icon: 'cal' as const, title: 'No interviews scheduled', subtitle: 'Upcoming interviews for tutor applicants will appear here.' }
+      : { icon: 'doc' as const, title: 'No transcripts to verify', subtitle: 'Approved tutors with unverified transcripts will appear here.' };
+  const queueLabel = tab === 'applications'
+    ? `${visibleTutors.length} applications waiting`
+    : tab === 'interviews'
+      ? `${visibleTutors.length} upcoming interviews`
+      : `${visibleTutors.length} transcripts to verify`;
+
   return (
     <Screen>
-      <NavTop title="Tutor approvals" onBack={() => router.back()} />
+      <NavTop title="Tutors" onBack={() => router.back()} />
       <Body pad={20}>
+        <AdminTabs tabs={tutorTabs(counts)} active={tab} />
         {loading ? (
           <View style={{ gap: 12 }}>
             <Skeleton height={150} radius={16} />
             <Skeleton height={150} radius={16} />
           </View>
-        ) : pending.length === 0 ? (
-          <EmptyState icon="check" title="All caught up" subtitle="No tutors are waiting for review." />
         ) : (
           <View style={{ gap: 12 }}>
-            <Eyebrow style={{ color: t.text3 }}>{pending.length} awaiting review</Eyebrow>
-            {pending.map((tutor) => (
+            <Eyebrow style={{ color: t.text3 }}>{queueLabel}</Eyebrow>
+            {visibleTutors.length === 0 ? (
+              <EmptyState icon={emptyState.icon} title={emptyState.title} subtitle={emptyState.subtitle} />
+            ) : visibleTutors.map((tutor) => (
               <Card key={tutor.userId} style={{ padding: 16 }}>
                 <View style={styles.headRow}>
                   <View style={{ flex: 1, minWidth: 0 }}>

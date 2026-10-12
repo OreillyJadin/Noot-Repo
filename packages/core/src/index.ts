@@ -24,6 +24,7 @@ export {
   MAX_HOURLY_RATE,
 } from './pricing';
 export { UA_MAJORS, searchMajors, type Major } from './data/uaMajors';
+export { attentionTotal, type AdminHubCounts } from './adminHub';
 export {
   api,
   REMINDER_CHOICES,

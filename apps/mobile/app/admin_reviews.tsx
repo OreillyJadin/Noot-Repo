@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Button, Badge, Ic, Eyebrow, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { api, type AdminReview } from '@noot/core';
 import { useMe } from '../lib/useMe';
+import { AdminTabs, tutorTabs, useAdminHubCounts } from '../lib/AdminTabs';
 
 export default function AdminReviews() {
   const t = useTheme();
@@ -17,6 +18,7 @@ export default function AdminReviews() {
   const [reviews, setReviews] = useState<AdminReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const counts = useAdminHubCounts();
 
   useEffect(() => {
     let alive = true;
@@ -41,8 +43,9 @@ export default function AdminReviews() {
 
   return (
     <Screen>
-      <NavTop title="Review moderation" onBack={() => router.back()} />
+      <NavTop title="Reviews" onBack={() => router.back()} />
       <Body pad={20}>
+        <AdminTabs tabs={tutorTabs(counts)} active="reviews" />
         {loading ? (
           <View style={{ gap: 10 }}>
             <Skeleton height={120} radius={16} />
