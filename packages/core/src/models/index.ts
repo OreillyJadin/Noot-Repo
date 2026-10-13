@@ -37,6 +37,8 @@ export interface User {
   passwordSetAt: Timestamp | null;
   /** When they accepted the Terms of Use (0030). Null = not yet, so the app asks before letting them in. */
   termsAcceptedAt: Timestamp | null;
+  /** When they accepted the Community Guidelines (0055). Null = not yet, so the app asks before letting them in. */
+  guidelinesAcceptedAt: Timestamp | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

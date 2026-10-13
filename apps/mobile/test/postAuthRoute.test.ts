@@ -3,7 +3,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { decidePostAuthRoute, lookupWithRetry, type AccountState } from '../lib/postAuthRoute.ts';
 
-const setUp: AccountState = { hasPassword: true, acceptedTerms: true, activeRole: 'student' };
+const setUp: AccountState = {
+  hasPassword: true,
+  acceptedTerms: true,
+  acceptedGuidelines: true,
+  activeRole: 'student',
+};
 const found = (account: AccountState | null) => ({ ok: true as const, account });
 const noSleep = async () => {};
 
@@ -18,7 +23,12 @@ test('an account with a password goes home, not to "Create your password" (ERR-0
 test('an account with no password yet starts onboarding', () => {
   assert.deepEqual(decidePostAuthRoute(found({ ...setUp, hasPassword: false })), { kind: 'onboarding' });
   // Whatever mode is saved: without a password they have not finished signing up.
-  assert.deepEqual(decidePostAuthRoute(found({ hasPassword: false, acceptedTerms: false, activeRole: 'tutor' })), { kind: 'onboarding' });
+  assert.deepEqual(decidePostAuthRoute(found({
+    hasPassword: false,
+    acceptedTerms: false,
+    acceptedGuidelines: true,
+    activeRole: 'tutor',
+  })), { kind: 'onboarding' });
 });
 
 test('no users row yet is a new account', () => {
@@ -80,5 +90,31 @@ test('an account with a password that never accepted the Terms accepts them befo
 });
 
 test('without a password the Terms are accepted in onboarding, with the password', () => {
-  assert.deepEqual(decidePostAuthRoute(found({ hasPassword: false, acceptedTerms: false, activeRole: 'student' })), { kind: 'onboarding' });
+  assert.deepEqual(decidePostAuthRoute(found({
+    hasPassword: false,
+    acceptedTerms: false,
+    acceptedGuidelines: false,
+    activeRole: 'student',
+  })), { kind: 'onboarding' });
+});
+
+test('a student without accepted guidelines must read them before home', () => {
+  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, acceptedGuidelines: false })), { kind: 'guidelines' });
+});
+
+test('tutors and ambassadors without accepted guidelines go to their home', () => {
+  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, acceptedGuidelines: false, activeRole: 'tutor' })), {
+    kind: 'home', role: 'tutor', route: '/tutor_home',
+  });
+  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, acceptedGuidelines: false, activeRole: 'ambassador' })), {
+    kind: 'home', role: 'ambassador', route: '/ambassador_home',
+  });
+});
+
+test('the Terms gate comes before the Community Guidelines gate', () => {
+  assert.deepEqual(decidePostAuthRoute(found({
+    ...setUp,
+    acceptedTerms: false,
+    acceptedGuidelines: false,
+  })), { kind: 'terms' });
 });

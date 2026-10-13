@@ -116,11 +116,16 @@ async function ensureUser(email) {
   if (error) throw new Error(`createUser ${email}: ${error.message}`);
   // Created WITH its password, so the "password changed" trigger (0041) never fires for it.
   // Stamp it here or the app would start every seeded account at "Create your password".
-  // Demo accounts stand for people who finished onboarding: a password, and the Terms
-  // accepted (the app holds anyone without that at the accept-Terms screen). The version is
-  // TERMS_VERSION in apps/mobile/lib/legal.ts.
+  // Demo accounts stand for people who finished onboarding: a password, and the Terms and
+  // Community Guidelines accepted. The Terms version is in apps/mobile/lib/legal.ts.
   const stamp = await admin.from('users')
-    .update({ password_set_at: new Date().toISOString(), terms_accepted_at: new Date().toISOString(), terms_version: '2026-09-17' })
+    .update({
+      password_set_at: new Date().toISOString(),
+      terms_accepted_at: new Date().toISOString(),
+      terms_version: '2026-09-17',
+      guidelines_accepted_at: new Date().toISOString(),
+      guidelines_version: '2026-10-13',
+    })
     .eq('id', data.user.id);
   if (stamp.error) throw new Error(`password_set_at ${email}: ${stamp.error.message}`);
   return data.user.id;

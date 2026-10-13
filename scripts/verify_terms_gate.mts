@@ -28,7 +28,12 @@ const route = async () => {
   const read = await lookupWithRetry(async () => {
     const me = await api.getMe()
     return me
-      ? { hasPassword: me.passwordSetAt != null, acceptedTerms: me.termsAcceptedAt != null, activeRole: me.activeRole }
+      ? {
+          hasPassword: me.passwordSetAt != null,
+          acceptedTerms: me.termsAcceptedAt != null,
+          acceptedGuidelines: me.guidelinesAcceptedAt != null,
+          activeRole: me.activeRole,
+        }
       : null
   }, [1, 1], async () => {})
   const r = decidePostAuthRoute(read.ok ? { ok: true, account: read.value } : { ok: false })
@@ -98,11 +103,14 @@ try {
   step(refused?.code === '42501' && /Terms of Use/.test(refused.message),
     `it cannot send a chat message straight through the API: "${refused?.message}"`)
 
-  // ---- accepting opens both ----
+  // ---- accepting the Terms sends a student to the Community Guidelines ----
   await api.profile.acceptTerms('verify_terms_gate')
-  const after = await route()
+  const afterTerms = await route()
+  step(afterTerms === 'guidelines', `after accepting the Terms, the app opens "${afterTerms}"`)
+  await api.profile.acceptGuidelines('verify_terms_gate')
+  const afterGuidelines = await route()
   const allowed = await send(mine, conversationId, uid!, 'hello after accepting')
-  step(after === 'home /home' && allowed === null, `after accepting: the app opens "${after}" and the message is sent${allowed ? ` (${allowed.message})` : ''}`)
+  step(afterGuidelines === 'home /home' && allowed === null, `after accepting both: the app opens "${afterGuidelines}" and the message is sent${allowed ? ` (${allowed.message})` : ''}`)
   await auth.signOut()
 
   // ---- a second new account, to try getting round the rule ----

@@ -49,6 +49,7 @@ function ThemedApp() {
           {/* Tab roots cross-fade instead of the jerky horizontal slide; drill-down
               screens (booking, edit, etc.) keep the default push animation. */}
           <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="guidelines" options={{ gestureEnabled: false }} />
             <Stack.Screen name="home" options={{ animation: 'fade' }} />
             <Stack.Screen name="student_home" options={{ animation: 'fade' }} />
             <Stack.Screen name="sessions" options={{ animation: 'fade' }} />
