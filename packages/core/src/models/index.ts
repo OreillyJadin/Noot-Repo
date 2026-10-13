@@ -2,7 +2,7 @@
 // prd-data-models.md with the design handoff. Resolved decisions:
 //   • multiple roles per account, switched from Profile (roles[] + activeRole)
 //   • reviews are admin-moderated (hidden until approved, then attached to a user)
-//   • binary 24h refund
+//   • 12h / 2h tiered student cancellation refunds
 //   • weekly availability + one-off overrides
 //   • ambassador role with a flat $5 one-time referral bonus
 //
@@ -208,7 +208,7 @@ export interface Booking {
   /** Populated when in_person. */
   location: string | null;
   status: BookingStatus;
-  cancellationDeadline: Timestamp; // scheduledAt − 24h
+  cancellationDeadline: Timestamp; // scheduledAt − 12h
   cancelledAt: Timestamp | null;
   refundStatus: RefundStatus;
   stripePaymentIntentId: string | null; // charged upfront

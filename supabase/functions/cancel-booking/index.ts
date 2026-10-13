@@ -1,14 +1,15 @@
 // Edge Function: cancel-booking.
 // Cancels a booking and records the intended refund state per the cancellation
 // policy. Either party to the booking may cancel:
-//   - Student cancels: refund tiered by lead time (>24h → 100%, >=2h → 50%, else 0%).
+//   - Student cancels: refund tiered by lead time (12h+ → 100%, >=2h → 50%, else 0%).
+//     On late cancellations, the tutor is paid their non-refunded share of the stored payout.
 //   - Tutor cancels: student is always refunded 100%.
-// Real money movement (Stripe refund / releasing held funds) is out of scope here —
-// we only persist the intended state in the DB columns.
 //
-// Deno runtime. Self-contained (no _shared import).
+// Deno runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
+import { assertPayoutReady } from '../_shared/booking.ts';
+import { lateCancelTutorPayoutCents, studentCancelRefundPercent } from '../_shared/cancellation.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -44,7 +45,7 @@ Deno.serve(async (req: Request) => {
     // Load booking.
     const { data: booking, error: loadError } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, scheduled_at, status, price, credit_applied, stripe_payment_intent_id')
+      .select('id, student_id, tutor_id, scheduled_at, status, price, credit_applied, tutor_payout_amount, stripe_payment_intent_id')
       .eq('id', bookingId)
       .single();
 
@@ -74,7 +75,7 @@ Deno.serve(async (req: Request) => {
     let refundPercent: number;
     if (isStudent) {
       const hours = (new Date(booking.scheduled_at).getTime() - now.getTime()) / 3.6e6;
-      refundPercent = hours > 24 ? 100 : hours >= 2 ? 50 : 0;
+      refundPercent = studentCancelRefundPercent(hours);
     } else {
       // Tutor cancelled → student always fully refunded.
       refundPercent = 100;
@@ -89,6 +90,9 @@ Deno.serve(async (req: Request) => {
     //   0% refund   → capture the full amount (late-cancel fee).
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
     const pi = booking.stripe_payment_intent_id as string | null;
+    let chargeId: string | null = null;
+    let transferId: string | null = null;
+    let payoutFailedAt: string | null = null;
     if (stripeKey && pi && pi.startsWith('pi_')) {
       const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
       const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
@@ -101,10 +105,57 @@ Deno.serve(async (req: Request) => {
           // Whole cents, so e.g. $17.33 − $5 can't round a cent away.
           const chargedCents = Math.round(Number(booking.price) * 100) - Math.round(Number(booking.credit_applied ?? 0) * 100);
           const captureCents = Math.round((chargedCents * (100 - refundPercent)) / 100);
-          await stripe.paymentIntents.capture(pi, { amount_to_capture: captureCents }, { idempotencyKey: `cancelcap_${bookingId}` });
+          const capturedPi = await stripe.paymentIntents.capture(
+            pi,
+            { amount_to_capture: captureCents },
+            { idempotencyKey: `cancelcap_${bookingId}` },
+          );
+          chargeId = typeof capturedPi.latest_charge === 'string'
+            ? capturedPi.latest_charge
+            : (capturedPi.latest_charge?.id ?? null);
+
+          if (booking.tutor_payout_amount == null) {
+            payoutFailedAt = now.toISOString();
+          } else {
+            const amount = lateCancelTutorPayoutCents(Number(booking.tutor_payout_amount), refundPercent);
+            if (amount > 0) {
+              try {
+                const { data: profile, error: profileError } = await db
+                  .from('tutor_profiles')
+                  .select('stripe_connect_account_id')
+                  .eq('user_id', booking.tutor_id)
+                  .maybeSingle();
+                if (profileError) throw profileError;
+                const connectId = (profile?.stripe_connect_account_id as string | null | undefined) ?? null;
+                await assertPayoutReady(stripe, connectId);
+                const transfer = await stripe.transfers.create(
+                  {
+                    amount,
+                    currency: 'usd',
+                    destination: connectId!,
+                    transfer_group: bookingId,
+                    metadata: {
+                      booking_id: bookingId,
+                      reason: 'late_cancel',
+                      refund_percent: String(refundPercent),
+                    },
+                  },
+                  { idempotencyKey: `cancel_transfer_${bookingId}` },
+                );
+                transferId = transfer.id;
+              } catch (transferErr) {
+                payoutFailedAt = now.toISOString();
+                console.error('cancel-booking: late-cancel payout failed', bookingId, String(transferErr));
+              }
+            }
+          }
         }
       } catch (stripeErr) {
-        return Response.json({ error: 'Stripe: ' + String(stripeErr) }, { status: 400, headers: cors });
+        console.error('cancel-booking: payment step failed', bookingId, String(stripeErr));
+        return Response.json(
+          { error: 'The payment step failed. Please try again.' },
+          { status: 400, headers: cors },
+        );
       }
     }
 
@@ -115,6 +166,9 @@ Deno.serve(async (req: Request) => {
         cancelled_at: now.toISOString(),
         refund_percent: refundPercent,
         refund_status: refundStatus,
+        stripe_charge_id: chargeId,
+        stripe_transfer_id: transferId,
+        ...(payoutFailedAt ? { payout_failed_at: payoutFailedAt } : {}),
       })
       .eq('id', bookingId);
 
@@ -130,7 +184,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return Response.json(
-      { status: 'cancelled', refundPercent, refundStatus },
+      { status: 'cancelled', refundPercent, refundStatus, payoutFailed: !!payoutFailedAt },
       { headers: cors },
     );
   } catch (e) {

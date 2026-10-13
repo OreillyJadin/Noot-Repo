@@ -10,7 +10,7 @@ Server-only logic (ARCHITECTURE.md §5). Planned functions:
 | `connect-onboarding-link` | Tutor Stripe Connect onboarding. |
 | `complete-session` | Capture payment, transfer payout to tutor. |
 | `submit-rating` | Double-blind rating visibility. |
-| `cancel-booking` | Refund-tier math + cancellation-rate tracking. |
+| `cancel-booking` | 12h / 2h student refund tiers; transfers the tutor's share on late cancellations. |
 | `reschedule-booking` | Propose/accept new time; 3-reschedule rule. |
 | `report-no-show` | No-show thresholds + 3-strike escalation. |
 | `auto-complete` (cron) | 24h no-response → auto-complete + release. |
