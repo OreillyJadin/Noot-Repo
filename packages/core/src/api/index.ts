@@ -275,6 +275,7 @@ function mapUser(row: any): User {
     avatarUrl: row.avatar_url ?? null,
     passwordSetAt: row.password_set_at ?? null,
     termsAcceptedAt: row.terms_accepted_at ?? null,
+    guidelinesAcceptedAt: row.guidelines_accepted_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -595,6 +596,19 @@ export const api = {
       const { error } = await getSupabase()
         .from('users')
         .update({ terms_accepted_at: new Date().toISOString(), terms_version: version })
+        .eq('id', uid)
+        .select('id')
+        .single();
+      if (error) throw error;
+      notifyUserChanged();
+    },
+
+    /** Record that the user accepted the Community Guidelines during student onboarding. */
+    async acceptGuidelines(version: string): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('users')
+        .update({ guidelines_accepted_at: new Date().toISOString(), guidelines_version: version })
         .eq('id', uid)
         .select('id')
         .single();

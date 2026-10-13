@@ -2,7 +2,8 @@
 // (magic-link callback, email+password, or biometric unlock). Keeping this in one
 // place means every auth path lands users in the same spot: accounts with a password go to
 // their role's home, brand-new ones start the onboarding flow, and one that has a password
-// but never accepted the Terms accepts them first. The decision itself is lib/postAuthRoute.ts.
+// but never accepted the Terms or student Community Guidelines accepts them first. The
+// decision itself is lib/postAuthRoute.ts.
 import type { ImperativeRouter } from 'expo-router';
 import { api } from '@noot/core';
 import { claimPendingInvite } from './pendingInvite';
@@ -54,6 +55,7 @@ export async function routeAfterAuth(
       ? {
           hasPassword: provenPassword || provenPasswordFor === me.id || me.passwordSetAt != null,
           acceptedTerms: me.termsAcceptedAt != null,
+          acceptedGuidelines: me.guidelinesAcceptedAt != null,
           activeRole: me.activeRole,
         }
       : null;
@@ -63,6 +65,10 @@ export async function routeAfterAuth(
   if (route.kind === 'terms') {
     // Not onboarding (they have a password) and not home: one screen, then back through here.
     router.replace('/accept_terms');
+    return { ok: true, role: 'student', onboarding: false };
+  }
+  if (route.kind === 'guidelines') {
+    router.replace('/guidelines');
     return { ok: true, role: 'student', onboarding: false };
   }
   if (route.kind === 'home') {

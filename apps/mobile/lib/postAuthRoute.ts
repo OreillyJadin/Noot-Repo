@@ -13,8 +13,8 @@
 //     has chosen one (users.password_set_at, 0041) is past it and goes home — however it
 //     got here.
 //
-// It also holds the door on the Terms of Use: no sign-in or launch ends at a home for an
-// account that has not accepted them.
+// It also holds the door on the Terms of Use and, for student accounts, the Community
+// Guidelines. The Terms come first.
 import type { Role } from './store';
 
 /** What the decision reads about the signed-in account. */
@@ -23,6 +23,8 @@ export interface AccountState {
   hasPassword: boolean;
   /** The user has accepted the Terms of Use (users.terms_accepted_at, 0030). */
   acceptedTerms: boolean;
+  /** The user has accepted the Community Guidelines (users.guidelines_accepted_at, 0055). */
+  acceptedGuidelines: boolean;
   activeRole: string;
 }
 
@@ -33,6 +35,7 @@ export type PostAuthRoute =
   | { kind: 'home'; role: Role; route: '/home' | '/tutor_home' | '/ambassador_home' }
   | { kind: 'onboarding' }
   | { kind: 'terms' }
+  | { kind: 'guidelines' }
   | { kind: 'unavailable' };
 
 export function decidePostAuthRoute(lookup: AccountLookup): PostAuthRoute {
@@ -45,6 +48,11 @@ export function decidePostAuthRoute(lookup: AccountLookup): PostAuthRoute {
   // onboarding, an acceptance that failed to save, or an account older than the Terms. None
   // of them gets into the app until it has accepted.
   if (!account.acceptedTerms) return { kind: 'terms' };
+  // Students accept the Community Guidelines after the Terms; tutor and ambassador flows
+  // are unchanged for now.
+  if (!account.acceptedGuidelines && account.activeRole !== 'tutor' && account.activeRole !== 'ambassador') {
+    return { kind: 'guidelines' };
+  }
   // The home for the user's persisted mode. Admin is not a mode — an admin still browses
   // as student/tutor, so it lands on the student home.
   if (account.activeRole === 'tutor') return { kind: 'home', role: 'tutor', route: '/tutor_home' };

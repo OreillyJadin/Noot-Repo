@@ -5,7 +5,9 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { api } from '@noot/core';
+import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
+import { routeAfterAuth } from '../lib/postAuth';
 import { MajorPicker } from '../lib/MajorPicker';
 import { CoursePicker } from '../lib/CoursePicker';
 import {
@@ -58,6 +60,7 @@ function AddCourseChip({ onPress }: { onPress: () => void }) {
 export default function StudentProfile() {
   const t = useTheme();
   const router = useRouter();
+  const { setRole } = useApp();
   const { me, refresh } = useMe();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -100,7 +103,9 @@ export default function StudentProfile() {
       // Both writes already triggered a re-read; wait for it so Home and Profile open on
       // the data just entered, not the empty row from sign-up.
       await refresh();
-      router.push('/home');
+      if (!(await routeAfterAuth(router, setRole)).ok) {
+        Alert.alert('Could not save', 'Please sign in and try again.');
+      }
     } catch {
       Alert.alert('Could not save', 'Please sign in and try again.');
     }

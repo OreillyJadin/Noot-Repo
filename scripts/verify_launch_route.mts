@@ -25,7 +25,12 @@ const route = async () => {
   const read = await lookupWithRetry(async () => {
     const me = await api.getMe()
     return me
-      ? { hasPassword: me.passwordSetAt != null, acceptedTerms: me.termsAcceptedAt != null, activeRole: me.activeRole }
+      ? {
+          hasPassword: me.passwordSetAt != null,
+          acceptedTerms: me.termsAcceptedAt != null,
+          acceptedGuidelines: me.guidelinesAcceptedAt != null,
+          activeRole: me.activeRole,
+        }
       : null
   }, [1, 1], noWait)
   return decidePostAuthRoute(read.ok ? { ok: true, account: read.value } : { ok: false })
@@ -86,11 +91,14 @@ try {
       `after setPassword, link replayed: password_set_at=${stamp} (server-stamped) → ${show(r)} (must not be onboarding, nor home)`)
   }
 
-  // 5b) Accepting the Terms — what onboarding does next, on the same screen — opens the door.
+  // 5b) Accepting the Terms sends a student to the Community Guidelines.
   {
     await api.profile.acceptTerms('verify_launch_route')
-    const r = await route()
-    step('5b', r.kind === 'home' && r.route === '/home', `after accepting the Terms → ${show(r)}`)
+    const afterTerms = await route()
+    step('5b', afterTerms.kind === 'guidelines', `after accepting the Terms → ${show(afterTerms)}`)
+    await api.profile.acceptGuidelines('verify_launch_route')
+    const afterGuidelines = await route()
+    step('5c', afterGuidelines.kind === 'home' && afterGuidelines.route === '/home', `after accepting the Community Guidelines → ${show(afterGuidelines)}`)
   }
 
   // 6) A relaunch with only the stored session (no link) lands the same way.
