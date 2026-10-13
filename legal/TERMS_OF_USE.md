@@ -163,8 +163,8 @@ published rate and the session length. The app cannot alter it.
 
 | When you cancel | Refund |
 | --- | --- |
-| More than 24 hours before the session | **100%** |
-| Between 2 and 24 hours before | **50%** |
+| 12 hours or more before the session | **100%** |
+| Between 2 and 12 hours before | **50%** |
 | Less than 2 hours before | **No refund** |
 
 **If the tutor cancels**, you are refunded **100%**, whenever it happens.

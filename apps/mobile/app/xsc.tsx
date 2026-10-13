@@ -59,9 +59,9 @@ interface Tier {
 }
 
 const TIERS: Tier[] = [
-  { id: 'early', label: '> 24 hrs', refundPct: 1.0, tutorPct: 0, note: 'Full refund — no charge.' },
-  { id: 'mid', label: '2–24 hrs', refundPct: 0.5, tutorPct: 0.5, note: "Half refund — your tutor is paid 50% for the reserved slot." },
-  { id: 'late', label: '< 2 hrs', refundPct: 0, tutorPct: 1.0, note: 'No refund — the full amount goes to your tutor for the held time.' },
+  { id: 'early', label: '12+ hrs', refundPct: 1.0, tutorPct: 0, note: 'Full refund — no charge.' },
+  { id: 'mid', label: '2–12 hrs', refundPct: 0.5, tutorPct: 0.5, note: 'Half refund — your tutor is paid for half the reserved slot.' },
+  { id: 'late', label: '< 2 hrs', refundPct: 0, tutorPct: 1.0, note: 'No refund — your tutor is paid for the held time.' },
 ];
 
 // Recap strip — student-side cancel always shows the tutor being cancelled on.
@@ -104,7 +104,7 @@ function XStudentCancelInner() {
     ? (new Date(booking.scheduledAt).getTime() - Date.now()) / 3600000
     : null;
   const tier: TierId | null =
-    hoursUntil == null ? null : hoursUntil > 24 ? 'early' : hoursUntil >= 2 ? 'mid' : 'late';
+    hoursUntil == null ? null : hoursUntil >= 12 ? 'early' : hoursUntil >= 2 ? 'mid' : 'late';
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   // When a real booking is cancelled, the server decides the refund %; prefer it.
@@ -171,8 +171,8 @@ function XStudentCancelInner() {
           <Eyebrow style={{ color: t.text3 }}>
             {hoursUntil == null
               ? 'Cancellation policy'
-              : hoursUntil > 24
-                ? `Cancelling more than 24 hrs ahead`
+              : hoursUntil >= 12
+                ? 'Cancelling 12+ hrs ahead'
                 : hoursUntil >= 2
                   ? `Cancelling ${Math.round(hoursUntil)} hrs before the session`
                   : 'Cancelling less than 2 hrs before the session'}
