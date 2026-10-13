@@ -14,6 +14,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { BookingError, resolveBooking } from '../_shared/booking.ts';
+import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
 import { creditToApply, parseCreditCents } from '../_shared/credits.ts';
 
 const cors = {
@@ -177,9 +178,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const cancellationDeadline = new Date(
-      new Date(resolved.scheduledAt).getTime() - 24 * 60 * 60 * 1000,
-    ).toISOString();
+    const cancellationDeadline = cancellationDeadlineFor(new Date(resolved.scheduledAt)).toISOString();
 
     const { data: booking, error: bookingError } = await db
       .from('bookings')

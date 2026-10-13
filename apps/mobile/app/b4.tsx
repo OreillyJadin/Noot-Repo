@@ -16,8 +16,8 @@ import { NoSession } from '../lib/NoSession';
 type Status = 'idle' | 'processing';
 
 const POLICY_ROWS: [string, string, 'good' | 'neutral'][] = [
-  ['24h+ before', 'Full refund', 'good'],
-  ['2–24h before', '50% refund', 'neutral'],
+  ['12h+ before', 'Full refund', 'good'],
+  ['2–12h before', '50% refund', 'neutral'],
   ['Under 2h', 'No refund', 'neutral'],
 ];
 
@@ -215,7 +215,7 @@ function B4Inner() {
           <Pressable onPress={() => setPolicyOpen((o) => !o)} style={styles.policyHead}>
             <Ic name="shield" size={17} color={t.good} strokeWidth={1.8} />
             <Text style={{ flex: 1, fontSize: 13, color: t.text2 }}>
-              Free cancellation up to <Text style={{ color: t.text, fontWeight: '700' }}>24 hours</Text> before.
+              Free cancellation up to <Text style={{ color: t.text, fontWeight: '700' }}>12 hours</Text> before.
             </Text>
             <View style={styles.policyToggle}>
               <Text style={{ fontSize: 13, fontWeight: '600', color: t.accent }}>{policyOpen ? 'Hide' : 'View policy'}</Text>

@@ -8,6 +8,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { BOOKING_HORIZON_DAYS, BookingError, interviewClash } from '../_shared/booking.ts';
+import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -198,8 +199,8 @@ Deno.serve(async (req: Request) => {
           { status: 409, headers: cors },
         );
       }
-      // New cancellation deadline is 24h before the new session time.
-      const deadline = new Date(newTime.getTime() - 24 * 60 * 60 * 1000);
+      // New cancellation deadline is 12h before the new session time.
+      const deadline = cancellationDeadlineFor(newTime);
       const { error } = await db
         .from('bookings')
         .update({

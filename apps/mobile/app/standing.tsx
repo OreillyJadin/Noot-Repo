@@ -47,7 +47,7 @@ export default function Standing() {
         <Card flat style={{ padding: 14, backgroundColor: t.surfaceAlt, gap: 10 }}>
           {[
             'Complete your booked sessions — reliability is the biggest ranking factor.',
-            'Cancelling within 24 hours affects your standing and the student’s refund.',
+            'Every cancellation counts toward your standing, and the student is always fully refunded.',
             'Repeated no-shows can pause new bookings while our team reviews.',
           ].map((line) => (
             <View key={line} style={styles.tipRow}>
