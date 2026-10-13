@@ -19,7 +19,7 @@ reviews, or in person.
 ## 3. Learn, don't cheat
 Tutoring is for understanding the material. Don't ask a tutor to take a quiz or exam for you,
 do graded work you'll hand in as your own, or share answers or materials your professor hasn't
-allowed. Tutors are told to refuse, and we remove accounts that ask.
+allowed. Tutors can say no, and we remove accounts that ask.
 
 ## 4. Show up, or cancel early
 Your tutor holds that time for you. If plans change, cancel in the app as early as you can:

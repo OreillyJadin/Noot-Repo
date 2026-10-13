@@ -22,7 +22,7 @@ export const GUIDELINES: { title: string; body: string[]; bullets?: string[] }[]
   {
     title: "3. Learn, don't cheat",
     body: [
-      "Tutoring is for understanding the material. Don't ask a tutor to take a quiz or exam for you, do graded work you'll hand in as your own, or share answers or materials your professor hasn't allowed. Tutors are told to refuse, and we remove accounts that ask.",
+      "Tutoring is for understanding the material. Don't ask a tutor to take a quiz or exam for you, do graded work you'll hand in as your own, or share answers or materials your professor hasn't allowed. Tutors can say no, and we remove accounts that ask.",
     ],
   },
   {
