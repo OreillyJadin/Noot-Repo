@@ -167,8 +167,10 @@ export async function getPayoutStatus(key: string, id: string): Promise<PayoutSt
   } catch (err) {
     if (
       err instanceof StripeApiError &&
-      ['account_not_yet_compatible_with_v2', 'v1_account_instead_of_v2_account'].includes(err.code)
+      ([400, 403, 404].includes(err.status) ||
+        ['account_not_yet_compatible_with_v2', 'v1_account_instead_of_v2_account'].includes(err.code))
     ) {
+      // v2 uses 403 "forbidden" for missing accounts and accounts it won't read; let v1 decide.
       return retrieveV1PayoutStatus(key, id);
     }
     throw err;
