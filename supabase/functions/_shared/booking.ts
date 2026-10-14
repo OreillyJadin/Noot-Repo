@@ -9,6 +9,7 @@
 // or tutor eligibility is read from the request body.
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { splitPrice } from './fees.ts';
+import { getPayoutStatus, type PayoutStatus } from './connect.ts';
 
 // Noot's cut lives in ./fees.ts (17.5% verified, 32.5% unverified). ARCHITECTURE.md §8
 // is stale and says $0.00.
@@ -281,16 +282,15 @@ export function assertSessionElapsed(
  * clean refusal with nothing captured.
  */
 export async function assertPayoutReady(
-  // deno-lint-ignore no-explicit-any
-  stripe: any,
+  stripeKey: string,
   connectId: string | null,
 ): Promise<void> {
   if (!connectId) {
     throw new BookingError('Set up payouts before completing — no connected Stripe account.', 400);
   }
-  let account: { charges_enabled?: boolean; payouts_enabled?: boolean };
+  let status: PayoutStatus;
   try {
-    account = await stripe.accounts.retrieve(connectId);
+    status = await getPayoutStatus(stripeKey, connectId);
   } catch (err) {
     // Never rethrow a raw Stripe error from here. Stripe's own message for an
     // inaccessible account embeds a partially-redacted API key, and this string is
@@ -303,7 +303,14 @@ export async function assertPayoutReady(
       409,
     );
   }
-  if (!account.charges_enabled || !account.payouts_enabled) {
+  if (status.closed) {
+    console.error('assertPayoutReady: connected account is closed', connectId);
+    throw new BookingError(
+      'This payout account is no longer valid. Please reconnect Stripe payouts, then try again.',
+      409,
+    );
+  }
+  if (!status.transfersActive || !status.payoutsActive) {
     throw new BookingError(
       'Stripe payout setup is incomplete for this account. Finish onboarding, then try again.',
       409,

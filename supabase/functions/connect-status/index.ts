@@ -1,9 +1,10 @@
 // Edge Function: connect-status.
 // Returns the caller's (TUTOR's) Stripe Connect readiness so the payout-setup UI can show
-// "connected / payouts enabled / setup incomplete". Retrieves the account from Stripe and
-// write-through-caches charges/payouts flags on tutor_profiles. No account → not connected.
+// "connected / payouts enabled / setup incomplete". Reads Accounts v2 capability status and
+// write-through-caches transfer/payout readiness. No account → not connected.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
+import { getPayoutStatus, isDeadAccountError, type PayoutStatus } from '../_shared/connect.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -48,26 +49,44 @@ Deno.serve(async (req: Request) => {
       }, { headers: cors });
     }
 
-    const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
-    const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
-    const acct = await stripe.accounts.retrieve(accountId);
+    let status: PayoutStatus;
+    try {
+      status = await getPayoutStatus(stripeKey, accountId);
+    } catch (err) {
+      if (!isDeadAccountError(err)) throw err;
+      console.warn(`connect-status: stored account ${accountId} is unusable`);
+      status = {
+        transfersActive: false,
+        payoutsActive: false,
+        detailsSubmitted: false,
+        closed: true,
+        source: 'v2' as const,
+      };
+    }
+
+    const usable = !status.closed;
 
     await db
       .from('tutor_profiles')
       .update({
-        stripe_charges_enabled: acct.charges_enabled,
-        stripe_payouts_enabled: acct.payouts_enabled,
-        stripe_onboarded_at: acct.details_submitted ? new Date().toISOString() : null,
+        // Cache transfersActive as the booking gate, plus payoutsActive and detailsSubmitted.
+        stripe_charges_enabled: usable && status.transfersActive,
+        stripe_payouts_enabled: usable && status.payoutsActive,
+        stripe_onboarded_at: usable && status.detailsSubmitted ? new Date().toISOString() : null,
       })
       .eq('user_id', user.id);
 
     return Response.json({
       connected: true,
-      chargesEnabled: acct.charges_enabled,
-      payoutsEnabled: acct.payouts_enabled,
-      detailsSubmitted: acct.details_submitted,
+      chargesEnabled: usable && status.transfersActive,
+      payoutsEnabled: usable && status.payoutsActive,
+      detailsSubmitted: usable && status.detailsSubmitted,
     }, { headers: cors });
   } catch (err) {
-    return Response.json({ error: String(err) }, { status: 400, headers: cors });
+    console.error('connect-status failed', String(err));
+    return Response.json(
+      { error: 'Could not check payout status. Please try again.' },
+      { status: 400, headers: cors },
+    );
   }
 });
