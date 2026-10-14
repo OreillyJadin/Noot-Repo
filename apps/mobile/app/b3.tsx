@@ -134,7 +134,8 @@ function B3Inner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [course]);
 
-  const rate = (tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!)[2];
+  const courseEntry = tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!;
+  const rate = courseEntry[2];
   const cost = ((rate * length) / 60).toFixed(2).replace(/\.00$/, '');
   const daySlots = slots[day] ?? [];
   const ready = !!slot && !!tag && msg.trim().length > 0;
@@ -175,7 +176,11 @@ function B3Inner() {
           <Selectable
             onPress={() => setCourseOpen(true)}
             value={course}
-            sub={`$${rate}/hr · Grade ${(tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!)[1]} verified`}
+            sub={
+              courseEntry[4]
+                ? `$${rate}/hr · Currently taking`
+                : `$${rate}/hr · Grade ${courseEntry[1]} verified`
+            }
           />
         </FieldBlock>
 
@@ -357,7 +362,7 @@ function B3Inner() {
       </ActionBar>
 
       <Sheet visible={courseOpen} onClose={() => setCourseOpen(false)} title="Choose course">
-        {tutor.courses.map(([code, grade, r]) => (
+        {tutor.courses.map(([code, grade, r, , currentlyTaking]) => (
           <Card
             key={code}
             selected={course === code}
@@ -368,11 +373,15 @@ function B3Inner() {
             style={styles.courseRow}
           >
             <View style={[styles.courseGrade, { backgroundColor: t.accentWeak }]}>
-              <Text style={{ color: t.accent, fontWeight: '700', fontSize: 13 }}>{grade}</Text>
+              <Text style={{ color: t.accent, fontWeight: '700', fontSize: 13 }}>
+                {currentlyTaking ? 'Now' : grade}
+              </Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{code}</Text>
-              <Text style={{ fontSize: 12, color: t.text3 }}>Grade {grade} verified</Text>
+              <Text style={{ fontSize: 12, color: t.text3 }}>
+                {currentlyTaking ? 'Currently taking' : `Grade ${grade} verified`}
+              </Text>
             </View>
             <Text style={{ fontSize: 15, fontWeight: '700', color: t.text }}>${r}/hr</Text>
           </Card>

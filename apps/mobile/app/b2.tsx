@@ -80,16 +80,20 @@ function B2Inner() {
 
         <Section title="Courses & rates">
           <View style={{ gap: 8 }}>
-            {tutor.courses.map(([code, grade, rate, sess]) => (
+            {tutor.courses.map(([code, grade, rate, sess, currentlyTaking]) => (
               <Card key={code} onPress={() => book(code)} style={styles.courseCard}>
                 <View style={[styles.gradeBox, { backgroundColor: t.accent }]}>
-                  <Text style={{ color: t.onAccent, fontWeight: '700', fontSize: 14 }}>{grade}</Text>
+                  <Text style={{ color: t.onAccent, fontWeight: '700', fontSize: 14 }}>
+                    {currentlyTaking ? 'Now' : grade}
+                  </Text>
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{code}</Text>
                   <View style={styles.courseMetaRow}>
                     {/* Green "Grade A" read as checked; it is only once the tutor is verified (T6). */}
-                    {grade ? (
+                    {currentlyTaking ? (
+                      <Badge label="Currently taking" tone="neutral" />
+                    ) : grade ? (
                       <Badge
                         label={tutor.verified ? `Grade ${grade} · verified` : `Grade ${grade} · self-reported`}
                         tone={tutor.verified ? 'good' : 'neutral'}

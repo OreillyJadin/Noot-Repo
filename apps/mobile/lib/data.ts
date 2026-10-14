@@ -90,8 +90,8 @@ export interface Tutor {
   next: number;
   nextLabel: string;
   bio: string;
-  /** [courseCode, grade, rate, sessions] */
-  courses: [string, string, number, number][];
+  /** [courseCode, grade, rate, sessions, currentlyTaking] */
+  courses: [string, string, number, number, boolean][];
 }
 
 // ── adapters: @noot/core API shapes → the UI Tutor/Review shapes above ──────────
@@ -112,8 +112,8 @@ function relativeWhen(iso: string): string {
 export function toTutor(s: TutorSummary): Tutor {
   const name = s.lastName ? `${s.firstName} ${s.lastName.charAt(0)}.` : s.firstName;
   const courses: Tutor['courses'] = s.courses.length
-    ? s.courses.map((c) => [c.courseCode, c.grade ?? '', c.hourlyRate, c.sessions])
-    : s.subjects.map((code) => [code, s.verifiedGrade ?? '', s.hourlyRate, 0]);
+    ? s.courses.map((c) => [c.courseCode, c.grade ?? '', c.hourlyRate, c.sessions, c.currentlyTaking])
+    : s.subjects.map((code) => [code, s.verifiedGrade ?? '', s.hourlyRate, 0, false]);
   const rate = s.hourlyRate || Math.min(...courses.map((c) => c[2]));
   return {
     id: s.userId,

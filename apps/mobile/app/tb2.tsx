@@ -17,7 +17,7 @@ import { useCounterpart } from '../lib/useCounterpart';
 import { formatSessionTime } from '../lib/formatSessionTime';
 
 
-function sessionFacts(booking: BookingDraft, tutor: Tutor, feeRate: number) {
+function sessionFacts(booking: BookingDraft, tutor: Tutor, gradesVerified: boolean) {
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1]!;
   const lengthMin = booking.lengthMin ?? 60;
   const lengthHours = lengthMin / 60;
@@ -26,12 +26,13 @@ function sessionFacts(booking: BookingDraft, tutor: Tutor, feeRate: number) {
   const location = booking.location ?? 'Gorgas Library, Fl 2';
   const course = booking.course ?? tutor.courses[0]![0];
   const courseMatch = tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!;
+  const feeRate = feeRateFor(gradesVerified && !courseMatch[4]);
   const rate = courseMatch[2];
   const gross = rate * lengthHours;
   const fee = gross * feeRate;
   const payout = gross - fee;
   const online = location.startsWith('Online');
-  return { dayObj, lengthHours, lenLabel, slot, location, course, rate, gross, fee, payout, online };
+  return { dayObj, lengthHours, lenLabel, slot, location, course, rate, feeRate, gross, fee, payout, online };
 }
 
 function FactRow({ ic, label, value }: { ic: IconName; label: string; value: string }) {
@@ -80,9 +81,8 @@ export default function TB2() {
     booking.rescheduleProposedBy === me?.id;
   const tutor = booking.tutor ?? fetchedTutor;
   if (!tutor) return <NoSession />;
-  // Fee follows the tutor's verification (T6): 17.5% verified, 32.5% not.
-  const feeRate = feeRateFor(gradesVerified);
-  const f = sessionFacts(booking, tutor, feeRate);
+  // Fee follows the course's verification status: 17.5% verified, 32.5% otherwise.
+  const f = sessionFacts(booking, tutor, gradesVerified);
 
   return (
     <Screen>
@@ -165,7 +165,7 @@ export default function TB2() {
             <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>${f.gross.toFixed(2)}</Text>
           </View>
           <View style={[styles.earnRow, { marginTop: 10 }]}>
-            <Text style={{ fontSize: 14, color: t.text2 }}>Noot service fee ({+(feeRate * 100).toFixed(1)}%)</Text>
+            <Text style={{ fontSize: 14, color: t.text2 }}>Noot service fee ({+(f.feeRate * 100).toFixed(1)}%)</Text>
             <Text style={{ fontSize: 14, fontWeight: '600', color: t.text2 }}>−${f.fee.toFixed(2)}</Text>
           </View>
           <Divider style={{ marginVertical: 13 }} />

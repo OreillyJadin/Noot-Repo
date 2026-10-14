@@ -1,8 +1,7 @@
 // P4 Courses & Rates (Edit) — ported from screens-edit.jsx (EditRates). Tutor-only
 // settings editor for per-course hourly rates. "Add a course" jumps to the tutor
-// application's Courses step (T3) — unless the tutor's grades are verified: then the
-// course list and grades are locked (0048, ERR-012) and this screen only changes rates
-// and removes courses. Wired to @noot/core: prefills the tutor's
+// application's Courses step (T3). Verified tutors can add a course they're taking now,
+// but existing course statuses and grades stay locked. Wired to @noot/core: prefills the tutor's
 // per-course rows (api.getMe → tutors.getById) and persists them on save via
 // profile.setTutorCourses(...) — the contract method for per-course rate rows.
 // (profile.updateRates(number) sets only a single base rate, which this
@@ -25,6 +24,7 @@ function saveError(e: unknown): string {
 interface Rate {
   code: string;
   grade: string;
+  currentlyTaking: boolean;
   rate: number;
   sessions: number;
 }
@@ -49,6 +49,7 @@ export default function EditRates() {
             tutor.courses.map((c) => ({
               code: c.courseCode,
               grade: c.grade ?? '',
+              currentlyTaking: c.currentlyTaking,
               rate: c.hourlyRate,
               sessions: c.sessions,
             })),
@@ -97,6 +98,7 @@ export default function EditRates() {
           courseCode: r.code,
           grade: r.grade || null,
           hourlyRate: r.rate,
+          currentlyTaking: r.currentlyTaking,
         })),
       );
       Alert.alert('Rates updated');
@@ -122,13 +124,18 @@ export default function EditRates() {
             <Card key={r.code} style={{ padding: 14 }}>
               <View style={styles.row}>
                 <View style={[styles.gradeBadge, { backgroundColor: t.accentWeak }]}>
-                  <Text style={{ color: t.accent, fontWeight: '700', fontSize: 13 }}>{r.grade}</Text>
+                  <Text style={{ color: t.accent, fontWeight: '700', fontSize: 13 }}>
+                    {r.currentlyTaking ? 'Now' : r.grade || '—'}
+                  </Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{r.code}</Text>
-                  {/* "verified" only once an admin has checked the transcript (T6). */}
                   <Text style={{ fontSize: 12, color: t.text3 }}>
-                    {r.grade ? `Grade ${r.grade}${gradesVerified ? ' · verified' : ''}` : 'No grade'}
+                    {r.currentlyTaking
+                      ? 'Currently taking'
+                      : r.grade
+                        ? `Grade ${r.grade}${gradesVerified ? ' · verified' : ''}`
+                        : 'No grade'}
                   </Text>
                 </View>
                 <View style={styles.stepper}>
@@ -159,24 +166,34 @@ export default function EditRates() {
         </View>
 
         {gradesVerified ? (
-          <Card
-            flat
-            onPress={() =>
-              Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Add%20a%20course`).catch(() =>
-                Alert.alert('Email noot support', SUPPORT_EMAIL),
-              )
-            }
-            style={{ marginTop: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surfaceAlt }}
-          >
-            <Ic name="shield" size={17} color={t.good} strokeWidth={1.8} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>Your grades are verified</Text>
-              <Text style={{ fontSize: 12, color: t.text3, marginTop: 1 }}>
-                Courses and grades are locked. Email noot support to add a course or change a grade.
+          <>
+            <Card
+              flat
+              onPress={() => router.push('/t3?from=rates')}
+              style={{ marginTop: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surfaceAlt }}
+            >
+              <Ic name="plus" size={17} color={t.accent} strokeWidth={2.2} />
+              <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: t.text }}>
+                Add a course you&apos;re taking now
               </Text>
-            </View>
-            <Ic name="chevR" size={16} color={t.text3} strokeWidth={2} />
-          </Card>
+              <Ic name="chevR" size={16} color={t.text3} strokeWidth={2} />
+            </Card>
+            <Card
+              flat
+              onPress={() =>
+                Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Change%20a%20grade`).catch(() =>
+                  Alert.alert('Email noot support', SUPPORT_EMAIL),
+                )
+              }
+              style={{ marginTop: 12, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surfaceAlt }}
+            >
+              <Ic name="shield" size={17} color={t.good} strokeWidth={1.8} />
+              <Text style={{ flex: 1, fontSize: 12, color: t.text3 }}>
+                Grades are locked. Email noot support to change a grade.
+              </Text>
+              <Ic name="chevR" size={16} color={t.text3} strokeWidth={2} />
+            </Card>
+          </>
         ) : (
           <Card
             flat

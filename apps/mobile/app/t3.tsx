@@ -11,17 +11,26 @@ import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, H2, ProgressDots, H1, Sub, Ic, Skeleton, useTheme } from '@noot/ui';
-import { api, type CatalogCourse } from '@noot/core';
+import { api, UNVERIFIED_FEE_RATE, type CatalogCourse } from '@noot/core';
 import { CoursePicker } from '../lib/CoursePicker';
 import { useStepBack } from '../lib/useStepBack';
 import { errText } from '../lib/errText';
+import { useMe } from '../lib/useMe';
 
 const GRADE_OPTIONS = ['A+', 'A', 'A-', 'B+', 'B', 'B-'];
 const MAX_COURSES = 10;
 
 /** A course the tutor teaches. hourlyRate/sessions are preserved across saves (rates are
- *  set on T4); grade + code are what this screen edits. */
-type CourseRow = { courseCode: string; grade: string; hourlyRate: number; sessions: number; title?: string };
+ *  set on T4); grade + current status + code are what this screen edits. */
+type CourseRow = {
+  courseCode: string;
+  grade: string;
+  currentlyTaking: boolean;
+  existing: boolean;
+  hourlyRate: number;
+  sessions: number;
+  title?: string;
+};
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -61,6 +70,7 @@ export default function T3() {
   const t = useTheme();
   const router = useRouter();
   const stepBack = useStepBack(3);
+  const { gradesVerified, loading: meLoading } = useMe();
   const [courses, setCourses] = useState<CourseRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -81,6 +91,8 @@ export default function T3() {
             tutor.courses.map((c) => ({
               courseCode: c.courseCode,
               grade: c.grade ?? '',
+              currentlyTaking: c.currentlyTaking,
+              existing: true,
               hourlyRate: c.hourlyRate,
               sessions: c.sessions,
             })),
@@ -93,20 +105,33 @@ export default function T3() {
   }, []);
 
   // The code can only come from the catalog — no accepting whatever was typed, which is what
-  // let a tutor store "MATH125" and never match a student's "MATH 125". The grade is picked
-  // on the course's card afterwards, so the search never has to be reopened.
+  // let a tutor store "MATH125" and never match a student's "MATH 125".
   const addCourse = (picked: CatalogCourse) => {
     if (courses.length >= MAX_COURSES) return Alert.alert('Limit reached', `You can add up to ${MAX_COURSES} courses.`);
     // Checked again inside the update: two quick taps can both run before a re-render.
     setCourses((cs) =>
       cs.length >= MAX_COURSES || cs.some((c) => c.courseCode === picked.courseCode)
         ? cs
-        : [...cs, { courseCode: picked.courseCode, grade: '', hourlyRate: 0, sessions: 0, title: picked.courseTitle }],
+        : [
+            ...cs,
+            {
+              courseCode: picked.courseCode,
+              grade: '',
+              currentlyTaking: gradesVerified,
+              existing: false,
+              hourlyRate: 0,
+              sessions: 0,
+              title: picked.courseTitle,
+            },
+          ],
     );
   };
 
   const setGrade = (code: string, grade: string) =>
-    setCourses((cs) => cs.map((c) => (c.courseCode === code ? { ...c, grade } : c)));
+    setCourses((cs) => cs.map((c) => (c.courseCode === code ? { ...c, grade, currentlyTaking: false } : c)));
+
+  const setCurrentlyTaking = (code: string) =>
+    setCourses((cs) => cs.map((c) => (c.courseCode === code ? { ...c, grade: '', currentlyTaking: true } : c)));
 
   const removeCourse = (code: string) =>
     Alert.alert('Remove course', `Remove ${code} from your list?`, [
@@ -114,11 +139,19 @@ export default function T3() {
       { text: 'Remove', style: 'destructive', onPress: () => setCourses((cs) => cs.filter((c) => c.courseCode !== code)) },
     ]);
 
-  // Only courses with a grade are ever saved: nothing after this step asks for one again, so
-  // an ungraded course would otherwise ride through to a submitted (or live) profile.
+  // Only courses with an answer are saved; a course currently being taken is a valid answer.
   const persist = async (): Promise<boolean> => {
     try {
-      await api.profile.setTutorCourses(courses.filter((c) => c.grade));
+      await api.profile.setTutorCourses(
+        courses
+          .filter((c) => c.grade || c.currentlyTaking)
+          .map((c) => ({
+            courseCode: c.courseCode,
+            grade: c.grade || null,
+            hourlyRate: c.hourlyRate,
+            currentlyTaking: c.currentlyTaking,
+          })),
+      );
       return true;
     } catch (e) {
       // The server's reason, when it has one (e.g. grades locked once verified, 0048).
@@ -130,9 +163,12 @@ export default function T3() {
   const saveAndContinue = async () => {
     if (saving) return;
     if (courses.length === 0) return Alert.alert('Add a course', 'Add at least one course you can tutor.');
-    const ungraded = courses.filter((c) => !c.grade);
+    const ungraded = courses.filter((c) => !(c.grade || c.currentlyTaking));
     if (ungraded.length > 0) {
-      return Alert.alert('Pick your grades', `Select the grade you earned in ${ungraded.map((c) => c.courseCode).join(', ')}.`);
+      return Alert.alert(
+        'Courses need an answer',
+        `Pick your grade, or Taking it now, for ${ungraded.map((c) => c.courseCode).join(', ')}.`,
+      );
     }
     setSaving(true);
     const ok = await persist();
@@ -145,17 +181,17 @@ export default function T3() {
   const saveAndExit = async () => {
     // Still loading (or the load failed): the list on screen isn't the saved one, and saving
     // it would wipe their courses.
-    if (loading) return router.replace('/');
-    const ungraded = courses.filter((c) => !c.grade);
+    if (loading || meLoading) return router.replace('/');
+    const ungraded = courses.filter((c) => !(c.grade || c.currentlyTaking));
     if (ungraded.length === 0) {
       await persist();
       return router.replace('/');
     }
     Alert.alert(
-      'Pick your grades',
-      `${ungraded.map((c) => c.courseCode).join(', ')} ${ungraded.length === 1 ? 'has' : 'have'} no grade yet and won’t be saved.`,
+      'Courses need an answer',
+      `Pick your grade, or Taking it now, for ${ungraded.map((c) => c.courseCode).join(', ')}.`,
       [
-        { text: 'Pick grades', style: 'cancel' },
+        { text: 'Pick a grade or Taking it now', style: 'cancel' },
         { text: 'Exit anyway', onPress: async () => { await persist(); router.replace('/'); } },
       ],
     );
@@ -166,22 +202,28 @@ export default function T3() {
       <StepHead
         step={3}
         title="Courses you tutor"
-        sub="Add up to 10. Add the ones you crushed."
+        sub="Add up to 10. Pick grades you earned, or mark courses you're taking now."
         onBack={stepBack}
         onExit={saveAndExit}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
         <Card flat style={[styles.addingCard, { borderColor: t.borderStrong, backgroundColor: t.surfaceAlt }]}>
           <Eyebrow style={{ marginBottom: 10 }}>Add courses</Eyebrow>
-          <CoursePicker
-            label=""
-            keepOpen
-            selected={courses.map((c) => c.courseCode)}
-            onSelect={addCourse}
-            placeholder="Search e.g. MATH or calculus"
-          />
+          {meLoading ? (
+            <Skeleton height={48} radius={13} />
+          ) : (
+            <CoursePicker
+              label=""
+              keepOpen
+              selected={courses.map((c) => c.courseCode)}
+              onSelect={addCourse}
+              placeholder="Search e.g. MATH or calculus"
+            />
+          )}
           <Text style={[styles.addHint, { color: t.text3 }]}>
-            Tap every course you want — the list stays open. Then pick your grade for each one below.
+            {gradesVerified
+              ? "Your grades are verified, so you can only add courses you're taking now."
+              : 'Tap every course you want — the list stays open. Then pick a grade or choose Taking it now for each one below.'}
           </Text>
         </Card>
 
@@ -190,13 +232,13 @@ export default function T3() {
           <Badge label={`${courses.length} / ${MAX_COURSES}`} tone="neutral" />
         </View>
 
-        {loading ? (
+        {loading || meLoading ? (
           <View style={{ gap: 10 }}>
             <Skeleton height={62} radius={14} />
             <Skeleton height={62} radius={14} />
           </View>
         ) : courses.length === 0 ? (
-          <Text style={{ fontSize: 13, color: t.text3 }}>No courses yet — search above and tap the ones you aced.</Text>
+          <Text style={{ fontSize: 13, color: t.text3 }}>No courses yet — search above and tap the courses you tutor.</Text>
         ) : (
           <View style={{ gap: 10 }}>
             {courses.map((c) => (
@@ -208,39 +250,77 @@ export default function T3() {
                       <Text numberOfLines={1} style={[styles.courseSem, { color: t.text3 }]}>{c.title}</Text>
                     ) : null}
                   </View>
-                  <Pressable
-                    onPress={() => removeCourse(c.courseCode)}
-                    hitSlop={10}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remove ${c.courseCode}`}
-                  >
-                    <Ic name="x" size={18} color={t.text3} strokeWidth={2} />
-                  </Pressable>
+                  {!gradesVerified || !c.existing ? (
+                    <Pressable
+                      onPress={() => removeCourse(c.courseCode)}
+                      hitSlop={10}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${c.courseCode}`}
+                    >
+                      <Ic name="x" size={18} color={t.text3} strokeWidth={2} />
+                    </Pressable>
+                  ) : null}
                 </View>
-                {/* The label sits above the chips: six grades (ERR-027) don't fit beside it. */}
-                <Text style={[styles.gradeLabel, { color: c.grade ? t.text3 : t.accent }]}>
-                  {c.grade ? 'Your grade' : 'Pick your grade'}
-                </Text>
-                <View style={styles.gradeRow}>
-                  {GRADE_OPTIONS.map((g) => {
-                    const on = c.grade === g;
-                    return (
-                      <Pressable
-                        key={g}
-                        onPress={() => setGrade(c.courseCode, g)}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: on }}
-                        accessibilityLabel={`Grade ${g} in ${c.courseCode}`}
-                        style={[
-                          styles.gradeChip,
-                          { backgroundColor: on ? t.accent : t.surface, borderColor: on ? t.accent : t.borderStrong },
-                        ]}
-                      >
-                        <Text style={[styles.gradeChipText, { color: on ? t.onAccent : t.text2 }]}>{g}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                {gradesVerified && c.existing ? (
+                  <Text style={[styles.gradeLabel, { color: t.text2 }]}>
+                    {c.currentlyTaking ? 'Currently taking' : c.grade || 'No grade on file'}
+                  </Text>
+                ) : (
+                  <>
+                    <Text style={[styles.gradeLabel, { color: c.grade || c.currentlyTaking ? t.text3 : t.accent }]}>
+                      {c.grade || c.currentlyTaking ? 'Your grade' : 'Pick your grade'}
+                    </Text>
+                    <View style={styles.gradeRow}>
+                      {!gradesVerified
+                        ? GRADE_OPTIONS.map((g) => {
+                            const on = c.grade === g;
+                            return (
+                              <Pressable
+                                key={g}
+                                onPress={() => setGrade(c.courseCode, g)}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: on }}
+                                accessibilityLabel={`Grade ${g} in ${c.courseCode}`}
+                                style={[
+                                  styles.gradeChip,
+                                  { backgroundColor: on ? t.accent : t.surface, borderColor: on ? t.accent : t.borderStrong },
+                                ]}
+                              >
+                                <Text style={[styles.gradeChipText, { color: on ? t.onAccent : t.text2 }]}>{g}</Text>
+                              </Pressable>
+                            );
+                          })
+                        : null}
+                      {(!gradesVerified || !c.existing) ? (
+                        <Pressable
+                          onPress={() => setCurrentlyTaking(c.courseCode)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: c.currentlyTaking }}
+                          accessibilityLabel={`Taking it now for ${c.courseCode}`}
+                          style={[
+                            styles.nowChip,
+                            {
+                              backgroundColor: c.currentlyTaking ? t.accent : t.surface,
+                              borderColor: c.currentlyTaking ? t.accent : t.borderStrong,
+                            },
+                          ]}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            style={[styles.gradeChipText, { color: c.currentlyTaking ? t.onAccent : t.text2, fontSize: 12 }]}
+                          >
+                            Taking it now
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </>
+                )}
+                {c.currentlyTaking ? (
+                  <Text style={[styles.currentlyTakingNote, { color: t.text3 }]}>
+                    Students see this as Currently taking. Noot&apos;s fee on this course is {UNVERIFIED_FEE_RATE * 100}% until a transcript shows your final grade.
+                  </Text>
+                ) : null}
               </Card>
             ))}
           </View>
@@ -255,7 +335,7 @@ export default function T3() {
           label={saving ? 'Saving…' : 'Save & Continue'}
           kind="primary"
           full
-          disabled={saving}
+          disabled={saving || loading || meLoading}
           onPress={saveAndContinue}
         />
       </ActionBar>
@@ -274,10 +354,12 @@ const styles = StyleSheet.create({
   headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 },
   courseCard: { gap: 10, padding: 12 },
   courseHead: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  gradeRow: { flexDirection: 'row', gap: 6 },
+  gradeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   gradeLabel: { fontSize: 13, fontWeight: '600' },
-  gradeChip: { flex: 1, height: 34, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  gradeChip: { flexGrow: 1, flexBasis: 42, minWidth: 38, height: 34, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  nowChip: { flexGrow: 1, flexBasis: 110, height: 34, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   gradeChipText: { fontWeight: '700', fontSize: 14 },
+  currentlyTakingNote: { fontSize: 12, lineHeight: 17 },
   courseCode: { fontSize: 16, fontWeight: '600' },
   courseSem: { fontSize: 13 },
   addingCard: { marginBottom: 18, padding: 16, borderWidth: 1.5, borderStyle: 'dashed' },
