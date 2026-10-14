@@ -1,5 +1,5 @@
 // Edge Function: confirm-booking.
-// The caller (user.id) is the STUDENT. Creates a confirmed booking, ensures a
+// The caller (user.id) is the STUDENT. Creates a pending booking request, ensures a
 // conversation exists between student and tutor, and optionally posts an opening
 // message.
 //
@@ -15,6 +15,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { BookingError, resolveBooking } from '../_shared/booking.ts';
 import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
+import { acceptDeadline } from '../_shared/acceptance.ts';
 import { creditToApply, parseCreditCents } from '../_shared/credits.ts';
 
 const cors = {
@@ -179,6 +180,7 @@ Deno.serve(async (req) => {
     }
 
     const cancellationDeadline = cancellationDeadlineFor(new Date(resolved.scheduledAt)).toISOString();
+    const acceptBy = acceptDeadline(Date.now(), new Date(resolved.scheduledAt).getTime()).toISOString();
 
     const { data: booking, error: bookingError } = await db
       .from('bookings')
@@ -195,7 +197,8 @@ Deno.serve(async (req) => {
         session_type: sessionType,
         meeting_link: meetingLink ?? null,
         location: location ?? null,
-        status: 'confirmed',
+        status: 'pending',
+        accept_by: acceptBy,
         cancellation_deadline: cancellationDeadline,
         refund_status: 'not_applicable',
         stripe_payment_intent_id: storedPaymentIntentId,
@@ -251,7 +254,7 @@ Deno.serve(async (req) => {
     }
 
     return Response.json(
-      { bookingId: booking.id, conversationId: conversation.id, price: resolved.price },
+      { bookingId: booking.id, conversationId: conversation.id, price: resolved.price, acceptBy },
       { headers: cors },
     );
   } catch (e) {

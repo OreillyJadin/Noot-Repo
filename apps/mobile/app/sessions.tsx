@@ -52,7 +52,7 @@ export default function Sessions() {
   const initialTab: SegmentKey = tabParam === 'past' || tabParam === 'saved' ? tabParam : 'upcoming';
   const [tab, setTab] = useState<SegmentKey>(initialTab);
 
-  // Upcoming: confirmed future bookings, each joined to its tutor via getById.
+  // Upcoming: pending requests and confirmed future bookings, joined to their tutor.
   const [upcoming, setUpcoming] = useState<UpcomingItem[]>([]);
   // Saved: the student's saved-tutors list.
   const [saved, setSaved] = useState<Tutor[]>([]);
@@ -152,7 +152,13 @@ export default function Sessions() {
         router.push('/xsc');
         return;
       }
-      patchBooking({ tutor: tutor ?? undefined, bookingId, scheduledAt });
+      patchBooking({
+        tutor: tutor ?? undefined,
+        bookingId,
+        scheduledAt,
+        status: upcoming.find((item) => item.booking.id === bookingId)?.booking.status,
+        acceptBy: upcoming.find((item) => item.booking.id === bookingId)?.booking.acceptBy,
+      });
       router.push('/xsc');
     } catch (e) {
       Alert.alert('Something went wrong', 'Could not open cancel. Please try again.');
@@ -270,7 +276,7 @@ export default function Sessions() {
               const fromTutor = hasProposal && b.rescheduleProposedBy === b.tutorId;
               const fromStudent = hasProposal && b.rescheduleProposedBy === b.studentId;
               // "Starts soon" if the session begins within the next hour.
-              const soon = new Date(b.scheduledAt).getTime() - Date.now() < 3_600_000;
+              const soon = b.status === 'confirmed' && new Date(b.scheduledAt).getTime() - Date.now() < 3_600_000;
               return (
                 <Card key={b.id} style={styles.cardNoPad}>
                   {soon ? (
@@ -298,22 +304,36 @@ export default function Sessions() {
                         <Text style={[styles.metaText, { color: t.text2 }]}>{where}</Text>
                       </View>
                     </View>
-                    <View style={styles.btnRow}>
-                      <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
-                      <Button
-                        label={fromTutor ? 'Review new time' : fromStudent ? 'Request sent' : 'Reschedule'}
-                        kind="tint"
-                        size="sm"
-                        style={{ flex: 1 }}
-                        disabled={fromStudent}
-                        onPress={() => reschedule(tutor, b)}
-                      />
-                    </View>
-                    <View style={styles.linkRow}>
-                      <Text onPress={() => cancelSession(tutor, b.id, b.scheduledAt)} style={[styles.link, { color: t.text3 }]}>Cancel session</Text>
-                      <Text style={[styles.link, { color: t.text3 }]}>·</Text>
-                      <Text onPress={() => reportNoShow(tutor, b.id)} style={[styles.link, { color: t.text3 }]}>Report a no-show</Text>
-                    </View>
+                    {b.status === 'pending' ? (
+                      <>
+                        <Text style={[styles.metaText, { color: t.accent, marginTop: 12, fontWeight: '600' }]}>
+                          Waiting for {tutorName} to accept · by {formatSessionTime(b.acceptBy ?? b.scheduledAt)}
+                        </Text>
+                        <View style={styles.btnRow}>
+                          <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
+                          <Button label="Cancel request" kind="tint" size="sm" style={{ flex: 1 }} onPress={() => cancelSession(tutor, b.id, b.scheduledAt)} />
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <View style={styles.btnRow}>
+                          <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
+                          <Button
+                            label={fromTutor ? 'Review new time' : fromStudent ? 'Request sent' : 'Reschedule'}
+                            kind="tint"
+                            size="sm"
+                            style={{ flex: 1 }}
+                            disabled={fromStudent}
+                            onPress={() => reschedule(tutor, b)}
+                          />
+                        </View>
+                        <View style={styles.linkRow}>
+                          <Text onPress={() => cancelSession(tutor, b.id, b.scheduledAt)} style={[styles.link, { color: t.text3 }]}>Cancel session</Text>
+                          <Text style={[styles.link, { color: t.text3 }]}>·</Text>
+                          <Text onPress={() => reportNoShow(tutor, b.id)} style={[styles.link, { color: t.text3 }]}>Report a no-show</Text>
+                        </View>
+                      </>
+                    )}
                   </View>
                 </Card>
               );
@@ -339,6 +359,12 @@ export default function Sessions() {
                       <Text style={[styles.sub, { color: t.text3 }]}>
                         {b.subject} · {formatSessionTime(b.scheduledAt)}
                       </Text>
+                      {b.cancelReason ? (
+                        <Badge
+                          label={b.cancelReason === 'tutor_declined' ? 'Declined' : 'Expired, not accepted'}
+                          tone="neutral"
+                        />
+                      ) : null}
                     </View>
                     <Button label="Message" kind="secondary" size="sm" iconRight="chat" onPress={() => message(tutor)} />
                   </View>

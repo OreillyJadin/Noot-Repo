@@ -85,3 +85,9 @@ verify_jwt = false
 
 [functions.leave-tutor-role]
 verify_jwt = true
+
+[functions.respond-booking-request]
+verify_jwt = true
+
+[functions.release-booking-holds]
+verify_jwt = false

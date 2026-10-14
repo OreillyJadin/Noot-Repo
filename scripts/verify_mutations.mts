@@ -66,6 +66,15 @@ await check('auth.signInWithPassword(student)', async () => {
 const tutors = await api.tutors.search();
 const tutorId = tutors[0]?.userId;
 console.log(`   using tutorId=${tutorId} (${tutors[0]?.firstName})`);
+const { data: tutorUser } = await admin.from('users').select('email').eq('id', tutorId!).single();
+const tutorEmail = tutorUser!.email as string;
+const acceptAsTutor = async (bookingId: string | undefined) => {
+  if (!bookingId) throw new Error('booking was not created');
+  await auth.signInWithPassword(tutorEmail, 'password123');
+  const result = await api.bookings.respond({ bookingId, action: 'accept' });
+  await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  return result;
+};
 
 const future = (days: number) => new Date(Date.now() + days * 86400_000).toISOString();
 
@@ -106,6 +115,7 @@ const b1 = await check('bookings.confirm', () =>
     message: 'Looking forward to the session!', paymentIntentId: pi?.paymentIntentId,
   }),
 );
+await check('tutor accepts booking #1', () => acceptAsTutor(b1?.bookingId));
 
 // it should now appear in listUpcoming
 await check('listUpcoming contains new booking', async () => {
@@ -160,6 +170,7 @@ const b2 = await check('bookings.confirm #2', () =>
     sessionType: 'in_person', location: 'Gorgas Library', paymentIntentId: pi2,
   }),
 );
+await check('tutor accepts booking #2', () => acceptAsTutor(b2?.bookingId));
 await check('bookings.cancel (expect 100% refund)', async () => {
   const r = await api.bookings.cancel(b2?.bookingId);
   if (r.refundPercent !== 100) throw new Error(`expected 100% got ${r.refundPercent}`);
@@ -174,6 +185,7 @@ const b3 = await check('bookings.confirm #3', () =>
     sessionType: 'in_person', location: 'Gorgas Library, Fl 2', paymentIntentId: pi3,
   }),
 );
+await check('tutor accepts booking #3', () => acceptAsTutor(b3?.bookingId));
 // A no-show can only be reported once the session is actually over (T17), so backdate it
 // rather than asserting the old, unguarded behaviour.
 await admin

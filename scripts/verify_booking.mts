@@ -65,7 +65,7 @@ try {
     paymentIntentId,
   })
   bookingId = res.bookingId
-  step(4, !!bookingId && !!res.conversationId, `confirm-booking → booking ${bookingId}, conversation ${res.conversationId}`)
+  step(4, !!bookingId && !!res.conversationId && !!res.acceptBy, `confirm-booking → pending request ${bookingId}, accept by ${res.acceptBy}`)
 } catch (e) {
   step(4, false, `confirm-booking threw: ${String(e)}`)
 }
@@ -73,7 +73,15 @@ try {
 // 5) listUpcoming (what the app's sessions screen reads) now returns it.
 const upcoming = await api.listUpcoming()
 const found = upcoming.find((b) => b.id === bookingId)
-step(5, !!found, found ? `listUpcoming shows the booking (status=${found.status}, subject=${found.subject})` : `booking not in listUpcoming (${upcoming.length} upcoming)`)
+step(5, !!found && found.status === 'pending', found ? `listUpcoming shows the request (status=${found.status}, subject=${found.subject})` : `booking not in listUpcoming (${upcoming.length} upcoming)`)
+
+if (bookingId) {
+  const { data: tutorUser } = await admin.from('users').select('email').eq('id', tutor.userId).single()
+  await auth.signInWithPassword(tutorUser!.email as string, 'password123')
+  const accepted = await api.bookings.respond({ bookingId, action: 'accept' })
+  step('5b', accepted.status === 'confirmed', 'tutor accepts the request')
+  await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
+}
 
 // cleanup
 if (bookingId) { await admin.from('bookings').delete().eq('id', bookingId); console.log('   (cleaned up test booking)') }

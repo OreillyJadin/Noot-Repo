@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, H1, Ic, useTheme, type IconName } from '@noot/ui';
 import { useApp } from '../lib/store';
 import { DAYS } from '../lib/data';
+import { formatSessionTime } from '../lib/formatSessionTime';
 
 export default function B5() {
   const t = useTheme();
@@ -24,7 +25,7 @@ export default function B5() {
   const slot = booking.slot ?? '3:00 PM';
   const location = booking.location ?? 'Gorgas Library, Fl 2';
   const course = booking.course ?? booking.tutor?.courses[0]?.[0] ?? 'Your course';
-  const dayWord = dayObj.label === 'Today' ? 'today' : dayObj.label === 'Tomorrow' ? 'tomorrow' : dayObj.label;
+  const acceptBy = booking.acceptBy ? formatSessionTime(booking.acceptBy) : 'the acceptance deadline';
 
   const rows: [IconName, string][] = [
     ['cap', course],
@@ -48,10 +49,10 @@ export default function B5() {
               <Ic name="handshake" size={50} color={t.onAccent} strokeWidth={1.9} />
             </View>
           </View>
-          <H1 style={{ fontSize: 26, marginTop: 22, textAlign: 'center' }}>Deal locked in.</H1>
+          <H1 style={{ fontSize: 26, marginTop: 22, textAlign: 'center' }}>Request sent.</H1>
           <Text style={[styles.sub, { color: t.text2 }]}>
-            You&apos;re set with <Text style={{ fontWeight: '700', color: t.text }}>{tutorName}</Text> {dayWord}.
-            You&apos;ll find it under Sessions, and you can message them any time.
+            <Text style={{ fontWeight: '700', color: t.text }}>{tutorName}</Text> has until {acceptBy} to accept.
+            You won&apos;t be charged unless the session happens.
           </Text>
         </View>
 
@@ -77,12 +78,14 @@ export default function B5() {
 
         <Card flat style={{ ...styles.noteCard, backgroundColor: t.surfaceAlt }}>
           <Ic name="lock" size={16} color={t.good} strokeWidth={1.8} />
-          <Text style={{ flex: 1, fontSize: 12, color: t.text2, lineHeight: 17 }}>Payment held — released after your session.</Text>
+          <Text style={{ flex: 1, fontSize: 12, color: t.text2, lineHeight: 17 }}>
+            If {tutorName} declines or doesn&apos;t respond in time, you won&apos;t be charged.
+          </Text>
         </Card>
         <Card flat style={{ ...styles.noteCard, backgroundColor: t.surfaceAlt, marginTop: 10 }}>
           <Ic name="clock" size={16} color={t.text3} strokeWidth={1.8} />
           <Text style={{ flex: 1, fontSize: 12, color: t.text2, lineHeight: 17 }}>
-            We&apos;ll remind you both 24 hours and 1 hour before.
+            We&apos;ll let you know when {tutorName} responds.
           </Text>
         </Card>
       </Body>

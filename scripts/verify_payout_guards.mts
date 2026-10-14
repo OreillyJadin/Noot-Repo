@@ -69,6 +69,8 @@ const makeBooking = async (hoursAhead: number) => {
     tutorId: tutor.userId, courseCode, scheduledAt, durationMinutes: 60, sessionType: 'in_person',
     paymentIntentId: pi.body.paymentIntentId,
   })
+  const accepted = await call('respond-booking-request', { bookingId: res.body.bookingId, action: 'accept' }, tutorToken)
+  if (accepted.status !== 200) throw new Error(`tutor could not accept test booking: ${accepted.status} ${accepted.body.error ?? ''}`)
   return { bookingId: res.body.bookingId as string, pi: pi.body.paymentIntentId as string, scheduledAt }
 }
 

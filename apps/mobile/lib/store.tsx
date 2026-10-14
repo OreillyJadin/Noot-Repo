@@ -22,6 +22,11 @@ export interface BookingDraft {
   course?: string;
   /** ISO time of the real booking. Drives the live cancellation refund tier. */
   scheduledAt?: string;
+  acceptBy?: string | null;
+  acceptedAt?: string | null;
+  status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+  cancelReason?: 'tutor_declined' | 'tutor_no_response' | null;
+  declineNote?: string | null;
   rescheduleProposedAt?: string | null;
   rescheduleProposedBy?: string | null;
   dayIndex?: number;

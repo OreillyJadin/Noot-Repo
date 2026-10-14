@@ -50,7 +50,7 @@ try {
 
 const upcoming = await api.listUpcoming()
 const found = upcoming.find((b) => b.id === bookingId)
-step(4, !!found, found ? `listUpcoming shows it (status=${found.status})` : `not in listUpcoming (${upcoming.length})`)
+step(4, !!found && found.status === 'pending', found ? `listUpcoming shows a pending request (status=${found.status})` : `not in listUpcoming (${upcoming.length})`)
 
 // cleanup — cancel through the student-authorized function (no service_role).
 if (bookingId) {

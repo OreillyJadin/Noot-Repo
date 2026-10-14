@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, ViewingAs, PreviewBanner, useTheme, type IconName } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Button, Skeleton, ViewingAs, PreviewBanner, useTheme, type IconName } from '@noot/ui';
 import { api, type Booking, type Message } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
@@ -15,6 +15,7 @@ import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
 import { NotificationBell } from '../lib/NotificationBell';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
+import { formatSessionTime } from '../lib/formatSessionTime';
 
 // Chat-list preview. An attachment-only message has content '' — describe it rather than
 // rendering a blank row.
@@ -103,15 +104,21 @@ export default function TutorHome() {
   // role check would keep saying "preview" to someone who is already a verified tutor.
   const previewing = tutorStatus !== 'approved';
 
-  // Next confirmed, future session (as tutor OR student) from the live API.
+  // Next confirmed session and pending requests from the live API.
   const [next, setNext] = useState<Booking | null>(null);
+  const [requests, setRequests] = useState<Booking[]>([]);
+  const [busyRequest, setBusyRequest] = useState<string | null>(null);
   // Live dashboard numbers + counterparty names + most-recent conversation.
   const [stats, setStats] = useState<{ sessionsTaught: number; earnedThisWeek: number } | null>(null);
   const [names, setNames] = useState<Record<string, { firstName: string; lastName: string }>>({});
   const [recent, setRecent] = useState<{ name: string; preview: string } | null>(null);
   useEffect(() => {
     let active = true;
-    api.listUpcoming().then((list) => { if (active) setNext(list[0] ?? null); }).catch(() => {});
+    api.listUpcoming().then((list) => {
+      if (!active) return;
+      setNext(list.find((booking) => booking.status === 'confirmed') ?? null);
+      setRequests(list.filter((booking) => booking.status === 'pending'));
+    }).catch(() => {});
     api.tutorStats().then((s) => { if (active) setStats(s); }).catch(() => {});
     api.resolveParticipantNames().then((n) => { if (active) setNames(n); }).catch(() => {});
     api.chat
@@ -145,6 +152,28 @@ export default function TutorHome() {
   const openNextDetail = () => {
     if (next) patchBooking(draftFromBooking(next));
     router.push('/tb2');
+  };
+  const acceptRequest = async (request: Booking) => {
+    if (busyRequest) return;
+    setBusyRequest(request.id);
+    try {
+      await api.bookings.respond({ bookingId: request.id, action: 'accept' });
+      setRequests((rows) => rows.filter((row) => row.id !== request.id));
+      const accepted: Booking = { ...request, status: 'confirmed', acceptedAt: new Date().toISOString() };
+      setNext((current) =>
+        !current || new Date(accepted.scheduledAt).getTime() < new Date(current.scheduledAt).getTime()
+          ? accepted
+          : current,
+      );
+    } catch (e) {
+      Alert.alert('Could not accept request', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setBusyRequest(null);
+    }
+  };
+  const declineRequest = (request: Booking) => {
+    patchBooking(draftFromBooking(request));
+    router.push('/xbr');
   };
   const openEarnings = () =>
     Alert.alert('Earnings', stats ? `You've earned $${stats.earnedThisWeek.toFixed(2)} this week.` : 'Loading…');
@@ -225,6 +254,31 @@ export default function TutorHome() {
             </View>
           </View>
         )}
+
+        {requests.length ? (
+          <View style={{ marginTop: 18, gap: 10 }}>
+            <View style={styles.sectionHead}>
+              <H2 style={{ fontSize: 17 }}>Session requests</H2>
+              <Text style={{ color: t.text3 }}>{requests.length}</Text>
+            </View>
+            {requests.map((request) => {
+              const name = names[request.studentId];
+              const requestName = name ? `${name.firstName} ${name.lastName}`.trim() : 'Student';
+              return (
+                <Card key={request.id} style={{ padding: 14 }}>
+                  <Text style={{ color: t.text, fontSize: 15, fontWeight: '700' }}>{requestName} · {request.subject}</Text>
+                  <Text style={{ color: t.accent, fontSize: 13, marginTop: 4 }}>
+                    New request · respond by {formatSessionTime(request.acceptBy ?? request.scheduledAt)}
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                    <Button label={busyRequest === request.id ? 'Accepting…' : 'Accept'} kind="primary" size="sm" style={{ flex: 1 }} disabled={!!busyRequest} onPress={() => void acceptRequest(request)} />
+                    <Button label="Decline" kind="secondary" size="sm" style={{ flex: 1 }} disabled={!!busyRequest} onPress={() => declineRequest(request)} />
+                  </View>
+                </Card>
+              );
+            })}
+          </View>
+        ) : null}
 
         {/* This week stats */}
         <View style={styles.sectionHead}>

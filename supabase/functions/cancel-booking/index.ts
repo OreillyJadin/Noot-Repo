@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
     // Load booking.
     const { data: booking, error: loadError } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, scheduled_at, status, price, credit_applied, tutor_payout_amount, stripe_payment_intent_id')
+      .select('id, student_id, tutor_id, subject, scheduled_at, status, price, credit_applied, tutor_payout_amount, stripe_payment_intent_id')
       .eq('id', bookingId)
       .single();
 
@@ -70,8 +70,90 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Compute refund percent per the cancellation policy.
     const now = new Date();
+    if (booking.status === 'pending') {
+      const paymentIntentId = booking.stripe_payment_intent_id as string | null;
+      const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+      const noRealHold = !paymentIntentId || paymentIntentId.startsWith('sim_pi_');
+      const { data: cancelled, error: updateError } = await db
+        .from('bookings')
+        .update({
+          status: 'cancelled',
+          cancelled_at: now.toISOString(),
+          refund_percent: 100,
+          refund_status: 'refunded',
+          stripe_charge_id: null,
+          stripe_transfer_id: null,
+          hold_released_at: noRealHold ? now.toISOString() : null,
+        })
+        .eq('id', bookingId)
+        .eq('status', 'pending')
+        .select('id')
+        .maybeSingle();
+      if (updateError) throw updateError;
+      if (!cancelled) {
+        return Response.json({ error: 'This request is no longer pending' }, { status: 409, headers: cors });
+      }
+
+      const { error: creditError } = await db.rpc('return_booking_credit', {
+        p_booking: bookingId,
+        p_percent: 100,
+      });
+      if (creditError) console.error('cancel-booking: pending credit return failed', bookingId);
+
+      let holdReleased = noRealHold;
+      if (paymentIntentId?.startsWith('pi_') && stripeKey) {
+        try {
+          const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
+          const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
+          try {
+            await stripe.paymentIntents.cancel(
+              paymentIntentId,
+              {},
+              { idempotencyKey: `cancel_${bookingId}` },
+            );
+            holdReleased = true;
+          } catch {
+            try {
+              const current = await stripe.paymentIntents.retrieve(paymentIntentId);
+              holdReleased = current.status === 'canceled';
+            } catch {
+              holdReleased = false;
+            }
+          }
+        } catch {
+          holdReleased = false;
+        }
+        if (!holdReleased) console.error('cancel-booking: pending hold release failed', bookingId);
+      }
+      if (holdReleased && !noRealHold) {
+        const { error: holdUpdateError } = await db
+          .from('bookings')
+          .update({ hold_released_at: now.toISOString() })
+          .eq('id', bookingId)
+          .eq('status', 'cancelled')
+          .is('hold_released_at', null);
+        if (holdUpdateError) console.error('cancel-booking: hold release timestamp failed', bookingId);
+      }
+
+      const recipientId = isStudent ? booking.tutor_id : booking.student_id;
+      const { data: actor } = await db.from('users').select('first_name').eq('id', user.id).maybeSingle();
+      const actorName = actor?.first_name?.trim() || (isStudent ? 'The student' : 'The tutor');
+      const { error: notificationError } = await db.rpc('create_notification', {
+        p_user: recipientId,
+        p_type: 'booking',
+        p_title: 'Session request cancelled',
+        p_body: `${actorName} cancelled the ${booking.subject} session request.`,
+        p_data: { bookingId },
+      });
+      if (notificationError) console.error('cancel-booking: counterpart notification failed', bookingId);
+      return Response.json(
+        { status: 'cancelled', refundPercent: 100, refundStatus: 'refunded', payoutFailed: false, holdReleased },
+        { headers: cors },
+      );
+    }
+
+    // Compute refund percent per the cancellation policy.
     let refundPercent: number;
     if (isStudent) {
       const hours = (new Date(booking.scheduled_at).getTime() - now.getTime()) / 3.6e6;
@@ -159,7 +241,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const { error: updateError } = await db
+    const { data: updated, error: updateError } = await db
       .from('bookings')
       .update({
         status: 'cancelled',
@@ -170,10 +252,16 @@ Deno.serve(async (req: Request) => {
         stripe_transfer_id: transferId,
         ...(payoutFailedAt ? { payout_failed_at: payoutFailedAt } : {}),
       })
-      .eq('id', bookingId);
+      .eq('id', bookingId)
+      .eq('status', booking.status)
+      .select('id')
+      .maybeSingle();
 
     if (updateError) {
       return Response.json({ error: updateError.message }, { status: 400, headers: cors });
+    }
+    if (!updated) {
+      return Response.json({ error: 'This booking is no longer cancellable' }, { status: 409, headers: cors });
     }
 
     // Noot credit comes back in the same proportion as the cash refund (cumulative, so a
@@ -182,6 +270,18 @@ Deno.serve(async (req: Request) => {
       const { error: creditErr } = await db.rpc('return_booking_credit', { p_booking: bookingId, p_percent: refundPercent });
       if (creditErr) console.error('cancel-booking: credit return failed', bookingId, creditErr.message);
     }
+
+    const recipientId = isStudent ? booking.tutor_id : booking.student_id;
+    const { data: actor } = await db.from('users').select('first_name').eq('id', user.id).maybeSingle();
+    const actorName = actor?.first_name?.trim() || (isStudent ? 'The student' : 'The tutor');
+    const { error: notificationError } = await db.rpc('create_notification', {
+      p_user: recipientId,
+      p_type: 'booking',
+      p_title: 'Session cancelled',
+      p_body: `${actorName} cancelled your ${booking.subject} session.`,
+      p_data: { bookingId },
+    });
+    if (notificationError) console.error('cancel-booking: counterpart notification failed', bookingId);
 
     return Response.json(
       { status: 'cancelled', refundPercent, refundStatus, payoutFailed: !!payoutFailedAt },
