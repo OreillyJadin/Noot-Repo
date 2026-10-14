@@ -287,6 +287,7 @@ function mapTutorCourse(row: any): TutorCourse {
     tutorId: row.tutor_id,
     courseCode: row.course_code,
     grade: row.grade ?? null,
+    currentlyTaking: row.currently_taking === true,
     hourlyRate: num(row.hourly_rate),
     sessions: row.sessions ?? 0,
     createdAt: row.created_at,
@@ -432,7 +433,7 @@ function mapMessage(row: any): Message {
 const TUTOR_SELECT = `
   id, first_name, last_name, year, major, gender,
   tutor_profiles!user_id!inner ( bio, subjects, hourly_rate, rating_avg, total_sessions, verified_grade, approval_status, grades_verified_at ),
-  tutor_courses ( id, tutor_id, course_code, grade, hourly_rate, sessions, created_at )
+  tutor_courses ( id, tutor_id, course_code, grade, currently_taking, hourly_rate, sessions, created_at )
 `;
 
 /**
@@ -878,13 +879,17 @@ export const api = {
     },
 
     /**
-     * Save the tutor's per-course list in one transaction (set_tutor_courses, 0048): courses
-     * left out are removed, the rest are added or updated in place, so a course keeps its
-     * session count. Once an admin has verified the tutor's grades the server only accepts
-     * rate changes and removals — a new course or a changed grade is refused (ERR-012).
+     * Save the tutor's per-course list in one transaction (set_tutor_courses): courses left
+     * out are removed, the rest are added or updated in place, so a course keeps its session
+     * count. Every caller must send currentlyTaking to preserve the course's current status.
      */
     async setTutorCourses(
-      courses: { courseCode: string; grade?: string | null; hourlyRate?: number }[],
+      courses: {
+        courseCode: string;
+        grade?: string | null;
+        hourlyRate?: number;
+        currentlyTaking: boolean;
+      }[],
     ): Promise<void> {
       await requireUid();
       const { error } = await getSupabase().rpc('set_tutor_courses', {
@@ -892,6 +897,7 @@ export const api = {
           course_code: c.courseCode,
           grade: c.grade ?? null,
           hourly_rate: c.hourlyRate ?? 0,
+          currently_taking: c.currentlyTaking,
         })),
       });
       if (error) throw error;

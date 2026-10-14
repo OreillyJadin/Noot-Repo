@@ -67,12 +67,13 @@ export interface TutorProfile {
   updatedAt: Timestamp;
 }
 
-/** A course a tutor teaches, with the verified grade / rate / session count (0004). */
+/** A course a tutor teaches, with its grade / current status / rate / session count (0004). */
 export interface TutorCourse {
   id: UUID;
   tutorId: UUID;
   courseCode: string;
   grade: string | null;
+  currentlyTaking: boolean;
   hourlyRate: number;
   sessions: number;
   createdAt: Timestamp;
