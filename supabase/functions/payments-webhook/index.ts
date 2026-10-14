@@ -1,7 +1,7 @@
 // Edge Function: payments-webhook (our business webhook — NOT the Stripe Sync Engine's
 // `stripe-webhook`, which is a separate endpoint). verify_jwt is OFF; auth is the Stripe
 // signature (STRIPE_WEBHOOK_SECRET). Handles the events our payout/refund flow cares about:
-//   - account.updated   → cache the tutor's Connect charges/payouts readiness
+//   - account.updated   → cache Accounts v2 transfer/payout capability readiness
 //   - charge.refunded   → mark the booking refunded (reconciliation); give the student back
 //                         the same share of the Noot credit they used, and on a FULL refund
 //                         take back the invite reward the session earned (0040)
@@ -11,6 +11,7 @@
 //   - payment_intent.succeeded → no-op (money moves synchronously in complete-session)
 import Stripe from 'https://esm.sh/stripe@16?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getPayoutStatus } from '../_shared/connect.ts';
 
 type Db = ReturnType<typeof createClient>;
 
@@ -53,12 +54,14 @@ Deno.serve(async (req: Request) => {
     switch (event.type) {
       case 'account.updated': {
         const acct = event.data.object as Stripe.Account;
+        const status = await getPayoutStatus(stripeKey, acct.id);
         await db
           .from('tutor_profiles')
           .update({
-            stripe_charges_enabled: acct.charges_enabled,
-            stripe_payouts_enabled: acct.payouts_enabled,
-            stripe_onboarded_at: acct.details_submitted ? new Date().toISOString() : null,
+            // Cache transfersActive as the booking gate, plus payoutsActive and detailsSubmitted.
+            stripe_charges_enabled: !status.closed && status.transfersActive,
+            stripe_payouts_enabled: !status.closed && status.payoutsActive,
+            stripe_onboarded_at: !status.closed && status.detailsSubmitted ? new Date().toISOString() : null,
           })
           .eq('stripe_connect_account_id', acct.id);
         break;

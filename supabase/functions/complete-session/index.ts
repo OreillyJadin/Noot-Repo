@@ -87,7 +87,7 @@ Deno.serve(async (req: Request) => {
 
       // Check the destination BEFORE capturing. Capture-then-fail used to leave the
       // student charged, the tutor unpaid and the booking still 'confirmed'.
-      await assertPayoutReady(stripe, connectId);
+      await assertPayoutReady(stripeKey, connectId);
 
       const capturedPi = await stripe.paymentIntents.capture(pi, {}, { idempotencyKey: `capture_${bookingId}` });
       captured = true;

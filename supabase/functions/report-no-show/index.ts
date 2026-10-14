@@ -110,7 +110,7 @@ Deno.serve(async (req: Request) => {
             .maybeSingle();
           const connectId = (prof?.stripe_connect_account_id as string | null | undefined) ?? null;
           // Check the destination before capturing, as in complete-session.
-          await assertPayoutReady(stripe, connectId);
+          await assertPayoutReady(stripeKey, connectId);
           const capped = await stripe.paymentIntents.capture(pi, {}, { idempotencyKey: `noshow_cap_${bookingId}` });
           chargeId = typeof capped.latest_charge === 'string' ? capped.latest_charge : (capped.latest_charge?.id ?? null);
           try {

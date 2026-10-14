@@ -24,25 +24,27 @@
 //   1. an idempotency key derived from the user id, so Stripe itself collapses concurrent
 //      creates into a single account;
 //   2. a CONDITIONAL persist (`... where stripe_connect_account_id is null`) so a losing
-//      racer detects it lost instead of overwriting the winner, and deletes the account it
-//      just made;
+//      racer detects it lost instead of overwriting the winner;
 //   3. the persist result is actually checked. The original discarded the upsert error, so
 //      a failed write looked like success and guaranteed a duplicate on the next tap.
 //
-// Also recovers from a stored id that is unusable under the current keys. Connect ids do
-// not cross Stripe accounts, so every id from before the sandbox -> live cutover is dead
-// (APP_REVIEW_TICKETS.md T10); rather than failing forever, treat it as "no account".
+// Accounts are created with Stripe Accounts v2; Account Sessions, account links, and
+// deletion stay on the v1 SDK endpoints. A lost racer must not delete the winner when both
+// requests receive the same idempotent account.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
+import {
+  createRecipientAccount,
+  getPayoutStatus,
+  isDeadAccountError,
+  type V2Account,
+} from '../_shared/connect.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-
-/** Stripe error codes meaning "that account id is not usable under these keys". */
-const DEAD_ACCOUNT_CODES = new Set(['resource_missing', 'account_invalid', 'permission_error']);
 
 const errCode = (err: unknown) =>
   (err as { code?: string; rawType?: string })?.code ??
@@ -90,43 +92,61 @@ Deno.serve(async (req: Request) => {
     };
 
     let accountId = await readStored();
+    let deadId: string | null = null;
 
     // A stored id from another Stripe account (or a deleted one) can never be onboarded.
     // Clear it so the create path below can give them a fresh account.
     if (accountId) {
       try {
-        const existing = await stripe.accounts.retrieve(accountId);
-        if ((existing as { deleted?: boolean }).deleted) accountId = null;
+        const status = await getPayoutStatus(stripeKey, accountId);
+        if (status.closed) {
+          deadId = accountId;
+          accountId = null;
+        }
       } catch (err) {
-        if (!DEAD_ACCOUNT_CODES.has(errCode(err))) throw err;
+        if (!isDeadAccountError(err)) throw err;
         console.warn(`connect-onboarding-link: stored account ${accountId} unusable, recreating`);
+        deadId = accountId;
         accountId = null;
       }
       if (!accountId) {
         await db.from('tutor_profiles')
           .update({ stripe_connect_account_id: null, stripe_charges_enabled: false, stripe_payouts_enabled: false })
-          .eq('user_id', user.id);
+          .eq('user_id', user.id)
+          .eq('stripe_connect_account_id', deadId);
       }
     }
 
     if (!accountId) {
-      // Defence 1: same user + same key => Stripe returns the SAME account rather than a
-      // new one. Keys are retained ~24h, which covers the burst of concurrent taps that
-      // caused the orphans. `idempotency_key_in_use` means a sibling request is mid-flight
-      // with this exact key, so the winner is about to persist — fall through and re-read.
-      let created: { id: string } | null = null;
-      try {
-        created = await stripe.accounts.create(
-          {
-            type: 'express',
-            country: 'US',
-            email: user.email ?? undefined,
-            business_type: 'individual',
-            capabilities: { transfers: { requested: true } },
-            metadata: { user_id: user.id },
-          },
-          { idempotencyKey: `connect_acct_${user.id}` },
+      if (!user.email) {
+        return Response.json(
+          { error: 'Add an email to your account before setting up payouts.' },
+          { status: 400, headers: cors },
         );
+      }
+
+      // Defence 1: the same user + key collapses concurrent v2 creates to one account.
+      // A closed 30-day replay is retried once with a fresh key.
+      const idemKey = deadId
+        ? `connect_acct_v2_${user.id}_after_${deadId}`
+        : `connect_acct_v2_${user.id}`;
+      let created: V2Account | null = null;
+      try {
+        created = await createRecipientAccount(stripeKey, { userId: user.id, email: user.email }, idemKey);
+        if (created.closed) {
+          console.warn(`connect-onboarding-link: idempotent account ${created.id} is closed, retrying`);
+          created = await createRecipientAccount(stripeKey, {
+            userId: user.id,
+            email: user.email,
+          }, `${idemKey}_${Date.now()}`);
+          if (created.closed) {
+            console.error(`connect-onboarding-link: retry returned closed account ${created.id}`);
+            return Response.json(
+              { error: 'Could not start payout setup. Please try again.' },
+              { status: 500, headers: cors },
+            );
+          }
+        }
       } catch (err) {
         if (errCode(err) !== 'idempotency_key_in_use') throw err;
         await new Promise((r) => setTimeout(r, 1500));
@@ -167,7 +187,8 @@ Deno.serve(async (req: Request) => {
           // We lost the race (or there is no tutor_profiles row yet).
           const winner = await readStored();
           if (winner) {
-            await stripe.accounts.del(created.id).catch(() => {});
+            // Same-key concurrent creates return the same id; never delete that winner.
+            if (winner !== created.id) await stripe.accounts.del(created.id).catch(() => {});
             accountId = winner;
           } else {
             // No row to update — this tutor has no profile yet. Insert one.

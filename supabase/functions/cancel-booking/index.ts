@@ -209,7 +209,7 @@ Deno.serve(async (req: Request) => {
                   .maybeSingle();
                 if (profileError) throw profileError;
                 const connectId = (profile?.stripe_connect_account_id as string | null | undefined) ?? null;
-                await assertPayoutReady(stripe, connectId);
+                await assertPayoutReady(stripeKey, connectId);
                 const transfer = await stripe.transfers.create(
                   {
                     amount,
