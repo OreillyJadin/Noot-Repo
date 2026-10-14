@@ -31,12 +31,15 @@
 // Accounts are created with Stripe Accounts v2; Account Sessions, account links, and
 // deletion stay on the v1 SDK endpoints. A lost racer must not delete the winner when both
 // requests receive the same idempotent account.
+// A stored id unusable under the current Stripe keys (another account or sandbox→live, APP_REVIEW_TICKETS.md T10)
+// or already closed is treated as no account and recreated.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import {
   createRecipientAccount,
   getPayoutStatus,
   isDeadAccountError,
+  StripeApiError,
   type V2Account,
 } from '../_shared/connect.ts';
 
@@ -126,35 +129,53 @@ Deno.serve(async (req: Request) => {
       }
 
       // Defence 1: the same user + key collapses concurrent v2 creates to one account.
-      // A closed 30-day replay is retried once with a fresh key.
+      // A closed replay or idempotency_error gets one fresh-key retry; defences 2+3 cover that rare race.
       const idemKey = deadId
         ? `connect_acct_v2_${user.id}_after_${deadId}`
         : `connect_acct_v2_${user.id}`;
       let created: V2Account | null = null;
+      let retriedWithFreshKey = false;
       try {
         created = await createRecipientAccount(stripeKey, { userId: user.id, email: user.email }, idemKey);
-        if (created.closed) {
-          console.warn(`connect-onboarding-link: idempotent account ${created.id} is closed, retrying`);
+      } catch (err) {
+        if (err instanceof StripeApiError && err.code === 'idempotency_error') {
+          console.warn('connect-onboarding-link: idempotency parameters changed or account was deleted; retrying once');
+          retriedWithFreshKey = true;
           created = await createRecipientAccount(stripeKey, {
             userId: user.id,
             email: user.email,
           }, `${idemKey}_${Date.now()}`);
-          if (created.closed) {
-            console.error(`connect-onboarding-link: retry returned closed account ${created.id}`);
+        } else {
+          if (errCode(err) !== 'idempotency_key_in_use') throw err;
+          await new Promise((r) => setTimeout(r, 1500));
+          accountId = await readStored();
+          if (!accountId) {
             return Response.json(
-              { error: 'Could not start payout setup. Please try again.' },
-              { status: 500, headers: cors },
+              { error: 'Payout setup is already starting. Please try again in a moment.' },
+              { status: 409, headers: cors },
             );
           }
         }
-      } catch (err) {
-        if (errCode(err) !== 'idempotency_key_in_use') throw err;
-        await new Promise((r) => setTimeout(r, 1500));
-        accountId = await readStored();
-        if (!accountId) {
+      }
+
+      if (created?.closed) {
+        if (retriedWithFreshKey) {
+          console.error(`connect-onboarding-link: fresh-key retry returned closed account ${created.id}`);
           return Response.json(
-            { error: 'Payout setup is already starting. Please try again in a moment.' },
-            { status: 409, headers: cors },
+            { error: 'Could not start payout setup. Please try again.' },
+            { status: 500, headers: cors },
+          );
+        }
+        console.warn(`connect-onboarding-link: idempotent account ${created.id} is closed, retrying`);
+        created = await createRecipientAccount(stripeKey, {
+          userId: user.id,
+          email: user.email,
+        }, `${idemKey}_${Date.now()}`);
+        if (created.closed) {
+          console.error(`connect-onboarding-link: retry returned closed account ${created.id}`);
+          return Response.json(
+            { error: 'Could not start payout setup. Please try again.' },
+            { status: 500, headers: cors },
           );
         }
       }

@@ -139,7 +139,7 @@ if (!LIVE) {
       if (typeof response.body.accountId === 'string') createdAccountIds.add(response.body.accountId)
     }
     const accountIds = sessions.map((response) => response.body.accountId)
-    const accountId = typeof accountIds[0] === 'string' ? accountIds[0] : undefined
+    let accountId = typeof accountIds[0] === 'string' ? accountIds[0] : undefined
     step(
       sessions.every((response) =>
         response.status === 200 &&
@@ -162,6 +162,39 @@ if (!LIVE) {
         !payoutStatus.closed,
       'database retains the concurrent winner and its account is not closed',
     )
+
+    const deletedAccountId = accountId
+    const deletion = await stripe('DELETE', `accounts/${encodeURIComponent(deletedAccountId)}`)
+    if (deletion.deleted === true) closedAccountIds.add(deletedAccountId)
+    const { error: clearDeletedIdError } = await admin
+      .from('tutor_profiles')
+      .update({
+        stripe_connect_account_id: null,
+        stripe_charges_enabled: false,
+        stripe_payouts_enabled: false,
+        stripe_onboarded_at: null,
+      })
+      .eq('user_id', saraId)
+    if (clearDeletedIdError) throw new Error(`could not clear deleted test account: ${clearDeletedIdError.message}`)
+    const recreated = await call(token, { mode: 'session' })
+    const recreatedId = typeof recreated.body.accountId === 'string' ? recreated.body.accountId : undefined
+    if (recreatedId) createdAccountIds.add(recreatedId)
+    const { data: recreatedProfile, error: recreatedProfileError } = await admin
+      .from('tutor_profiles')
+      .select('stripe_connect_account_id')
+      .eq('user_id', saraId)
+      .single()
+    step(
+      deletion.deleted === true &&
+        recreated.status === 200 &&
+        !!recreatedId &&
+        recreatedId !== deletedAccountId &&
+        !recreatedProfileError &&
+        recreatedProfile?.stripe_connect_account_id === recreatedId,
+      `deleted account can be replaced and persisted with a new id${recreatedId ? ` (${recreatedId})` : ''}`,
+    )
+    if (!recreatedId) throw new Error('deleted account retry did not return a new account id')
+    accountId = recreatedId
 
     const account = await retrieveAccount(KEY, accountId)
     const transfers = account.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers

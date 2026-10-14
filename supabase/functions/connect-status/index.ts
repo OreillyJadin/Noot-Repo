@@ -64,23 +64,23 @@ Deno.serve(async (req: Request) => {
       };
     }
 
-    const ready = !status.closed;
+    const usable = !status.closed;
 
     await db
       .from('tutor_profiles')
       .update({
         // Cache transfersActive as the booking gate, plus payoutsActive and detailsSubmitted.
-        stripe_charges_enabled: ready && status.transfersActive,
-        stripe_payouts_enabled: ready && status.payoutsActive,
-        stripe_onboarded_at: ready && status.detailsSubmitted ? new Date().toISOString() : null,
+        stripe_charges_enabled: usable && status.transfersActive,
+        stripe_payouts_enabled: usable && status.payoutsActive,
+        stripe_onboarded_at: usable && status.detailsSubmitted ? new Date().toISOString() : null,
       })
       .eq('user_id', user.id);
 
     return Response.json({
       connected: true,
-      chargesEnabled: ready && status.transfersActive,
-      payoutsEnabled: ready && status.payoutsActive,
-      detailsSubmitted: ready && status.detailsSubmitted,
+      chargesEnabled: usable && status.transfersActive,
+      payoutsEnabled: usable && status.payoutsActive,
+      detailsSubmitted: usable && status.detailsSubmitted,
     }, { headers: cors });
   } catch (err) {
     console.error('connect-status failed', String(err));
