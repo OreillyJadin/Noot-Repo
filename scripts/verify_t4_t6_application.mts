@@ -17,7 +17,8 @@ const ANON =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 const SERVICE =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'password123';
+const PASSWORD = 'NootTest123!';
+const SEEDED_PASSWORD = 'password123';
 
 let pass = 0;
 let fail = 0;
@@ -47,8 +48,8 @@ const code = cat![0]!.course_code as string;
 const raw = createClient(URL, ANON, { auth: { persistSession: false } });
 await raw.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
 initSupabase({ url: URL, anonKey: ANON });
-const as = async (email: string) => {
-  const r = await auth.signInWithPassword(email, PASSWORD);
+const as = async (email: string, password = PASSWORD) => {
+  const r = await auth.signInWithPassword(email, password);
   if (!r.ok) throw new Error(`${email}: ${r.error}`);
 };
 
@@ -78,7 +79,7 @@ try {
   await as(EMAIL);
   check('fresh application is a draft', (await api.profile.getTutorStatus()) === 'draft');
 
-  await as('admin@crimson.ua.edu');
+  await as('admin@crimson.ua.edu', SEEDED_PASSWORD);
   check('drafts are NOT in the admin queue', !(await api.admin.listPendingTutors()).some((p) => p.userId === uid));
   const draftApprove = await rejects(() => api.admin.approveTutor(uid, 'approved'));
   check('DENY: admin cannot approve an unsubmitted draft', /not been submitted/.test(draftApprove), draftApprove);
@@ -90,7 +91,7 @@ try {
   check('DENY: incomplete application is refused with what is missing', /application incomplete: photo, courses, rates, availability, agreement, payouts/.test(early), early);
 
   await svc.from('users').update({ avatar_url: 'https://example.invalid/q.jpg' }).eq('id', uid);
-  await api.profile.setTutorCourses([{ courseCode: code, grade: 'A', hourlyRate: 5 }]);
+  await api.profile.setTutorCourses([{ courseCode: code, grade: 'A', hourlyRate: 5, currentlyTaking: false }]);
   await api.profile.updateAvailability([{ dayOfWeek: 3, startTime: '14:00', endTime: '17:00' }]);
   const signedAt = await api.profile.signAgreement('Quinn Park', 'test-v1');
   check('agreement signature is server-stamped', !Number.isNaN(Date.parse(signedAt)), signedAt);
@@ -98,17 +99,17 @@ try {
   const lowRate = await rejects(() => api.profile.submitTutorApplication());
   check('DENY: a course under $10/hr still blocks submission', /application incomplete: rates$/.test(lowRate), lowRate);
 
-  await api.profile.setTutorCourses([{ courseCode: code, grade: 'A', hourlyRate: 28 }]);
+  await api.profile.setTutorCourses([{ courseCode: code, grade: 'A', hourlyRate: 28, currentlyTaking: false }]);
   await api.profile.submitTutorApplication();
   const standing = await api.profile.getTutorStanding();
   check('complete application submits → in review, unverified', standing.status === 'pending' && !standing.gradesVerified, JSON.stringify(standing));
 
   // --- admin: approve without a transcript --------------------------------------------------
-  await as('student@crimson.ua.edu');
+  await as('student@crimson.ua.edu', SEEDED_PASSWORD);
   const notAdmin = await rejects(() => api.admin.approveTutor(uid, 'approved'));
   check('DENY: a non-admin cannot approve', /Forbidden/i.test(notAdmin), notAdmin);
 
-  await as('admin@crimson.ua.edu');
+  await as('admin@crimson.ua.edu', SEEDED_PASSWORD);
   const queued = (await api.admin.listPendingTutors()).find((p) => p.userId === uid);
   check('submitted application is in the admin queue as unverified', queued?.awaiting === 'application' && queued?.hasTranscript === false, JSON.stringify(queued && { awaiting: queued.awaiting, hasTranscript: queued.hasTranscript }));
   const noTranscript = await rejects(() => api.admin.verifyTutorGrades(uid));
@@ -116,21 +117,21 @@ try {
   const approved = await api.admin.approveTutor(uid, 'approved');
   check('admin approves → live, still unverified', approved.approvalStatus === 'approved' && approved.gradesVerified === false);
 
-  await as('student@crimson.ua.edu');
+  await as('student@crimson.ua.edu', SEEDED_PASSWORD);
   let card = (await api.tutors.search({})).find((t) => t.userId === uid);
   check('students can find the approved tutor, with no Verified badge', !!card && card.verified === false, String(card?.verified));
 
   // --- later: transcript → grade check → Verified -------------------------------------------
   await as(EMAIL);
   await api.profile.uploadTranscript(new TextEncoder().encode('%PDF-1.4 test'), 'pdf', 'application/pdf');
-  await as('admin@crimson.ua.edu');
+  await as('admin@crimson.ua.edu', SEEDED_PASSWORD);
   const gradeQueue = (await api.admin.listPendingTutors()).find((p) => p.userId === uid);
   check('a live tutor who uploads a transcript enters the grade-check queue', gradeQueue?.awaiting === 'grades', gradeQueue?.awaiting ?? 'not queued');
   const verified = await api.admin.verifyTutorGrades(uid);
   check('admin verifies grades', verified.gradesVerified === true);
   check('verified tutor leaves the queue', !(await api.admin.listPendingTutors()).some((p) => p.userId === uid));
 
-  await as('student@crimson.ua.edu');
+  await as('student@crimson.ua.edu', SEEDED_PASSWORD);
   card = (await api.tutors.search({})).find((t) => t.userId === uid);
   check('search now shows the tutor as Verified', card?.verified === true);
   await as(EMAIL);

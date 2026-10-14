@@ -20,7 +20,7 @@ const ANON =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 const SERVICE =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'password123';
+const PASSWORD = 'NootTest123!';
 
 let pass = 0;
 let fail = 0;
@@ -64,14 +64,14 @@ const pdf = (text: string) => new TextEncoder().encode(`%PDF-1.4 ${text}`);
 try {
   // --- unverified: nothing is locked --------------------------------------------------------
   await api.profile.setTutorCourses([
-    { courseCode: codeA, grade: 'B+', hourlyRate: 20 },
-    { courseCode: codeB, grade: 'A-', hourlyRate: 25 },
+    { courseCode: codeA, grade: 'B+', hourlyRate: 20, currentlyTaking: false },
+    { courseCode: codeB, grade: 'A-', hourlyRate: 25, currentlyTaking: false },
   ]);
   check('unverified tutor saves a course list', (await saved()) === `${codeA}:B+:20:0 | ${codeB}:A-:25:0`, await saved());
   await api.profile.setTutorCourses([
-    { courseCode: codeA, grade: 'A', hourlyRate: 22 },
-    { courseCode: codeB, grade: 'A-', hourlyRate: 25 },
-    { courseCode: codeC, grade: 'B', hourlyRate: 30 },
+    { courseCode: codeA, grade: 'A', hourlyRate: 22, currentlyTaking: false },
+    { courseCode: codeB, grade: 'A-', hourlyRate: 25, currentlyTaking: false },
+    { courseCode: codeC, grade: 'B', hourlyRate: 30, currentlyTaking: false },
   ]);
   check('unverified tutor can change a grade and add a course', (await saved()) === `${codeA}:A:22:0 | ${codeB}:A-:25:0 | ${codeC}:B:30:0`, await saved());
   const firstPath = await api.profile.uploadTranscript(pdf('first'), 'pdf', 'application/pdf');
@@ -92,7 +92,10 @@ try {
   await svc.from('tutor_courses').update({ sessions: 7 }).eq('tutor_id', uid).eq('course_code', codeA);
 
   // --- an admin verifies the grades (what approve-tutor does) --------------------------------
-  await svc.from('tutor_profiles').update({ grades_verified_at: new Date().toISOString() }).eq('user_id', uid);
+  const { error: verificationError } = await svc
+    .from('tutor_profiles')
+    .upsert({ user_id: uid, grades_verified_at: new Date().toISOString() }, { onConflict: 'user_id' });
+  if (verificationError) throw verificationError;
   const locked = `${codeA}:A:22:7 | ${codeB}:A-:25:0 | ${codeC}:B:30:0`;
   check('tutor is verified, list as checked', (await verified()) && (await saved()) === locked, await saved());
 
@@ -101,26 +104,26 @@ try {
   const codeNew = more![0]!.course_code as string;
   const addMsg = await rejects(() =>
     api.profile.setTutorCourses([
-      { courseCode: codeA, grade: 'A', hourlyRate: 22 },
-      { courseCode: codeB, grade: 'A-', hourlyRate: 25 },
-      { courseCode: codeC, grade: 'B', hourlyRate: 30 },
-      { courseCode: codeNew, grade: 'A+', hourlyRate: 40 },
+      { courseCode: codeA, grade: 'A', hourlyRate: 22, currentlyTaking: false },
+      { courseCode: codeB, grade: 'A-', hourlyRate: 25, currentlyTaking: false },
+      { courseCode: codeC, grade: 'B', hourlyRate: 30, currentlyTaking: false },
+      { courseCode: codeNew, grade: 'A+', hourlyRate: 40, currentlyTaking: false },
     ]),
   );
   check('DENY: verified tutor cannot add a course', /grades are verified/.test(addMsg), addMsg);
   const gradeMsg = await rejects(() =>
     api.profile.setTutorCourses([
-      { courseCode: codeA, grade: 'A', hourlyRate: 22 },
-      { courseCode: codeB, grade: 'A+', hourlyRate: 25 },
-      { courseCode: codeC, grade: 'B', hourlyRate: 30 },
+      { courseCode: codeA, grade: 'A', hourlyRate: 22, currentlyTaking: false },
+      { courseCode: codeB, grade: 'A+', hourlyRate: 25, currentlyTaking: false },
+      { courseCode: codeC, grade: 'B', hourlyRate: 30, currentlyTaking: false },
     ]),
   );
   check('DENY: verified tutor cannot change a grade', /grades are verified/.test(gradeMsg), gradeMsg);
   // Dropping a course and adding another in the same save must not half-apply.
   const swapMsg = await rejects(() =>
     api.profile.setTutorCourses([
-      { courseCode: codeA, grade: 'A', hourlyRate: 22 },
-      { courseCode: codeNew, grade: 'A+', hourlyRate: 40 },
+      { courseCode: codeA, grade: 'A', hourlyRate: 22, currentlyTaking: false },
+      { courseCode: codeNew, grade: 'A+', hourlyRate: 40, currentlyTaking: false },
     ]),
   );
   check('DENY: verified tutor cannot swap one course for another', /grades are verified/.test(swapMsg), swapMsg);
@@ -156,23 +159,23 @@ try {
 
   // --- verified: what stays open ---------------------------------------------------------------
   await api.profile.setTutorCourses([
-    { courseCode: codeA, grade: 'A', hourlyRate: 35 },
-    { courseCode: codeB, grade: 'A-', hourlyRate: 25 },
-    { courseCode: codeC, grade: 'B', hourlyRate: 30 },
+    { courseCode: codeA, grade: 'A', hourlyRate: 35, currentlyTaking: false },
+    { courseCode: codeB, grade: 'A-', hourlyRate: 25, currentlyTaking: false },
+    { courseCode: codeC, grade: 'B', hourlyRate: 30, currentlyTaking: false },
   ]);
   check('ALLOW: verified tutor changes a rate (sessions kept)', (await saved()) === `${codeA}:A:35:7 | ${codeB}:A-:25:0 | ${codeC}:B:30:0`, await saved());
   const rawRate = await rejects(() => raw.from('tutor_courses').update({ hourly_rate: 36 }).eq('tutor_id', uid).eq('course_code', codeA));
   check('ALLOW: a direct rate change too', rawRate === '', rawRate);
   await api.profile.setTutorCourses([
-    { courseCode: codeA, grade: 'A', hourlyRate: 36 },
-    { courseCode: codeB, grade: 'A-', hourlyRate: 25 },
+    { courseCode: codeA, grade: 'A', hourlyRate: 36, currentlyTaking: false },
+    { courseCode: codeB, grade: 'A-', hourlyRate: 25, currentlyTaking: false },
   ]);
   check('ALLOW: verified tutor removes a course', (await saved()) === `${codeA}:A:36:7 | ${codeB}:A-:25:0`, await saved());
   const backMsg = await rejects(() =>
     api.profile.setTutorCourses([
-      { courseCode: codeA, grade: 'A', hourlyRate: 36 },
-      { courseCode: codeB, grade: 'A-', hourlyRate: 25 },
-      { courseCode: codeC, grade: 'B', hourlyRate: 30 },
+      { courseCode: codeA, grade: 'A', hourlyRate: 36, currentlyTaking: false },
+      { courseCode: codeB, grade: 'A-', hourlyRate: 25, currentlyTaking: false },
+      { courseCode: codeC, grade: 'B', hourlyRate: 30, currentlyTaking: false },
     ]),
   );
   check('DENY: a removed course cannot be added back by the tutor', /grades are verified/.test(backMsg), backMsg);
@@ -187,15 +190,15 @@ try {
   await svc.from('tutor_courses').update({ grade: '' }).eq('tutor_id', uid).eq('course_code', codeB);
   const blankOk = await rejects(() =>
     api.profile.setTutorCourses([
-      { courseCode: codeA, grade: 'A', hourlyRate: 37 },
-      { courseCode: codeB, grade: null, hourlyRate: 25 },
+      { courseCode: codeA, grade: 'A', hourlyRate: 37, currentlyTaking: false },
+      { courseCode: codeB, grade: null, hourlyRate: 25, currentlyTaking: false },
     ]),
   );
   check('ALLOW: a course stored with a blank grade still saves', blankOk === '', blankOk);
   const blankUp = await rejects(() =>
     api.profile.setTutorCourses([
-      { courseCode: codeA, grade: 'A', hourlyRate: 37 },
-      { courseCode: codeB, grade: 'A+', hourlyRate: 25 },
+      { courseCode: codeA, grade: 'A', hourlyRate: 37, currentlyTaking: false },
+      { courseCode: codeB, grade: 'A+', hourlyRate: 25, currentlyTaking: false },
     ]),
   );
   check('DENY: …but it cannot be given a grade', /grades are verified/.test(blankUp), blankUp);
