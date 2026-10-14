@@ -347,6 +347,10 @@ function mapBooking(row: any): Booking {
     meetingLink: row.meeting_link ?? null,
     location: row.location ?? null,
     status: row.status,
+    acceptBy: row.accept_by ?? null,
+    acceptedAt: row.accepted_at ?? null,
+    cancelReason: row.cancel_reason ?? null,
+    declineNote: row.decline_note ?? null,
     cancellationDeadline: row.cancellation_deadline,
     cancelledAt: row.cancelled_at ?? null,
     refundStatus: row.refund_status,
@@ -1019,7 +1023,7 @@ export const api = {
   },
 
   // --- bookings ---
-  /** Confirmed, future sessions for the signed-in user (as student OR tutor). */
+  /** Pending requests and confirmed future sessions for the signed-in user. */
   async listUpcoming(): Promise<Booking[]> {
     const uid = await requireUid();
     const nowIso = new Date().toISOString();
@@ -1027,7 +1031,7 @@ export const api = {
       .from('bookings')
       .select('*')
       .or(`student_id.eq.${uid},tutor_id.eq.${uid}`)
-      .eq('status', 'confirmed')
+      .in('status', ['pending', 'confirmed'])
       .gte('scheduled_at', nowIso)
       .order('scheduled_at', { ascending: true });
     if (error) throw error;
@@ -1036,23 +1040,29 @@ export const api = {
 
   /**
    * Past sessions for the signed-in user (as student OR tutor): anything scheduled
-   * before now that wasn't cancelled, newest first. RLS lets a user read their own
-   * bookings (bookings_select), so this needs no new table. Note: resolving the
+   * before now that wasn't cancelled, plus declined/expired requests, newest first.
+   * RLS lets a user read their own bookings (bookings_select), so this needs no new
+   * table. Note: resolving the
    * COUNTERPARTY's name still depends on users_select — a student can read the
    * (approved) tutor, but a tutor cannot read a student (RLS gap, see notes).
    */
   async listPast(): Promise<Booking[]> {
     const uid = await requireUid();
-    const nowIso = new Date().toISOString();
+    const nowMs = Date.now();
     const { data, error } = await getSupabase()
       .from('bookings')
       .select('*')
       .or(`student_id.eq.${uid},tutor_id.eq.${uid}`)
-      .in('status', ['confirmed', 'completed'])
-      .lt('scheduled_at', nowIso)
+      .in('status', ['confirmed', 'completed', 'cancelled'])
       .order('scheduled_at', { ascending: false });
     if (error) throw error;
-    return (data ?? []).map(mapBooking);
+    return (data ?? [])
+      .filter((row) =>
+        row.status === 'cancelled'
+          ? row.cancel_reason != null
+          : new Date(row.scheduled_at).getTime() < nowMs,
+      )
+      .map(mapBooking);
   },
 
   /**
@@ -1086,12 +1096,16 @@ export const api = {
     const sb = getSupabase();
     const { data, error } = await sb
       .from('bookings')
-      .select('status, scheduled_at, tutor_payout_amount, duration_minutes')
+      .select('status, cancel_reason, accept_by, accepted_at, scheduled_at, tutor_payout_amount, duration_minutes')
       .eq('tutor_id', uid);
     if (error) throw error;
     const rows = data ?? [];
     const completed = rows.filter((r) => r.status === 'completed');
-    const cancelled = rows.filter((r) => r.status === 'cancelled');
+    const cancelled = rows.filter((r) =>
+      r.status === 'cancelled' &&
+      !r.cancel_reason &&
+      !(r.accept_by && !r.accepted_at),
+    );
     const weekAgo = Date.now() - 7 * 86_400_000;
     const earnedTotal = completed.reduce((s, r) => s + num(r.tutor_payout_amount), 0);
     const earnedThisWeek = completed
@@ -1117,13 +1131,16 @@ export const api = {
     const nowMs = Date.now();
     const { data, error } = await getSupabase()
       .from('bookings')
-      .select('status, scheduled_at, duration_minutes')
+      .select('status, cancel_reason, scheduled_at, duration_minutes')
       .eq('student_id', uid);
     if (error) throw error;
     const rows = data ?? [];
     const isPast = (r: { scheduled_at: string }) => new Date(r.scheduled_at).getTime() < nowMs;
     const completed = rows.filter((r) => r.status === 'completed' || (r.status === 'confirmed' && isPast(r as { scheduled_at: string })));
-    const upcoming = rows.filter((r) => r.status === 'confirmed' && !isPast(r as { scheduled_at: string }));
+    const upcoming = rows.filter((r) =>
+      (r.status === 'pending' || r.status === 'confirmed') &&
+      !isPast(r as { scheduled_at: string }),
+    );
     const hoursLearned = completed.reduce((s, r) => s + num(r.duration_minutes) / 60, 0);
     return { sessionsCompleted: completed.length, upcomingCount: upcoming.length, hoursLearned };
   },
@@ -1611,8 +1628,17 @@ export const api = {
     /** Create the booking + conversation with the held PaymentIntent (confirm-booking). */
     confirm(
       input: ConfirmBookingInput,
-    ): Promise<{ bookingId: string; conversationId: string }> {
+    ): Promise<{ bookingId: string; conversationId: string; price: number; acceptBy: string }> {
       return invokeFn('confirm-booking', input as unknown as Record<string, unknown>);
+    },
+
+    /** Tutor accepts or declines a pending session request. */
+    respond(input: {
+      bookingId: string;
+      action: 'accept' | 'decline';
+      note?: string;
+    }): Promise<{ status: string; refundPercent?: number; holdReleased?: boolean }> {
+      return invokeFn('respond-booking-request', input);
     },
 
     /** Cancel a booking; returns the resulting refund outcome (cancel-booking). */
