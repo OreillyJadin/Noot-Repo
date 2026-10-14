@@ -40,7 +40,7 @@ function DeclineBookingRequestInner() {
       <Body pad={20}>
         <View style={{ paddingTop: 10 }}>
           <H2>Let the student know</H2>
-          <Sub style={{ marginTop: 8 }}>Your card hold will be released and any Noot credit returned.</Sub>
+          <Sub style={{ marginTop: 8 }}>The student won&apos;t be charged, and any Noot credit they used is returned.</Sub>
         </View>
         <Card style={{ marginTop: 20, padding: 14 }}>
           <Text style={[styles.label, { color: t.text }]}>Optional note</Text>

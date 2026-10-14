@@ -130,7 +130,7 @@ begin
         'booking',
         'Session request expired',
         format(
-          '%s didn''t respond in time, so your card hold has been released.',
+          '%s didn''t respond in time, so you won''t be charged.',
           coalesce(
             (select nullif(trim(first_name), '') from public.users where id = v_booking.tutor_id),
             'Your tutor'

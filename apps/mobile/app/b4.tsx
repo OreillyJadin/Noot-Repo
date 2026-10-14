@@ -196,7 +196,7 @@ function B4Inner() {
           <Card flat style={{ marginTop: 14, padding: 12, backgroundColor: t.accentWeak, borderColor: t.accentBorder, flexDirection: 'row', gap: 9 }}>
             <Ic name="alert" size={16} color={t.accent} strokeWidth={1.8} />
             <Text style={{ flex: 1, color: t.text2, fontSize: 12.5, lineHeight: 18 }}>
-              Short notice: {booking.tutor?.name.split(' ')[0] ?? 'Your tutor'} may not be able to accept in time. If they don&apos;t, your card hold is released automatically.
+              Short notice: {booking.tutor?.name.split(' ')[0] ?? 'Your tutor'} may not be able to accept in time. If they don&apos;t, you won&apos;t be charged.
             </Text>
           </Card>
         ) : null}

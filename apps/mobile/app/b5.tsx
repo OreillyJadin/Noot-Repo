@@ -79,7 +79,7 @@ export default function B5() {
         <Card flat style={{ ...styles.noteCard, backgroundColor: t.surfaceAlt }}>
           <Ic name="lock" size={16} color={t.good} strokeWidth={1.8} />
           <Text style={{ flex: 1, fontSize: 12, color: t.text2, lineHeight: 17 }}>
-            Your card hold is released if {tutorName} declines or doesn&apos;t respond in time.
+            If {tutorName} declines or doesn&apos;t respond in time, you won&apos;t be charged.
           </Text>
         </Card>
         <Card flat style={{ ...styles.noteCard, backgroundColor: t.surfaceAlt, marginTop: 10 }}>

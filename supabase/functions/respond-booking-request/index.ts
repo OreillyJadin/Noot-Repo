@@ -173,7 +173,7 @@ Deno.serve(async (req: Request) => {
       p_user: booking.student_id,
       p_type: 'booking',
       p_title: 'Session request declined',
-      p_body: `${tutorName} can't make your ${booking.subject} session. Your card hold has been released.${noteCopy}`,
+      p_body: `${tutorName} can't make your ${booking.subject} session, so you won't be charged.${noteCopy}`,
       p_data: { bookingId: booking.id },
     });
     if (notificationError) console.error('respond-booking-request: decline notification failed', bookingId);
