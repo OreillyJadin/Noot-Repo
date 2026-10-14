@@ -143,7 +143,7 @@ export async function resolveBooking(
   // Price comes from the tutor's own rate for this specific course. Never from the client.
   const { data: course, error: courseErr } = await db
     .from('tutor_courses')
-    .select('hourly_rate')
+    .select('hourly_rate, currently_taking')
     .eq('tutor_id', tutorId)
     .eq('course_code', courseCode)
     .maybeSingle();
@@ -182,8 +182,11 @@ export async function resolveBooking(
 
   const price = round2((hourlyRate * durationMinutes) / 60);
   if (price <= 0) throw new BookingError('Computed price was zero', 409);
-  // The tutor's verification decides noot's cut (fees.ts). Locked in on the booking row.
-  const { platformFee, tutorPayout } = splitPrice(price, profile.grades_verified_at != null);
+  // The verified rate is per course; currently-taking courses use the unverified rate (fees.ts).
+  const { platformFee, tutorPayout } = splitPrice(
+    price,
+    profile.grades_verified_at != null && course.currently_taking !== true,
+  );
 
   return {
     tutorId,
