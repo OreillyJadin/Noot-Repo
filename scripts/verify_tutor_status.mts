@@ -24,7 +24,7 @@ function check(name: string, ok: boolean, detail = '') {
 
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const EMAIL = `applicant+${Date.now()}@crimson.ua.edu`;
-const PASSWORD = 'password123';
+const PASSWORD = 'NootTest123!';
 
 // --- a brand-new user, exactly as signup leaves them ---------------------------------------
 const { data: created, error: cErr } = await svc.auth.admin.createUser({
@@ -56,7 +56,7 @@ check('DENY: incomplete application cannot be submitted', /application incomplet
 // Complete it the way steps 2–8 do. Photo and Stripe payouts are set by the service role
 // here (uploads and Stripe onboarding have their own suites).
 await svc.from('users').update({ avatar_url: 'https://example.invalid/a.jpg' }).eq('id', uid);
-await api.profile.setTutorCourses([{ courseCode: 'MGT 300', grade: 'A', hourlyRate: 25 }]);
+await api.profile.setTutorCourses([{ courseCode: 'MGT 300', grade: 'A', hourlyRate: 25, currentlyTaking: false }]);
 await api.profile.updateAvailability([{ dayOfWeek: 1, startTime: '14:00', endTime: '17:00' }]);
 await api.profile.setTranscriptSkipped(true);
 await api.profile.signAgreement('Casey Nguyen', 'test-version');

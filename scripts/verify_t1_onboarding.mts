@@ -25,7 +25,7 @@ function check(name: string, ok: boolean, detail = '') {
 }
 
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false } });
-const PASSWORD = 'password123';
+const PASSWORD = 'NootTest123!';
 async function makeUser(tag: string) {
   const email = `${tag}+${Date.now()}@crimson.ua.edu`;
   const { data, error } = await svc.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
@@ -50,7 +50,7 @@ try {
 
   // Courses saved before any tutor_profiles row exists: the old reader (inner join on
   // tutor_profiles) can't see them; getMyTutorProfile can.
-  await api.profile.setTutorCourses([{ courseCode: codeA, grade: 'A', hourlyRate: 0 }]);
+  await api.profile.setTutorCourses([{ courseCode: codeA, grade: 'A', hourlyRate: 0, currentlyTaking: false }]);
   check('old reader misses courses saved before the application row exists', (await api.tutors.getById(applicant.id)) === null);
   check('getMyTutorProfile sees them', (await api.profile.getMyTutorProfile()).courses.length === 1);
 
@@ -64,8 +64,8 @@ try {
 
   // Step 3 — courses with grades, no rates yet
   await api.profile.setTutorCourses([
-    { courseCode: codeA, grade: 'A', hourlyRate: 0 },
-    { courseCode: codeB, grade: 'B+', hourlyRate: 0 },
+    { courseCode: codeA, grade: 'A', hourlyRate: 0, currentlyTaking: false },
+    { courseCode: codeB, grade: 'B+', hourlyRate: 0, currentlyTaking: false },
   ]);
   p = await api.profile.getMyTutorProfile();
   check(
@@ -75,7 +75,14 @@ try {
   );
 
   // Step 4 — rates, keeping grades
-  await api.profile.setTutorCourses(p.courses.map((c, i) => ({ courseCode: c.courseCode, grade: c.grade, hourlyRate: 25 + i * 5 })));
+  await api.profile.setTutorCourses(
+    p.courses.map((c, i) => ({
+      courseCode: c.courseCode,
+      grade: c.grade,
+      hourlyRate: 25 + i * 5,
+      currentlyTaking: c.currentlyTaking,
+    })),
+  );
   p = await api.profile.getMyTutorProfile();
   check(
     'step 4: rates saved and grades kept',
@@ -113,8 +120,8 @@ try {
 
   // ERR-027 — A+ and B- are offered on step 3 and save like any other grade
   await api.profile.setTutorCourses([
-    { courseCode: codeA, grade: 'A+', hourlyRate: 25 },
-    { courseCode: codeB, grade: 'B-', hourlyRate: 30 },
+    { courseCode: codeA, grade: 'A+', hourlyRate: 25, currentlyTaking: false },
+    { courseCode: codeB, grade: 'B-', hourlyRate: 30, currentlyTaking: false },
   ]);
   p = await api.profile.getMyTutorProfile();
   check(

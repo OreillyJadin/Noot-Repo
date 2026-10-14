@@ -130,7 +130,12 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
       }
       if (ratesDirty) {
         await api.profile.setTutorCourses(
-          app.courses.map((c) => ({ courseCode: c.courseCode, grade: c.grade, hourlyRate: Number(rates[c.courseCode]) })),
+          app.courses.map((c) => ({
+            courseCode: c.courseCode,
+            grade: c.grade,
+            hourlyRate: Number(rates[c.courseCode]),
+            currentlyTaking: c.currentlyTaking,
+          })),
         );
       }
       await onSaved();
@@ -152,7 +157,12 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
             await api.profile.setTutorCourses(
               app.courses
                 .filter((c) => c.courseCode !== code)
-                .map((c) => ({ courseCode: c.courseCode, grade: c.grade, hourlyRate: c.hourlyRate })),
+                .map((c) => ({
+                  courseCode: c.courseCode,
+                  grade: c.grade,
+                  hourlyRate: c.hourlyRate,
+                  currentlyTaking: c.currentlyTaking,
+                })),
             );
             await onSaved();
           } catch (e) {
@@ -187,7 +197,11 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
         <View key={c.courseCode} style={[styles.rateRow, { borderColor: t.border }]}>
           <Text style={[styles.rateCode, { color: t.text }]}>
             {c.courseCode}
-            {c.grade ? <Text style={{ color: t.text3, fontWeight: '500' }}>{`  ${c.grade}`}</Text> : null}
+            {c.currentlyTaking ? (
+              <Text style={{ color: t.text3, fontWeight: '500' }}>  Taking now</Text>
+            ) : c.grade ? (
+              <Text style={{ color: t.text3, fontWeight: '500' }}>{`  ${c.grade}`}</Text>
+            ) : null}
           </Text>
           <View style={[styles.rateBox, { borderColor: t.borderStrong, backgroundColor: t.surface }]}>
             <Text style={{ color: t.text3 }}>$</Text>
@@ -309,7 +323,8 @@ export default function T9() {
                   <View key={c.courseCode} style={[styles.statBox, { backgroundColor: t.surface2 }]}>
                     <Ic name="dollar" size={16} color={t.accent} strokeWidth={1.8} />
                     <Text style={[styles.statLabel, { color: t.text2 }]}>
-                      {c.courseCode}{c.grade ? ` · ${c.grade}` : ''}
+                      {c.courseCode}
+                      {c.currentlyTaking ? ' · Taking now' : c.grade ? ` · ${c.grade}` : ''}
                     </Text>
                     <Text style={[styles.statValue, { color: c.hourlyRate > 0 ? t.text : t.text3 }]}>
                       {c.hourlyRate > 0 ? `$${c.hourlyRate}/hr` : 'No rate'}

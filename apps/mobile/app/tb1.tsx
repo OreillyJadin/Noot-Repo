@@ -14,7 +14,7 @@ import { DAYS, type Tutor } from '../lib/data';
 import { useCounterpart } from '../lib/useCounterpart';
 
 
-function sessionFacts(booking: BookingDraft, tutor: Tutor | undefined, feeRate: number) {
+function sessionFacts(booking: BookingDraft, tutor: Tutor | undefined, gradesVerified: boolean) {
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1]!;
   const lengthMin = booking.lengthMin ?? 60;
   const lengthHours = lengthMin / 60;
@@ -23,6 +23,7 @@ function sessionFacts(booking: BookingDraft, tutor: Tutor | undefined, feeRate: 
   const location = booking.location ?? 'Gorgas Library, Fl 2';
   const course = booking.course ?? tutor?.courses[0]?.[0] ?? '';
   const courseMatch = tutor?.courses.find((c) => c[0] === course) ?? tutor?.courses[0];
+  const feeRate = feeRateFor(gradesVerified && !courseMatch?.[4]);
   const rate = courseMatch?.[2] ?? 0;
   const gross = rate * lengthHours;
   const fee = gross * feeRate;
@@ -40,10 +41,9 @@ export default function TB1() {
   const tutor = booking.tutor; // no TUTORS[0] demo fallback — sessionFacts degrades safely.
   const student = useCounterpart(booking.studentId);
   const studentMeta = [student.year, student.major].filter(Boolean).join(' · ');
-  // Fee follows the tutor's verification (T6): 17.5% verified, 32.5% not.
+  // Fee follows the course's verification status: 17.5% verified, 32.5% otherwise.
   const { gradesVerified } = useMe();
-  const feeRate = feeRateFor(gradesVerified);
-  const f = sessionFacts(booking, tutor, feeRate);
+  const f = sessionFacts(booking, tutor, gradesVerified);
   const dayWord = f.dayObj.label === 'Today' ? 'today' : f.dayObj.label === 'Tomorrow' ? 'tomorrow' : f.dayObj.label;
 
   return (

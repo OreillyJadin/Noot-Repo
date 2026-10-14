@@ -16,6 +16,7 @@ import { useStepBack } from '../lib/useStepBack';
 interface RateRow {
   courseCode: string;
   grade: string;
+  currentlyTaking: boolean;
   rate: string;
   sessions: number;
 }
@@ -73,6 +74,7 @@ export default function T4() {
           p.courses.map((c) => ({
             courseCode: c.courseCode,
             grade: c.grade ?? '',
+            currentlyTaking: c.currentlyTaking,
             // A course added on step 3 has no rate yet (0) — show an empty box, not "$0".
             rate: c.hourlyRate > 0 ? String(c.hourlyRate) : '',
             sessions: c.sessions,
@@ -100,6 +102,7 @@ export default function T4() {
         rates.map((r) => ({
           courseCode: r.courseCode,
           grade: r.grade || null,
+          currentlyTaking: r.currentlyTaking,
           // An unfinished rate is saved as 0 (not bookable) rather than dropped.
           hourlyRate: Number(r.rate) || 0,
         })),
@@ -159,7 +162,9 @@ export default function T4() {
             {rates.map((r, i) => (
               <Card key={r.courseCode} style={styles.rateCard}>
                 <View style={[styles.gradeChip, { backgroundColor: t.surface2 }]}>
-                  <Text style={[styles.gradeChipText, { color: t.text2 }]}>{r.grade || '—'}</Text>
+                  <Text style={[styles.gradeChipText, { color: t.text2 }]}>
+                    {r.currentlyTaking ? 'Now' : r.grade || '—'}
+                  </Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.courseCode, { color: t.text }]}>{r.courseCode}</Text>
