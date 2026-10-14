@@ -108,10 +108,11 @@ try {
 
 // The stored row is what complete-session pays out from — check every money column.
 const { data: row } = await admin
-  .from('bookings').select('price, platform_fee, tutor_payout_amount, subject').eq('id', bookingId).maybeSingle()
+  .from('bookings').select('price, platform_fee, tutor_payout_amount, subject, status').eq('id', bookingId).maybeSingle()
 const { fee: expFee, payout: expPayout } = split(expectedPrice, 0.325)
 step(6, Number(row?.price) === expectedPrice && Number(row?.platform_fee) === expFee && Number(row?.tutor_payout_amount) === expPayout,
   `UNVERIFIED tutor, stored row: price $${row?.price}, fee $${row?.platform_fee} (expect 32.5% = $${expFee}), payout $${row?.tutor_payout_amount} (expect $${expPayout})`)
+step('6a', row?.status === 'pending', `new booking remains a request until tutor acceptance (status=${row?.status})`)
 
 // 6b) Same tutor once an admin has verified their grades → 17.5%, locked onto the new booking.
 await admin.from('tutor_profiles').update({ grades_verified_at: new Date().toISOString() }).eq('user_id', tutor.userId)

@@ -92,6 +92,9 @@ try {
     message: 'verify_interview_block', paymentIntentId: pi,
   })
   bookingId = confirmed.bookingId
+  await signIn('sara@crimson.ua.edu')
+  await api.bookings.respond({ bookingId, action: 'accept' })
+  await signIn('student@crimson.ua.edu')
   const move = await api.bookings.reschedule({ bookingId, action: 'propose', newScheduledAt: iso(0) }).then(() => null, errMsg)
   step(move === BUSY_MOVE, `an existing session cannot be moved onto the interview: "${move}"`)
   const moveOk = await api.bookings.reschedule({ bookingId, action: 'propose', newScheduledAt: iso(180) }).then(() => null, errMsg)

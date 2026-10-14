@@ -69,6 +69,12 @@ async function confirm(paymentIntentId: string, scheduledAt: string) {
   bookings.push(r.bookingId);
   return r.bookingId;
 }
+async function accept(bookingId: string) {
+  const { data: tutor } = await svc.from('users').select('email').eq('id', tutorId).single();
+  await auth.signInWithPassword(tutor!.email as string, PASSWORD);
+  await api.bookings.respond({ bookingId, action: 'accept' });
+  await auth.signInWithPassword(email, PASSWORD);
+}
 
 try {
   console.log('— credit comes off the hold —');
@@ -138,6 +144,7 @@ try {
 
   console.log('\n— cancelling returns credit —');
   const bal0 = await api.credits.balance();
+  await accept(b1);
   const r100 = await api.bookings.cancel(b1);
   check('cancel 30h out: full refund', r100.refundPercent === 100);
   check('…and the full $5 credit comes back', (await api.credits.balance()) === bal0 + 500, String(await api.credits.balance()));
@@ -145,6 +152,7 @@ try {
   const t5 = at(10);
   const pi5 = await hold(t5);
   const b5 = await confirm(pi5.paymentIntentId, t5);
+  await accept(b5);
   const bal1 = await api.credits.balance();
   const r50 = await api.bookings.cancel(b5);
   const captured = await getPaymentIntent(pi5.paymentIntentId);
