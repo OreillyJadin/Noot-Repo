@@ -37,7 +37,7 @@ export default function TutorSessions() {
   const { role, patchBooking } = useApp();
   const [tab, setTab] = useState<Tab>('upcoming');
 
-  // Upcoming = live confirmed future sessions; Past = listPast (includes past-but-confirmed
+  // Upcoming includes requests and confirmed future sessions; Past = listPast (includes past-but-confirmed
   // sessions the tutor still needs to "Mark complete" → capture payment + payout).
   const [upcoming, setUpcoming] = useState<SessionRow[]>([]);
   const [past, setPast] = useState<SessionRow[]>([]);
@@ -85,6 +85,32 @@ export default function TutorSessions() {
   const openDetail = (r: SessionRow) => {
     patchBooking(draftFromBooking(r.booking));
     router.push('/tb2');
+  };
+
+  const acceptRequest = async (id: string) => {
+    if (busyId) return;
+    setBusyId(id);
+    try {
+      await api.bookings.respond({ bookingId: id, action: 'accept' });
+      const acceptedAt = new Date().toISOString();
+      setUpcoming((rows) => rows.map((r) => r.id === id
+        ? {
+          ...r,
+          status: 'confirmed',
+          booking: { ...r.booking, status: 'confirmed', acceptedAt },
+        }
+        : r));
+      Alert.alert('Session confirmed', 'The student has been notified.');
+    } catch (e) {
+      Alert.alert('Could not accept request', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const declineRequest = (r: SessionRow) => {
+    patchBooking(draftFromBooking(r.booking));
+    router.push('/xbr');
   };
 
   // Tutor marks a past confirmed session complete → capture payment + transfer payout.
@@ -138,8 +164,8 @@ export default function TutorSessions() {
             <EmptyState icon="cal" title="No upcoming sessions" subtitle="Sessions students book with you will show up here." />
           ) : (
             <View style={{ gap: 10 }}>
-              {upcoming.map((r, i) => (
-                <Card key={i} onPress={() => openDetail(r)} style={{ padding: 14 }}>
+              {upcoming.map((r) => (
+                <Card key={r.id} onPress={r.status === 'pending' ? undefined : () => openDetail(r)} style={{ padding: 14 }}>
                   <View style={styles.upcomingRow}>
                     <Avatar size={44} label={r.av} />
                     <View style={{ flex: 1, minWidth: 0 }}>
@@ -150,12 +176,37 @@ export default function TutorSessions() {
                       <Text style={[styles.meta, { color: t.text3 }]}>
                         {r.course} · {r.when}
                       </Text>
+                      {r.status === 'pending' ? (
+                        <Text style={[styles.meta, { color: t.accent, fontWeight: '600' }]}>
+                          New request · respond by {formatWhen(r.booking.acceptBy ?? r.booking.scheduledAt)}
+                        </Text>
+                      ) : null}
                       <View style={styles.whereRow}>
                         <Ic name={r.where.startsWith('Online') ? 'video' : 'pin'} size={13} color={t.accent} strokeWidth={1.8} />
                         <Text style={[styles.whereText, { color: t.text2 }]}>{r.where}</Text>
                       </View>
                     </View>
                   </View>
+                  {r.status === 'pending' ? (
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                      <Button
+                        label={busyId === r.id ? 'Accepting…' : 'Accept'}
+                        kind="primary"
+                        size="sm"
+                        style={{ flex: 1 }}
+                        disabled={!!busyId}
+                        onPress={() => void acceptRequest(r.id)}
+                      />
+                      <Button
+                        label="Decline"
+                        kind="secondary"
+                        size="sm"
+                        style={{ flex: 1 }}
+                        disabled={!!busyId}
+                        onPress={() => declineRequest(r)}
+                      />
+                    </View>
+                  ) : null}
                 </Card>
               ))}
             </View>
@@ -199,7 +250,13 @@ export default function TutorSessions() {
                   ) : (
                     <View style={{ marginTop: 10, alignSelf: 'flex-start' }}>
                       <Badge
-                        label={done ? 'Completed · paid out' : r.status === 'no_show' ? 'No-show' : 'Cancelled'}
+                        label={
+                          done ? 'Completed · paid out'
+                            : r.status === 'no_show' ? 'No-show'
+                              : r.booking.cancelReason === 'tutor_declined' ? 'Declined'
+                                : r.booking.cancelReason === 'tutor_no_response' ? 'Expired, not accepted'
+                                  : 'Cancelled'
+                        }
                         tone={done ? 'good' : 'neutral'}
                       />
                     </View>

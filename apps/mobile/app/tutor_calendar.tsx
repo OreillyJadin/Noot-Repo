@@ -107,7 +107,7 @@ export default function TutorCalendar() {
       .then((bookings) => {
         if (!active || bookings.length === 0) return; // no sessions → grid stays empty (no fallback data)
         const byDay: Record<number, Record<string, CalSession>> = {};
-        for (const b of bookings) {
+        for (const b of bookings.filter((booking) => booking.status === 'confirmed')) {
           const at = new Date(b.scheduledAt);
           const di = dayIndexFor(at);
           if (di == null) continue; // outside the visible 14-day window

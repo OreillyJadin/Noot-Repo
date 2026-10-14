@@ -104,14 +104,14 @@ function XStudentCancelInner() {
     ? (new Date(booking.scheduledAt).getTime() - Date.now()) / 3600000
     : null;
   const tier: TierId | null =
-    hoursUntil == null ? null : hoursUntil >= 12 ? 'early' : hoursUntil >= 2 ? 'mid' : 'late';
+    booking.status === 'pending' ? 'early' : hoursUntil == null ? null : hoursUntil >= 12 ? 'early' : hoursUntil >= 2 ? 'mid' : 'late';
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   // When a real booking is cancelled, the server decides the refund %; prefer it.
   const [serverRefund, setServerRefund] = useState<number | null>(null);
   const tobj = TIERS.find((x) => x.id === tier) ?? null;
   const tierRefund = tobj ? cost * tobj.refundPct : null;
-  const refund = serverRefund ?? tierRefund;
+  const refund = serverRefund ?? (booking.status === 'pending' ? cost : tierRefund);
 
   const onCancel = async () => {
     // Demo path: no real booking (e.g. reached via the dev launcher) — keep tier UI.
@@ -169,7 +169,9 @@ function XStudentCancelInner() {
 
         <View style={styles.demoRow}>
           <Eyebrow style={{ color: t.text3 }}>
-            {hoursUntil == null
+            {booking.status === 'pending'
+              ? 'Cancelling a pending request'
+              : hoursUntil == null
               ? 'Cancellation policy'
               : hoursUntil >= 12
                 ? 'Cancelling 12+ hrs ahead'

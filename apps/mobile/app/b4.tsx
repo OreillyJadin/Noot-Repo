@@ -13,6 +13,8 @@ import { useApp } from '../lib/store';
 import { DAYS, MONTHS } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 
+const SHORT_NOTICE_MS = 3 * 60 * 60 * 1000;
+
 type Status = 'idle' | 'processing';
 
 const POLICY_ROWS: [string, string, 'good' | 'neutral'][] = [
@@ -136,7 +138,7 @@ function B4Inner() {
       // re-derived this from the location's display string, which broke as soon as that
       // copy changed. Existing 'video' rows still render — we just don't sell them.
       const sessionType: 'video' | 'in_person' = booking.sessionType ?? 'in_person';
-      const { bookingId } = await api.bookings.confirm({
+      const { bookingId, acceptBy } = await api.bookings.confirm({
         tutorId: booking.tutor.id,
         courseCode: course,
         scheduledAt,
@@ -147,13 +149,16 @@ function B4Inner() {
         message: booking.message,
         paymentIntentId: pi.paymentIntentId,
       });
-      patchBooking({ bookingId });
+      patchBooking({ bookingId, acceptBy, scheduledAt });
       router.push('/b5');
     } catch (err) {
       setStatus('idle');
       Alert.alert('Payment failed', err instanceof Error ? err.message : 'Something went wrong — please try again.');
     }
   };
+  const scheduledAtDate = new Date(computeScheduledAt());
+  const nowMs = Date.now();
+  const startsSoon = scheduledAtDate.getTime() >= nowMs && scheduledAtDate.getTime() - nowMs < SHORT_NOTICE_MS;
 
   return (
     <Screen>
@@ -186,6 +191,15 @@ function B4Inner() {
             <Text style={{ fontSize: 22, fontWeight: '800', color: t.accent }}>${due}</Text>
           </View>
         </Card>
+
+        {startsSoon ? (
+          <Card flat style={{ marginTop: 14, padding: 12, backgroundColor: t.accentWeak, borderColor: t.accentBorder, flexDirection: 'row', gap: 9 }}>
+            <Ic name="alert" size={16} color={t.accent} strokeWidth={1.8} />
+            <Text style={{ flex: 1, color: t.text2, fontSize: 12.5, lineHeight: 18 }}>
+              Short notice: {booking.tutor?.name.split(' ')[0] ?? 'Your tutor'} may not be able to accept in time. If they don&apos;t, your card hold is released automatically.
+            </Text>
+          </Card>
+        ) : null}
 
         <Eyebrow style={{ color: t.text3, marginTop: 24, marginBottom: 12 }}>Payment</Eyebrow>
         <Card style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>

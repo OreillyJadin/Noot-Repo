@@ -149,7 +149,7 @@ export default function Home() {
     api
       .listUpcoming()
       .then(async (bookings) => {
-        const b = bookings[0];
+        const b = bookings.find((booking) => booking.status === 'confirmed');
         if (!b) { if (active) setNext(null); return; }
         const summary = await api.tutors.getById(b.tutorId).catch(() => null);
         if (!active) return;

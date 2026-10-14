@@ -151,7 +151,14 @@ export default function Notifications() {
 
   const open = (n: Notification) => {
     if (n.type === 'message') router.push(role === 'tutor' ? '/chat_tutor' : '/chat');
-    else if (n.type === 'booking') router.push(role === 'tutor' ? '/tutor_sessions' : '/sessions');
+    else if (n.type === 'booking') {
+      const bookingId = n.data?.bookingId;
+      router.push(
+        role === 'tutor' && typeof bookingId === 'string'
+          ? { pathname: '/tutor_sessions', params: { bookingId } }
+          : role === 'tutor' ? '/tutor_sessions' : '/sessions',
+      );
+    }
     // An interview notice (0042) → the tutor home, whose banner shows the time and place.
     else if (n.type === 'system' && n.data?.interviewId) router.push('/tutor_home');
   };
