@@ -25,6 +25,7 @@ import type {
   MessageAttachment,
   OutgoingAttachment,
   Notification,
+  NotificationType,
   ReviewSummary,
   TutorAvailability,
   TutorInterview,
@@ -1631,6 +1632,18 @@ export const api = {
 
   // --- bookings (trust-sensitive writes → Edge Functions, see ARCHITECTURE.md §5) ---
   bookings: {
+    /** A booking the caller can see under RLS. */
+    async get(id: string): Promise<Booking | null> {
+      await requireUid();
+      const { data, error } = await getSupabase()
+        .from('bookings')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? mapBooking(data) : null;
+    },
+
     /** Create the booking + conversation with the held PaymentIntent (confirm-booking). */
     confirm(
       input: ConfirmBookingInput,
@@ -1702,6 +1715,18 @@ export const api = {
 
   // --- chat ---
   chat: {
+    /** Read a conversation the caller participates in under RLS. */
+    async getConversation(id: string): Promise<Conversation | null> {
+      await requireUid();
+      const { data, error } = await getSupabase()
+        .from('conversations')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? mapConversation(data) : null;
+    },
+
     /** Find (or create, as the student) the 1:1 conversation with a tutor. */
     async getOrCreateConversation(tutorId: string): Promise<Conversation> {
       const uid = await requireUid();
@@ -2218,6 +2243,19 @@ export const api = {
         .update({ read_at: new Date().toISOString() })
         .eq('user_id', uid)
         .is('read_at', null);
+      if (error) throw error;
+    },
+
+    /** Mark unread notifications sharing these route hints as read (e.g. a tapped push). */
+    async markReadFor(type: NotificationType, data: Record<string, unknown>): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('user_id', uid)
+        .is('read_at', null)
+        .eq('type', type)
+        .contains('data', data);
       if (error) throw error;
     },
 

@@ -9,6 +9,7 @@ import { api } from '@noot/core';
 import { claimPendingInvite } from './pendingInvite';
 import { decidePostAuthRoute, lookupWithRetry } from './postAuthRoute';
 import type { Role } from './store';
+import { markAppReady } from './pushOpen';
 
 export interface RouteAfterAuthResult {
   /** False if the account couldn't be read — nothing was navigated; let the user retry. */
@@ -74,6 +75,7 @@ export async function routeAfterAuth(
   if (route.kind === 'home') {
     setRole(route.role);
     router.replace(route.route);
+    markAppReady();
     return { ok: true, role: route.role, onboarding: false };
   }
   router.replace('/verified');

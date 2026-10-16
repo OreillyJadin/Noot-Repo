@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Button, Card, Chip, Ic, EmptyState, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api, REMINDER_CHOICES, type Notification } from '@noot/core';
 import { useApp } from '../lib/store';
+import { openNotification } from '../lib/openNotification';
 import { askForPush, getPushState, openPushSettings } from '../lib/push';
 import type { PushState } from '../lib/pushState';
 import { errText } from '../lib/errText';
@@ -90,7 +91,7 @@ function PushPermission() {
 export default function Notifications() {
   const t = useTheme();
   const router = useRouter();
-  const { role } = useApp();
+  const { role, setRole, patchBooking } = useApp();
   const [items, setItems] = useState<Notification[] | null>(null);
   const [reminderSettings, setReminderSettings] = useState<{ minutesBefore: number[]; morningOf: boolean } | null>(null);
   const [savingReminders, setSavingReminders] = useState(false);
@@ -149,19 +150,12 @@ export default function Notifications() {
     });
   };
 
-  const open = (n: Notification) => {
-    if (n.type === 'message') router.push(role === 'tutor' ? '/chat_tutor' : '/chat');
-    else if (n.type === 'booking') {
-      const bookingId = n.data?.bookingId;
-      router.push(
-        role === 'tutor' && typeof bookingId === 'string'
-          ? { pathname: '/tutor_sessions', params: { bookingId } }
-          : role === 'tutor' ? '/tutor_sessions' : '/sessions',
-      );
-    }
-    // An interview notice (0042) → the tutor home, whose banner shows the time and place.
-    else if (n.type === 'system' && n.data?.interviewId) router.push('/tutor_home');
-  };
+  const open = (n: Notification) =>
+    void openNotification(
+      n,
+      { router, currentRole: role, setRole, patchBooking },
+      { fromPush: false },
+    );
 
   return (
     <Screen>

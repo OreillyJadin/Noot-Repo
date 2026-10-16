@@ -8,7 +8,7 @@ import { useApp, type Role } from './store';
 import { useMe } from './useMe';
 import { previewRolesFor } from './roleTabs';
 
-const HOME: Record<Role, string> = {
+export const HOME: Record<Role, string> = {
   student: '/home',
   tutor: '/tutor_home',
   ambassador: '/ambassador_home',
