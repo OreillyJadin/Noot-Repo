@@ -80,7 +80,7 @@ export default function AdminBookings() {
                 <View style={styles.row}>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.parties, { color: t.text }]}>{b.studentName} ↔ {b.tutorName}</Text>
-                    <Text style={[styles.meta, { color: t.text3 }]}>{b.subject} · {when(b.scheduledAt)} · ${b.price.toFixed(0)}</Text>
+                    <Text style={[styles.meta, { color: t.text3 }]}>{b.subject} · {when(b.scheduledAt)} · ${(b.price + b.studentFee).toFixed(2).replace(/\.00$/, '')}</Text>
                   </View>
                   <Badge label={b.status} tone={STATUS_TONE[b.status] ?? 'neutral'} />
                 </View>
