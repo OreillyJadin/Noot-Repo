@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import { api, type AdminHubCounts } from '@noot/core';
 import { useTheme } from '@noot/ui';
@@ -56,7 +56,12 @@ export function AdminTabs({ tabs, active }: { tabs: AdminTab[]; active: string }
   const pathname = usePathname();
 
   return (
-    <View style={[styles.track, { backgroundColor: t.surface2 }]}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={[styles.track, { borderBottomColor: t.border }]}
+      contentContainerStyle={styles.tabs}
+    >
       {tabs.map((tab) => {
         const selected = tab.key === active;
         const targetPath = tab.href.split('?')[0];
@@ -69,27 +74,29 @@ export function AdminTabs({ tabs, active }: { tabs: AdminTab[]; active: string }
             }}
             accessibilityRole="button"
             accessibilityState={{ selected }}
-            style={[styles.tab, selected ? { backgroundColor: t.surface } : null]}
+            accessibilityLabel={tab.count && tab.count > 0 ? `${tab.label}, ${tab.count}` : tab.label}
+            style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
           >
-            <Text numberOfLines={1} style={[styles.label, { color: selected ? t.text : t.text2 }]}>
+            <Text numberOfLines={1} style={[styles.label, { color: selected ? t.text : t.text3 }]}>
               {tab.label}
             </Text>
             {tab.count && tab.count > 0 ? (
-              <View style={[styles.count, { backgroundColor: t.accentWeak }]}>
-                <Text style={[styles.countText, { color: t.accent }]}>{tab.count}</Text>
-              </View>
+              <Text style={[styles.count, { color: t.accent }]}>{tab.count}</Text>
             ) : null}
+            <View style={[styles.underline, { backgroundColor: selected ? t.text : 'transparent' }]} />
           </Pressable>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  track: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 3, marginBottom: 14 },
-  tab: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 9, paddingHorizontal: 3, paddingVertical: 8 },
-  label: { fontSize: 12, fontWeight: '600', flexShrink: 1 },
-  count: { minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  countText: { fontSize: 10, fontWeight: '700' },
+  track: { maxHeight: 43, marginBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  tabs: { flexDirection: 'row', alignItems: 'stretch', gap: 20 },
+  tab: { minHeight: 42, flexDirection: 'row', alignItems: 'flex-start', gap: 4, paddingHorizontal: 2, paddingTop: 8, position: 'relative' },
+  pressed: { opacity: 0.65 },
+  label: { fontSize: 14, fontWeight: '600' },
+  count: { fontSize: 10, lineHeight: 13, fontWeight: '700' },
+  underline: { position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, borderRadius: 1 },
 });

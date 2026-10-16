@@ -1,20 +1,18 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Card, Badge, Ic, Eyebrow, Skeleton, useTheme, type IconName } from '@noot/ui';
-import { api, attentionTotal, type AdminHubCounts } from '@noot/core';
+import { api, attentionTotal, type AdminCalendarEvent, type AdminHubCounts } from '@noot/core';
+import { Body, Ic, Screen, Skeleton, TabBar, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { interviewLabel } from '../lib/interviewSlots';
+import { INTERVIEW_MINUTES } from '../lib/interviewBlock';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
+import { AdminLargeHeader, AdminRow, AdminSection } from '../lib/adminUi';
+import { useRoleSwitch } from '../lib/useRoleSwitch';
+import { useTabNav } from '../lib/useTabNav';
 
-type HubTile = {
-  key: string;
-  icon: IconName;
-  label: string;
-  hint: string;
-  count: number | null;
-  href: string;
-};
+const INTERVIEW_INDIGO = '#5B6CC2';
+const WARNING_AMBER = '#C2783A';
 
 const EMPTY_COUNTS: AdminHubCounts = {
   applications: 0,
@@ -29,20 +27,36 @@ const EMPTY_COUNTS: AdminHubCounts = {
 function AdminHomeScreen() {
   const t = useTheme();
   const router = useRouter();
+  const [today] = useState(() => new Date());
+  const bodyRef = useRef<ScrollView>(null);
+  const { active, onTab } = useTabNav({ scrollRef: bodyRef });
+  const { exitAdmin } = useRoleSwitch();
   const { me, loading: meLoading } = useMe();
   const isAdmin = !!me?.roles?.includes('admin');
   const [counts, setCounts] = useState<AdminHubCounts | null>(null);
+  const [events, setEvents] = useState<AdminCalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [eventsLoading, setEventsLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
       let alive = true;
+      const now = new Date();
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       setLoading(true);
+      setEventsLoading(true);
       api.admin
         .hubCounts()
         .then((value) => { if (alive) setCounts(value); })
         .catch(() => { if (alive) setCounts(null); })
         .finally(() => { if (alive) setLoading(false); });
+      api.admin
+        .calendar(now.toISOString(), tomorrow.toISOString())
+        .then((value) => {
+          if (alive) setEvents(value.filter((event) => Date.parse(event.startsAt) >= now.getTime()).slice(0, 3));
+        })
+        .catch(() => { if (alive) setEvents([]); })
+        .finally(() => { if (alive) setEventsLoading(false); });
       return () => { alive = false; };
     }, []),
   );
@@ -53,180 +67,225 @@ function AdminHomeScreen() {
   }
 
   const knownCounts = counts ?? EMPTY_COUNTS;
-  const tiles: HubTile[] = [
+  const needsLook = counts ? attentionTotal(counts) : null;
+  const dateSubtitle = today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+
+  const tutorRows = [
     {
-      key: 'applications',
-      icon: 'cap',
-      label: 'Applications',
-      hint: 'Waiting for approval',
-      count: counts?.applications ?? null,
+      icon: 'cap' as const,
+      title: 'Applications',
+      subtitle: counts ? (knownCounts.applications ? 'Waiting for approval' : 'All caught up') : 'Loading',
+      count: counts?.applications ?? 0,
       href: '/admin_tutors?tab=applications',
     },
     {
-      key: 'interviews',
-      icon: 'cal',
-      label: 'Interviews',
-      hint: counts
-        ? knownCounts.interviews > 0 && knownCounts.nextInterviewAt
-          ? `Next: ${interviewLabel(new Date(knownCounts.nextInterviewAt))}`
-          : 'None scheduled'
-        : 'Next: unavailable',
-      count: counts?.interviews ?? null,
+      icon: 'clock' as const,
+      title: 'Interviews',
+      subtitle: counts?.nextInterviewAt
+        ? `Next: ${interviewLabel(new Date(counts.nextInterviewAt))}`
+        : counts ? 'All caught up' : 'Loading',
+      count: counts?.interviews ?? 0,
       href: '/admin_tutors?tab=interviews',
     },
     {
-      key: 'grades',
-      icon: 'doc',
-      label: 'Grade checks',
-      hint: 'Transcripts to verify',
-      count: counts?.gradeChecks ?? null,
+      icon: 'doc' as const,
+      title: 'Grade checks',
+      subtitle: counts ? (knownCounts.gradeChecks ? 'Transcripts to verify' : 'All caught up') : 'Loading',
+      count: counts?.gradeChecks ?? 0,
       href: '/admin_tutors?tab=grades',
     },
     {
-      key: 'reviews',
-      icon: 'star',
-      label: 'Reviews',
-      hint: 'Waiting for moderation',
-      count: counts?.reviews ?? null,
+      icon: 'star' as const,
+      title: 'Reviews',
+      subtitle: counts ? (knownCounts.reviews ? 'Waiting for moderation' : 'All caught up') : 'Loading',
+      count: counts?.reviews ?? 0,
       href: '/admin_reviews',
     },
+  ];
+  const safetyRows = [
     {
-      key: 'complaints',
-      icon: 'alert',
-      label: 'Complaints',
-      hint: 'Reports & auto-flags',
-      count: counts?.complaints ?? null,
+      icon: 'alert' as const,
+      title: 'Complaints',
+      subtitle: counts ? (knownCounts.complaints ? 'Reports & auto-flags' : 'All caught up') : 'Loading',
+      count: counts?.complaints ?? 0,
       href: '/admin_reports',
     },
     {
-      key: 'disputes',
-      icon: 'card',
-      label: 'Disputes',
-      hint: 'Bookings to resolve',
-      count: counts?.disputes ?? null,
+      icon: 'card' as const,
+      title: 'Disputes',
+      subtitle: counts ? (knownCounts.disputes ? 'Bookings to resolve' : 'All caught up') : 'Loading',
+      count: counts?.disputes ?? 0,
       href: '/admin_bookings?tab=disputes',
     },
   ];
-  const manage: { icon: IconName; label: string; hint: string; href: string }[] = [
-    { icon: 'user', label: 'Users', hint: 'Search, suspend, ban', href: '/admin_users' },
-    { icon: 'cal', label: 'All bookings', hint: 'Every session on the platform', href: '/admin_bookings?tab=all' },
-    { icon: 'chat', label: 'Admin team chat', hint: 'Private group thread for admins', href: '/admin_chat' },
-  ];
-  const needsLook = counts ? attentionTotal(counts) : null;
 
   return (
     <Screen>
-      <NavTop title="Noot Admin" onBack={() => router.back()} />
-      <Body pad={20}>
-        <Text style={[styles.heading, { color: t.text }]}>Team hub</Text>
-        {loading ? (
-          <Skeleton width={165} height={18} style={{ marginBottom: 14 }} />
-        ) : (
-          <Text style={[styles.subtitle, { color: t.text3 }]}>
-            {needsLook === null
-              ? '— things need a look'
-              : needsLook === 0
-                ? 'All caught up'
-                : needsLook === 1
-                  ? '1 thing needs a look'
-                  : `${needsLook} things need a look`}
+      <Body ref={bodyRef} pad={20} contentStyle={styles.content}>
+        <AdminLargeHeader
+          title="Admin"
+          subtitle={dateSubtitle}
+          trailing={
+            <View style={styles.headerActions}>
+              <Pressable
+                onPress={() => router.push('/admin_chat')}
+                accessibilityRole="button"
+                accessibilityLabel="Open admin team chat"
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  { backgroundColor: pressed ? t.surface2 : t.surface, borderRadius: 18 },
+                ]}
+              >
+                <Ic name="chat" size={18} color={t.text2} />
+              </Pressable>
+              <Pressable
+                onPress={exitAdmin}
+                accessibilityRole="button"
+                accessibilityLabel="Exit admin"
+                style={({ pressed }) => [
+                  styles.exitButton,
+                  { backgroundColor: pressed ? t.surface2 : t.surface },
+                ]}
+              >
+                <Ic name="logout" size={16} color={t.text2} />
+                <Text style={[styles.exitText, { color: t.text2 }]}>Exit</Text>
+              </Pressable>
+            </View>
+          }
+        />
+
+        <View style={styles.hero}>
+          {loading ? (
+            <Skeleton width={54} height={48} radius={12} />
+          ) : needsLook === 0 ? (
+            <View style={[styles.heroCheck, { backgroundColor: t.goodWeak }]}>
+              <Ic name="check" size={22} color={t.good} strokeWidth={2.2} />
+            </View>
+          ) : (
+            <Text style={[styles.heroNumber, { color: t.text }]}>{needsLook ?? '—'}</Text>
+          )}
+          <Text style={[styles.heroLabel, { color: t.text2 }]}>
+            {loading ? 'things need a look' : needsLook === 0 ? 'All caught up' : 'things need a look'}
           </Text>
-        )}
-
-        <Eyebrow style={{ color: t.text3, marginTop: 18, marginBottom: 10 }}>Tutors</Eyebrow>
-        {loading ? (
-          <View style={styles.grid}>
-            {[0, 1, 2, 3].map((key) => <Skeleton key={key} height={124} style={styles.skeletonTile} />)}
-          </View>
-        ) : (
-          <View style={styles.grid}>
-            {tiles.slice(0, 4).map((tile) => (
-              <HubMetricTile key={tile.key} tile={tile} onPress={() => router.push(tile.href as never)} />
-            ))}
-          </View>
-        )}
-
-        <Eyebrow style={{ color: t.text3, marginTop: 18, marginBottom: 10 }}>Students &amp; safety</Eyebrow>
-        {loading ? (
-          <View style={styles.grid}>
-            {[0, 1].map((key) => <Skeleton key={key} height={124} style={styles.skeletonTile} />)}
-          </View>
-        ) : (
-          <View style={styles.grid}>
-            {tiles.slice(4).map((tile) => (
-              <HubMetricTile key={tile.key} tile={tile} onPress={() => router.push(tile.href as never)} />
-            ))}
-          </View>
-        )}
-
-        <Eyebrow style={{ color: t.text3, marginTop: 18, marginBottom: 10 }}>Manage</Eyebrow>
-        <View style={{ gap: 8 }}>
-          {manage.map((item) => (
-            <Card
-              key={item.label}
-              onPress={() => router.push(item.href as never)}
-              style={styles.manageRow}
-            >
-              <View style={[styles.iconBox, { backgroundColor: t.accentWeak }]}>
-                <Ic name={item.icon} size={17} color={t.accent} strokeWidth={1.8} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.manageTitle, { color: t.text }]}>{item.label}</Text>
-                <Text style={[styles.manageHint, { color: t.text3 }]}>{item.hint}</Text>
-              </View>
-              <Ic name="chevR" size={17} color={t.text3} strokeWidth={2} />
-            </Card>
-          ))}
         </View>
+
+        <AdminSection label="Up next" action={{ label: 'Calendar', onPress: () => router.push('/admin_calendar') }}>
+          {eventsLoading ? (
+            <View style={styles.eventSkeletons}>
+              <Skeleton height={62} />
+              <Skeleton height={62} />
+            </View>
+          ) : events.length ? (
+            events.map((event) => <HubEventRow key={`${event.kind}-${event.id}`} event={event} />)
+          ) : (
+            <AdminRow title="Nothing else today" muted />
+          )}
+        </AdminSection>
+
+        <AdminSection label="Tutors">
+          {tutorRows.map((row) => (
+            <AdminRow
+              key={row.title}
+              icon={row.icon}
+              title={row.title}
+              subtitle={row.subtitle}
+              count={row.count}
+              muted={!!counts && row.count === 0}
+              onPress={() => router.push(row.href as never)}
+            />
+          ))}
+        </AdminSection>
+
+        <AdminSection label="Safety">
+          {safetyRows.map((row) => (
+            <AdminRow
+              key={row.title}
+              icon={row.icon}
+              title={row.title}
+              subtitle={row.subtitle}
+              count={row.count}
+              muted={!!counts && row.count === 0}
+              onPress={() => router.push(row.href as never)}
+            />
+          ))}
+          <AdminRow
+            icon="list"
+            title="All bookings"
+            subtitle="Every session on Noot"
+            onPress={() => router.push('/admin_bookings?tab=all')}
+          />
+        </AdminSection>
+
         <Text style={[styles.note, { color: t.text3 }]}>
           Admin actions are verified server-side. This panel is visible only to admin accounts.
         </Text>
       </Body>
+      <TabBar role="admin" active={active} onTab={onTab} />
     </Screen>
   );
 }
 
-function HubMetricTile({ tile, onPress }: { tile: HubTile; onPress: () => void }) {
+function HubEventRow({ event }: { event: AdminCalendarEvent }) {
   const t = useTheme();
-  const zero = tile.count === 0;
+  const status = bookingStatus(event);
+  const startsAt = new Date(event.startsAt);
+  const time = startsAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const title = event.kind === 'interview' ? `Interview · ${event.tutorName}` : event.title;
+  const people = event.kind === 'interview'
+    ? event.details || `Tutor interview · ${INTERVIEW_MINUTES} min`
+    : `${event.studentName ?? 'Student'} → ${event.tutorName}`;
+  const muted = status === 'Cancelled' || status === 'No-show';
   return (
-    <Card onPress={onPress} style={styles.metricTile}>
-      <View style={[styles.iconBox, { backgroundColor: t.accentWeak }]}>
-        <Ic name={tile.icon} size={18} color={t.accent} strokeWidth={1.8} />
-      </View>
-      {tile.count !== null && tile.count > 0 ? (
-        <View style={styles.metricBadge}>
-          <Badge label={String(tile.count)} tone="accentSoft" />
-        </View>
-      ) : null}
-      <View style={{ marginTop: 10 }}>
-        <Text style={[styles.metricCount, { color: zero ? t.text3 : t.text }]}>
-          {tile.count ?? '—'}
+    <View style={styles.eventRow}>
+      <Text style={[styles.eventTime, { color: t.text }]}>{time}</Text>
+      <View style={[styles.eventBar, { backgroundColor: event.kind === 'interview' ? INTERVIEW_INDIGO : t.accent }]} />
+      <View style={styles.eventContent}>
+        <Text style={[styles.eventTitle, { color: muted ? t.text3 : t.text, textDecorationLine: muted ? 'line-through' : 'none' }]}>
+          {title}
         </Text>
-        <Text style={[styles.metricLabel, { color: t.text }]}>{tile.label}</Text>
-        <Text style={[styles.metricHint, { color: t.text3 }]}>
-          {zero && tile.key !== 'interviews' ? 'All caught up' : tile.hint}
-        </Text>
+        <Text numberOfLines={1} style={[styles.eventSubtitle, { color: t.text3 }]}>{people}</Text>
+        {status ? (
+          <Text style={[styles.eventStatus, { color: event.disputeStatus === 'flagged' ? WARNING_AMBER : muted ? t.text3 : t.good }]}>
+            {status}
+          </Text>
+        ) : null}
       </View>
-    </Card>
+    </View>
   );
 }
 
+function bookingStatus(event: AdminCalendarEvent): string | null {
+  if (event.kind !== 'booking') return null;
+  if (event.disputeStatus === 'flagged') return 'Disputed';
+  switch (event.status) {
+    case 'cancelled': return 'Cancelled';
+    case 'no_show': return 'No-show';
+    case 'pending': return 'Pending';
+    case 'confirmed': return 'Confirmed';
+    case 'completed': return 'Completed';
+    default: return event.status;
+  }
+}
+
 const styles = StyleSheet.create({
-  heading: { fontSize: 26, fontWeight: '700', letterSpacing: -0.4, marginHorizontal: 2, marginTop: 6 },
-  subtitle: { fontSize: 13.5, marginHorizontal: 2, marginBottom: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
-  skeletonTile: { width: '48%', flexGrow: 0 },
-  metricTile: { width: '48%', minHeight: 124, padding: 14, justifyContent: 'space-between', position: 'relative' },
-  iconBox: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  metricBadge: { position: 'absolute', top: 10, right: 10 },
-  metricCount: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5, lineHeight: 31 },
-  metricLabel: { fontSize: 13.5, fontWeight: '600', marginTop: 3 },
-  metricHint: { fontSize: 11.5, marginTop: 2 },
-  manageRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
-  manageTitle: { fontSize: 14.5, fontWeight: '600' },
-  manageHint: { fontSize: 12, marginTop: 1 },
-  note: { fontSize: 12, lineHeight: 17, marginTop: 18, paddingHorizontal: 2 },
+  content: { paddingTop: 4, gap: 19, paddingBottom: 22 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 2 },
+  iconButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  exitButton: { height: 36, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11 },
+  exitText: { fontSize: 12.5, fontWeight: '600' },
+  hero: { flexDirection: 'row', alignItems: 'baseline', gap: 10, minHeight: 52, paddingHorizontal: 2 },
+  heroNumber: { fontSize: 46, fontWeight: '700', letterSpacing: -1.5, lineHeight: 50 },
+  heroLabel: { fontSize: 15, fontWeight: '500' },
+  heroCheck: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
+  eventSkeletons: { gap: 1, paddingHorizontal: 14 },
+  eventRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10, paddingVertical: 12, paddingHorizontal: 14, minHeight: 62 },
+  eventTime: { width: 48, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  eventBar: { width: 3, borderRadius: 2 },
+  eventContent: { flex: 1, minWidth: 0 },
+  eventTitle: { fontSize: 14, fontWeight: '600' },
+  eventSubtitle: { fontSize: 11.5, marginTop: 2 },
+  eventStatus: { fontSize: 11, fontWeight: '600', marginTop: 4 },
+  note: { fontSize: 11.5, lineHeight: 17, textAlign: 'center', marginHorizontal: 8, marginTop: 1 },
 });
 
 export default function AdminHome() {

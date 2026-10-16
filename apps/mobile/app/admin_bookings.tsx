@@ -1,22 +1,33 @@
-// Admin → Booking oversight. Recent bookings across the platform with party names + status,
-// and flag/resolve for disputes. Actions go through api.admin.resolveDispute → the
-// resolve-dispute Edge Function (admin-verified, service role). Client guard is UI-only.
 import React, { useEffect, useState } from 'react';
-import { View, Text, Alert, StyleSheet } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Card, Button, Badge, Eyebrow, EmptyState, Skeleton, useTheme, type BadgeTone } from '@noot/ui';
 import { api, type AdminBooking } from '@noot/core';
+import { Body, EmptyState, NavTop, Screen, Skeleton, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { AdminTabs, safetyTabs, useAdminHubCounts } from '../lib/AdminTabs';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
+import { AdminRow, AdminSection, StatusDot } from '../lib/adminUi';
+import { dayKey } from '../lib/monthGrid';
 
 function when(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' · ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
-const STATUS_TONE: Record<string, BadgeTone> = {
-  confirmed: 'good', completed: 'accentSoft', cancelled: 'neutral', pending: 'neutral', no_show: 'neutral',
-};
+
+function dayLabel(key: string, today: Date): string {
+  const [year, month, day] = key.split('-').map(Number);
+  const date = new Date(year!, month! - 1, day!);
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  if (key === dayKey(today)) return 'Today';
+  if (key === dayKey(tomorrow)) return 'Tomorrow';
+  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function statusColor(status: string, t: ReturnType<typeof useTheme>): string {
+  if (status === 'confirmed' || status === 'completed') return t.good;
+  if (status === 'pending') return t.accent;
+  if (status === 'cancelled' || status === 'no_show') return t.text3;
+  return t.text2;
+}
 
 function AdminBookingsScreen() {
   const t = useTheme();
@@ -24,6 +35,7 @@ function AdminBookingsScreen() {
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const tab = tabParam === 'disputes' ? 'disputes' : 'all';
   const { me, loading: meLoading } = useMe();
+  const [today] = useState(() => new Date());
   const isAdmin = !!me?.roles?.includes('admin');
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,38 +44,59 @@ function AdminBookingsScreen() {
 
   useEffect(() => {
     let alive = true;
-    api.admin.listBookings().then((b) => { if (alive) setBookings(b); }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
+    api.admin
+      .listBookings()
+      .then((result) => { if (alive) setBookings(result); })
+      .catch(() => {})
+      .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, []);
 
-  if (!meLoading && me && !isAdmin) { router.replace('/home'); return null; }
+  if (!meLoading && me && !isAdmin) {
+    router.replace('/home');
+    return null;
+  }
 
   const visibleBookings = tab === 'disputes'
     ? bookings.filter((booking) => booking.disputeStatus === 'flagged')
     : bookings;
 
-  const dispute = async (b: AdminBooking, action: 'flag' | 'resolve') => {
+  const dispute = async (booking: AdminBooking, action: 'flag' | 'resolve') => {
     if (busy) return;
-    setBusy(b.id);
+    setBusy(booking.id);
     try {
-      const res = await api.admin.resolveDispute(b.id, action, action === 'flag' ? { reason: 'Flagged by admin' } : { resolution: 'Resolved by admin' });
-      setBookings((prev) => prev.map((x) => (x.id === b.id ? { ...x, disputeStatus: res.disputeStatus } : x)));
-    } catch (e) {
-      Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
+      const result = await api.admin.resolveDispute(
+        booking.id,
+        action,
+        action === 'flag' ? { reason: 'Flagged by admin' } : { resolution: 'Resolved by admin' },
+      );
+      setBookings((previous) => previous.map((item) => (
+        item.id === booking.id ? { ...item, disputeStatus: result.disputeStatus } : item
+      )));
+    } catch (error) {
+      Alert.alert('Could not update', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setBusy(null);
     }
   };
 
+  const groups = [...visibleBookings]
+    .sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))
+    .reduce<Record<string, AdminBooking[]>>((result, booking) => {
+      const key = dayKey(new Date(booking.scheduledAt));
+      (result[key] ??= []).push(booking);
+      return result;
+    }, {});
+
   return (
     <Screen>
       <NavTop title="Bookings" onBack={() => router.back()} />
-      <Body pad={20}>
+      <Body pad={20} contentStyle={styles.content}>
         <AdminTabs tabs={safetyTabs(counts)} active={tab} />
         {loading ? (
-          <View style={{ gap: 10 }}>
-            <Skeleton height={96} radius={16} />
-            <Skeleton height={96} radius={16} />
+          <View style={styles.loading}>
+            <Skeleton height={96} />
+            <Skeleton height={96} />
           </View>
         ) : visibleBookings.length === 0 ? (
           <EmptyState
@@ -72,50 +105,89 @@ function AdminBookingsScreen() {
             subtitle={tab === 'disputes' ? 'Flagged bookings will appear here.' : 'Bookings across the platform will appear here.'}
           />
         ) : (
-          <View style={{ gap: 10 }}>
-            <Eyebrow style={{ color: t.text3 }}>
+          <>
+            <Text style={[styles.countLine, { color: t.text3 }]}>
               {tab === 'disputes' ? `${visibleBookings.length} open disputes` : `${visibleBookings.length} recent bookings`}
-            </Eyebrow>
-            {visibleBookings.map((b) => (
-              <Card key={b.id} style={{ padding: 14 }}>
-                <View style={styles.row}>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.parties, { color: t.text }]}>{b.studentName} ↔ {b.tutorName}</Text>
-                    <Text style={[styles.meta, { color: t.text3 }]}>{b.subject} · {when(b.scheduledAt)} · ${(b.price + b.studentFee).toFixed(2).replace(/\.00$/, '')}</Text>
-                  </View>
-                  <Badge label={b.status} tone={STATUS_TONE[b.status] ?? 'neutral'} />
-                </View>
-                <View style={styles.disputeRow}>
-                  {b.disputeStatus !== 'none' ? (
-                    <Badge label={b.disputeStatus === 'flagged' ? '⚠ Disputed' : 'Dispute resolved'} tone={b.disputeStatus === 'flagged' ? 'accentSoft' : 'good'} />
-                  ) : (
-                    <Text style={[styles.noDispute, { color: t.text3 }]}>No dispute</Text>
-                  )}
-                  {b.disputeStatus === 'none' ? (
-                    <Button label="Flag" kind="secondary" size="sm" disabled={busy === b.id} onPress={() => dispute(b, 'flag')} />
-                  ) : b.disputeStatus === 'flagged' ? (
-                    <Button label="Resolve" kind="primary" size="sm" disabled={busy === b.id} onPress={() => dispute(b, 'resolve')} />
-                  ) : null}
-                </View>
-                {b.disputeReason && b.disputeStatus === 'flagged' ? (
-                  <Text style={[styles.reason, { color: t.text3 }]}>{b.disputeReason}</Text>
-                ) : null}
-              </Card>
+            </Text>
+            {Object.entries(groups).map(([date, dayBookings]) => (
+              <AdminSection key={date} label={dayLabel(date, today)}>
+                {dayBookings!.map((booking) => (
+                  <BookingRow
+                    key={booking.id}
+                    booking={booking}
+                    disputedOnly={tab === 'disputes'}
+                    busy={busy === booking.id}
+                    onFlag={() => void dispute(booking, 'flag')}
+                    onResolve={() => void dispute(booking, 'resolve')}
+                  />
+                ))}
+              </AdminSection>
             ))}
-          </View>
+          </>
         )}
       </Body>
     </Screen>
   );
 }
 
+function BookingRow({
+  booking,
+  disputedOnly,
+  busy,
+  onFlag,
+  onResolve,
+}: {
+  booking: AdminBooking;
+  disputedOnly: boolean;
+  busy: boolean;
+  onFlag: () => void;
+  onResolve: () => void;
+}) {
+  const t = useTheme();
+  const action = booking.disputeStatus === 'none' ? 'Flag' : booking.disputeStatus === 'flagged' ? 'Resolve' : null;
+  const color = booking.disputeStatus === 'flagged' ? '#C2783A' : statusColor(booking.status, t);
+  const amount = `$${(booking.price + booking.studentFee).toFixed(2).replace(/\.00$/, '')}`;
+  const subtitle = disputedOnly && booking.disputeReason
+    ? `${booking.subject} · ${when(booking.scheduledAt)} · ${booking.disputeReason}`
+    : `${booking.subject} · ${when(booking.scheduledAt)}`;
+  return (
+    <AdminRow
+      title={`${booking.studentName} → ${booking.tutorName}`}
+      subtitle={subtitle}
+      trailing={
+        <View style={styles.trailing}>
+          <Text style={[styles.amount, { color: t.text }]}>{amount}</Text>
+          <StatusDot
+            label={booking.disputeStatus === 'flagged' ? 'Disputed' : booking.status.replaceAll('_', ' ')}
+            color={color}
+          />
+          {action ? (
+            <Pressable
+              onPress={action === 'Flag' ? onFlag : onResolve}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={`${action} dispute for ${booking.subject}`}
+              style={({ pressed }) => [styles.action, { opacity: pressed || busy ? 0.55 : 1 }]}
+            >
+              <Text style={[styles.actionText, { color: booking.disputeStatus === 'flagged' ? '#C2783A' : t.text2 }]}>
+                {busy ? '…' : action}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      }
+    />
+  );
+}
+
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  parties: { fontSize: 15, fontWeight: '700' },
-  meta: { fontSize: 12.5, marginTop: 2 },
-  disputeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 12 },
-  noDispute: { fontSize: 12.5 },
-  reason: { fontSize: 12, marginTop: 8 },
+  content: { gap: 14, paddingBottom: 24 },
+  loading: { gap: 10 },
+  countLine: { fontSize: 12, fontWeight: '600' },
+  trailing: { alignItems: 'flex-end', gap: 5, minWidth: 62 },
+  amount: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  action: { paddingVertical: 2, paddingHorizontal: 4 },
+  actionText: { fontSize: 11.5, fontWeight: '700' },
 });
 
 export default function AdminBookings() {
