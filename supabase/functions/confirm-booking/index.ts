@@ -299,14 +299,17 @@ serveWithErrorReporting('confirm-booking', async (req) => {
 
     if (conversationError) throw conversationError;
 
-    if (message && message.trim().length > 0) {
-      const { error: messageError } = await db.from('messages').insert({
-        conversation_id: conversation.id,
-        sender_id: studentId,
-        content: message,
-      });
-      if (messageError) throw messageError;
-    }
+    // The tutor's thread always opens with a message from the student: their own
+    // words when they wrote one, otherwise a booking note so a message-less request
+    // never leaves the tutor staring at an empty chat.
+    const opening = message?.trim() ||
+      `Hi! I just booked a ${resolved.courseCode} session with you — looking forward to it.`;
+    const { error: messageError } = await db.from('messages').insert({
+      conversation_id: conversation.id,
+      sender_id: studentId,
+      content: opening,
+    });
+    if (messageError) throw messageError;
 
     return Response.json(
       {
