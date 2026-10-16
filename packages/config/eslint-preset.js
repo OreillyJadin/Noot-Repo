@@ -6,7 +6,11 @@
 // UI migration-agnostic so the AWS migration is a swap, not a rewrite.
 //
 // The restriction below is applied everywhere; the two allowed locations override
-// it back off in their own .eslintrc (see packages/core/.eslintrc.cjs).
+// it back off in their own eslint.config (see packages/core/eslint.config.cjs).
+
+const js = require('@eslint/js');
+const tsPlugin = require('@typescript-eslint/eslint-plugin');
+const globals = require('globals');
 
 const BACKEND_ONLY_IMPORTS = [
   {
@@ -23,22 +27,40 @@ const BACKEND_ONLY_IMPORTS = [
   },
 ];
 
-module.exports = {
-  root: true,
-  parser: '@typescript-eslint/parser',
-  plugins: ['@typescript-eslint'],
-  extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended'],
-  env: { es2022: true, node: true, browser: true },
-  parserOptions: { ecmaVersion: 2022, sourceType: 'module' },
-  ignorePatterns: ['dist/', '.next/', '.expo/', 'node_modules/', '*.config.js'],
-  rules: {
-    'no-restricted-imports': ['error', { patterns: BACKEND_ONLY_IMPORTS }],
-    '@typescript-eslint/no-unused-vars': [
-      'warn',
-      { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+module.exports = [
+  {
+    ignores: [
+      '**/dist/**',
+      '**/.next/**',
+      '**/.expo/**',
+      '**/node_modules/**',
+      '**/*.config.js',
+      '**/eslint.config.*',
     ],
   },
-  // ESLint 8 only lints .js when given a directory (`eslint src`); a files override is what
-  // makes it pick up the TypeScript too. Without this the lint run checked almost nothing.
-  overrides: [{ files: ['*.ts', '*.tsx'] }],
-};
+  js.configs.recommended,
+  ...tsPlugin.configs['flat/recommended'],
+  {
+    files: ['**/*.{js,cjs,mjs,ts,tsx}'],
+    linterOptions: {
+      reportUnusedDisableDirectives: 'off',
+    },
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        ...globals.es2022,
+        ...globals.node,
+        ...globals.browser,
+      },
+    },
+    rules: {
+      'no-useless-assignment': 'off',
+      'no-restricted-imports': ['error', { patterns: BACKEND_ONLY_IMPORTS }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+    },
+  },
+];
