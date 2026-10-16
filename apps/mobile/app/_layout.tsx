@@ -15,6 +15,7 @@ import { AppProvider } from '../lib/store';
 import { MeProvider } from '../lib/useMe';
 import { AuthGate } from '../lib/AuthGate';
 import { PushRegistrar } from '../lib/PushRegistrar';
+import { PushOpener } from '../lib/PushOpener';
 import { PayoutSetupHost } from '../lib/PayoutSetupHost';
 import { largeSecureStore } from '../lib/secureStorage';
 import { ThemePrefProvider, useThemePref } from '../lib/themePref';
@@ -46,6 +47,7 @@ function ThemedApp() {
       <MeProvider>
       <StatusBar style={dark ? 'light' : 'dark'} />
         <PushRegistrar />
+        <PushOpener />
         <AuthGate>
           {/* Tab roots cross-fade instead of the jerky horizontal slide; drill-down
               screens (booking, edit, etc.) keep the default push animation. */}

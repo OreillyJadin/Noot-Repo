@@ -1,9 +1,7 @@
 // Keeps this device registered for the signed-in account's notifications (ERR-031). Renders
 // nothing. Mounted once, inside the app's providers (app/_layout.tsx).
 //
-// Tapping a notification just opens the app where it was: nothing navigates. Jumping to the
-// notification center from here would run before the app lock and the launch routing have
-// finished, and that screen marks everything read as it opens.
+// Notification taps are routed by PushOpener after AuthGate's launch routing finishes.
 import { useEffect } from 'react';
 import { auth } from '@noot/core';
 import { registerThisDevice } from './push';

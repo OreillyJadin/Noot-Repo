@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Body, TabBar, Button, Badge, Card, Avatar, Ic, H2, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import type { Booking } from '@noot/core';
@@ -35,7 +35,8 @@ export default function TutorSessions() {
   const t = useTheme();
   const router = useRouter();
   const { role, patchBooking } = useApp();
-  const [tab, setTab] = useState<Tab>('upcoming');
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<Tab>(tabParam === 'past' ? 'past' : 'upcoming');
 
   // Upcoming includes requests and confirmed future sessions; Past = listPast (includes past-but-confirmed
   // sessions the tutor still needs to "Mark complete" → capture payment + payout).

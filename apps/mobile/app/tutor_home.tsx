@@ -1,12 +1,12 @@
 // TH Tutor Home (Dashboard) — ported from screens-home.jsx (TutorHome).
 // Lightweight dashboard: next session + payout countdown, weekly stats, quick
-// management actions, recent message. Tab root (tutor Home tab).
+// management actions. Tab root (tutor Home tab).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Button, Skeleton, ViewingAs, PreviewBanner, useTheme, type IconName } from '@noot/ui';
-import { api, type Booking, type Message } from '@noot/core';
+import { api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
 import { useMe, firstName } from '../lib/useMe';
@@ -17,15 +17,6 @@ import { AdminShortcut } from '../lib/AdminShortcut';
 import { NotificationBell } from '../lib/NotificationBell';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { formatSessionTime } from '../lib/formatSessionTime';
-
-// Chat-list preview. An attachment-only message has content '' — describe it rather than
-// rendering a blank row.
-function messagePreview(m: Message | null | undefined): string {
-  if (!m) return 'Start the conversation';
-  if (m.content) return m.content;
-  if (m.attachmentCount > 0) return `📎 ${m.attachmentCount} attachment${m.attachmentCount > 1 ? 's' : ''}`;
-  return 'Start the conversation';
-}
 
 /** Booking scheduledAt (+ optional location) → "Tomorrow · 3:00 PM · Gorgas Library". */
 function sessionMeta(iso: string, location: string | null): string {
@@ -109,10 +100,9 @@ export default function TutorHome() {
   const [next, setNext] = useState<Booking | null>(null);
   const [requests, setRequests] = useState<Booking[]>([]);
   const [busyRequest, setBusyRequest] = useState<string | null>(null);
-  // Live dashboard numbers + counterparty names + most-recent conversation.
+  // Live dashboard numbers + counterparty names.
   const [stats, setStats] = useState<{ sessionsTaught: number; earnedThisWeek: number } | null>(null);
   const [names, setNames] = useState<Record<string, { firstName: string; lastName: string }>>({});
-  const [recent, setRecent] = useState<{ name: string; preview: string } | null>(null);
   useEffect(() => {
     let active = true;
     api.listUpcoming().then((list) => {
@@ -122,17 +112,6 @@ export default function TutorHome() {
     }).catch(() => {});
     api.tutorStats().then((s) => { if (active) setStats(s); }).catch(() => {});
     api.resolveParticipantNames().then((n) => { if (active) setNames(n); }).catch(() => {});
-    api.chat
-      .listConversations()
-      .then((cs) => {
-        if (!active) return;
-        const c = cs[0];
-        if (c) {
-          const nm = `${c.counterpart.firstName} ${c.counterpart.lastName}`.trim() || 'Student';
-          setRecent({ name: nm, preview: messagePreview(c.lastMessage) });
-        }
-      })
-      .catch(() => {});
     return () => { active = false; };
   }, [reloadKey]);
 
@@ -308,22 +287,6 @@ export default function TutorHome() {
           ))}
         </View>
 
-        {/* Recent message — live from the tutor's most recent conversation */}
-        {recent ? (
-          <>
-            <Eyebrow style={{ marginTop: 8 }}>Recent message</Eyebrow>
-            <Card onPress={openChat} style={styles.msgRow}>
-              <Avatar size={40} label={recent.name.charAt(0) || 'S'} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.msgName, { color: t.text }]}>{recent.name}</Text>
-                <Text numberOfLines={1} style={[styles.msgPreview, { color: t.text3 }]}>
-                  {recent.preview}
-                </Text>
-              </View>
-              <Ic name="chevR" size={17} color={t.text3} strokeWidth={2} />
-            </Card>
-          </>
-        ) : null}
       </Body>
 
       <TabBar active={active} onTab={onTab} role={role} />
@@ -368,7 +331,4 @@ const styles = StyleSheet.create({
   actionIcon: { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   actionLabel: { flex: 1, fontSize: 15 },
 
-  msgRow: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14 },
-  msgName: { fontSize: 15, fontWeight: '600' },
-  msgPreview: { fontSize: 13, marginTop: 2 },
 });
