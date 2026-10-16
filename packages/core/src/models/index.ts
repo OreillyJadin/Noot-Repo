@@ -200,8 +200,9 @@ export interface Booking {
   rescheduleProposedAt: Timestamp | null;
   rescheduleProposedBy: UUID | null;
   durationMinutes: number;
-  price: number; // session price (fee and payout are computed on this)
-  /** Noot credit that came off it (0040); the student's card paid price − creditApplied. */
+  price: number; // session price (tutor fee and payout are computed on this)
+  studentFee: number;
+  /** Noot credit that came off the session total (price + studentFee). */
   creditApplied: number;
   platformFee: number; // noot's cut
   tutorPayoutAmount: number;

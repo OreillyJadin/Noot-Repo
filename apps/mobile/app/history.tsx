@@ -60,8 +60,8 @@ export default function History() {
               const otherId = isTutor ? b.studentId : b.tutorId;
               const nm = names[otherId];
               const name = (nm ? `${nm.firstName} ${nm.lastName}`.trim() : '') || (isTutor ? 'Student' : 'Tutor');
-              // A student paid the price minus any Noot credit; the tutor's payout is unaffected.
-              const amount = isTutor ? b.tutorPayoutAmount : b.price - b.creditApplied;
+              // The student pays session price plus service fee minus credit; tutor payout is unchanged.
+              const amount = isTutor ? b.tutorPayoutAmount : b.price + b.studentFee - b.creditApplied;
               const refunded = b.refundStatus === 'refunded';
               return (
                 <Card key={b.id} style={styles.row}>

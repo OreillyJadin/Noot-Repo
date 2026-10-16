@@ -152,12 +152,16 @@ export default function Sessions() {
         router.push('/xsc');
         return;
       }
+      const realBooking = upcoming.find((item) => item.booking.id === bookingId)?.booking;
       patchBooking({
         tutor: tutor ?? undefined,
         bookingId,
         scheduledAt,
-        status: upcoming.find((item) => item.booking.id === bookingId)?.booking.status,
-        acceptBy: upcoming.find((item) => item.booking.id === bookingId)?.booking.acceptBy,
+        status: realBooking?.status,
+        acceptBy: realBooking?.acceptBy,
+        price: realBooking?.price,
+        studentFee: realBooking?.studentFee,
+        creditApplied: realBooking?.creditApplied,
       });
       router.push('/xsc');
     } catch (e) {

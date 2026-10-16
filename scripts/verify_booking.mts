@@ -3,7 +3,7 @@
 // listUpcoming) exactly as apps/mobile/app/b4.tsx does. Safe to delete after.
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 import { createClient } from '@supabase/supabase-js'
-import { authorizeHold } from './_stripe_test.mts'
+import { authorizeHold, cancelHold } from './_stripe_test.mts'
 
 const URL = 'http://127.0.0.1:54321'
 const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
@@ -35,11 +35,14 @@ const courseCode = tc!.course_code as string
 // 3) Hold a (simulated) PaymentIntent — the create-payment-intent Edge Function.
 //    Note: no amount is sent. See scripts/verify_pricing.mts for the pricing checks.
 let paymentIntentId = ''
+let expectedStudentFeeCents = 0
 const scheduledAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString() // +3 days
 try {
   const pi = await api.createPaymentIntent({ tutorId: tutor.userId, courseCode, durationMinutes: 60, scheduledAt })
   paymentIntentId = pi.paymentIntentId
-  step(3, !!paymentIntentId, `create-payment-intent → ${paymentIntentId} ($${pi.price}, simulated=${pi.simulated})`)
+  expectedStudentFeeCents = pi.studentFeeCents
+  step(3, !!paymentIntentId && pi.amountCents === Math.round(pi.price * 100) + pi.studentFeeCents,
+    `create-payment-intent → ${paymentIntentId} ($${pi.price} session + ${pi.studentFeeCents}c service fee = ${pi.amountCents}c, simulated=${pi.simulated})`)
 } catch (e) {
   step(3, false, `create-payment-intent threw: ${String(e)}`)
 }
@@ -65,7 +68,9 @@ try {
     paymentIntentId,
   })
   bookingId = res.bookingId
-  step(4, !!bookingId && !!res.conversationId && !!res.acceptBy, `confirm-booking → pending request ${bookingId}, accept by ${res.acceptBy}`)
+  step(4, !!bookingId && !!res.conversationId && !!res.acceptBy &&
+    Math.round(res.studentFee * 100) === expectedStudentFeeCents,
+    `confirm-booking → pending request ${bookingId} with service fee $${res.studentFee}, accept by ${res.acceptBy}`)
 } catch (e) {
   step(4, false, `confirm-booking threw: ${String(e)}`)
 }
@@ -73,7 +78,8 @@ try {
 // 5) listUpcoming (what the app's sessions screen reads) now returns it.
 const upcoming = await api.listUpcoming()
 const found = upcoming.find((b) => b.id === bookingId)
-step(5, !!found && found.status === 'pending', found ? `listUpcoming shows the request (status=${found.status}, subject=${found.subject})` : `booking not in listUpcoming (${upcoming.length} upcoming)`)
+step(5, !!found && found.status === 'pending' && found.studentFee > 0,
+  found ? `listUpcoming shows the request (status=${found.status}, subject=${found.subject}, service fee=$${found.studentFee})` : `booking not in listUpcoming (${upcoming.length} upcoming)`)
 
 if (bookingId) {
   const { data: tutorUser } = await admin.from('users').select('email').eq('id', tutor.userId).single()
@@ -85,3 +91,7 @@ if (bookingId) {
 
 // cleanup
 if (bookingId) { await admin.from('bookings').delete().eq('id', bookingId); console.log('   (cleaned up test booking)') }
+if (paymentIntentId.startsWith('pi_')) {
+  const released = await cancelHold(paymentIntentId)
+  step(6, released?.status === 'canceled', `released the test hold → ${released?.status}`)
+}

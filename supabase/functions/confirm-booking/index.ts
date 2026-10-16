@@ -102,8 +102,8 @@ Deno.serve(async (req) => {
       if (pi.metadata?.tutor_id !== resolved.tutorId || pi.metadata?.course_code !== resolved.courseCode) {
         return Response.json({ error: 'That payment was for a different session' }, { status: 400, headers: cors });
       }
-      // The hold is the price minus the credit create-payment-intent applied. The credit is
-      // re-checked against the price here and actually spent below, under a lock.
+      // The hold is the session total (price plus student fee) minus credit. Credit is
+      // re-checked against that total here and actually spent below, under a lock.
       const claimed = parseCreditCents(pi.metadata?.credit_cents, resolved.amountCents);
       if (claimed === null || pi.amount !== resolved.amountCents - claimed) {
         return Response.json({ error: 'The payment amount does not match this session' }, { status: 400, headers: cors });
@@ -191,6 +191,7 @@ Deno.serve(async (req) => {
         scheduled_at: resolved.scheduledAt,
         duration_minutes: resolved.durationMinutes,
         price: resolved.price,
+        student_fee: resolved.studentFee,
         platform_fee: resolved.platformFee,
         tutor_payout_amount: resolved.tutorPayout,
         credit_applied: creditCents / 100,
@@ -254,7 +255,13 @@ Deno.serve(async (req) => {
     }
 
     return Response.json(
-      { bookingId: booking.id, conversationId: conversation.id, price: resolved.price, acceptBy },
+      {
+        bookingId: booking.id,
+        conversationId: conversation.id,
+        price: resolved.price,
+        studentFee: resolved.studentFee,
+        acceptBy,
+      },
       { headers: cors },
     );
   } catch (e) {

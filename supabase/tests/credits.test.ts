@@ -7,6 +7,13 @@ test('a $5 credit comes off a $28 session in full', () => {
   assert.equal(creditToApply(500, 2800), 500);
 });
 
+test('credit applies to the session total and can cover part of the service fee', () => {
+  const sessionAndFeeCents = 1000 + 170;
+  const creditCents = creditToApply(1050, sessionAndFeeCents);
+  assert.equal(creditCents, 1050);
+  assert.equal(sessionAndFeeCents - creditCents, 120);
+});
+
 test('no balance, no credit', () => {
   assert.equal(creditToApply(0, 2800), 0);
 });

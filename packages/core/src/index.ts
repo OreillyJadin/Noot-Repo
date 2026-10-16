@@ -16,6 +16,8 @@ export {
 export {
   VERIFIED_FEE_RATE,
   UNVERIFIED_FEE_RATE,
+  STUDENT_FEE_RATE,
+  studentFeeFor,
   feeRateFor,
   tutorPayoutFor,
   creditToApply,

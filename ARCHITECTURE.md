@@ -202,7 +202,7 @@ Everything the client can't be trusted to do. Deno, in `supabase/functions/`.
 
 | Function | Trigger | Responsibility |
 |---|---|---|
-| `create-payment-intent` | B4 pay | Create Stripe PaymentIntent, **manual capture** (held), `application_fee_amount` (Free/$0 at launch). |
+| `create-payment-intent` | B4 pay | Create a **manual-capture** PaymentIntent (held); compute the 17% student service fee server-side in `_shared/fees.ts` and include it in the held amount (not a Stripe application fee). |
 | `stripe-webhook` | Stripe | `payment_intent.succeeded` → confirm booking; `account.updated` → tutor Connect onboarding status; refunds/transfers. |
 | `confirm-booking` | after payment | Create `bookings` row (+ series for weekly), drop B3 intro message into the thread (B5), fire TB1 to tutor. |
 | `connect-onboarding-link` | T9 payout setup | Create Stripe Connect account + hosted onboarding link. |
@@ -254,8 +254,8 @@ reproduce against the real backend — do not port localStorage.
 - **Model:** auto-confirm — student picks an available block, pays into a **held** payment, booking
   confirms instantly (no tutor approval). Funds released to the tutor on completion.
 - **B4:** Stripe **Payment Element** / Express Checkout (Apple Pay / Google Pay + card). Manual
-  capture. Service fee shown as its own line — **Free ($0.00)** at launch (`application_fee_amount`,
-  toggle on later). Test cards: `4242` approves · `0002` declines.
+  capture. The 17% student service fee is computed in `supabase/functions/_shared/fees.ts`,
+  shown as its own line, and included in the held amount. Test cards: `4242` approves · `0002` declines.
 - **Payout:** on completion, capture the PaymentIntent and transfer to the tutor's connected
   account (payout within ~2 business days). Tutor Connect onboarding is part of tutor setup.
 - **Reviews (admin-moderated):** stored `pending` and hidden from everyone until an admin approves,

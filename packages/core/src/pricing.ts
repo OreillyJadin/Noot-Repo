@@ -1,9 +1,15 @@
-// What the app SHOWS about the platform fee. Display only: the server computes every real
-// amount (supabase/functions/_shared/fees.ts), and these must match it. The fee is locked
-// onto each booking when it's made (bookings.platform_fee / tutor_payout_amount); prefer
-// those stored numbers wherever a booking exists.
+// What the app SHOWS about fees. Display only: the server computes every real amount
+// (supabase/functions/_shared/fees.ts), and these must match it. The tutor-side fee is
+// locked onto each booking (bookings.platform_fee / tutor_payout_amount).
 export const VERIFIED_FEE_RATE = 0.175;
 export const UNVERIFIED_FEE_RATE = 0.325;
+export const STUDENT_FEE_RATE = 0.17;
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+export function studentFeeFor(price: number): number {
+  return round2(price * STUDENT_FEE_RATE);
+}
 
 export function feeRateFor(gradesVerified: boolean): number {
   return gradesVerified ? VERIFIED_FEE_RATE : UNVERIFIED_FEE_RATE;

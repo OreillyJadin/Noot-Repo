@@ -3,7 +3,7 @@
 // then attacks it directly over HTTP the way a tampered client would.
 //
 // Needs: supabase start && node supabase/seed_demo.mjs && supabase functions serve
-import { initSupabase, api, auth } from '../packages/core/src/index.ts'
+import { initSupabase, api, auth, studentFeeFor } from '../packages/core/src/index.ts'
 import { createClient } from '@supabase/supabase-js'
 import { authorizeHold, cancelHold, getPaymentIntent, setPaymentIntentMetadata, stripeTestMode } from './_stripe_test.mts'
 
@@ -50,8 +50,10 @@ const courseCode = course.course_code as string
 const rate = Number(course.hourly_rate)
 const DURATION = 60
 const expectedPrice = Math.round((rate * DURATION / 60) * 100) / 100
-const expectedCents = Math.round(expectedPrice * 100)
-step(3, rate > 0, `tutor teaches ${courseCode} at $${rate}/hr → expect $${expectedPrice} (${expectedCents}c) for ${DURATION}min`)
+const expectedFee = studentFeeFor(expectedPrice)
+const expectedFeeCents = Math.round(expectedFee * 100)
+const expectedCents = Math.round(expectedPrice * 100) + expectedFeeCents
+step(3, rate > 0, `tutor teaches ${courseCode} at $${rate}/hr → $${expectedPrice} session + $${expectedFee} fee = ${expectedCents}c total for ${DURATION}min`)
 
 // The tutor must be able to take charges, or every booking is correctly refused.
 await admin.from('tutor_profiles').update({ stripe_charges_enabled: true }).eq('user_id', tutor.userId)
@@ -83,8 +85,8 @@ let paymentIntentId = ''
 try {
   const pi = await api.createPaymentIntent({ tutorId: tutor.userId, courseCode, durationMinutes: DURATION, scheduledAt })
   paymentIntentId = pi.paymentIntentId
-  step(4, pi.amountCents === expectedCents,
-    `create-payment-intent computed ${pi.amountCents}c (expected ${expectedCents}c), simulated=${pi.simulated}`)
+  step(4, pi.amountCents === expectedCents && pi.studentFeeCents === expectedFeeCents,
+    `create-payment-intent computed ${pi.amountCents}c including ${pi.studentFeeCents}c fee (expected ${expectedCents}c total), simulated=${pi.simulated}`)
 } catch (e) {
   step(4, false, `create-payment-intent threw: ${String(e)}`)
 }
@@ -101,18 +103,24 @@ try {
     sessionType: 'in_person', message: 'Looking forward to it!', paymentIntentId,
   })
   bookingId = res.bookingId
-  step(5, res.price === expectedPrice, `confirm-booking → booking ${bookingId} at price $${res.price}`)
+  step(5, res.price === expectedPrice && res.studentFee === expectedFee,
+    `confirm-booking → booking ${bookingId} at session price $${res.price} + service fee $${res.studentFee}`)
 } catch (e) {
   step(5, false, `confirm-booking threw: ${String(e)}`)
 }
 
 // The stored row is what complete-session pays out from — check every money column.
 const { data: row } = await admin
-  .from('bookings').select('price, platform_fee, tutor_payout_amount, subject, status').eq('id', bookingId).maybeSingle()
+  .from('bookings').select('price, student_fee, platform_fee, tutor_payout_amount, subject, status').eq('id', bookingId).maybeSingle()
 const { fee: expFee, payout: expPayout } = split(expectedPrice, 0.325)
-step(6, Number(row?.price) === expectedPrice && Number(row?.platform_fee) === expFee && Number(row?.tutor_payout_amount) === expPayout,
-  `UNVERIFIED tutor, stored row: price $${row?.price}, fee $${row?.platform_fee} (expect 32.5% = $${expFee}), payout $${row?.tutor_payout_amount} (expect $${expPayout})`)
+step(6, Number(row?.price) === expectedPrice && Number(row?.student_fee) === expectedFee && Number(row?.platform_fee) === expFee && Number(row?.tutor_payout_amount) === expPayout,
+  `UNVERIFIED tutor, stored row: price $${row?.price}, student fee $${row?.student_fee}, platform fee $${row?.platform_fee} (expect 32.5% = $${expFee}), payout $${row?.tutor_payout_amount} (expect $${expPayout})`)
 step('6a', row?.status === 'pending', `new booking remains a request until tutor acceptance (status=${row?.status})`)
+const { data: attemptedUpdate, error: studentUpdateError } = await raw
+  .from('bookings').update({ student_fee: 0 }).eq('id', bookingId).select('id, student_fee')
+const { data: afterStudentUpdate } = await admin.from('bookings').select('student_fee').eq('id', bookingId).maybeSingle()
+step('6c', !studentUpdateError && (attemptedUpdate ?? []).length === 0 && Number(afterStudentUpdate?.student_fee) === expectedFee,
+  `signed-in student update returned ${(attemptedUpdate ?? []).length} rows; stored fee remains $${afterStudentUpdate?.student_fee}`)
 
 // 6b) Same tutor once an admin has verified their grades → 17.5%, locked onto the new booking.
 await admin.from('tutor_profiles').update({ grades_verified_at: new Date().toISOString() }).eq('user_id', tutor.userId)
@@ -164,8 +172,8 @@ const base = { tutorId: tutor.userId, courseCode, durationMinutes: DURATION, sch
     ...base, amountCents: 99_999_00, price: 99_999,
     scheduledAt: new Date(Date.now() + 5 * 864e5).toISOString(), // its own slot — step 5 took `scheduledAt`
   })
-  step(7, r.status === 200 && r.body.amountCents === expectedCents,
-    `amountCents=9999900 ignored → server returned ${r.body.amountCents}c (status ${r.status})`)
+  step(7, r.status === 200 && r.body.amountCents === expectedCents && r.body.studentFeeCents === expectedFeeCents,
+    `amountCents=9999900 ignored → server returned ${r.body.amountCents}c total and ${r.body.studentFeeCents}c fee (status ${r.status})`)
 }
 
 // 8) An inflated price on confirm-booking is ignored too. This is the cash-out attempt:
@@ -180,9 +188,9 @@ const base = { tutorId: tutor.userId, courseCode, durationMinutes: DURATION, sch
     paymentIntentId: pi.body.paymentIntentId,
   })
   const { data: attacked } = await admin
-    .from('bookings').select('price, tutor_payout_amount').eq('id', r.body.bookingId).maybeSingle()
-  step(8, r.status === 200 && Number(attacked?.price) === expectedPrice,
-    `price=99999 ignored → stored price $${attacked?.price}, payout $${attacked?.tutor_payout_amount} (status ${r.status})`)
+    .from('bookings').select('price, student_fee, tutor_payout_amount').eq('id', r.body.bookingId).maybeSingle()
+  step(8, r.status === 200 && Number(attacked?.price) === expectedPrice && Number(attacked?.student_fee) === expectedFee,
+    `price=99999 ignored → stored price $${attacked?.price}, student fee $${attacked?.student_fee}, payout $${attacked?.tutor_payout_amount} (status ${r.status})`)
   await admin.from('bookings').delete().eq('id', r.body.bookingId)
 }
 
@@ -288,7 +296,7 @@ if (!stripeTestMode()) {
   }
 
   // 19) The happy path with a real, authorized hold — and the hold amount must equal
-  //     the server's price, which is the whole point of T5.
+  //     the server's session price plus service fee.
   let realBookingId = ''
   let realPi = ''
   {
@@ -299,7 +307,9 @@ if (!stripeTestMode()) {
     const onStripe = await getPaymentIntent(realPi)
     const r = await call('confirm-booking', { ...base, scheduledAt: slot, sessionType: 'in_person', paymentIntentId: realPi })
     realBookingId = r.body.bookingId ?? ''
-    step(19, r.status === 200 && onStripe.amount === expectedCents && onStripe.capture_method === 'manual',
+    const { data: realRow } = await admin.from('bookings').select('price, student_fee').eq('id', realBookingId).maybeSingle()
+    step(19, r.status === 200 && onStripe.amount === expectedCents && onStripe.capture_method === 'manual' &&
+      Number(realRow?.price) === expectedPrice && Number(realRow?.student_fee) === expectedFee,
       `real hold ${onStripe.amount}c (manual=${onStripe.capture_method === 'manual'}) → booking ${realBookingId || r.body.error}`)
   }
 

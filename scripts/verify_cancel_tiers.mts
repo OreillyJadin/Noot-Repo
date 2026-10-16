@@ -1,6 +1,8 @@
 // Verify cancellation refund tiers and authorization against the LOCAL stack.
 // Needs: SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io supabase start && node supabase/seed_demo.mjs
 import { createClient } from '@supabase/supabase-js';
+import { api, auth, initSupabase, studentFeeFor } from '../packages/core/src/index.ts';
+import { authorizeHold, cancelHold, getPaymentIntent, stripeTestMode } from './_stripe_test.mts';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ANON =
@@ -11,8 +13,11 @@ const SERVICE =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
+initSupabase({ url: URL, anonKey: ANON });
 const results: { name: string; ok: boolean; detail?: string }[] = [];
 const ids: string[] = [];
+let feeStudentId = '';
+let feePaymentIntentId = '';
 
 function check(name: string, ok: boolean, detail = '') {
   results.push({ name, ok, detail });
@@ -89,6 +94,7 @@ async function verifyRefund(name: string, bookingId: string, token: string, expe
 }
 
 try {
+  if (!stripeTestMode()) throw new Error('STRIPE_SECRET_KEY must be an sk_test_ key to verify partial capture');
   const student = await signIn('student@crimson.ua.edu');
   const tutor = await signIn('sara@crimson.ua.edu');
   const outsider = await signIn('devon@crimson.ua.edu');
@@ -102,6 +108,81 @@ try {
     await verifyRefund(`student cancel at +${booking.hours}h returns ${booking.refund}%`, booking.id, student.token, booking.refund);
   }
 
+  const { data: tutorUser, error: tutorUserError } = await admin.from('users').select('id,email').eq('email', 'sara@crimson.ua.edu').single();
+  if (tutorUserError || !tutorUser) throw tutorUserError ?? new Error('Run node supabase/seed_demo.mjs first');
+  const { data: course, error: courseError } = await admin.from('tutor_courses')
+    .select('course_code,hourly_rate').eq('tutor_id', tutorUser.id).limit(1).single();
+  if (courseError || !course) throw courseError ?? new Error('Seeded tutor has no course');
+  await admin.from('tutor_profiles').update({ stripe_charges_enabled: true }).eq('user_id', tutorUser.id);
+
+  const feeEmail = `cancel-tier-fee-${Date.now()}@crimson.ua.edu`;
+  const feePassword = 'NootVerify!39_Cancel';
+  const feeAccount = await admin.auth.admin.createUser({
+    email: feeEmail,
+    password: feePassword,
+    email_confirm: true,
+  });
+  if (feeAccount.error || !feeAccount.data.user) throw feeAccount.error ?? new Error('Could not create fee test student');
+  feeStudentId = feeAccount.data.user.id;
+  const sessionPrice = Math.round(Number(course.hourly_rate) * 100) / 100;
+  const sessionCents = Math.round(sessionPrice * 100);
+  const feeCents = Math.round(studentFeeFor(sessionPrice) * 100);
+  const totalCents = sessionCents + feeCents;
+  const expectedChargeCents = Math.max(100, Math.floor(feeCents / 2));
+  const creditCents = totalCents - expectedChargeCents;
+  const { error: creditError } = await admin.from('credit_ledger').insert({
+    user_id: feeStudentId,
+    amount_cents: creditCents,
+    kind: 'adjustment',
+  });
+  if (creditError) throw creditError;
+
+  const studentLogin = await auth.signInWithPassword(feeEmail, feePassword);
+  if (!studentLogin.ok) throw new Error(String(studentLogin.error));
+  const scheduledAt = new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString();
+  const pi = await api.createPaymentIntent({
+    tutorId: tutorUser.id,
+    courseCode: course.course_code as string,
+    durationMinutes: 60,
+    scheduledAt,
+  });
+  feePaymentIntentId = pi.paymentIntentId;
+  const authorized = await authorizeHold(pi.paymentIntentId);
+  check('test checkout holds session price + service fee − credit',
+    pi.amountCents === totalCents && pi.studentFeeCents === feeCents &&
+      pi.creditCents === creditCents && pi.chargeCents === expectedChargeCents &&
+      authorized?.status === 'requires_capture',
+    `${pi.amountCents}c total, ${pi.studentFeeCents}c fee, ${pi.creditCents}c credit, ${pi.chargeCents}c held`);
+
+  const feeBooking = await api.bookings.confirm({
+    tutorId: tutorUser.id,
+    courseCode: course.course_code as string,
+    scheduledAt,
+    durationMinutes: 60,
+    sessionType: 'in_person',
+    paymentIntentId: pi.paymentIntentId,
+  });
+  ids.push(feeBooking.bookingId);
+  const tutorLogin = await auth.signInWithPassword(tutorUser.email as string, 'password123');
+  if (!tutorLogin.ok) throw new Error(String(tutorLogin.error));
+  await api.bookings.respond({ bookingId: feeBooking.bookingId, action: 'accept' });
+  const studentAgain = await auth.signInWithPassword(feeEmail, feePassword);
+  if (!studentAgain.ok) throw new Error(String(studentAgain.error));
+  const cancelResult = await api.bookings.cancel(feeBooking.bookingId);
+  const capturedPi = await getPaymentIntent(pi.paymentIntentId);
+  const { data: feeBookingRow } = await admin.from('bookings')
+    .select('price,student_fee,credit_applied').eq('id', feeBooking.bookingId).single();
+  const chargedCents =
+    Math.round(Number(feeBookingRow!.price) * 100) +
+    Math.round(Number(feeBookingRow!.student_fee) * 100) -
+    Math.round(Number(feeBookingRow!.credit_applied) * 100);
+  const expectedCaptureCents = Math.round(chargedCents / 2);
+  check('50% cancellation captures half of price + service fee − credit',
+    cancelResult.refundPercent === 50 && capturedPi.amount_received === expectedCaptureCents &&
+      Number(feeBookingRow!.student_fee) === feeCents / 100 &&
+      Number(feeBookingRow!.credit_applied) === creditCents / 100,
+    `${capturedPi.amount_received}c captured; expected ${expectedCaptureCents}c from ${chargedCents}c charged`);
+
   const tutorCancelId = await createBooking(student.id, tutor.id, 1);
   await verifyRefund('tutor cancel at +1h returns 100%', tutorCancelId, tutor.token, 100);
 
@@ -112,6 +193,14 @@ try {
     const { error } = await admin.from('bookings').delete().in('id', ids);
     if (error) console.error(`Test booking cleanup failed: ${error.message}`);
     else console.log(`🧹 cleaned up ${ids.length} test bookings`);
+  }
+  if (feeStudentId) {
+    const { error } = await admin.auth.admin.deleteUser(feeStudentId);
+    if (error) console.error(`Test student cleanup failed: ${error.message}`);
+  }
+  if (feePaymentIntentId.startsWith('pi_')) {
+    const payment = await getPaymentIntent(feePaymentIntentId);
+    if (payment.status === 'requires_capture') await cancelHold(feePaymentIntentId);
   }
 }
 
