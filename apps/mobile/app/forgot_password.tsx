@@ -2,7 +2,8 @@
 // /auth-callback with a `flow=recovery` marker, which the callback uses to route the
 // user into the set-password step (reset mode) rather than sign-up onboarding.
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
@@ -44,10 +45,10 @@ export default function ForgotPassword() {
         <View style={{ width: 48 }} />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
+        bottomOffset={24}
       >
         {!sent ? (
           <>
@@ -89,7 +90,7 @@ export default function ForgotPassword() {
         <Text onPress={() => router.replace('/signin')} style={[styles.link, { color: t.accent }]}>
           Back to sign in
         </Text>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

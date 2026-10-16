@@ -5,6 +5,7 @@ import React from 'react';
 import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider } from '@noot/ui';
 import { StripeProvider } from '@stripe/stripe-react-native';
@@ -99,9 +100,11 @@ function ThemedApp() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <ThemePrefProvider>
-        <ThemedApp />
-      </ThemePrefProvider>
+      <KeyboardProvider>
+        <ThemePrefProvider>
+          <ThemedApp />
+        </ThemePrefProvider>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

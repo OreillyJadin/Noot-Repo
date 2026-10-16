@@ -2,6 +2,7 @@
 // The prototype used fixed TOP_INSET/BOT_INSET; here we use real safe-area insets.
 import React from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, type ViewStyle } from 'react-native';
+import { KeyboardAwareScrollView, type KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from './ThemeProvider';
 import { Ic } from './Icon';
@@ -47,8 +48,7 @@ export interface BodyProps {
   onRefresh?: () => Promise<unknown> | void;
 }
 
-// forwardRef exposes the inner ScrollView so callers (e.g. the tab bar's
-// "reselect" action) can scroll the page back to top. See lib/useTabNav.
+// Keeps the focused field and a growing multiline caret above the keyboard on iOS and Android.
 export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
   { children, pad = 20, contentStyle, onRefresh },
   ref,
@@ -65,8 +65,8 @@ export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
     }
   }, [onRefresh]);
   return (
-    <ScrollView
-      ref={ref}
+    <KeyboardAwareScrollView
+      ref={ref as React.Ref<KeyboardAwareScrollViewRef>}
       refreshControl={
         onRefresh ? (
           <RefreshControl refreshing={refreshing} onRefresh={pull} tintColor={t.accent} colors={[t.accent]} />
@@ -74,18 +74,12 @@ export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
       }
       style={styles.bodyScroll}
       contentContainerStyle={[{ padding: pad, paddingTop: 4, gap: 14 }, contentStyle]}
-      // persistTaps: a control under the keyboard responds on the FIRST tap instead of the
-      // tap being swallowed to dismiss. dismissMode: scrolling the page puts the keyboard
-      // away, so a search list can be browsed without reaching for "done".
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
-      // Without this the keyboard sits on top of the page: a field low on the screen (a bio)
-      // is covered while you type and the page can't scroll far enough to reach it. The prop
-      // does nothing on Android, which is not checked here.
-      automaticallyAdjustKeyboardInsets
+      bottomOffset={24}
     >
       {children}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 });
 

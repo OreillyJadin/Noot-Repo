@@ -7,7 +7,8 @@
 // emailed code was entered — lib/EmailCodeEntry); setPassword() operates on that session
 // via updateUser.
 import React, { useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Button, Field, Ic, useTheme } from '@noot/ui';
@@ -79,10 +80,10 @@ export default function SetPassword() {
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
+        bottomOffset={24}
       >
         <Text style={[styles.h1, { color: t.text }]}>
           {isReset ? 'Set a new password' : 'Create your password'}
@@ -149,7 +150,7 @@ export default function SetPassword() {
           disabled={busy || (!isReset && !acceptedTerms)}
           onPress={handleSubmit}
         />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

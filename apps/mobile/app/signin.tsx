@@ -3,7 +3,8 @@
 // "Use {Face ID}" button as a fallback to the launch-time AuthGate (e.g. if the
 // auto-prompt was dismissed). Links out to Forgot password and Sign up.
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button, Field, useTheme } from '@noot/ui';
@@ -88,10 +89,10 @@ export default function SignIn() {
         <View style={{ width: 48 }} />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
+        bottomOffset={24}
       >
         <Text style={[styles.h1, { color: t.text }]}>Welcome back</Text>
 
@@ -135,7 +136,7 @@ export default function SignIn() {
         <Text onPress={() => router.replace('/signup')} style={[styles.link, { color: t.text2, marginTop: 6 }]}>
           New here? <Text style={{ color: t.accent, fontWeight: '700' }}>Create account</Text>
         </Text>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

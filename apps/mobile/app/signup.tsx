@@ -5,7 +5,8 @@
 // public.users on first insert. An optional friend's invite code is kept on the device and
 // claimed once they sign in from the link (lib/pendingInvite, 0040).
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
@@ -88,10 +89,10 @@ export default function SignUp() {
         <View style={{ width: 48 }} />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
+        bottomOffset={24}
       >
         {!sent ? (
           <>
@@ -164,7 +165,7 @@ export default function SignUp() {
           </>
         )}
 
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
