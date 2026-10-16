@@ -5,6 +5,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { getPayoutStatus, isDeadAccountError, type PayoutStatus } from '../_shared/connect.ts';
+import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -12,7 +13,7 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-Deno.serve(async (req: Request) => {
+serveWithErrorReporting('connect-status', async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
     const url = Deno.env.get('SUPABASE_URL')!;

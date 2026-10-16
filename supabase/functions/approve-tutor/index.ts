@@ -11,6 +11,7 @@
 //     which is the Verified badge and the 17.5% (vs 32.5%) fee. Needs an uploaded transcript.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
+import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -18,7 +19,7 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-Deno.serve(async (req: Request) => {
+serveWithErrorReporting('approve-tutor', async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
     const url = Deno.env.get('SUPABASE_URL')!;

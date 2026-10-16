@@ -5,6 +5,7 @@
 // from complete-session. Service-role only (see the Authorization check below) so an
 // end-user JWT can't mint credit. Self-referral is blocked by a CHECK on referrals.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -12,7 +13,7 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-Deno.serve(async (req: Request) => {
+serveWithErrorReporting('award-referral-bonus', async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;

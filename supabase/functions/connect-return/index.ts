@@ -11,12 +11,13 @@
 // Deployed with JWT verification OFF (supabase/config.toml): Stripe redirects a browser
 // here, which carries no session. That is safe — it reads nothing, writes nothing, and can
 // only ever redirect to the two fixed app addresses below (never to a caller-supplied URL).
+import { serveWithErrorReporting } from '../_shared/observability.ts';
 const TARGETS: Record<string, string> = {
   return: 'noot://connect-return',
   refresh: 'noot://connect-refresh',
 };
 
-Deno.serve((req: Request) => {
+serveWithErrorReporting('connect-return', (req: Request) => {
   const to = new URL(req.url).searchParams.get('to') ?? 'return';
   const location = TARGETS[to] ?? TARGETS.return;
   return new Response(null, { status: 302, headers: { Location: location, 'Cache-Control': 'no-store' } });
