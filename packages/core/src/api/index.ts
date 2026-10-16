@@ -2272,8 +2272,13 @@ export const api = {
       const rows = convos ?? [];
       if (rows.length === 0) return [];
 
-      // counterpart names
+      // Counterpart names. users_select RLS hides STUDENT rows from a tutor, so
+      // resolve-participants (service role, booking + conversation counterparties only)
+      // is the primary source; the direct users read below fills in whatever it can see.
       const otherIds = [...new Set(rows.map((c) => (c.student_id === uid ? c.tutor_id : c.student_id)))];
+      const resolved = await invokeFn<
+        Record<string, { firstName?: string; lastName?: string }>
+      >('resolve-participants').catch(() => ({}) as Record<string, { firstName?: string; lastName?: string }>);
       const { data: users, error: uErr } = await sb
         .from('users')
         .select('id, first_name, last_name')
@@ -2296,6 +2301,7 @@ export const api = {
 
       return rows.map((c): ConversationSummary => {
         const otherId = c.student_id === uid ? c.tutor_id : c.student_id;
+        const r = resolved?.[otherId];
         const u = byId.get(otherId);
         const last = lastByConvo.get(c.id);
         return {
@@ -2303,8 +2309,8 @@ export const api = {
           side: c.student_id === uid ? 'student' : 'tutor',
           counterpart: {
             id: otherId,
-            firstName: u?.first_name ?? '',
-            lastName: u?.last_name ?? '',
+            firstName: r?.firstName ?? u?.first_name ?? '',
+            lastName: r?.lastName ?? u?.last_name ?? '',
           },
           lastMessage: last ? mapMessage(last) : null,
           createdAt: c.created_at,

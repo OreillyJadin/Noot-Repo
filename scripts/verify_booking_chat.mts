@@ -177,13 +177,34 @@ try {
   const { count: msgsAfterAccept } = await admin.from('messages')
     .select('id', { count: 'exact', head: true }).eq('conversation_id', created.conversationId);
   step('conversation + history survive the accept',
-    stillThere.id === created.conversationId && msgsAfterAccept === 2, `${msgsAfterAccept} messages`);
+    stillThere.id === created.conversationId && msgsAfterAccept === 3, `${msgsAfterAccept} messages`);
   await auth.signInWithPassword(studentEmail, PASSWORD);
   const studentAfter = await api.chat.listConversations();
   step('student still sees the chat after accept', studentAfter.some((c) => c.id === created.conversationId));
   const confirmedUpcoming = await api.listUpcoming();
   step('booking is confirmed in student upcoming (pending badge lifts)',
     confirmedUpcoming.some((b) => b.id === created.bookingId && b.status === 'confirmed'));
+  const { data: acceptMsg } = await admin.from('messages')
+    .select('sender_id,content').eq('conversation_id', created.conversationId).eq('sender_id', tutorId).maybeSingle();
+  step('accept posts a tutor message into the thread',
+    !!acceptMsg && acceptMsg.content.startsWith('Accepted your'), acceptMsg?.content);
+
+  stage = 'message-less booking still gets an intro';
+  // A student who skips the note still leaves the tutor an opening message.
+  const pi2 = await api.createPaymentIntent({
+    tutorId, courseCode, durationMinutes: 60,
+    scheduledAt: new Date(Date.now() + 96 * 3_600_000).toISOString(),
+  });
+  const created2 = await api.bookings.confirm({
+    tutorId, courseCode, scheduledAt: new Date(Date.now() + 96 * 3_600_000).toISOString(),
+    durationMinutes: 60, sessionType: 'in_person', paymentIntentId: pi2.paymentIntentId, message: '',
+  });
+  cleanup.bookings.push(created2.bookingId);
+  const { data: fallbackMsg } = await admin.from('messages')
+    .select('sender_id,content').eq('conversation_id', created.conversationId).eq('sender_id', studentId)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  step('a booking with no note still opens with a student message',
+    !!fallbackMsg && fallbackMsg.content.startsWith('Hi! I just booked'), fallbackMsg?.content);
 } catch (e) {
   console.error(`Verification setup/error at ${stage}:`, e);
   fail++;

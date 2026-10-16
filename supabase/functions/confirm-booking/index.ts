@@ -13,7 +13,7 @@
 // are auto-injected by the runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
-import { BookingError, resolveBooking, SLOT_TAKEN_NOT_CHARGED, type ResolvedBooking } from '../_shared/booking.ts';
+import { BookingError, isBlockedBetween, resolveBooking, SLOT_TAKEN_NOT_CHARGED, type ResolvedBooking } from '../_shared/booking.ts';
 import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
 import { acceptDeadline } from '../_shared/acceptance.ts';
 import { creditToApply, parseCreditCents } from '../_shared/credits.ts';
@@ -299,11 +299,21 @@ serveWithErrorReporting('confirm-booking', async (req) => {
 
     if (conversationError) throw conversationError;
 
-    if (message && message.trim().length > 0) {
+    // The tutor's thread always opens with a message from the student: their own
+    // words when they wrote one, otherwise a booking note so a message-less request
+    // never leaves the tutor staring at an empty chat. Skipped if a block landed
+    // between validation and now — service role bypasses messages_insert's check.
+    const blocked = await isBlockedBetween(db, studentId, resolved.tutorId).catch((e) => {
+      console.error('confirm-booking: block check failed', booking.id, e?.message ?? e);
+      return true; // can't prove the pair is unblocked → don't post
+    });
+    if (!blocked) {
+      const opening = (typeof message === 'string' ? message.trim() : '') ||
+        `Hi! I just booked a ${resolved.courseCode} session with you — looking forward to it.`;
       const { error: messageError } = await db.from('messages').insert({
         conversation_id: conversation.id,
         sender_id: studentId,
-        content: message,
+        content: opening,
       });
       if (messageError) throw messageError;
     }
