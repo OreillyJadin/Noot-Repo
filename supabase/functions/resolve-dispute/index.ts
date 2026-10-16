@@ -4,6 +4,7 @@
 // is the only path that sets the dispute fields.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser, requireAdmin } from '../_shared/auth.ts';
+import { logAdminAction } from '../_shared/audit.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -41,9 +42,22 @@ Deno.serve(async (req: Request) => {
       : { dispute_status: 'resolved', dispute_resolution: resolution ?? null };
 
     const { data: updated, error } = await db
-      .from('bookings').update(patch).eq('id', bookingId).select('id, dispute_status').maybeSingle();
+      .from('bookings').update(patch).eq('id', bookingId).select('id, dispute_status, student_id, tutor_id').maybeSingle();
     if (error) return Response.json({ error: error.message }, { status: 400, headers: cors });
     if (!updated) return Response.json({ error: 'booking not found' }, { status: 404, headers: cors });
+
+    await logAdminAction(db, {
+      actorId: user.id,
+      action: action === 'flag' ? 'dispute.flag' : 'dispute.resolve',
+      targetType: 'booking',
+      targetId: bookingId,
+      details: {
+        dispute_status: updated.dispute_status,
+        ...(action === 'flag' ? { reason: reason ?? null } : { resolution: resolution ?? null }),
+        student_id: updated.student_id,
+        tutor_id: updated.tutor_id,
+      },
+    });
 
     return Response.json({ ok: true, disputeStatus: updated.dispute_status }, { headers: cors });
   } catch (e) {
