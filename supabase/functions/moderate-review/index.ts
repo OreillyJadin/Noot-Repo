@@ -4,7 +4,8 @@
 // is the only path that flips approval_status. On approval, recomputes the rated tutor's
 // denormalized rating_avg from their approved reviews.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { requireActiveUser } from '../_shared/auth.ts';
+import { requireActiveUser, requireAdmin } from '../_shared/auth.ts';
+import { logAdminAction } from '../_shared/audit.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -29,9 +30,8 @@ Deno.serve(async (req: Request) => {
     const inactiveResponse = await requireActiveUser(db, user.id, cors);
     if (inactiveResponse) return inactiveResponse;
 
-    const { data: adminRow } = await db
-      .from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
-    if (!adminRow) return Response.json({ error: 'Forbidden' }, { status: 403, headers: cors });
+    const notAdmin = await requireAdmin(userClient, cors);
+    if (notAdmin) return notAdmin;
 
     const { reviewId, decision } = await req.json().catch(() => ({}));
     if (!reviewId || (decision !== 'approved' && decision !== 'rejected')) {
@@ -46,6 +46,14 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     if (rErr) return Response.json({ error: rErr.message }, { status: 400, headers: cors });
     if (!review) return Response.json({ error: 'review not found' }, { status: 404, headers: cors });
+
+    await logAdminAction(db, {
+      actorId: user.id,
+      action: decision === 'approved' ? 'review.approve' : 'review.reject',
+      targetType: 'review',
+      targetId: reviewId,
+      details: { decision, subject_user_id: review.subject_user_id },
+    });
 
     // Recompute the rated user's denormalized average from their APPROVED reviews.
     if (decision === 'approved') {

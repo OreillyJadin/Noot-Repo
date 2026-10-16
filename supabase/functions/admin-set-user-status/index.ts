@@ -4,7 +4,8 @@
 // (ban → blocks token issuance/refresh; active → unban). The 0010 trigger makes users.status
 // writable only by the service role, so this function is the authoritative path.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { requireActiveUser } from '../_shared/auth.ts';
+import { requireActiveUser, requireAdmin } from '../_shared/auth.ts';
+import { logAdminAction } from '../_shared/audit.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -29,9 +30,8 @@ Deno.serve(async (req: Request) => {
     const inactiveResponse = await requireActiveUser(db, user.id, cors);
     if (inactiveResponse) return inactiveResponse;
 
-    const { data: adminRow } = await db
-      .from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').maybeSingle();
-    if (!adminRow) return Response.json({ error: 'Forbidden' }, { status: 403, headers: cors });
+    const notAdmin = await requireAdmin(userClient, cors);
+    if (notAdmin) return notAdmin;
 
     const { userId, status } = await req.json().catch(() => ({}));
     if (!userId || !['active', 'suspended', 'banned'].includes(status)) {
@@ -49,6 +49,14 @@ Deno.serve(async (req: Request) => {
       ban_duration: status === 'active' ? 'none' : '876000h',
     });
     if (banErr) return Response.json({ error: banErr.message }, { status: 400, headers: cors });
+
+    await logAdminAction(db, {
+      actorId: user.id,
+      action: status === 'active' ? 'user.reactivate' : status === 'suspended' ? 'user.suspend' : 'user.ban',
+      targetType: 'user',
+      targetId: userId,
+      details: { status },
+    });
 
     return Response.json({ ok: true, status }, { headers: cors });
   } catch (e) {
