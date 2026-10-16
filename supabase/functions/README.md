@@ -14,7 +14,7 @@ Every function is wrapped with `_shared/observability.ts` for optional Sentry er
 | `submit-rating` | Double-blind rating visibility. |
 | `cancel-booking` | 12h / 2h student refund tiers; transfers the tutor's share on late cancellations. |
 | `reschedule-booking` | Propose/accept new time; 3-reschedule rule. |
-| `report-no-show` | No-show thresholds + 3-strike escalation. |
+| `report-no-show` | Records which party did not show; applies the refund or payout outcome. |
 | `auto-complete` (cron) | 24h no-response → auto-complete + release. |
 | `send-reminders` (cron) | 24h + 1h session reminders. |
 | `leave-tutor-role` | Remove the tutor role and reset the application for a future re-application. |
