@@ -226,7 +226,6 @@ try {
       const loser = results.find((x) => x.r.status !== 200);
       if (winner?.r.body?.bookingId) bookingIds.push(winner.r.body.bookingId as string);
       const loserPi = loser ? await getPaymentIntent(loser.pi) : null;
-      if (loserPi && !loserPi.status) console.log('   loser pi raw:', JSON.stringify(loserPi));
       const rows = await liveRows(at);
       for (const row of rows) if (!bookingIds.includes(row.id)) bookingIds.push(row.id);
       step(`6.${round}`, !!winner && !!loser && loser!.r.status === 409 && loser!.r.body?.error === SLOT_TAKEN
