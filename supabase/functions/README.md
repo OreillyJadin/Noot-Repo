@@ -30,6 +30,39 @@ back to the `connect-return` function, which redirects into the app (`noot://con
   reach. Set `CONNECT_RETURN_BASE_URL` in the functions env (e.g. your tunnel or LAN URL for
   the API on :54321) to test the full return on a device.
 
+## Admin audit log (0060)
+
+Every admin mutation leaves one row in `public.admin_actions`
+(`actor_id`, `action`, `target_type`, `target_id`, `details`, `created_at`). Edge Functions
+write it via `_shared/audit.ts` (`logAdminAction`, which never throws — the action already
+happened); `schedule_tutor_interview` / `cancel_tutor_interview` insert inside their own
+transaction; and `log_admin_write()` triggers catch the direct client writes that
+`is_admin()` RLS allows (`content_reports`, `user_roles`, `tutor_profiles`,
+`ambassador_profiles`, `blocked_terms`). Trigger rows only appear when the writer is a
+signed-in admin editing someone else's row, so service-role writes are never double-logged.
+
+Action names: `user.suspend` / `user.ban` / `user.reactivate`, `tutor.approve` /
+`tutor.reject` / `tutor.verify_grades`, `review.approve` / `review.reject`, `dispute.flag` /
+`dispute.resolve`, `interview.schedule` / `interview.cancel`, `report.actioned` /
+`report.dismissed`, `user_role.remove`, `tutor_profile.update` / `ambassador_profile.update`,
+`blocked_term.add` / `blocked_term.update` / `blocked_term.remove`.
+
+The table is **append-only**: admins get SELECT; nobody — not even service_role — can
+UPDATE or DELETE, so only the postgres role (SQL editor / Studio) can remove rows. `details`
+carries identifiers and changed column names only, never secrets, transcript paths, bios or
+message text. To see everything an admin did to one user:
+
+```sql
+select a.created_at, actor.email as admin, a.action, a.target_type, a.target_id, a.details
+from public.admin_actions a
+join public.users actor on actor.id = a.actor_id
+where (a.target_type = 'user' and a.target_id = '<user-uuid>')
+   or a.details->>'subject_user_id' = '<user-uuid>'
+   or a.details->>'student_id' = '<user-uuid>'
+   or a.details->>'tutor_id' = '<user-uuid>'
+order by a.created_at desc;
+```
+
 ## Admin two-step sign-in (MFA)
 
 Admin authorization is defined by `public.is_admin()` in migration `0059_admin_mfa.sql`.
