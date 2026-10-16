@@ -80,6 +80,8 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
         .from('bookings')
         .update({
           status: 'cancelled',
+          cancelled_by_role: isStudent ? 'student' : 'tutor',
+          cancelled_from_status: 'pending',
           cancelled_at: now.toISOString(),
           refund_percent: 100,
           refund_status: 'refunded',
@@ -247,6 +249,8 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
       .from('bookings')
       .update({
         status: 'cancelled',
+        cancelled_by_role: isStudent ? 'student' : 'tutor',
+        cancelled_from_status: 'confirmed',
         cancelled_at: now.toISOString(),
         refund_percent: refundPercent,
         refund_status: refundStatus,

@@ -106,8 +106,11 @@ const makeBooking = async (hoursAhead: number) => {
     .update({ scheduled_at: new Date(Date.now() - 3 * 3600e3).toISOString() })
     .eq('id', b.bookingId)
   const r = await call('report-no-show', { bookingId: b.bookingId, party: 'tutor' }, studentToken)
+  const { data: noShowRow } = await admin.from('bookings').select('no_show_party').eq('id', b.bookingId).single()
   step(6, r.status === 200 && r.body.refundPercent === 100,
     `student reports a tutor no-show after the session → ${r.status} refund ${r.body.refundPercent}%`)
+  step('6a', noShowRow?.no_show_party === 'tutor',
+    `the booking records the no-show party (${noShowRow?.no_show_party ?? 'null'})`)
   await admin.from('bookings').delete().eq('id', b.bookingId)
 }
 

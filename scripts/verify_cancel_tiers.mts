@@ -74,11 +74,11 @@ async function cancel(bookingId: string, token: string) {
   return { response, body };
 }
 
-async function verifyRefund(name: string, bookingId: string, token: string, expected: number) {
+async function verifyRefund(name: string, bookingId: string, token: string, expected: number, actorRole: 'student' | 'tutor' = 'student') {
   const { response, body } = await cancel(bookingId, token);
   const { data: row, error } = await admin
     .from('bookings')
-    .select('status, refund_percent, stripe_charge_id, stripe_transfer_id, payout_failed_at')
+    .select('status, refund_percent, stripe_charge_id, stripe_transfer_id, payout_failed_at,cancelled_by_role,cancelled_from_status')
     .eq('id', bookingId)
     .single();
   const ok =
@@ -89,6 +89,8 @@ async function verifyRefund(name: string, bookingId: string, token: string, expe
     !row?.stripe_charge_id &&
     !row?.stripe_transfer_id &&
     !row?.payout_failed_at &&
+    row?.cancelled_by_role === actorRole &&
+    row?.cancelled_from_status === 'confirmed' &&
     !error;
   check(name, ok, `HTTP ${response.status}, response refund=${body.refundPercent}, row refund=${row?.refund_percent}${error ? `, DB error=${error.message}` : ''}`);
 }
@@ -171,7 +173,8 @@ try {
   const cancelResult = await api.bookings.cancel(feeBooking.bookingId);
   const capturedPi = await getPaymentIntent(pi.paymentIntentId);
   const { data: feeBookingRow } = await admin.from('bookings')
-    .select('price,student_fee,credit_applied').eq('id', feeBooking.bookingId).single();
+    .select('price,student_fee,credit_applied,cancelled_by_role,cancelled_from_status')
+    .eq('id', feeBooking.bookingId).single();
   const chargedCents =
     Math.round(Number(feeBookingRow!.price) * 100) +
     Math.round(Number(feeBookingRow!.student_fee) * 100) -
@@ -180,11 +183,13 @@ try {
   check('50% cancellation captures half of price + service fee − credit',
     cancelResult.refundPercent === 50 && capturedPi.amount_received === expectedCaptureCents &&
       Number(feeBookingRow!.student_fee) === feeCents / 100 &&
-      Number(feeBookingRow!.credit_applied) === creditCents / 100,
+      Number(feeBookingRow!.credit_applied) === creditCents / 100 &&
+      feeBookingRow!.cancelled_by_role === 'student' &&
+      feeBookingRow!.cancelled_from_status === 'confirmed',
     `${capturedPi.amount_received}c captured; expected ${expectedCaptureCents}c from ${chargedCents}c charged`);
 
   const tutorCancelId = await createBooking(student.id, tutor.id, 1);
-  await verifyRefund('tutor cancel at +1h returns 100%', tutorCancelId, tutor.token, 100);
+  await verifyRefund('tutor cancel at +1h returns 100%', tutorCancelId, tutor.token, 100, 'tutor');
 
   const unauthorized = await cancel(bookings[0]!.id, outsider.token);
   check('third user cannot cancel a booking (403)', unauthorized.response.status === 403, `HTTP ${unauthorized.response.status}`);

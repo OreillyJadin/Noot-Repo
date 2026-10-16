@@ -36,6 +36,8 @@ export { UA_MAJORS, searchMajors, type Major } from './data/uaMajors';
 export { attentionTotal, type AdminHubCounts } from './adminHub';
 export {
   api,
+  TUTOR_CANCEL_FLAG_OVER,
+  NO_SHOW_FLAG_AT,
   REMINDER_CHOICES,
   DEFAULT_REMINDERS,
   type Invite,
@@ -45,6 +47,12 @@ export {
   type PendingTutor,
   type TutorApplicationStatus,
   type AdminUser,
+  type AdminUserHistory,
+  type AdminUserHistoryUser,
+  type AdminUserHistoryCounts,
+  type AdminUserHistoryBooking,
+  type AdminUserHistoryReport,
+  type AdminUserHistoryAction,
   type AdminUserQuery,
   type AdminUserRole,
   type AdminUserStatus,
