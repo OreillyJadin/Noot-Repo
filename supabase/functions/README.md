@@ -2,6 +2,8 @@
 
 Server-only logic (ARCHITECTURE.md §5). Planned functions:
 
+Every function is wrapped with `_shared/observability.ts` for optional Sentry error reporting.
+
 | Function | Purpose |
 |---|---|
 | `create-payment-intent` | Held (manual-capture) Stripe PaymentIntent for B4. *(skeleton exists)* |

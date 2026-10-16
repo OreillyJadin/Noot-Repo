@@ -14,6 +14,7 @@ import Stripe from 'https://esm.sh/stripe@16?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getPayoutStatus } from '../_shared/connect.ts';
 import { verifyWithAnySecret, webhookSecrets } from '../_shared/webhook.ts';
+import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 type Db = ReturnType<typeof createClient>;
 
@@ -33,7 +34,7 @@ async function creditRpc(db: Db, fn: string, args: Record<string, unknown>): Pro
   if (error) throw new RetryableError(`${fn} failed`);
 }
 
-Deno.serve(async (req: Request) => {
+serveWithErrorReporting('payments-webhook', async (req: Request) => {
   const sig = req.headers.get('stripe-signature');
   const secrets = webhookSecrets({
     platform: Deno.env.get('STRIPE_WEBHOOK_SECRET'),

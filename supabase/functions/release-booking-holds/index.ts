@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { serveWithErrorReporting } from '../_shared/observability.ts';
 
-Deno.serve(async (req: Request) => {
+serveWithErrorReporting('release-booking-holds', async (req: Request) => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!serviceRoleKey || req.headers.get('Authorization') !== `Bearer ${serviceRoleKey}`) {
     return Response.json({ error: 'Not authorized' }, { status: 401 });

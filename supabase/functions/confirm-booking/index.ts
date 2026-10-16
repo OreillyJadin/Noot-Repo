@@ -17,6 +17,7 @@ import { BookingError, resolveBooking, SLOT_TAKEN_NOT_CHARGED, type ResolvedBook
 import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
 import { acceptDeadline } from '../_shared/acceptance.ts';
 import { creditToApply, parseCreditCents } from '../_shared/credits.ts';
+import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -24,7 +25,7 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-Deno.serve(async (req) => {
+serveWithErrorReporting('confirm-booking', async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
     const url = Deno.env.get('SUPABASE_URL')!;

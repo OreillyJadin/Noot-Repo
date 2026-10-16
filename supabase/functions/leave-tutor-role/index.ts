@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { purgeFolder } from '../_shared/storage.ts';
+import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -8,7 +9,7 @@ const cors = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-Deno.serve(async (req: Request) => {
+serveWithErrorReporting('leave-tutor-role', async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
     const url = Deno.env.get('SUPABASE_URL')!;
