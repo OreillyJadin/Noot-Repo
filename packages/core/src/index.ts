@@ -2,6 +2,7 @@
 // package (and supabase/functions) may touch Supabase/Stripe directly.
 export * from './models';
 export * as auth from './auth';
+export type { MfaFactor, MfaStatus, TotpEnrollment } from './auth/mfa';
 export { onUserChanged } from './changes';
 export {
   missingRequirements,

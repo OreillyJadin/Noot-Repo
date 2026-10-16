@@ -34,6 +34,7 @@ import { pickAndUploadChatAttachment } from '../lib/chatAttachments';
 import { useAttachmentUrls } from '../lib/useAttachmentUrls';
 import { separatorLabel } from '../lib/chatTime';
 import { errText } from '../lib/errText';
+import { AdminMfaGate } from '../lib/AdminMfaGate';
 
 type AttachKind = 'image' | 'file';
 
@@ -98,7 +99,11 @@ export default function AdminChat() {
     router.replace('/home');
     return null;
   }
-  return <AdminChatInner />;
+  return (
+    <AdminMfaGate>
+      <AdminChatInner />
+    </AdminMfaGate>
+  );
 }
 
 function AdminChatInner() {

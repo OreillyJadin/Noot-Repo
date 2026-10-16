@@ -77,6 +77,13 @@ content_path = "./supabase/templates/invite.html"
 subject = "Confirm your new email address"
 content_path = "./supabase/templates/email_change.html"
 
+[auth.mfa]
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
 # Stripe redirects the tutor's browser here after Connect onboarding (ERR-002); a browser
 # carries no session, so this one function must run without JWT verification. It only
 # redirects into the app — see supabase/functions/connect-return/index.ts.
