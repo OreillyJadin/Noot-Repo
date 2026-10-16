@@ -13,7 +13,7 @@
 // are auto-injected by the runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
-import { BookingError, resolveBooking } from '../_shared/booking.ts';
+import { BookingError, resolveBooking, SLOT_TAKEN_NOT_CHARGED, type ResolvedBooking } from '../_shared/booking.ts';
 import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
 import { acceptDeadline } from '../_shared/acceptance.ts';
 import { creditToApply, parseCreditCents } from '../_shared/credits.ts';
@@ -72,13 +72,52 @@ Deno.serve(async (req) => {
 
     // Single source of truth for price, fee, payout and tutor eligibility. This also
     // rejects blocked pairs, which the service-role inserts below would otherwise bypass.
-    const resolved = await resolveBooking(db, {
-      studentId,
-      tutorId: body?.tutorId,
-      courseCode,
-      durationMinutes: body?.durationMinutes,
-      scheduledAt: body?.scheduledAt,
-    });
+    let resolved: ResolvedBooking;
+    try {
+      resolved = await resolveBooking(db, {
+        studentId,
+        tutorId: body?.tutorId,
+        courseCode,
+        durationMinutes: body?.durationMinutes,
+        scheduledAt: body?.scheduledAt,
+      });
+    } catch (e) {
+      // The competing booking was inserted before resolveBooking read the clashes — this
+      // request loses the slot outright, so its authorized hold would just sit on the
+      // card. Release it when it provably belongs to this student for this session and
+      // no booking is using it; on any doubt leave it (cancel is unconditional below
+      // that point) and surface the original "slot taken" message.
+      if (e instanceof BookingError && e.reason === 'slot_taken') {
+        try {
+          const earlyStripeKey = Deno.env.get('STRIPE_SECRET_KEY');
+          if (earlyStripeKey && typeof paymentIntentId === 'string' && paymentIntentId.startsWith('pi_')) {
+            const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
+            const stripe = new Stripe(earlyStripeKey, { apiVersion: '2024-06-20' });
+            const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+            const { data: claimed } = await db
+              .from('bookings')
+              .select('id')
+              .eq('stripe_payment_intent_id', paymentIntentId)
+              .limit(1);
+            if (
+              pi.metadata?.user_id === studentId &&
+              typeof body?.tutorId === 'string' &&
+              pi.metadata?.tutor_id === body.tutorId &&
+              pi.status === 'requires_capture' &&
+              (claimed ?? []).length === 0
+            ) {
+              await stripe.paymentIntents.cancel(paymentIntentId, {}, {
+                idempotencyKey: `release_unbooked_${paymentIntentId}`,
+              });
+              return Response.json({ error: SLOT_TAKEN_NOT_CHARGED }, { status: 409, headers: cors });
+            }
+          }
+        } catch (releaseErr) {
+          console.error('confirm-booking: could not release hold after lost slot race', String(releaseErr));
+        }
+      }
+      throw e;
+    }
 
     // Verify the held PaymentIntent really covers this booking. Without this the amount
     // Stripe authorized and the amount we pay the tutor are unrelated numbers.
@@ -221,6 +260,11 @@ Deno.serve(async (req) => {
         if (backErr && backErr.code !== '23505') console.error('confirm-booking: credit NOT returned after failed insert', storedPaymentIntentId, backErr.message);
       }
       if (releaseHold) await releaseHold().catch((e) => console.error('confirm-booking: release hold failed', String(e)));
+      // Lost the slot to a concurrent confirm (bookings_tutor_no_overlap, 0062): the
+      // credit and hold were just given back above, so say so instead of a generic error.
+      if (bookingError.code === '23P01') {
+        return Response.json({ error: SLOT_TAKEN_NOT_CHARGED }, { status: 409, headers: cors });
+      }
       throw bookingError;
     }
     if (creditCents > 0) {

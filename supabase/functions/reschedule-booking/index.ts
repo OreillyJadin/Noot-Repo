@@ -210,6 +210,13 @@ Deno.serve(async (req: Request) => {
           reschedule_proposed_by: null,
         })
         .eq('id', bookingId);
+      // The slot was free at propose time but taken since (bookings_tutor_no_overlap, 0062).
+      if (error?.code === '23P01') {
+        return Response.json(
+          { error: 'That time was booked after it was suggested. Decline it and suggest another time.' },
+          { status: 409, headers: cors },
+        );
+      }
       if (error) throw error;
       // TODO(stripe): no money movement — schedule change only.
       await notifyOtherParty(
