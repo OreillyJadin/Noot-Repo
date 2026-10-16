@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 24.22.x
+
+jobs:
+  checks:
+    name: Lint, typecheck, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # Version comes from the root package.json `packageManager` field.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  # Merging to main auto-deploys supabase/migrations to production, so every PR must
+  # apply all migrations from scratch and pass the backend checks that need no Edge
+  # Functions or Stripe.
+  migrations:
+    name: Migrations + verify scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.120.0
+
+      # seed_demo.mjs signs every demo account up with "password123", which the committed
+      # password rules reject. Relax them on the CI runner only; the repo file is unchanged.
+      - name: Relax local password rules for the seed
+        run: |
+          sed -i \
+            -e 's/^minimum_password_length = .*/minimum_password_length = 6/' \
+            -e 's/^password_requirements = .*/password_requirements = ""/' \
+            supabase/config.toml
+          grep -nE '^(minimum_password_length|password_requirements) =' supabase/config.toml
+
+      - name: Start local Supabase
+        run: supabase start -x studio,postgres-meta,imgproxy,edge-runtime,logflare,vector,supavisor
+
+      - name: Apply all migrations from scratch
+        run: supabase db reset
+
+      - name: Seed demo data
+        run: node supabase/seed_demo.mjs
+
+      - name: Run verify scripts
+        run: |
+          failed=()
+          for name in $VERIFY_SCRIPTS; do
+            echo "::group::$name"
+            if pnpm dlx tsx "scripts/$name.mts"; then
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error::scripts/$name.mts failed"
+              failed+=("$name")
+            fi
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "Failed: ${failed[*]}"
+            exit 1
+          fi
+        env:
+          # Runs on a clean stack with no Edge Functions or Stripe key. Scripts that need
+          # either are left out; see the PR that added this workflow for the list and reasons.
+          VERIFY_SCRIPTS: >-
+            verify_account_deletion
+            verify_admin_chat
+            verify_admin_user_search
+            verify_b2_tutor_chat
+            verify_backend
+            verify_bad_language
+            verify_booking
+            verify_browse
+            verify_campus_gate
+            verify_chat_attachments
+            verify_course_catalog
+            verify_credits
+            verify_definer_lockdown
+            verify_email_code
+            verify_filter
+            verify_guidelines
+            verify_interviews
+            verify_launch_route
+            verify_magiclink
+            verify_moderation
+            verify_password_auth
+            verify_push_tokens
+            verify_s1_sync
+            verify_session_reminders
+            verify_sign_out
+            verify_student_walls
+            verify_t1_onboarding
+            verify_terms
+            verify_terms_gate
+            verify_tutor_status
+            verify_uploads
+            verify_verified_grade_lock
