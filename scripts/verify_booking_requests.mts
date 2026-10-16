@@ -167,8 +167,13 @@ try {
     `HTTP ${blockedNote.status}`,
   );
   const declined = await call('respond-booking-request', { bookingId: declineBooking.bookingId, action: 'decline', note: '  Schedule conflict  ' }, tutorToken);
-  const { data: declinedRow } = await admin.from('bookings').select('status,cancel_reason,decline_note,refund_percent').eq('id', declineBooking.bookingId).single();
-  step('decline stores trimmed note and full refund', declined.status === 200 && declinedRow?.status === 'cancelled' && declinedRow.cancel_reason === 'tutor_declined' && declinedRow.decline_note === 'Schedule conflict' && declinedRow.refund_percent === 100);
+  const { data: declinedRow } = await admin.from('bookings')
+    .select('status,cancel_reason,decline_note,refund_percent,cancelled_by_role,cancelled_from_status')
+    .eq('id', declineBooking.bookingId).single();
+  step('decline stores trimmed note, full refund, and tutor attribution', declined.status === 200 &&
+    declinedRow?.status === 'cancelled' && declinedRow.cancel_reason === 'tutor_declined' &&
+    declinedRow.decline_note === 'Schedule conflict' && declinedRow.refund_percent === 100 &&
+    declinedRow.cancelled_by_role === 'tutor' && declinedRow.cancelled_from_status === 'pending');
   step('decline notifies student and returns credit', await notification(studentId, declineBooking.bookingId, 'Session request declined') && await api.credits.balance() >= beforeDecline);
   const pastRequests = await api.listPast();
   step('declined request appears in past sessions', pastRequests.some((booking) => booking.id === declineBooking.bookingId && booking.cancelReason === 'tutor_declined'));
@@ -240,6 +245,10 @@ try {
   step('plain student cannot update booking status', !updateError && [200, 204].includes(updateStatus) && stillPending?.status === 'pending', `HTTP ${updateStatus}, status=${stillPending?.status}`);
   const cancelled = await api.bookings.cancel(cancelBooking.bookingId);
   step('student cancellation of pending request receives 100%', cancelled.refundPercent === 100);
+  const { data: cancelledPending } = await admin.from('bookings')
+    .select('cancelled_by_role,cancelled_from_status').eq('id', cancelBooking.bookingId).single();
+  step('pending student cancellation records its attribution', cancelledPending?.cancelled_by_role === 'student' &&
+    cancelledPending.cancelled_from_status === 'pending');
   step('pending cancellation notifies tutor', await notification(tutorId, cancelBooking.bookingId, 'Session request cancelled'));
   await auth.signInWithPassword(tutor.email as string, 'password123');
   const cancelledAfterPendingCancel = (await api.tutorStats()).cancelledCount;

@@ -133,6 +133,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
               .from('bookings')
               .update({
                 status: 'no_show',
+                no_show_party: tutorNoShow ? 'tutor' : 'student',
                 refund_percent: refundPercent,
                 refund_status: refundStatus,
                 stripe_charge_id: chargeId,
@@ -167,6 +168,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
       .from('bookings')
       .update({
         status: 'no_show',
+        no_show_party: tutorNoShow ? 'tutor' : 'student',
         refund_percent: refundPercent,
         refund_status: refundStatus,
         stripe_charge_id: chargeId,
@@ -180,9 +182,6 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
       const { error: creditErr } = await db.rpc('return_booking_credit', { p_booking: bookingId, p_percent: 100 });
       if (creditErr) console.error('report-no-show: credit return failed', bookingId, creditErr.message);
     }
-
-    // TODO: 3-strike escalation tracking — accumulate no-show strikes per user and
-    // escalate (warn/suspend) once a threshold is reached.
 
     return Response.json({ status: 'no_show', refundPercent }, { headers: cors });
   } catch (e) {

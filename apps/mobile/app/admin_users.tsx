@@ -8,7 +8,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Alert, ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Button, Badge, Chip, Field, Eyebrow, EmptyState, Skeleton, useTheme, type BadgeTone } from '@noot/ui';
-import { api, type AdminUser, type AdminUserRole, type AdminUserStatus } from '@noot/core';
+import {
+  api,
+  NO_SHOW_FLAG_AT,
+  TUTOR_CANCEL_FLAG_OVER,
+  type AdminUser,
+  type AdminUserRole,
+  type AdminUserStatus,
+} from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
@@ -177,22 +184,35 @@ function AdminUsersScreen() {
                         {u.roles.filter((r) => r !== 'student' || u.roles.length === 1).map((r) => (
                           <Badge key={r} label={r} tone="neutral" />
                         ))}
+                        {u.tutorCancels30d > TUTOR_CANCEL_FLAG_OVER ? (
+                          <Badge label={`${u.tutorCancels30d} cancels / 30d`} tone="accentSoft" />
+                        ) : null}
+                        {u.noShows >= NO_SHOW_FLAG_AT ? (
+                          <Badge label={`${u.noShows} no-shows`} tone="accentSoft" />
+                        ) : null}
                       </View>
                     </View>
                     <Badge label={u.status} tone={STATUS_TONE[u.status] ?? 'neutral'} />
                   </View>
-                  {!isSelf && !deleted ? (
-                    <View style={styles.actions}>
-                      {u.status !== 'active' ? (
+                  <View style={styles.actions}>
+                    <Button
+                      label="History"
+                      kind="secondary"
+                      size="sm"
+                      style={{ flex: 1 }}
+                      onPress={() => router.push(`/admin_user?id=${encodeURIComponent(u.id)}`)}
+                    />
+                    {!isSelf && !deleted ? (
+                      u.status !== 'active' ? (
                         <Button label="Reactivate" kind="secondary" size="sm" style={{ flex: 1 }} disabled={busy === u.id} onPress={() => setUserStatus(u, 'active')} />
                       ) : (
                         <>
                           <Button label="Suspend" kind="secondary" size="sm" style={{ flex: 1 }} disabled={busy === u.id} onPress={() => setUserStatus(u, 'suspended')} />
                           <Button label="Ban" kind="tint" size="sm" style={{ flex: 1 }} disabled={busy === u.id} onPress={() => setUserStatus(u, 'banned')} />
                         </>
-                      )}
-                    </View>
-                  ) : null}
+                      )
+                    ) : null}
+                  </View>
                 </Card>
               );
             })}
