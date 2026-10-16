@@ -50,6 +50,19 @@ serveWithErrorReporting('resolve-participants', async (req: Request) => {
       if (other && other !== user.id) counterpartyIds.add(other);
     }
 
+    // Same for direct conversations, so a chat that exists before any booking still
+    // resolves the counterpart's name (the chat list relies on this for tutors).
+    const { data: conversations, error: cErr } = await db
+      .from('conversations')
+      .select('student_id, tutor_id')
+      .eq('kind', 'direct')
+      .or(`student_id.eq.${user.id},tutor_id.eq.${user.id}`);
+    if (cErr) return Response.json({ error: cErr.message }, { status: 400, headers: cors });
+    for (const c of conversations ?? []) {
+      const other = c.student_id === user.id ? c.tutor_id : c.student_id;
+      if (other && other !== user.id) counterpartyIds.add(other);
+    }
+
     const names: Record<string, { firstName: string; lastName: string; year: string | null; major: string | null }> = {};
     if (counterpartyIds.size > 0) {
       const { data: users, error: uErr } = await db
