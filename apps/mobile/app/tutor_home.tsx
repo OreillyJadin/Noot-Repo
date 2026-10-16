@@ -111,8 +111,7 @@ export default function TutorHome() {
           ? accepted
           : current,
       );
-      // Accept → straight into the conversation, which already holds the student's
-      // booking message (written by confirm-booking).
+      // Accept → straight into the conversation confirm-booking created at booking time.
       patchBooking(draftFromBooking(accepted));
       router.push('/chat_tutor');
     } catch (e) {

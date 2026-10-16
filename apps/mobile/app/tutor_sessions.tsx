@@ -102,12 +102,11 @@ export default function TutorSessions() {
           booking: { ...r.booking, status: 'confirmed', acceptedAt },
         }
         : r));
-      // Accept → straight into the conversation, which already holds the student's
-      // booking message (written by confirm-booking).
+      // Accept → straight into the conversation confirm-booking created at booking time.
       if (row) {
         patchBooking(draftFromBooking({ ...row.booking, status: 'confirmed', acceptedAt }));
+        router.push('/chat_tutor');
       }
-      router.push('/chat_tutor');
     } catch (e) {
       Alert.alert('Could not accept request', e instanceof Error ? e.message : 'Please try again.');
     } finally {
