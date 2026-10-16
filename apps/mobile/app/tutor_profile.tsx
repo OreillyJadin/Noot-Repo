@@ -7,7 +7,7 @@ import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, type IconName } from '@noot/ui';
-import { api, auth } from '@noot/core';
+import { api, auth, attentionTotal } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
 import { useThemePref } from '../lib/themePref';
@@ -15,6 +15,7 @@ import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { openLegal } from '../lib/legal';
 import { useRoleSwitch } from '../lib/useRoleSwitch';
+import { useAdminHubCounts } from '../lib/AdminTabs';
 import { openPayoutSetup } from '../lib/payoutSetup';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { errText } from '../lib/errText';
@@ -170,7 +171,8 @@ export default function TutorProfile() {
     );
   };
 
-  const { roles, previewRoles, isAdmin, switchTo } = useRoleSwitch();
+  const { roles, previewRoles, isAdmin, switchTo, select } = useRoleSwitch();
+  const counts = useAdminHubCounts(isAdmin);
   // Reachable BEFORE the application is finished — that was the "can only access their tutor
   // profile after completing the tutor application" report. Keyed on approval, not the role.
   const previewing = tutorStatus !== 'approved';
@@ -234,9 +236,16 @@ export default function TutorProfile() {
         ) : null}
 
         {/* mode switcher — the modes you hold, plus Tutor as a preview while the application is in review */}
-        {roles.length + previewRoles.length > 1 ? (
+        {roles.length + previewRoles.length + (isAdmin ? 1 : 0) > 1 ? (
           <View style={{ marginTop: 16 }}>
-            <RoleSwitcher roles={roles} previewRoles={previewRoles} active={role} onSelect={switchTo} />
+            <RoleSwitcher
+              roles={roles}
+              previewRoles={previewRoles}
+              showAdmin={isAdmin}
+              adminAttention={counts ? attentionTotal(counts) : 0}
+              active={role}
+              onSelect={select}
+            />
           </View>
         ) : null}
 
@@ -308,20 +317,6 @@ export default function TutorProfile() {
             <View style={{ flex: 1 }}>
               <Text style={[styles.switchTitle, { color: t.text }]}>Become an ambassador</Text>
               <Text style={[styles.switchSub, { color: t.text3 }]}>Earn bonuses for invite goals and cash out your Noot credit</Text>
-            </View>
-            <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
-          </Card>
-        ) : null}
-
-        {/* admin — gated, only for Noot-team accounts; NOT part of the role switcher */}
-        {isAdmin ? (
-          <Card onPress={() => router.push('/admin_home')} style={[styles.switchCard, { borderColor: t.accent, borderWidth: 1 }]}>
-            <View style={[styles.switchIcon, { backgroundColor: t.accentWeak }]}>
-              <Ic name="shield" size={21} color={t.accent} strokeWidth={1.7} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.switchTitle, { color: t.text }]}>Noot Admin</Text>
-              <Text style={[styles.switchSub, { color: t.text3 }]}>Team tools — approvals, users, disputes</Text>
             </View>
             <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
           </Card>

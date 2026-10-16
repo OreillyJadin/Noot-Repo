@@ -191,6 +191,21 @@ export interface AdminBooking {
   disputeReason: string | null;
 }
 
+export interface AdminCalendarEvent {
+  id: string;
+  kind: 'booking' | 'interview';
+  startsAt: string;
+  minutes: number | null;
+  title: string;
+  studentName: string | null;
+  tutorName: string;
+  tutorId: string;
+  studentId: string | null;
+  status: string | null;
+  disputeStatus: string | null;
+  details: string | null;
+}
+
 /** A tutor awaiting admin approval (admin queue). */
 export interface PendingTutor {
   userId: string;
@@ -1801,6 +1816,78 @@ export const api = {
         disputeStatus: b.dispute_status ?? 'none',
         disputeReason: b.dispute_reason ?? null,
       }));
+    },
+
+    async calendar(fromIso: string, toIso: string): Promise<AdminCalendarEvent[]> {
+      const sb = getSupabase();
+      const [bookingsResult, interviewsResult] = await Promise.all([
+        sb
+          .from('bookings')
+          .select('id, student_id, tutor_id, subject, scheduled_at, duration_minutes, status, dispute_status')
+          .gte('scheduled_at', fromIso)
+          .lt('scheduled_at', toIso)
+          .order('scheduled_at', { ascending: true })
+          .limit(500),
+        sb
+          .from('tutor_interviews')
+          .select('id, tutor_id, scheduled_at, details')
+          .is('cancelled_at', null)
+          .gte('scheduled_at', fromIso)
+          .lt('scheduled_at', toIso)
+          .order('scheduled_at', { ascending: true }),
+      ]);
+      if (bookingsResult.error) throw bookingsResult.error;
+      if (interviewsResult.error) throw interviewsResult.error;
+
+      const bookings = bookingsResult.data ?? [];
+      const interviews = interviewsResult.data ?? [];
+      const ids = [
+        ...new Set([
+          ...bookings.flatMap((booking) => [booking.student_id, booking.tutor_id]),
+          ...interviews.map((interview) => interview.tutor_id),
+        ]),
+      ];
+      const { data: users, error: usersError } = ids.length
+        ? await sb.from('users').select('id, first_name, last_name').in('id', ids)
+        : { data: [], error: null };
+      if (usersError) throw usersError;
+
+      const nameById = new Map(
+        (users ?? []).map((user) => [
+          user.id,
+          `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || '—',
+        ]),
+      );
+      return [
+        ...bookings.map((booking): AdminCalendarEvent => ({
+          id: booking.id,
+          kind: 'booking',
+          startsAt: booking.scheduled_at,
+          minutes: booking.duration_minutes,
+          title: booking.subject,
+          studentName: nameById.get(booking.student_id) ?? '—',
+          tutorName: nameById.get(booking.tutor_id) ?? '—',
+          tutorId: booking.tutor_id,
+          studentId: booking.student_id,
+          status: booking.status,
+          disputeStatus: booking.dispute_status,
+          details: null,
+        })),
+        ...interviews.map((interview): AdminCalendarEvent => ({
+          id: interview.id,
+          kind: 'interview',
+          startsAt: interview.scheduled_at,
+          minutes: null,
+          title: 'Tutor interview',
+          studentName: null,
+          tutorName: nameById.get(interview.tutor_id) ?? '—',
+          tutorId: interview.tutor_id,
+          studentId: null,
+          status: null,
+          disputeStatus: null,
+          details: interview.details,
+        })),
+      ].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
     },
 
     /** Flag or resolve a booking dispute (resolve-dispute Edge Function). */

@@ -213,8 +213,8 @@ function AdminChatInner() {
             <Ic name="back" size={24} color={t.accent} strokeWidth={2.4} />
           </Pressable>
           <View style={styles.navCenter}>
-            <View style={[styles.roomIcon, { backgroundColor: t.accentWeak }]}>
-              <Ic name="user" size={18} color={t.accent} strokeWidth={1.9} />
+            <View style={styles.roomIcon}>
+              <Ic name="user" size={20} color={t.text2} strokeWidth={1.7} />
             </View>
             <View style={{ minWidth: 0 }}>
               <Text numberOfLines={1} style={[styles.navName, { color: t.text }]}>Admin team</Text>
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
   navCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   navName: { fontSize: 15, fontWeight: '700', lineHeight: 18 },
   navSub: { fontSize: 11.5 },
-  roomIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  roomIcon: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
 
   thread: { flexGrow: 1, padding: 16, paddingTop: 14, paddingBottom: 8, gap: 8 },
   threadHint: { textAlign: 'center', fontSize: 11.5, marginBottom: 6 },

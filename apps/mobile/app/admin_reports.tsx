@@ -1,17 +1,13 @@
-// Admin moderation queue — the "timely response" half of Guideline 1.2.
-//
-// Reporting is useless without somewhere for reports to land. Admin-only by RLS: a non-admin
-// reading content_reports gets zero rows, so the client guard here is defence in depth.
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Alert, StyleSheet } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Card, Badge, Button, Ic, Skeleton, useTheme } from '@noot/ui';
 import { api, type ContentReport } from '@noot/core';
+import { Avatar, Body, Button, EmptyState, NavTop, Screen, Skeleton, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
 import { AdminTabs, safetyTabs, useAdminHubCounts } from '../lib/AdminTabs';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
-
+import { WARNING_AMBER } from '../lib/adminUi';
 const REASON_LABEL: Record<string, string> = {
   harassment: 'Harassment',
   inappropriate: 'Inappropriate',
@@ -22,6 +18,10 @@ const REASON_LABEL: Record<string, string> = {
 
 function reportTargetName(report: ContentReport): string | undefined {
   return report.autoFlagged && report.targetKind === 'user' ? 'Deleted account' : report.targetName;
+}
+
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '—';
 }
 
 function AdminReportsScreen() {
@@ -49,13 +49,13 @@ function AdminReportsScreen() {
     return null;
   }
 
-  const resolve = async (r: ContentReport, status: 'actioned' | 'dismissed') => {
-    setBusy(r.id);
+  const resolve = async (report: ContentReport, status: 'actioned' | 'dismissed') => {
+    setBusy(report.id);
     try {
-      await api.admin.resolveReport(r.id, status);
+      await api.admin.resolveReport(report.id, status);
       await load();
-    } catch (e) {
-      Alert.alert('Could not update', errText(e, 'Please try again.'));
+    } catch (error) {
+      Alert.alert('Could not update', errText(error, 'Please try again.'));
     } finally {
       setBusy(null);
     }
@@ -64,68 +64,61 @@ function AdminReportsScreen() {
   return (
     <Screen>
       <NavTop title="Reports" onBack={() => router.back()} />
-      <Body>
+      <Body contentStyle={styles.content}>
         <AdminTabs tabs={safetyTabs(counts)} active="complaints" />
         <Text style={[styles.intro, { color: t.text2 }]}>
-          Open reports from students and tutors. Our published terms commit to acting within 24
-          hours, so clear this queue daily.
+          Open reports from students and tutors. Our published terms commit to acting within 24 hours, so clear this queue daily.
         </Text>
 
         {loading ? (
-          <View style={{ gap: 10 }}>
-            <Skeleton height={110} radius={14} />
-            <Skeleton height={110} radius={14} />
+          <View style={styles.loading}>
+            <Skeleton height={130} />
+            <Skeleton height={130} />
           </View>
         ) : reports.length === 0 ? (
-          <View style={[styles.empty, { borderColor: t.borderStrong }]}>
-            <Ic name="check" size={24} color={t.good} strokeWidth={2} />
-            <Text style={{ marginTop: 8, fontSize: 14, color: t.text3 }}>No open reports.</Text>
-          </View>
+          <EmptyState icon="check" title="No open reports" subtitle="New reports will appear here." />
         ) : (
-          <View style={{ gap: 10 }}>
-            {reports.map((r) => (
-              <Card key={r.id} style={styles.card}>
-                <View style={styles.head}>
-                  <Badge label={REASON_LABEL[r.reason] ?? r.reason} tone="accentSoft" />
-                  <Text style={[styles.kind, { color: t.text3 }]}>{r.targetKind}</Text>
-                </View>
-                <Text style={[styles.meta, { color: t.text2 }]}>
-                  {r.autoFlagged ? 'Flagged automatically' : (
-                    <>Reported by <Text style={{ fontWeight: '700', color: t.text }}>{r.reporterName}</Text></>
-                  )}
-                  {reportTargetName(r) ? <> · about <Text style={{ fontWeight: '700', color: t.text }}>{reportTargetName(r)}</Text></> : null}
-                  {r.messageSenderName ? <> · sent by <Text style={{ fontWeight: '700', color: t.text }}>{r.messageSenderName}</Text></> : null}
-                </Text>
-                {r.messageContent ? (
-                  <View style={[styles.quote, { backgroundColor: t.surface2, borderLeftColor: t.borderStrong }]}>
-                    <Text numberOfLines={4} style={{ fontSize: 13, color: t.text }}>{r.messageContent}</Text>
+          <>
+            <Text style={[styles.sectionLabel, { color: t.text3 }]}>{reports.length} open reports</Text>
+            {reports.map((report) => {
+              const target = reportTargetName(report);
+              return (
+                <View key={report.id} style={[styles.item, { backgroundColor: t.surface, borderRadius: Number.parseFloat(t.cardRadius) || 16 }]}>
+                  <View style={styles.head}>
+                    <Avatar size={38} label={initials(report.reporterName || target || 'Noot')} />
+                    <View style={styles.person}>
+                      <Text style={[styles.title, { color: t.text }]}>{REASON_LABEL[report.reason] ?? report.reason}</Text>
+                      <Text style={[styles.meta, { color: t.text3 }]}>
+                        {report.autoFlagged ? 'Flagged automatically' : `Reported by ${report.reporterName}`}
+                        {target ? ` · about ${target}` : ''}
+                        {report.messageSenderName ? ` · sent by ${report.messageSenderName}` : ''}
+                      </Text>
+                    </View>
+                    <Text style={[styles.kind, { color: t.text3 }]}>{report.targetKind}</Text>
                   </View>
-                ) : null}
-                {r.detail ? <Text style={{ fontSize: 12.5, color: t.text3 }}>“{r.detail}”</Text> : null}
-                <Text style={[styles.when, { color: t.text3 }]}>
-                  {new Date(r.createdAt).toLocaleString()}
-                </Text>
-                <View style={styles.actions}>
-                  <Button
-                    label="Dismiss"
-                    kind="secondary"
-                    size="sm"
-                    style={{ flex: 1 }}
-                    disabled={busy === r.id}
-                    onPress={() => void resolve(r, 'dismissed')}
-                  />
-                  <Button
-                    label={busy === r.id ? '…' : 'Mark actioned'}
-                    kind="primary"
-                    size="sm"
-                    style={{ flex: 1.3 }}
-                    disabled={busy === r.id}
-                    onPress={() => void resolve(r, 'actioned')}
-                  />
+
+                  {report.messageContent ? (
+                    <View style={[styles.quote, { backgroundColor: t.surface2 }]}>
+                      <Text numberOfLines={4} style={[styles.quoteText, { color: t.text }]}>{report.messageContent}</Text>
+                    </View>
+                  ) : null}
+                  {report.detail ? <Text style={[styles.detail, { color: t.text2 }]}>“{report.detail}”</Text> : null}
+
+                  <View style={[styles.valueRow, { borderTopColor: t.border }]}>
+                    <Text style={[styles.valueLabel, { color: t.text3 }]}>Received</Text>
+                    <Text style={[styles.value, { color: t.text2 }]}>{new Date(report.createdAt).toLocaleString()}</Text>
+                  </View>
+                  {report.autoFlagged ? (
+                    <Text style={[styles.warning, { color: WARNING_AMBER }]}>Automatically flagged for review</Text>
+                  ) : null}
+                  <View style={styles.actions}>
+                    <Button label="Dismiss" kind="secondary" size="sm" style={{ flex: 1 }} disabled={busy === report.id} onPress={() => void resolve(report, 'dismissed')} />
+                    <Button label={busy === report.id ? '…' : 'Mark actioned'} kind="primary" size="sm" style={{ flex: 1.3 }} disabled={busy === report.id} onPress={() => void resolve(report, 'actioned')} />
+                  </View>
                 </View>
-              </Card>
-            ))}
-          </View>
+              );
+            })}
+          </>
         )}
       </Body>
     </Screen>
@@ -133,15 +126,24 @@ function AdminReportsScreen() {
 }
 
 const styles = StyleSheet.create({
-  intro: { fontSize: 13, lineHeight: 19.5, marginBottom: 6 },
-  card: { padding: 14, gap: 8 },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  kind: { fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: '700' },
-  meta: { fontSize: 13, lineHeight: 18 },
-  quote: { paddingHorizontal: 11, paddingVertical: 9, borderRadius: 9, borderLeftWidth: 3 },
-  when: { fontSize: 11 },
-  actions: { flexDirection: 'row', gap: 8, marginTop: 2 },
-  empty: { paddingVertical: 28, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center' },
+  content: { gap: 13, paddingBottom: 24 },
+  intro: { fontSize: 13, lineHeight: 19.5 },
+  loading: { gap: 10 },
+  sectionLabel: { fontSize: 12, fontWeight: '600' },
+  item: { padding: 14, gap: 9 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  person: { flex: 1, minWidth: 0 },
+  title: { fontSize: 14.5, fontWeight: '700', textTransform: 'capitalize' },
+  meta: { fontSize: 11.5, lineHeight: 16, marginTop: 2 },
+  kind: { fontSize: 10.5, fontWeight: '600', textTransform: 'uppercase' },
+  quote: { paddingHorizontal: 11, paddingVertical: 9, borderRadius: 10 },
+  quoteText: { fontSize: 13, lineHeight: 18 },
+  detail: { fontSize: 12.5, lineHeight: 18 },
+  valueRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9, marginTop: 2 },
+  valueLabel: { fontSize: 12 },
+  value: { fontSize: 12, textAlign: 'right', flex: 1 },
+  warning: { fontSize: 11.5, fontWeight: '600' },
+  actions: { flexDirection: 'row', gap: 8, marginTop: 3 },
 });
 
 export default function AdminReports() {

@@ -9,7 +9,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Alert, Linking, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Card, Button, Badge, Field, Ic, Eyebrow, EmptyState, Skeleton, useTheme } from '@noot/ui';
+import { Avatar, Screen, NavTop, Body, Button, Field, Ic, Eyebrow, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { api, type PendingTutor, type TutorInterview } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
@@ -17,9 +17,23 @@ import { interviewLabel, nextInterviewSlots } from '../lib/interviewSlots';
 import { AdminTabs, tutorTabs, useAdminHubCounts } from '../lib/AdminTabs';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
 
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '—';
+}
+
+function relativeTime(iso: string, now: number): string {
+  const age = Math.max(0, now - Date.parse(iso));
+  const minutes = Math.floor(age / 60_000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 function AdminTutorsScreen() {
   const t = useTheme();
   const router = useRouter();
+  const [now] = useState(() => Date.now());
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const tab = tabParam === 'interviews' || tabParam === 'grades' ? tabParam : 'applications';
   const { me, loading: meLoading } = useMe();
@@ -186,46 +200,48 @@ function AdminTutorsScreen() {
             {visibleTutors.length === 0 ? (
               <EmptyState icon={emptyState.icon} title={emptyState.title} subtitle={emptyState.subtitle} />
             ) : visibleTutors.map((tutor) => (
-              <Card key={tutor.userId} style={{ padding: 16 }}>
+              <View key={tutor.userId} style={[styles.card, { backgroundColor: t.surface, borderRadius: Number.parseFloat(t.cardRadius) || 16 }]}>
                 <View style={styles.headRow}>
+                  <Avatar size={40} label={initials(tutor.name)} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
                     <Text style={[styles.meta, { color: t.text3 }]}>
-                      {[tutor.year, tutor.major].filter(Boolean).join(' · ') || '—'} · {tutor.email}
+                      {[tutor.year, tutor.major, tutor.email].filter(Boolean).join(' · ')} · {relativeTime(tutor.submittedAt, now)}
                     </Text>
                   </View>
-                  <Badge
-                    label={tutor.awaiting === 'grades' ? 'Live · grade check' : tutor.hasTranscript ? 'New · transcript' : 'New · unverified'}
-                    tone={tutor.awaiting === 'grades' ? 'neutral' : 'accentSoft'}
-                  />
+                  <Text style={[styles.meta, { color: t.text3 }]}>{tutor.awaiting === 'grades' ? 'Grade check' : 'Application'}</Text>
                 </View>
 
                 {tutor.bio ? <Text style={[styles.bio, { color: t.text2 }]}>{tutor.bio}</Text> : null}
 
-                <View style={styles.subjRow}>
-                  {tutor.subjects.map((s) => (
-                    <Badge key={s} label={s} tone="neutral" />
-                  ))}
+                <View style={[styles.valueRow, { borderTopColor: t.border }]}>
+                  <Text style={[styles.valueLabel, { color: t.text3 }]}>Courses</Text>
+                  <Text style={[styles.value, { color: t.text }]}>{tutor.subjects.join(' · ') || '—'}</Text>
                 </View>
 
-                <Card
-                  flat
-                  onPress={tutor.transcriptUrl ? () => Linking.openURL(tutor.transcriptUrl!) : undefined}
-                  style={{ ...styles.transcript, backgroundColor: t.surfaceAlt }}
-                >
-                  <Ic name="doc" size={16} color={tutor.transcriptUrl ? t.accent : t.text3} strokeWidth={1.8} />
-                  <Text style={[styles.transcriptText, { color: tutor.transcriptUrl ? t.accent : t.text3 }]}>
-                    {tutor.transcriptUrl
-                      ? 'View transcript'
-                      : tutor.hasTranscript
-                        ? 'Transcript link unavailable — reload'
-                        : 'No transcript — signed up unverified'}
-                  </Text>
-                </Card>
+                <View style={[styles.valueRow, { borderTopColor: t.border }]}>
+                  <Text style={[styles.valueLabel, { color: t.text3 }]}>Transcript</Text>
+                  <Pressable
+                    onPress={tutor.transcriptUrl ? () => Linking.openURL(tutor.transcriptUrl!) : undefined}
+                    disabled={!tutor.transcriptUrl}
+                    accessibilityRole={tutor.transcriptUrl ? 'button' : undefined}
+                    accessibilityLabel={tutor.transcriptUrl ? 'View transcript PDF' : 'Transcript unavailable'}
+                    style={({ pressed }) => [styles.transcriptLink, pressed && { opacity: 0.65 }]}
+                  >
+                    <Ic name="doc" size={16} color={tutor.transcriptUrl ? t.accent : t.text3} strokeWidth={1.8} />
+                    <Text style={[styles.transcriptText, { color: tutor.transcriptUrl ? t.accent : t.text3 }]}>
+                      {tutor.transcriptUrl
+                        ? 'View PDF'
+                        : tutor.hasTranscript
+                          ? 'Link unavailable'
+                          : 'Not provided'}
+                    </Text>
+                  </Pressable>
+                </View>
 
                 {tutor.awaiting === 'application' ? (
                   <View style={[styles.interview, { borderTopColor: t.border }]}>
-                    <Eyebrow style={{ color: t.text3 }}>Interview</Eyebrow>
+                    <Text style={[styles.interviewLabel, { color: t.text3 }]}>Interview</Text>
                     {unread[tutor.userId] ? (
                       <Text style={[styles.interviewDetails, { color: t.text3 }]}>
                         Couldn’t load this applicant’s interview details. Reopen this screen to try again.
@@ -233,7 +249,7 @@ function AdminTutorsScreen() {
                     ) : interviews[tutor.userId] && changing !== tutor.userId ? (
                       <>
                         <View style={styles.interviewSet}>
-                          <Ic name="clock" size={16} color={t.accent} strokeWidth={1.9} />
+                          <Ic name="clock" size={16} color={t.text2} strokeWidth={1.9} />
                           <View style={{ flex: 1, minWidth: 0 }}>
                             <Text style={[styles.interviewWhen, { color: t.text }]}>
                               {interviewLabel(new Date(interviews[tutor.userId]!.scheduledAt))}
@@ -246,23 +262,25 @@ function AdminTutorsScreen() {
                           </View>
                         </View>
                         <View style={styles.interviewLinks}>
-                          <Text
+                          <Pressable
                             onPress={() => {
                               setDetails((m) => ({ ...m, [tutor.userId]: interviews[tutor.userId]!.details }));
                               setChanging(tutor.userId);
                             }}
                             accessibilityRole="button"
-                            style={[styles.link, { color: t.accent }]}
+                            accessibilityLabel="Change interview time"
+                            style={({ pressed }) => pressed && { opacity: 0.65 }}
                           >
-                            Change time
-                          </Text>
-                          <Text
+                            <Text style={[styles.link, { color: t.accent }]}>Change time</Text>
+                          </Pressable>
+                          <Pressable
                             onPress={() => cancelInterview(tutor)}
                             accessibilityRole="button"
-                            style={[styles.link, { color: t.text3 }]}
+                            accessibilityLabel="Cancel interview"
+                            style={({ pressed }) => pressed && { opacity: 0.65 }}
                           >
-                            Cancel interview
-                          </Text>
+                            <Text style={[styles.link, { color: t.text3 }]}>Cancel interview</Text>
+                          </Pressable>
                         </View>
                       </>
                     ) : (slots[tutor.userId] ?? []).length === 0 ? (
@@ -271,9 +289,9 @@ function AdminTutorsScreen() {
                           {slots[tutor.userId] ? 'No availability in the next two weeks to suggest a time from.' : 'Loading their availability…'}
                         </Text>
                         {changing === tutor.userId ? (
-                          <Text onPress={() => setChanging(null)} accessibilityRole="button" style={[styles.link, { color: t.text3 }]}>
-                            Keep the current time
-                          </Text>
+                          <Pressable onPress={() => setChanging(null)} accessibilityRole="button" accessibilityLabel="Keep current interview time">
+                            <Text style={[styles.link, { color: t.text3 }]}>Keep the current time</Text>
+                          </Pressable>
                         ) : null}
                       </>
                     ) : (
@@ -300,16 +318,16 @@ function AdminTutorsScreen() {
                               disabled={busy !== null}
                               accessibilityRole="button"
                               accessibilityLabel={`Schedule interview ${interviewLabel(at)}`}
-                              style={[styles.slot, { borderColor: t.accentBorder, backgroundColor: t.accentWeak }]}
+                              style={({ pressed }) => [styles.slot, { backgroundColor: t.surface2, opacity: pressed ? 0.65 : 1 }]}
                             >
-                              <Text style={[styles.slotText, { color: t.accent }]}>{interviewLabel(at)}</Text>
+                              <Text style={[styles.slotText, { color: t.text2 }]}>{interviewLabel(at)}</Text>
                             </Pressable>
                           ))}
                         </ScrollView>
                         {changing === tutor.userId ? (
-                          <Text onPress={() => setChanging(null)} accessibilityRole="button" style={[styles.link, { color: t.text3 }]}>
-                            Keep the current time
-                          </Text>
+                          <Pressable onPress={() => setChanging(null)} accessibilityRole="button" accessibilityLabel="Keep current interview time">
+                            <Text style={[styles.link, { color: t.text3 }]}>Keep the current time</Text>
+                          </Pressable>
                         ) : null}
                       </>
                     )}
@@ -359,7 +377,7 @@ function AdminTutorsScreen() {
                     </View>
                   </View>
                 )}
-              </Card>
+              </View>
             ))}
           </View>
         )}
@@ -369,23 +387,27 @@ function AdminTutorsScreen() {
 }
 
 const styles = StyleSheet.create({
-  headRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  card: { padding: 15, gap: 9 },
   name: { fontSize: 17, fontWeight: '700' },
   meta: { fontSize: 12.5, marginTop: 2 },
   bio: { fontSize: 13, lineHeight: 19, marginTop: 10 },
-  subjRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
-  transcript: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, marginTop: 12 },
+  valueRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 9, marginTop: 2 },
+  valueLabel: { fontSize: 12 },
+  value: { flex: 1, textAlign: 'right', fontSize: 12.5, fontWeight: '600' },
+  transcriptLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   transcriptText: { fontSize: 13, fontWeight: '600' },
   actions: { flexDirection: 'row', gap: 10, marginTop: 14 },
   interview: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, gap: 8 },
+  interviewLabel: { fontSize: 12, fontWeight: '600' },
   interviewSet: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   interviewWhen: { fontSize: 14.5, fontWeight: '700' },
   interviewDetails: { fontSize: 12.5, lineHeight: 18 },
   interviewLinks: { flexDirection: 'row', gap: 18 },
   link: { fontSize: 13, fontWeight: '600' },
   slotRow: { gap: 8, paddingVertical: 2 },
-  slot: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 11, borderWidth: 1 },
-  slotText: { fontSize: 13, fontWeight: '700' },
+  slot: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 11 },
+  slotText: { fontSize: 13, fontWeight: '600' },
 });
 
 export default function AdminTutors() {

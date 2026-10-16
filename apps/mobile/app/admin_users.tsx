@@ -1,26 +1,13 @@
-// Admin → User management. Finds accounts by name or email, narrows by account type and
-// status, and lets an admin suspend / ban / reactivate. The list is paged and searched on
-// the server (api.admin.listUsers → admin_list_users, 0046), so it stays usable however many
-// accounts there are (ERR-021). Actions go through api.admin.setUserStatus → the
-// admin-set-user-status Edge Function (re-verifies admin server-side + applies the GoTrue
-// ban). Client guard here is UI-only.
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Alert, ScrollView, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Card, Button, Badge, Chip, Field, Eyebrow, EmptyState, Skeleton, useTheme, type BadgeTone } from '@noot/ui';
-import {
-  api,
-  NO_SHOW_FLAG_AT,
-  TUTOR_CANCEL_FLAG_OVER,
-  type AdminUser,
-  type AdminUserRole,
-  type AdminUserStatus,
-} from '@noot/core';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { api, NO_SHOW_FLAG_AT, TUTOR_CANCEL_FLAG_OVER, type AdminUser, type AdminUserRole, type AdminUserStatus } from '@noot/core';
+import { Avatar, Body, Ic, Screen, Skeleton, TabBar, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
-
-const STATUS_TONE: Record<string, BadgeTone> = { active: 'good', suspended: 'accentSoft', banned: 'neutral', deleted: 'neutral' };
+import { AdminLargeHeader, AdminSection, AdminRow, StatusDot, WARNING_AMBER } from '../lib/adminUi';
+import { useTabNav } from '../lib/useTabNav';
 
 const ROLES: [AdminUserRole | null, string][] = [
   [null, 'All'],
@@ -38,29 +25,37 @@ const STATUSES: [AdminUserStatus | null, string][] = [
 ];
 const PAGE = 30;
 
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 function dateLabel(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function initials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '—';
 }
 
 function AdminUsersScreen() {
   const t = useTheme();
   const router = useRouter();
+  const bodyRef = useRef<ScrollView>(null);
+  const { active, onTab } = useTabNav({ scrollRef: bodyRef });
   const { me, loading: meLoading } = useMe();
   const isAdmin = !!me?.roles?.includes('admin');
   const [typed, setTyped] = useState('');
-  // What is actually searched: `typed`, once the admin has paused.
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<AdminUserRole | null>(null);
   const [status, setStatus] = useState<AdminUserStatus | null>(null);
+  const [statusExpanded, setStatusExpanded] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  // Each change of search or filter starts a new list; an answer for an older one is dropped.
   const request = useRef(0);
-  // Bumped to load the list again from the top.
+  const focused = useRef(false);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -68,17 +63,37 @@ function AdminUsersScreen() {
     return () => clearTimeout(timer);
   }, [typed]);
 
+  useFocusEffect(useCallback(() => {
+    if (focused.current) setReload((value) => value + 1);
+    focused.current = true;
+  }, []));
+
   useEffect(() => {
     const mine = ++request.current;
-    setLoading(true); setFailed(null);
+    setLoading(true);
+    setFailed(null);
     api.admin
       .listUsers({ search, role, status, limit: PAGE, offset: 0 })
-      .then((page) => { if (request.current === mine) { setUsers(page.users); setTotal(page.total); } })
-      .catch((e) => { if (request.current === mine) { setUsers([]); setTotal(0); setFailed(errText(e, 'Could not load accounts.')); } })
+      .then((page) => {
+        if (request.current === mine) {
+          setUsers(page.users);
+          setTotal(page.total);
+        }
+      })
+      .catch((error) => {
+        if (request.current === mine) {
+          setUsers([]);
+          setTotal(0);
+          setFailed(errText(error, 'Could not load accounts.'));
+        }
+      })
       .finally(() => { if (request.current === mine) setLoading(false); });
   }, [search, role, status, reload]);
 
-  if (!meLoading && me && !isAdmin) { router.replace('/home'); return null; }
+  if (!meLoading && me && !isAdmin) {
+    router.replace('/home');
+    return null;
+  }
 
   const loadMore = async () => {
     if (loadingMore) return;
@@ -87,152 +102,217 @@ function AdminUsersScreen() {
     try {
       const page = await api.admin.listUsers({ search, role, status, limit: PAGE, offset: users.length });
       if (request.current !== mine) return;
-      // A new sign-up since the first page shifts the rest down by one: skip repeats.
-      setUsers((prev) => [...prev, ...page.users.filter((u) => !prev.some((p) => p.id === u.id))]);
-      // An empty page carries no count (the count rides on the rows), so it is not a zero.
+      setUsers((prev) => [...prev, ...page.users.filter((user) => !prev.some((item) => item.id === user.id))]);
       setTotal((prev) => (page.users.length ? page.total : Math.min(prev, users.length)));
-    } catch (e) {
-      if (request.current === mine) Alert.alert('Could not load more', errText(e, 'Please try again.'));
+    } catch (error) {
+      if (request.current === mine) Alert.alert('Could not load more', errText(error, 'Please try again.'));
     } finally {
       setLoadingMore(false);
     }
   };
 
-  const setUserStatus = async (u: AdminUser, next: 'active' | 'suspended' | 'banned') => {
-    if (busy) return;
-    setBusy(u.id);
-    const mine = request.current;
-    try {
-      await api.admin.setUserStatus(u.id, next);
-      if (request.current !== mine) {
-        // The search or filter changed while this was saving, so the list on screen is a
-        // different one, possibly read before the change landed. Read it again rather than
-        // patch it.
-        setReload((n) => n + 1);
-      } else if (status !== null && status !== next) {
-        // It no longer matches the status being listed. Dropping it keeps the rows on screen
-        // in step with the server's list, which "Show more" pages through by position.
-        setUsers((prev) => prev.filter((x) => x.id !== u.id));
-        setTotal((prev) => Math.max(0, prev - 1));
-        // That was the last row on screen but not the last match: fetch the next ones.
-        if (users.length <= 1 && total > 1) setReload((n) => n + 1);
-      } else {
-        setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, status: next } : x)));
-      }
-    } catch (e) {
-      Alert.alert('Could not update', errText(e, 'Please try again.'));
-    } finally {
-      setBusy(null);
-    }
+  const toggleStatus = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setStatusExpanded((expanded) => !expanded);
   };
 
   const filtered = !!search || role !== null || status !== null;
 
   return (
     <Screen>
-      <NavTop title="User management" onBack={() => router.back()} />
-      <Body pad={20}>
-        <View style={{ gap: 10, marginBottom: 14 }}>
-          <Field placeholder="Search by name or email" value={typed} onChangeText={setTyped} />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.chips}>
-            {ROLES.map(([value, label]) => (
-              <Chip key={label} label={label} on={role === value} onPress={() => setRole(value)} />
-            ))}
-          </ScrollView>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.chips}>
-            {STATUSES.map(([value, label]) => (
-              <Chip key={label} label={label} on={status === value} onPress={() => setStatus(value)} />
-            ))}
-          </ScrollView>
-        </View>
-
-        {loading ? (
-          <View style={{ gap: 10 }}>
-            <Skeleton height={92} radius={16} />
-            <Skeleton height={92} radius={16} />
-          </View>
-        ) : failed ? (
-          <EmptyState icon="user" title="Couldn't load accounts" subtitle={failed} />
-        ) : users.length === 0 ? (
-          <EmptyState
-            icon="user"
-            title={filtered ? 'No accounts match' : 'No accounts'}
-            subtitle={filtered ? 'Try a different search or filter.' : 'Users will appear here.'}
+      <Body
+        ref={bodyRef}
+        pad={20}
+        contentStyle={styles.content}
+        onRefresh={() => setReload((value) => value + 1)}
+      >
+        <AdminLargeHeader title="Users" />
+        <View style={[styles.search, { backgroundColor: t.surface2, borderRadius: 12 }]}>
+          <Ic name="search" size={18} color={t.text3} />
+          <TextInput
+            value={typed}
+            onChangeText={setTyped}
+            placeholder="Search name or email"
+            placeholderTextColor={t.text3}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            style={[styles.searchInput, { color: t.text }]}
+            accessibilityLabel="Search name or email"
           />
-        ) : (
-          <View style={{ gap: 10 }}>
-            <Eyebrow style={{ color: t.text3 }}>
-              {users.length < total ? `Showing ${users.length} of ${total} accounts` : `${total} ${total === 1 ? 'account' : 'accounts'}`}
-            </Eyebrow>
-            {users.map((u) => {
-              const isSelf = u.id === me?.id;
-              const deleted = u.status === 'deleted';
+          {typed ? (
+            <Pressable onPress={() => setTyped('')} accessibilityRole="button" accessibilityLabel="Clear search">
+              <Ic name="x" size={17} color={t.text3} />
+            </Pressable>
+          ) : null}
+        </View>
+        <View style={styles.filterRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.roleFilters}
+          >
+            {ROLES.map(([value, label]) => {
+              const selected = role === value;
               return (
-                <Card key={u.id} style={{ padding: 14 }}>
-                  <View style={styles.row}>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={[styles.name, { color: deleted ? t.text3 : t.text }]}>
-                        {deleted ? 'Deleted account' : u.name}{isSelf ? ' (you)' : ''}
-                      </Text>
-                      {/* A deleted account's name and email are erased when it is deleted. */}
-                      <Text style={[styles.email, { color: t.text3 }]}>
-                        {deleted
-                          ? `Deleted ${u.deletedAt ? dateLabel(u.deletedAt) : ''} · joined ${dateLabel(u.createdAt)}`
-                          : u.email}
-                      </Text>
-                      <View style={styles.badges}>
-                        {u.roles.filter((r) => r !== 'student' || u.roles.length === 1).map((r) => (
-                          <Badge key={r} label={r} tone="neutral" />
-                        ))}
-                        {u.tutorCancels30d > TUTOR_CANCEL_FLAG_OVER ? (
-                          <Badge label={`${u.tutorCancels30d} cancels / 30d`} tone="accentSoft" />
-                        ) : null}
-                        {u.noShows >= NO_SHOW_FLAG_AT ? (
-                          <Badge label={`${u.noShows} no-shows`} tone="accentSoft" />
-                        ) : null}
-                      </View>
-                    </View>
-                    <Badge label={u.status} tone={STATUS_TONE[u.status] ?? 'neutral'} />
-                  </View>
-                  <View style={styles.actions}>
-                    <Button
-                      label="History"
-                      kind="secondary"
-                      size="sm"
-                      style={{ flex: 1 }}
-                      onPress={() => router.push(`/admin_user?id=${encodeURIComponent(u.id)}`)}
-                    />
-                    {!isSelf && !deleted ? (
-                      u.status !== 'active' ? (
-                        <Button label="Reactivate" kind="secondary" size="sm" style={{ flex: 1 }} disabled={busy === u.id} onPress={() => setUserStatus(u, 'active')} />
-                      ) : (
-                        <>
-                          <Button label="Suspend" kind="secondary" size="sm" style={{ flex: 1 }} disabled={busy === u.id} onPress={() => setUserStatus(u, 'suspended')} />
-                          <Button label="Ban" kind="tint" size="sm" style={{ flex: 1 }} disabled={busy === u.id} onPress={() => setUserStatus(u, 'banned')} />
-                        </>
-                      )
-                    ) : null}
-                  </View>
-                </Card>
+                <Pressable
+                  key={label}
+                  onPress={() => setRole(value)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`${label} filter`}
+                  style={({ pressed }) => [
+                    styles.roleFilter,
+                    selected ? { backgroundColor: t.text } : null,
+                    pressed && !selected ? { opacity: 0.65 } : null,
+                  ]}
+                >
+                  <Text style={[styles.roleLabel, { color: selected ? t.bg : t.text2 }]}>{label}</Text>
+                </Pressable>
               );
             })}
-            {users.length < total ? (
-              <Button label={loadingMore ? 'Loading…' : 'Show more'} kind="secondary" disabled={loadingMore} onPress={loadMore} />
-            ) : null}
+          </ScrollView>
+          <Pressable
+            onPress={toggleStatus}
+            accessibilityRole="button"
+            accessibilityLabel={`Status filter: ${STATUSES.find(([value]) => value === status)?.[1]}`}
+            accessibilityState={{ expanded: statusExpanded }}
+            style={({ pressed }) => [styles.statusFilter, { opacity: pressed ? 0.65 : 1 }]}
+          >
+            <Ic name="sliders" size={16} color={t.text2} />
+            <Text style={[styles.statusFilterText, { color: t.text2 }]}>
+              {status ? STATUSES.find(([value]) => value === status)?.[1] : 'Status'}
+            </Text>
+          </Pressable>
+        </View>
+        {statusExpanded ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.roleFilters}
+          >
+            {STATUSES.map(([value, label]) => {
+              const selected = status === value;
+              return (
+                <Pressable
+                  key={label}
+                  onPress={() => setStatus(value)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`${label} status filter`}
+                  style={({ pressed }) => [
+                    styles.roleFilter,
+                    selected ? { backgroundColor: t.text } : null,
+                    pressed && !selected ? { opacity: 0.65 } : null,
+                  ]}
+                >
+                  <Text style={[styles.roleLabel, { color: selected ? t.bg : t.text2 }]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
+
+        {loading ? (
+          <View style={styles.loadingRows}>
+            <Skeleton height={92} />
+            <Skeleton height={92} />
           </View>
+        ) : failed ? (
+          <View>
+            <Text style={[styles.countLabel, { color: t.text3 }]}>Accounts</Text>
+            <Text style={[styles.emptyText, { color: t.text2 }]}>{failed}</Text>
+          </View>
+        ) : users.length === 0 ? (
+          <View>
+            <Text style={[styles.countLabel, { color: t.text3 }]}>0 accounts</Text>
+            <Text style={[styles.emptyText, { color: t.text2 }]}>
+              {filtered ? 'No accounts match. Try a different search or filter.' : 'Users will appear here.'}
+            </Text>
+          </View>
+        ) : (
+          <>
+            <AdminSection
+              label={users.length < total ? `Showing ${users.length} of ${total} accounts` : `${total} ${total === 1 ? 'account' : 'accounts'}`}
+            >
+              {users.map((user) => {
+                const isSelf = user.id === me?.id;
+                const deleted = user.status === 'deleted';
+                const name = deleted ? 'Deleted account' : `${user.name}${isSelf ? ' (you)' : ''}`;
+                const email = deleted
+                  ? `Deleted ${user.deletedAt ? dateLabel(user.deletedAt) : ''} · joined ${dateLabel(user.createdAt)}`
+                  : user.email;
+                const roles = user.roles
+                  .filter((value) => value !== 'student' || user.roles.length === 1)
+                  .map((value) => value[0]!.toUpperCase() + value.slice(1))
+                  .join(' · ') || 'Student';
+                const warnings = [
+                  user.tutorCancels30d > TUTOR_CANCEL_FLAG_OVER ? `${user.tutorCancels30d} cancels / 30d` : null,
+                  user.noShows >= NO_SHOW_FLAG_AT ? `${user.noShows} no-shows` : null,
+                ].filter(Boolean).join(' · ');
+                return (
+                  <AdminRow
+                    key={user.id}
+                    leading={<Avatar size={40} label={initials(name)} />}
+                    title={name}
+                    subtitle={email}
+                    detail={
+                      <Text numberOfLines={1} style={styles.userDetail}>
+                        <Text style={{ color: t.text3 }}>{roles}</Text>
+                        {warnings ? <Text style={{ color: WARNING_AMBER }}> · {warnings}</Text> : null}
+                      </Text>
+                    }
+                    trailing={user.status !== 'active' ? (
+                      <StatusDot
+                        label={user.status[0]!.toUpperCase() + user.status.slice(1)}
+                        color={user.status === 'suspended' ? WARNING_AMBER : t.text3}
+                      />
+                    ) : null}
+                    accessibilityLabel={`${name}, ${email}, ${roles}`}
+                    onPress={() => router.push(`/admin_user?id=${encodeURIComponent(user.id)}`)}
+                  />
+                );
+              })}
+            </AdminSection>
+            {users.length < total ? (
+              <Pressable
+                onPress={loadMore}
+                disabled={loadingMore}
+                accessibilityRole="button"
+                accessibilityLabel={loadingMore ? 'Loading more users' : 'Show more users'}
+                style={({ pressed }) => [
+                  styles.more,
+                  { backgroundColor: pressed ? t.surface2 : t.surface, borderRadius: t.cardRadius ? Number.parseFloat(t.cardRadius) : 16 },
+                ]}
+              >
+                <Text style={[styles.moreText, { color: t.text2 }]}>{loadingMore ? 'Loading…' : 'Show more'}</Text>
+              </Pressable>
+            ) : null}
+          </>
         )}
       </Body>
+      <TabBar role="admin" active={active} onTab={onTab} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  chips: { flexDirection: 'row', gap: 8 },
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  name: { fontSize: 15, fontWeight: '700' },
-  email: { fontSize: 12.5, marginTop: 1 },
-  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  content: { paddingTop: 4, gap: 16, paddingBottom: 22 },
+  search: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 12 },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 14, paddingVertical: 10 },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  roleFilters: { flexDirection: 'row', gap: 4, alignItems: 'center' },
+  roleFilter: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 18 },
+  roleLabel: { fontSize: 12, fontWeight: '600' },
+  statusFilter: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8 },
+  statusFilterText: { fontSize: 12, fontWeight: '600' },
+  loadingRows: { gap: 8 },
+  countLabel: { fontSize: 12, fontWeight: '600' },
+  emptyText: { fontSize: 13, marginTop: 8 },
+  userDetail: { fontSize: 10.5 },
+  more: { padding: 13, alignItems: 'center' },
+  moreText: { fontSize: 13, fontWeight: '600' },
 });
 
 export default function AdminUsers() {
