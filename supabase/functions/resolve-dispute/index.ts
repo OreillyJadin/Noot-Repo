@@ -28,7 +28,8 @@ Deno.serve(async (req: Request) => {
     const inactiveResponse = await requireActiveUser(db, user.id, cors);
     if (inactiveResponse) return inactiveResponse;
 
-    const notAdmin = await requireAdmin(userClient, cors); if (notAdmin) return notAdmin;
+    const notAdmin = await requireAdmin(userClient, cors);
+    if (notAdmin) return notAdmin;
 
     const { bookingId, action, reason, resolution } = await req.json().catch(() => ({}));
     if (!bookingId || (action !== 'flag' && action !== 'resolve')) {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Linking, StyleSheet, Text } from 'react-native';
+import { Linking, Platform, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SvgXml } from 'react-native-svg';
 import { auth } from '@noot/core';
@@ -226,6 +226,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   caption: { textAlign: 'center' },
-  secret: { fontFamily: 'monospace', fontSize: 16, textAlign: 'center' },
-  error: { color: '#b42318' },
+  secret: { fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }), fontSize: 16, textAlign: 'center' },
+  error: { color: '#C0392B' },
 });
