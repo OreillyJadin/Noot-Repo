@@ -48,7 +48,10 @@ export interface BodyProps {
   onRefresh?: () => Promise<unknown> | void;
 }
 
-// Keeps the focused field and a growing multiline caret above the keyboard on iOS and Android.
+// forwardRef exposes the inner ScrollView so callers (e.g. the tab bar's
+// "reselect" action) can scroll the page back to top. See lib/useTabNav.
+// KeyboardAwareScrollView keeps the focused field, and the caret of a growing multiline
+// field, above the keyboard on iOS and Android.
 export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
   { children, pad = 20, contentStyle, onRefresh },
   ref,
@@ -74,6 +77,9 @@ export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
       }
       style={styles.bodyScroll}
       contentContainerStyle={[{ padding: pad, paddingTop: 4, gap: 14 }, contentStyle]}
+      // persistTaps: a control under the keyboard responds on the FIRST tap instead of the
+      // tap being swallowed to dismiss. dismissMode: scrolling the page puts the keyboard
+      // away, so a search list can be browsed without reaching for "done".
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       bottomOffset={24}
