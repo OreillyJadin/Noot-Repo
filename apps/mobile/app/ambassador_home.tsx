@@ -13,6 +13,7 @@ import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
+import { AdminShortcut } from '../lib/AdminShortcut';
 
 export default function AmbassadorHome() {
   const { reloadKey, onRefresh } = usePullToRefresh();
@@ -50,7 +51,10 @@ export default function AmbassadorHome() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Wordmark size={22} />
-          <ViewingAs role="ambassador" preview={previewing} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <ViewingAs role="ambassador" preview={previewing} />
+            <AdminShortcut />
+          </View>
         </View>
         <View style={styles.welcomeRow}>
           <View>

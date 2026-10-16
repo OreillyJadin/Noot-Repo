@@ -315,8 +315,8 @@ export default function TutorProfile() {
 
         {/* admin — gated, only for Noot-team accounts; NOT part of the role switcher */}
         {isAdmin ? (
-          <Card onPress={() => router.push('/admin_home')} style={styles.switchCard}>
-            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
+          <Card onPress={() => router.push('/admin_home')} style={[styles.switchCard, { borderColor: t.accent, borderWidth: 1 }]}>
+            <View style={[styles.switchIcon, { backgroundColor: t.accentWeak }]}>
               <Ic name="shield" size={21} color={t.accent} strokeWidth={1.7} />
             </View>
             <View style={{ flex: 1 }}>

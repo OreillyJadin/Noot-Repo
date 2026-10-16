@@ -14,6 +14,7 @@ import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
+import { AdminShortcut } from '../lib/AdminShortcut';
 import { NotificationBell } from '../lib/NotificationBell';
 import { VerifiedBadge, VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 import { nudgeCourse } from '../lib/browse';
@@ -212,7 +213,10 @@ export default function Home() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Wordmark size={22} />
-          <NotificationBell />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <AdminShortcut />
+            <NotificationBell />
+          </View>
         </View>
         <View style={styles.welcomeRow}>
           <View>
