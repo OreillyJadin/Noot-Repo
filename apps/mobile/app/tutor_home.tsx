@@ -111,6 +111,10 @@ export default function TutorHome() {
           ? accepted
           : current,
       );
+      // Accept → straight into the conversation, which already holds the student's
+      // booking message (written by confirm-booking).
+      patchBooking(draftFromBooking(accepted));
+      router.push('/chat_tutor');
     } catch (e) {
       Alert.alert('Could not accept request', e instanceof Error ? e.message : 'Please try again.');
     } finally {
