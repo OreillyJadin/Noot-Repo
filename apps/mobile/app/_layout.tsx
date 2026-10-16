@@ -19,6 +19,9 @@ import { PushOpener } from '../lib/PushOpener';
 import { PayoutSetupHost } from '../lib/PayoutSetupHost';
 import { largeSecureStore } from '../lib/secureStorage';
 import { ThemePrefProvider, useThemePref } from '../lib/themePref';
+import { initSentry, trackSentryUser } from '../lib/sentry';
+
+initSentry();
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -31,6 +34,7 @@ if (url && anonKey) {
     anonKey,
     storage: Platform.OS === 'web' ? undefined : largeSecureStore,
   });
+  trackSentryUser();
 }
 
 // Reads the persisted theme preferences and feeds them into the theme + status bar.

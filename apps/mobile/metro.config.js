@@ -3,6 +3,6 @@
 // (expo.experiments.autolinkingModuleResolution is on by default), so the old
 // watchFolders / nodeModulesPaths / disableHierarchicalLookup overrides we
 // carried through SDK 54 are gone — expo-doctor flags them as harmful now.
-const { getDefaultConfig } = require('expo/metro-config');
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 
-module.exports = getDefaultConfig(__dirname);
+module.exports = getSentryExpoConfig(__dirname);

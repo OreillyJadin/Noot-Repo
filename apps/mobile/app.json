@@ -106,7 +106,8 @@
         }
       ],
       "expo-web-browser",
-      "expo-notifications"
+      "expo-notifications",
+      "@sentry/react-native/expo"
     ],
     "experiments": {
       "typedRoutes": false
