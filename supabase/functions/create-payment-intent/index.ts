@@ -8,8 +8,8 @@
 // manual-capture PaymentIntent; otherwise we return a simulated intent so local/dev never
 // crashes. This is one of the two allowed places to import Stripe directly.
 //
-// Noot credit (0040) comes off the charge automatically: the hold is for chargeCents, and
-// metadata.credit_cents records the credit so confirm-booking can check it and spend it.
+// Noot credit (0040) comes off the total automatically: the hold is for chargeCents, and
+// metadata records the credit and student service fee so confirm-booking can validate it.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { BookingError, resolveBooking } from '../_shared/booking.ts';
@@ -64,6 +64,7 @@ Deno.serve(async (req: Request) => {
           customerId: null,
           paymentIntentId: 'sim_pi_' + crypto.randomUUID(),
           amountCents: resolved.amountCents,
+          studentFeeCents: Math.round(resolved.studentFee * 100),
           creditCents,
           chargeCents,
           price: resolved.price,
@@ -112,6 +113,7 @@ Deno.serve(async (req: Request) => {
         course_code: resolved.courseCode,
         duration_minutes: String(resolved.durationMinutes),
         scheduled_at: resolved.scheduledAt,
+        student_fee_cents: String(Math.round(resolved.studentFee * 100)),
         credit_cents: String(creditCents),
       },
     });
@@ -123,6 +125,7 @@ Deno.serve(async (req: Request) => {
         customerId,
         paymentIntentId: intent.id,
         amountCents: resolved.amountCents,
+        studentFeeCents: Math.round(resolved.studentFee * 100),
         creditCents,
         chargeCents,
         price: resolved.price,

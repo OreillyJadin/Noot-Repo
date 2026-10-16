@@ -1,7 +1,7 @@
 // Noot credits at checkout (0040). Pure (no imports) so it runs in Deno and the node tests.
 //
-// Credit comes off the price the student is charged; the tutor's payout and noot's fee are
-// still computed from the full price (fees.ts), so noot absorbs the credit.
+// Credit comes off the session price plus student service fee; the tutor's payout and
+// platform fee are still computed from the session price alone (fees.ts).
 
 /**
  * The card is always charged at least this much. Stripe won't capture under $0.50, and a
@@ -9,7 +9,7 @@
  */
 export const MIN_CHARGE_CENTS = 100;
 
-/** How much of a balance applies to a session priced `amountCents`. Never negative. */
+/** How much of a balance applies to a session total of `amountCents`. Never negative. */
 export function creditToApply(balanceCents: number, amountCents: number): number {
   const room = Math.max(0, Math.floor(amountCents) - MIN_CHARGE_CENTS);
   return Math.max(0, Math.min(Math.floor(balanceCents), room));

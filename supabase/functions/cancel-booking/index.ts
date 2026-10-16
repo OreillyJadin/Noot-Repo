@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
     // Load booking.
     const { data: booking, error: loadError } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, subject, scheduled_at, status, price, credit_applied, tutor_payout_amount, stripe_payment_intent_id')
+      .select('id, student_id, tutor_id, subject, scheduled_at, status, price, student_fee, credit_applied, tutor_payout_amount, stripe_payment_intent_id')
       .eq('id', bookingId)
       .single();
 
@@ -182,10 +182,11 @@ Deno.serve(async (req: Request) => {
         if (refundPercent === 100) {
           await stripe.paymentIntents.cancel(pi, {}, { idempotencyKey: `cancel_${bookingId}` });
         } else {
-          // The card was held for the price minus any Noot credit (0040), so the late-cancel
-          // share comes out of that, not the full price.
-          // Whole cents, so e.g. $17.33 − $5 can't round a cent away.
-          const chargedCents = Math.round(Number(booking.price) * 100) - Math.round(Number(booking.credit_applied ?? 0) * 100);
+          // The card was held for session price plus service fee, minus any Noot credit.
+          const chargedCents =
+            Math.round(Number(booking.price) * 100) +
+            Math.round(Number(booking.student_fee) * 100) -
+            Math.round(Number(booking.credit_applied ?? 0) * 100);
           const captureCents = Math.round((chargedCents * (100 - refundPercent)) / 100);
           const capturedPi = await stripe.paymentIntents.capture(
             pi,

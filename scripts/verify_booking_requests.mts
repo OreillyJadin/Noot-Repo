@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { api, auth, initSupabase } from '../packages/core/src/index.ts';
+import { api, auth, initSupabase, studentFeeFor } from '../packages/core/src/index.ts';
 import { authorizeHold, cancelHold } from './_stripe_test.mts';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
@@ -11,7 +11,7 @@ const ANON =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 const SERVICE =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInR5cCI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 const PASSWORD = 'NootVerify!39_Request';
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const emailTag = Date.now();
@@ -66,9 +66,12 @@ try {
   stage = 'enable tutor charges';
   await admin.from('tutor_profiles').update({ stripe_charges_enabled: true }).eq('user_id', tutorId);
   stage = 'load tutor course';
-  const { data: course, error: courseError } = await admin.from('tutor_courses').select('course_code').eq('tutor_id', tutorId).limit(1).single();
+  const { data: course, error: courseError } = await admin.from('tutor_courses').select('course_code, hourly_rate').eq('tutor_id', tutorId).limit(1).single();
   if (courseError || !course) throw courseError ?? new Error('Seeded tutor has no course');
   const courseCode = course.course_code as string;
+  const sessionPrice = Math.round(Number(course.hourly_rate) * 100) / 100;
+  const expectedStudentFee = studentFeeFor(sessionPrice);
+  const expectedTotalCents = Math.round(sessionPrice * 100) + Math.round(expectedStudentFee * 100);
 
   stage = 'create verification students';
   const created = await admin.auth.admin.createUser({ email: studentEmail, password: PASSWORD, email_confirm: true });
@@ -87,6 +90,9 @@ try {
   stage = 'create payment intent';
   const scheduledAt = hoursFromNow(72);
   const pi = await api.createPaymentIntent({ tutorId, courseCode, durationMinutes: 60, scheduledAt });
+  step('payment intent includes service fee', pi.amountCents === expectedTotalCents &&
+    pi.studentFeeCents === Math.round(expectedStudentFee * 100),
+    `session $${sessionPrice} + fee $${expectedStudentFee} = ${pi.amountCents}c`);
   intents.push(pi.paymentIntentId);
   if (pi.paymentIntentId.startsWith('pi_')) await authorizeHold(pi.paymentIntentId);
   const createdBooking = await api.bookings.confirm({
@@ -96,9 +102,12 @@ try {
   stage = 'load pending booking';
   const bookingId = createdBooking.bookingId;
   bookings.push(bookingId);
-  const { data: pending } = await admin.from('bookings').select('status,accept_by,accepted_at').eq('id', bookingId).single();
+  const { data: pending } = await admin.from('bookings').select('status,accept_by,accepted_at,price,student_fee').eq('id', bookingId).single();
   const deadlineDelta = pending?.accept_by ? new Date(pending.accept_by).getTime() - Date.now() : 0;
   step('booking starts pending with a 12-hour deadline', pending?.status === 'pending' && deadlineDelta > 11.9 * 3_600_000 && deadlineDelta <= 12 * 3_600_000);
+  step('booking stores the session price and service fee', Number(pending?.price) === sessionPrice &&
+    Number(pending?.student_fee) === expectedStudentFee,
+    `stored $${pending?.price} session + $${pending?.student_fee} fee`);
 
   stage = 'verify overlapping slot and response authorization';
   await auth.signInWithPassword(otherEmail, PASSWORD);

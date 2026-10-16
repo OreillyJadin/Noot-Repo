@@ -8,11 +8,11 @@
 // Both functions call resolveBooking() and use ONLY what it returns. Nothing about money
 // or tutor eligibility is read from the request body.
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { splitPrice } from './fees.ts';
+import { splitPrice, studentFeeFor } from './fees.ts';
 import { getPayoutStatus, type PayoutStatus } from './connect.ts';
 
-// Noot's cut lives in ./fees.ts (17.5% verified, 32.5% unverified). ARCHITECTURE.md §8
-// is stale and says $0.00.
+// The tutor-side split is computed on the session price; the student fee is added to the
+// held amount separately.
 
 /**
  * How far ahead a session may be booked, in days. Kept at 6 because payment is a
@@ -37,7 +37,9 @@ export type ResolvedBooking = {
   hourlyRate: number;
   /** Dollars, 2dp — what goes in bookings.price. */
   price: number;
-  /** Integer cents — what Stripe is asked to authorize. */
+  /** Dollars, 2dp — the student service fee stored on the booking. */
+  studentFee: number;
+  /** Integer cents — session price plus student service fee, before credit. */
   amountCents: number;
   platformFee: number;
   tutorPayout: number;
@@ -183,6 +185,7 @@ export async function resolveBooking(
 
   const price = round2((hourlyRate * durationMinutes) / 60);
   if (price <= 0) throw new BookingError('Computed price was zero', 409);
+  const studentFee = studentFeeFor(price);
   // The verified rate is per course; currently-taking courses use the unverified rate (fees.ts).
   const { platformFee, tutorPayout } = splitPrice(
     price,
@@ -196,7 +199,8 @@ export async function resolveBooking(
     scheduledAt: scheduled.toISOString(),
     hourlyRate,
     price,
-    amountCents: Math.round(price * 100),
+    studentFee,
+    amountCents: Math.round(price * 100) + Math.round(studentFee * 100),
     platformFee,
     tutorPayout,
   };

@@ -114,6 +114,7 @@ export interface AdminBooking {
   scheduledAt: string;
   status: string;
   price: number;
+  studentFee: number;
   disputeStatus: string;
   disputeReason: string | null;
 }
@@ -342,6 +343,7 @@ function mapBooking(row: any): Booking {
     rescheduleProposedBy: row.reschedule_proposed_by ?? null,
     durationMinutes: row.duration_minutes,
     price: num(row.price),
+    studentFee: num(row.student_fee),
     creditApplied: num(row.credit_applied),
     platformFee: num(row.platform_fee),
     tutorPayoutAmount: num(row.tutor_payout_amount),
@@ -1572,7 +1574,7 @@ export const api = {
       const sb = getSupabase();
       const { data, error } = await sb
         .from('bookings')
-        .select('id, student_id, tutor_id, subject, scheduled_at, status, price, dispute_status, dispute_reason')
+        .select('id, student_id, tutor_id, subject, scheduled_at, status, price, student_fee, dispute_status, dispute_reason')
         .order('scheduled_at', { ascending: false })
         .limit(100);
       if (error) throw error;
@@ -1590,6 +1592,7 @@ export const api = {
         scheduledAt: b.scheduled_at,
         status: b.status,
         price: num(b.price),
+        studentFee: num(b.student_fee),
         disputeStatus: b.dispute_status ?? 'none',
         disputeReason: b.dispute_reason ?? null,
       }));
@@ -1618,8 +1621,9 @@ export const api = {
     ephemeralKeySecret: string | null;
     customerId: string | null;
     paymentIntentId: string;
-    /** Authoritative, server-computed. Show this, don't recompute it. */
+    /** Authoritative session + service fee total, before credit. Show this, don't recompute it. */
     amountCents: number;
+    studentFeeCents: number;
     /** Noot credit taken off automatically (0040). */
     creditCents: number;
     /** What the card is charged: amountCents − creditCents. */
@@ -1647,7 +1651,7 @@ export const api = {
     /** Create the booking + conversation with the held PaymentIntent (confirm-booking). */
     confirm(
       input: ConfirmBookingInput,
-    ): Promise<{ bookingId: string; conversationId: string; price: number; acceptBy: string }> {
+    ): Promise<{ bookingId: string; conversationId: string; price: number; studentFee: number; acceptBy: string }> {
       return invokeFn('confirm-booking', input as unknown as Record<string, unknown>);
     },
 

@@ -1,7 +1,15 @@
 // Run: pnpm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { feeRateFor, splitPrice, VERIFIED_FEE_RATE, UNVERIFIED_FEE_RATE } from '../functions/_shared/fees.ts';
+import { feeRateFor, splitPrice, studentFeeFor, STUDENT_FEE_RATE, VERIFIED_FEE_RATE, UNVERIFIED_FEE_RATE } from '../functions/_shared/fees.ts';
+
+test('student service fee is 17% of the session price, rounded to cents', () => {
+  assert.equal(STUDENT_FEE_RATE, 0.17);
+  assert.equal(studentFeeFor(10), 1.7);
+  assert.equal(studentFeeFor(35), 5.95);
+  assert.equal(studentFeeFor(17.33), 2.95);
+  assert.equal(studentFeeFor(0), 0);
+});
 
 test('rates: 17.5% verified, 32.5% unverified (15 points more)', () => {
   assert.equal(feeRateFor(true), 0.175);
@@ -36,6 +44,10 @@ test('the app’s display mirror (@noot/core pricing) matches the server exactly
   const core = await import('../../packages/core/src/pricing.ts');
   assert.equal(core.VERIFIED_FEE_RATE, VERIFIED_FEE_RATE);
   assert.equal(core.UNVERIFIED_FEE_RATE, UNVERIFIED_FEE_RATE);
+  assert.equal(core.STUDENT_FEE_RATE, STUDENT_FEE_RATE);
+  for (const price of [0, 10, 17.33, 35]) {
+    assert.equal(core.studentFeeFor(price), studentFeeFor(price), `${price}`);
+  }
   for (const verified of [true, false]) {
     for (let cents = 100; cents <= 30000; cents += 211) {
       const price = cents / 100;

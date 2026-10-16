@@ -1,4 +1,4 @@
-// Platform fee: how a session price splits between noot and the tutor (tracker T6 / D5).
+// Tutor-side platform fee splits the session price; student service fee is added at checkout.
 //
 // Pure (no imports) so it runs in Deno and in the node tests (scripts/…, pnpm test).
 // The rate is decided when the booking is made and stored on the booking
@@ -9,12 +9,17 @@
 export const VERIFIED_FEE_RATE = 0.175;
 /** No verified transcript — 15 percentage points more (D5, decided 2026-09-23). */
 export const UNVERIFIED_FEE_RATE = 0.325;
+export const STUDENT_FEE_RATE = 0.17;
 
 export function feeRateFor(gradesVerified: boolean): number {
   return gradesVerified ? VERIFIED_FEE_RATE : UNVERIFIED_FEE_RATE;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+export function studentFeeFor(price: number): number {
+  return round2(price * STUDENT_FEE_RATE);
+}
 
 /**
  * Split a session price (dollars) into the platform fee and the tutor's payout. The fee is

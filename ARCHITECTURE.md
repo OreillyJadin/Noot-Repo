@@ -254,8 +254,8 @@ reproduce against the real backend — do not port localStorage.
 - **Model:** auto-confirm — student picks an available block, pays into a **held** payment, booking
   confirms instantly (no tutor approval). Funds released to the tutor on completion.
 - **B4:** Stripe **Payment Element** / Express Checkout (Apple Pay / Google Pay + card). Manual
-  capture. Service fee shown as its own line — **Free ($0.00)** at launch (`application_fee_amount`,
-  toggle on later). Test cards: `4242` approves · `0002` declines.
+  capture. The 17% student service fee is computed in `supabase/functions/_shared/fees.ts`,
+  shown as its own line, and included in the held amount. Test cards: `4242` approves · `0002` declines.
 - **Payout:** on completion, capture the PaymentIntent and transfer to the tutor's connected
   account (payout within ~2 business days). Tutor Connect onboarding is part of tutor setup.
 - **Reviews (admin-moderated):** stored `pending` and hidden from everyone until an admin approves,

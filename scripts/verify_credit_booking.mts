@@ -1,7 +1,7 @@
 // Noot credit through the real booking Edge Functions (0040), against the LOCAL stack with
 // `supabase functions serve` running and a Stripe TEST key (sk_test_ only — see
 // _stripe_test.mts). Drives the same @noot/core calls as b4.tsx:
-//   • credit comes off the hold; the tutor's payout is still computed on the full price
+//   • credit comes off the session price plus service fee; tutor payout remains based on session price
 //   • confirm spends it; a tampered PaymentIntent and a double-spend are both refused
 //   • cancelling returns it in proportion to the refund
 //   • award-referral-bonus credits the inviter, and refuses an end-user token
@@ -48,8 +48,11 @@ if (!signIn.ok) throw new Error(String(signIn.error));
 const tutors = await api.tutors.search();
 const tutorId = tutors[0]!.userId;
 await svc.from('tutor_profiles').update({ stripe_charges_enabled: true }).eq('user_id', tutorId);
-const { data: tc } = await svc.from('tutor_courses').select('course_code').eq('tutor_id', tutorId).limit(1).single();
+const { data: tc } = await svc.from('tutor_courses').select('course_code, hourly_rate').eq('tutor_id', tutorId).limit(1).single();
 const courseCode = tc!.course_code as string;
+const sessionCents = Math.round(Number(tc!.hourly_rate) * 100);
+const expectedFeeCents = Math.round((Math.round(Number(tc!.hourly_rate) * 100) / 100) * 0.17 * 100);
+const expectedTotalCents = sessionCents + expectedFeeCents;
 
 const grant = (cents: number) => svc.from('credit_ledger').insert({ user_id: uid, amount_cents: cents, kind: 'adjustment' });
 const holds: string[] = [];
@@ -82,12 +85,19 @@ try {
   const t1 = at(30);
   const pi1 = await hold(t1);
   const stripePi1 = await getPaymentIntent(pi1.paymentIntentId);
-  check('create-payment-intent applies the $5', pi1.creditCents === 500 && pi1.chargeCents === pi1.amountCents - 500, JSON.stringify({ a: pi1.amountCents, c: pi1.creditCents, ch: pi1.chargeCents }));
-  check('the Stripe hold is for the reduced amount', stripePi1.amount === pi1.chargeCents && stripePi1.metadata?.credit_cents === '500');
+  check('create-payment-intent applies the $5 to the session-plus-fee total',
+    pi1.creditCents === 500 && pi1.amountCents === expectedTotalCents &&
+      pi1.studentFeeCents === expectedFeeCents && pi1.chargeCents === pi1.amountCents - 500,
+    JSON.stringify({ a: pi1.amountCents, fee: pi1.studentFeeCents, c: pi1.creditCents, ch: pi1.chargeCents }));
+  check('the Stripe hold is for the reduced amount and records the fee',
+    stripePi1.amount === pi1.chargeCents &&
+      stripePi1.metadata?.credit_cents === '500' &&
+      stripePi1.metadata?.student_fee_cents === String(expectedFeeCents));
   const b1 = await confirm(pi1.paymentIntentId, t1);
-  const { data: row1 } = await svc.from('bookings').select('price, credit_applied, tutor_payout_amount, platform_fee').eq('id', b1).single();
+  const { data: row1 } = await svc.from('bookings').select('price, student_fee, credit_applied, tutor_payout_amount, platform_fee').eq('id', b1).single();
   check('booking records the credit; payout is still on the full price',
-    Number(row1!.credit_applied) === 5 && Math.abs(Number(row1!.tutor_payout_amount) + Number(row1!.platform_fee) - Number(row1!.price)) < 0.001,
+    Number(row1!.credit_applied) === 5 && Math.round(Number(row1!.student_fee) * 100) === expectedFeeCents &&
+      Math.abs(Number(row1!.tutor_payout_amount) + Number(row1!.platform_fee) - Number(row1!.price)) < 0.001,
     JSON.stringify(row1));
   check('balance is spent', (await api.credits.balance()) === 0);
   const { data: spend } = await svc.from('credit_ledger').select('booking_id').eq('payment_intent_id', pi1.paymentIntentId).eq('kind', 'booking_spend').single();
@@ -157,7 +167,9 @@ try {
   const r50 = await api.bookings.cancel(b5);
   const captured = await getPaymentIntent(pi5.paymentIntentId);
   check('cancel 10h out: 50% refund', r50.refundPercent === 50);
-  check('…captures half of what the card was charged, not half the price', captured.amount_received === Math.round(pi5.chargeCents / 2), `${captured.amount_received} vs ${pi5.chargeCents}`);
+  check('…captures half of price + service fee − credit',
+    captured.amount_received === Math.round((Math.round(pi5.price * 100) + pi5.studentFeeCents - pi5.creditCents) / 2),
+    `${captured.amount_received} vs half of ${pi5.amountCents} − ${pi5.creditCents}`);
   check('…and half the credit comes back', (await api.credits.balance()) === bal1 + Math.round(pi5.creditCents / 2));
 
   console.log('\n— earning through the Edge Function —');
