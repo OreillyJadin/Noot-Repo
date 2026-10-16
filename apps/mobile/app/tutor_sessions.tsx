@@ -94,6 +94,7 @@ export default function TutorSessions() {
     try {
       await api.bookings.respond({ bookingId: id, action: 'accept' });
       const acceptedAt = new Date().toISOString();
+      const row = upcoming.find((r) => r.id === id);
       setUpcoming((rows) => rows.map((r) => r.id === id
         ? {
           ...r,
@@ -101,7 +102,11 @@ export default function TutorSessions() {
           booking: { ...r.booking, status: 'confirmed', acceptedAt },
         }
         : r));
-      Alert.alert('Session confirmed', 'The student has been notified.');
+      // Accept → straight into the conversation confirm-booking created at booking time.
+      if (row) {
+        patchBooking(draftFromBooking({ ...row.booking, status: 'confirmed', acceptedAt }));
+        router.push('/chat_tutor');
+      }
     } catch (e) {
       Alert.alert('Could not accept request', e instanceof Error ? e.message : 'Please try again.');
     } finally {

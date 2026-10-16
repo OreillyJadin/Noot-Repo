@@ -113,7 +113,7 @@ test('an admin-room message falls back to notifications', () => {
   assert.equal(target.route, '/notifications');
 });
 
-test('a tutor request notice opens chat with the booking draft', () => {
+test('a tutor request notice opens the sessions list where it can be accepted', () => {
   const target = targetFor(notice('booking', { bookingId: 'booking-1' }, 'New session request'), {
     uid: 'tutor-1',
     currentRole: 'student',
@@ -121,9 +121,7 @@ test('a tutor request notice opens chat with the booking draft', () => {
     now,
   });
   assert.equal(target.role, 'tutor');
-  assert.equal(target.route, '/chat_tutor');
-  assert.equal(target.draft?.studentId, 'student-1');
-  assert.equal(target.draft?.bookingId, 'booking-1');
+  assert.equal(target.route, '/tutor_sessions');
 });
 
 test('a confirmed booking notice opens the student chat when its tutor is available', () => {
