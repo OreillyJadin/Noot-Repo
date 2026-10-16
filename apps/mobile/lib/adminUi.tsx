@@ -1,6 +1,11 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
+import type { AdminCalendarEvent } from '@noot/core';
 import { Ic, useTheme, type IconName } from '@noot/ui';
+import { INTERVIEW_MINUTES } from './interviewBlock';
+
+export const INTERVIEW_INDIGO = '#5B6CC2';
+export const WARNING_AMBER = '#C2783A';
 
 export function AdminLargeHeader({
   title,
@@ -73,6 +78,7 @@ export function AdminRow({
   leading,
   title,
   subtitle,
+  detail,
   trailing,
   count,
   muted = false,
@@ -86,6 +92,7 @@ export function AdminRow({
   title: string;
   titleStyle?: TextStyle;
   subtitle?: string;
+  detail?: React.ReactNode;
   trailing?: React.ReactNode;
   count?: number;
   muted?: boolean;
@@ -100,6 +107,7 @@ export function AdminRow({
       <View style={styles.rowText}>
         <Text numberOfLines={1} style={[styles.rowTitle, { color: muted ? t.text2 : t.text }, titleStyle]}>{title}</Text>
         {subtitle ? <Text numberOfLines={1} style={[styles.rowSubtitle, { color: t.text3 }]}>{subtitle}</Text> : null}
+        {detail ? <View style={styles.rowDetail}>{detail}</View> : null}
       </View>
       {count && count > 0 ? <CountPill count={count} /> : null}
       {trailing}
@@ -143,6 +151,85 @@ export function CountPill({ count }: { count: number }) {
   );
 }
 
+export function eventMuted(event: AdminCalendarEvent): boolean {
+  return event.kind === 'booking' && (event.status === 'cancelled' || event.status === 'no_show');
+}
+
+export function eventColor(event: AdminCalendarEvent, t: ReturnType<typeof useTheme>): string {
+  if (event.disputeStatus === 'flagged') return WARNING_AMBER;
+  if (event.kind === 'interview') return INTERVIEW_INDIGO;
+  return eventMuted(event) ? t.text3 : t.accent;
+}
+
+export function statusLabel(event: AdminCalendarEvent): string {
+  if (event.disputeStatus === 'flagged') return 'Disputed';
+  if (event.kind === 'interview') return 'Interview';
+  switch (event.status) {
+    case 'cancelled': return 'Cancelled';
+    case 'no_show': return 'No-show';
+    case 'pending': return 'Pending';
+    case 'confirmed': return 'Confirmed';
+    case 'completed': return 'Completed';
+    default: return event.status?.replaceAll('_', ' ') ?? 'Booking';
+  }
+}
+
+export function CalendarEventRow({
+  event,
+  onPress,
+  variant = 'calendar',
+}: {
+  event: AdminCalendarEvent;
+  onPress: () => void;
+  variant?: 'calendar' | 'hub';
+}) {
+  const t = useTheme();
+  const muted = eventMuted(event);
+  const color = eventColor(event, t);
+  const time = new Date(event.startsAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const duration = event.kind === 'interview' ? `${INTERVIEW_MINUTES} min` : event.minutes ? `${event.minutes} min` : null;
+  const title = variant === 'hub' && event.kind === 'interview'
+    ? `Interview · ${event.tutorName}`
+    : event.title;
+  const subtitle = variant === 'hub'
+    ? event.kind === 'interview'
+      ? event.details || `Tutor interview · ${INTERVIEW_MINUTES} min`
+      : `${event.studentName ?? 'Student'} → ${event.tutorName}`
+    : event.kind === 'interview'
+      ? [event.details, event.tutorName].filter(Boolean).join(' · ') || 'Tutor interview'
+      : [event.studentName, event.tutorName].filter(Boolean).join(' → ');
+  const label = statusLabel(event);
+  const showHubStatus = variant === 'hub' && event.kind === 'booking' && (event.status !== null || event.disputeStatus === 'flagged');
+
+  return (
+    <AdminRow
+      leading={
+        <View style={styles.eventLeading}>
+          <Text style={[styles.eventTime, { color: variant === 'hub' ? t.text : t.text3 }]}>{time}</Text>
+          <View style={[styles.eventBar, { backgroundColor: color }]} />
+        </View>
+      }
+      title={title}
+      titleStyle={muted ? { textDecorationLine: 'line-through' } : undefined}
+      subtitle={subtitle}
+      detail={showHubStatus ? (
+        <Text style={[styles.hubEventStatus, { color: event.disputeStatus === 'flagged' ? WARNING_AMBER : muted ? t.text3 : t.good }]}>
+          {label}
+        </Text>
+      ) : undefined}
+      muted={muted}
+      onPress={onPress}
+      accessibilityLabel={`${label}: ${title}, ${subtitle}, ${time}`}
+      trailing={variant === 'hub' ? undefined : (
+        <View style={styles.eventTrailing}>
+          {duration ? <Text style={[styles.eventDuration, { color: t.text3 }]}>{duration}</Text> : null}
+          <StatusDot label={label} color={color} />
+        </View>
+      )}
+    />
+  );
+}
+
 function radius(value: string): number {
   return Number.parseFloat(value) || 16;
 }
@@ -163,9 +250,16 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, minWidth: 0 },
   rowTitle: { fontSize: 14.5, fontWeight: '600' },
   rowSubtitle: { fontSize: 12, marginTop: 2 },
+  rowDetail: { marginTop: 2 },
   status: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusLabel: { fontSize: 11.5, fontWeight: '600' },
   countPill: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
   countText: { fontSize: 11.5, fontWeight: '700' },
+  eventLeading: { width: 53, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  eventTime: { width: 39, fontSize: 10.5, fontVariant: ['tabular-nums'] },
+  eventBar: { width: 3, height: 29, borderRadius: 2 },
+  eventTrailing: { alignItems: 'flex-end', gap: 3 },
+  eventDuration: { fontSize: 10 },
+  hubEventStatus: { fontSize: 11, fontWeight: '600' },
 });

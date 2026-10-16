@@ -7,8 +7,7 @@ import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
 import { AdminTabs, safetyTabs, useAdminHubCounts } from '../lib/AdminTabs';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
-
-const WARNING_AMBER = '#C2783A';
+import { WARNING_AMBER } from '../lib/adminUi';
 const REASON_LABEL: Record<string, string> = {
   harassment: 'Harassment',
   inappropriate: 'Inappropriate',

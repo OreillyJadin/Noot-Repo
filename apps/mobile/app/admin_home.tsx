@@ -5,14 +5,10 @@ import { api, attentionTotal, type AdminCalendarEvent, type AdminHubCounts } fro
 import { Body, Ic, Screen, Skeleton, TabBar, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { interviewLabel } from '../lib/interviewSlots';
-import { INTERVIEW_MINUTES } from '../lib/interviewBlock';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
-import { AdminLargeHeader, AdminRow, AdminSection } from '../lib/adminUi';
+import { AdminLargeHeader, AdminRow, AdminSection, CalendarEventRow } from '../lib/adminUi';
 import { useRoleSwitch } from '../lib/useRoleSwitch';
 import { useTabNav } from '../lib/useTabNav';
-
-const INTERVIEW_INDIGO = '#5B6CC2';
-const WARNING_AMBER = '#C2783A';
 
 const EMPTY_COUNTS: AdminHubCounts = {
   applications: 0,
@@ -176,7 +172,14 @@ function AdminHomeScreen() {
               <Skeleton height={62} />
             </View>
           ) : events.length ? (
-            events.map((event) => <HubEventRow key={`${event.kind}-${event.id}`} event={event} />)
+            events.map((event) => (
+              <CalendarEventRow
+                key={`${event.kind}-${event.id}`}
+                event={event}
+                variant="hub"
+                onPress={() => router.push(event.kind === 'interview' ? '/admin_tutors?tab=interviews' : '/admin_bookings?tab=all')}
+              />
+            ))
           ) : (
             <AdminRow title="Nothing else today" muted />
           )}
@@ -225,48 +228,6 @@ function AdminHomeScreen() {
   );
 }
 
-function HubEventRow({ event }: { event: AdminCalendarEvent }) {
-  const t = useTheme();
-  const status = bookingStatus(event);
-  const startsAt = new Date(event.startsAt);
-  const time = startsAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const title = event.kind === 'interview' ? `Interview · ${event.tutorName}` : event.title;
-  const people = event.kind === 'interview'
-    ? event.details || `Tutor interview · ${INTERVIEW_MINUTES} min`
-    : `${event.studentName ?? 'Student'} → ${event.tutorName}`;
-  const muted = status === 'Cancelled' || status === 'No-show';
-  return (
-    <View style={styles.eventRow}>
-      <Text style={[styles.eventTime, { color: t.text }]}>{time}</Text>
-      <View style={[styles.eventBar, { backgroundColor: event.kind === 'interview' ? INTERVIEW_INDIGO : t.accent }]} />
-      <View style={styles.eventContent}>
-        <Text style={[styles.eventTitle, { color: muted ? t.text3 : t.text, textDecorationLine: muted ? 'line-through' : 'none' }]}>
-          {title}
-        </Text>
-        <Text numberOfLines={1} style={[styles.eventSubtitle, { color: t.text3 }]}>{people}</Text>
-        {status ? (
-          <Text style={[styles.eventStatus, { color: event.disputeStatus === 'flagged' ? WARNING_AMBER : muted ? t.text3 : t.good }]}>
-            {status}
-          </Text>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-function bookingStatus(event: AdminCalendarEvent): string | null {
-  if (event.kind !== 'booking') return null;
-  if (event.disputeStatus === 'flagged') return 'Disputed';
-  switch (event.status) {
-    case 'cancelled': return 'Cancelled';
-    case 'no_show': return 'No-show';
-    case 'pending': return 'Pending';
-    case 'confirmed': return 'Confirmed';
-    case 'completed': return 'Completed';
-    default: return event.status;
-  }
-}
-
 const styles = StyleSheet.create({
   content: { paddingTop: 4, gap: 19, paddingBottom: 22 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 2 },
@@ -278,13 +239,6 @@ const styles = StyleSheet.create({
   heroLabel: { fontSize: 15, fontWeight: '500' },
   heroCheck: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
   eventSkeletons: { gap: 1, paddingHorizontal: 14 },
-  eventRow: { flexDirection: 'row', alignItems: 'stretch', gap: 10, paddingVertical: 12, paddingHorizontal: 14, minHeight: 62 },
-  eventTime: { width: 48, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  eventBar: { width: 3, borderRadius: 2 },
-  eventContent: { flex: 1, minWidth: 0 },
-  eventTitle: { fontSize: 14, fontWeight: '600' },
-  eventSubtitle: { fontSize: 11.5, marginTop: 2 },
-  eventStatus: { fontSize: 11, fontWeight: '600', marginTop: 4 },
   note: { fontSize: 11.5, lineHeight: 17, textAlign: 'center', marginHorizontal: 8, marginTop: 1 },
 });
 

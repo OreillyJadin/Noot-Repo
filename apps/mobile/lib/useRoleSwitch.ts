@@ -48,7 +48,7 @@ export function useRoleSwitch() {
   };
 
   const openAdmin = () => {
-    router.push('/admin_home');
+    router.replace('/admin_home');
   };
 
   const exitAdmin = () => {

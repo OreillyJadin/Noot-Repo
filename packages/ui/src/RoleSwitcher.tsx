@@ -57,7 +57,12 @@ export function RoleSwitcher({
             accessibilityLabel={preview ? `Preview the ${LABELS[r]} experience` : `View as ${LABELS[r]}`}
             style={[styles.seg, on && { backgroundColor: t.surface }, on && styles.segOn]}
           >
-            <Text style={[styles.segLabel, { color: on ? t.text : t.text3, fontWeight: on ? '700' : '600' }]}>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              style={[styles.segLabel, { color: on ? t.text : t.text3, fontWeight: on ? '700' : '600' }]}
+            >
               {LABELS[r]}
             </Text>
             {preview ? <View style={[styles.previewDot, { backgroundColor: t.text3 }]} /> : null}
@@ -73,7 +78,12 @@ export function RoleSwitcher({
           accessibilityLabel={`Open Noot Admin${adminAttention > 0 ? `, ${adminAttention} ${adminAttention === 1 ? 'needs' : 'need'} a look` : ''}`}
           style={[styles.seg, active === 'admin' && { backgroundColor: t.surface }, active === 'admin' && styles.segOn]}
         >
-          <Text style={[styles.segLabel, { color: active === 'admin' ? t.text : t.text3, fontWeight: active === 'admin' ? '700' : '600' }]}>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+            style={[styles.segLabel, { color: active === 'admin' ? t.text : t.text3, fontWeight: active === 'admin' ? '700' : '600' }]}
+          >
             Admin
           </Text>
           {adminAttention > 0 ? (

@@ -1,25 +1,23 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
 import { attentionTotal } from '@noot/core';
 import { Ic, useTheme } from '@noot/ui';
-import { useMe } from './useMe';
 import { useAdminHubCounts } from './AdminTabs';
+import { useRoleSwitch } from './useRoleSwitch';
 
 export function AdminShortcut() {
-  const { isAdmin } = useMe();
-  return isAdmin ? <AdminShortcutButton /> : null;
+  const { isAdmin, openAdmin } = useRoleSwitch();
+  return isAdmin ? <AdminShortcutButton openAdmin={openAdmin} /> : null;
 }
 
-function AdminShortcutButton() {
+function AdminShortcutButton({ openAdmin }: { openAdmin: () => void }) {
   const t = useTheme();
-  const router = useRouter();
   const counts = useAdminHubCounts();
   const attention = counts ? attentionTotal(counts) : 0;
 
   return (
     <Pressable
-      onPress={() => router.push('/admin_home')}
+      onPress={openAdmin}
       style={[styles.btn, { backgroundColor: t.surface, borderColor: t.border }]}
       accessibilityRole="button"
       accessibilityLabel={attention > 0 ? `Noot Admin, ${attention} need a look` : 'Noot Admin'}

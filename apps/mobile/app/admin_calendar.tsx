@@ -5,13 +5,10 @@ import { api, type AdminCalendarEvent } from '@noot/core';
 import { Body, EmptyState, Ic, Screen, Skeleton, TabBar, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
-import { AdminLargeHeader, AdminRow, AdminSection, StatusDot } from '../lib/adminUi';
-import { INTERVIEW_MINUTES } from '../lib/interviewBlock';
+import { AdminLargeHeader, AdminRow, AdminSection, CalendarEventRow, eventColor, eventMuted } from '../lib/adminUi';
 import { dayKey, groupByDay, monthMatrix, monthRange } from '../lib/monthGrid';
 import { useTabNav } from '../lib/useTabNav';
 
-const INTERVIEW_INDIGO = '#5B6CC2';
-const WARNING_AMBER = '#C2783A';
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 type ViewMode = 'month' | 'week';
 
@@ -26,29 +23,6 @@ function firstOfMonth(date: Date): Date {
 function weekDates(date: Date): Date[] {
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate() - date.getDay());
   return Array.from({ length: 7 }, (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index));
-}
-
-function statusLabel(event: AdminCalendarEvent): string {
-  if (event.disputeStatus === 'flagged') return 'Disputed';
-  if (event.kind === 'interview') return 'Interview';
-  switch (event.status) {
-    case 'cancelled': return 'Cancelled';
-    case 'no_show': return 'No-show';
-    case 'pending': return 'Pending';
-    case 'confirmed': return 'Confirmed';
-    case 'completed': return 'Completed';
-    default: return event.status?.replaceAll('_', ' ') ?? 'Booking';
-  }
-}
-
-function eventMuted(event: AdminCalendarEvent): boolean {
-  return event.kind === 'booking' && (event.status === 'cancelled' || event.status === 'no_show');
-}
-
-function eventColor(event: AdminCalendarEvent, t: ReturnType<typeof useTheme>): string {
-  if (event.disputeStatus === 'flagged') return WARNING_AMBER;
-  if (event.kind === 'interview') return INTERVIEW_INDIGO;
-  return eventMuted(event) ? t.text3 : t.accent;
 }
 
 function AdminCalendarScreen() {
@@ -187,7 +161,7 @@ function AdminCalendarScreen() {
               const isToday = key === dayKey(today);
               const inMonth = date.getMonth() === visibleMonth.getMonth();
               const events = groupedEvents[key] ?? [];
-              const dots = events.filter((event) => event.kind === 'interview' || !eventMuted(event)).slice(0, 3);
+              const dots = events.filter((event) => event.kind === 'interview' || !eventMuted(event) || event.disputeStatus === 'flagged').slice(0, 3);
               return (
                 <Pressable
                   key={key}
@@ -209,7 +183,7 @@ function AdminCalendarScreen() {
                   </View>
                   <View style={styles.dots}>
                     {dots.map((event) => (
-                      <View key={`${event.kind}-${event.id}`} style={[styles.dot, { backgroundColor: event.kind === 'interview' ? INTERVIEW_INDIGO : t.accent }]} />
+                      <View key={`${event.kind}-${event.id}`} style={[styles.dot, { backgroundColor: eventColor(event, t) }]} />
                     ))}
                   </View>
                 </Pressable>
@@ -227,7 +201,7 @@ function AdminCalendarScreen() {
             onAction={() => void loadMonth(visibleMonth, true)}
           />
         ) : (
-          <AdminSection label={`${selectedLabel} · ${selectedEvents.length} ${selectedEvents.length === 1 ? 'event' : 'events'}`}>
+          <AdminSection label={currentLoading ? selectedLabel : `${selectedLabel} · ${selectedEvents.length} ${selectedEvents.length === 1 ? 'event' : 'events'}`}>
             {currentLoading ? (
               <View style={styles.skeletons}>
                 <Skeleton height={64} />
@@ -245,40 +219,6 @@ function AdminCalendarScreen() {
       </Body>
       <TabBar role="admin" active={active} onTab={onTab} />
     </Screen>
-  );
-}
-
-function CalendarEventRow({ event, onPress }: { event: AdminCalendarEvent; onPress: () => void }) {
-  const t = useTheme();
-  const muted = eventMuted(event);
-  const color = eventColor(event, t);
-  const time = new Date(event.startsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  const duration = event.kind === 'interview' ? `${INTERVIEW_MINUTES} min` : event.minutes ? `${event.minutes} min` : null;
-  const subtitle = event.kind === 'interview'
-    ? [event.details, event.tutorName].filter(Boolean).join(' · ') || 'Tutor interview'
-    : [event.studentName, event.tutorName].filter(Boolean).join(' → ');
-  const label = statusLabel(event);
-  return (
-    <AdminRow
-      leading={
-        <View style={styles.eventLeading}>
-          <Text style={[styles.eventTime, { color: t.text3 }]}>{time}</Text>
-          <View style={[styles.eventBar, { backgroundColor: color }]} />
-        </View>
-      }
-      title={event.title}
-      titleStyle={muted ? { textDecorationLine: 'line-through' } : undefined}
-      subtitle={subtitle}
-      muted={muted}
-      onPress={onPress}
-      accessibilityLabel={`${label}: ${event.title}, ${subtitle}, ${time}`}
-      trailing={
-        <View style={styles.eventTrailing}>
-          {duration ? <Text style={[styles.duration, { color: t.text3 }]}>{duration}</Text> : null}
-          <StatusDot label={label} color={color} />
-        </View>
-      }
-    />
   );
 }
 
@@ -302,11 +242,6 @@ const styles = StyleSheet.create({
   dots: { height: 8, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 3, marginTop: 1 },
   dot: { width: 4, height: 4, borderRadius: 2 },
   skeletons: { gap: 8, padding: 10 },
-  eventLeading: { width: 53, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  eventTime: { width: 39, fontSize: 10.5, fontVariant: ['tabular-nums'] },
-  eventBar: { width: 3, height: 29, borderRadius: 2 },
-  eventTrailing: { alignItems: 'flex-end', gap: 3 },
-  duration: { fontSize: 10 },
 });
 
 export default function AdminCalendar() {

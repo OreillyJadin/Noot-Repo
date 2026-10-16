@@ -6,9 +6,7 @@ import { Avatar, Body, Button, EmptyState, NavTop, Screen, Skeleton, useTheme } 
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
-import { AdminRow, AdminSection, StatusDot } from '../lib/adminUi';
-
-const WARNING_AMBER = '#C2783A';
+import { AdminRow, AdminSection, StatusDot, WARNING_AMBER } from '../lib/adminUi';
 
 function dateLabel(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });

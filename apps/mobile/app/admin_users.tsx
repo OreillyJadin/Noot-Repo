@@ -1,15 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { api, NO_SHOW_FLAG_AT, TUTOR_CANCEL_FLAG_OVER, type AdminUser, type AdminUserRole, type AdminUserStatus } from '@noot/core';
 import { Avatar, Body, Ic, Screen, Skeleton, TabBar, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
-import { AdminLargeHeader, AdminSection, AdminRow, StatusDot } from '../lib/adminUi';
+import { AdminLargeHeader, AdminSection, AdminRow, StatusDot, WARNING_AMBER } from '../lib/adminUi';
 import { useTabNav } from '../lib/useTabNav';
-
-const WARNING_AMBER = '#C2783A';
 
 const ROLES: [AdminUserRole | null, string][] = [
   [null, 'All'],
@@ -26,6 +24,10 @@ const STATUSES: [AdminUserStatus | null, string][] = [
   ['deleted', 'Deleted'],
 ];
 const PAGE = 30;
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 function dateLabel(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -46,6 +48,7 @@ function AdminUsersScreen() {
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<AdminUserRole | null>(null);
   const [status, setStatus] = useState<AdminUserStatus | null>(null);
+  const [statusExpanded, setStatusExpanded] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -108,14 +111,9 @@ function AdminUsersScreen() {
     }
   };
 
-  const chooseStatus = () => {
-    Alert.alert('Filter by status', undefined, [
-      ...STATUSES.map(([value, label]) => ({
-        text: `${status === value ? '✓ ' : ''}${label}`,
-        onPress: () => setStatus(value),
-      })),
-      { text: 'Cancel', style: 'cancel' as const },
-    ]);
+  const toggleStatus = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setStatusExpanded((expanded) => !expanded);
   };
 
   const filtered = !!search || role !== null || status !== null;
@@ -176,9 +174,10 @@ function AdminUsersScreen() {
             })}
           </ScrollView>
           <Pressable
-            onPress={chooseStatus}
+            onPress={toggleStatus}
             accessibilityRole="button"
             accessibilityLabel={`Status filter: ${STATUSES.find(([value]) => value === status)?.[1]}`}
+            accessibilityState={{ expanded: statusExpanded }}
             style={({ pressed }) => [styles.statusFilter, { opacity: pressed ? 0.65 : 1 }]}
           >
             <Ic name="sliders" size={16} color={t.text2} />
@@ -187,6 +186,33 @@ function AdminUsersScreen() {
             </Text>
           </Pressable>
         </View>
+        {statusExpanded ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.roleFilters}
+          >
+            {STATUSES.map(([value, label]) => {
+              const selected = status === value;
+              return (
+                <Pressable
+                  key={label}
+                  onPress={() => setStatus(value)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`${label} status filter`}
+                  style={({ pressed }) => [
+                    styles.roleFilter,
+                    selected ? { backgroundColor: t.text } : null,
+                    pressed && !selected ? { opacity: 0.65 } : null,
+                  ]}
+                >
+                  <Text style={[styles.roleLabel, { color: selected ? t.bg : t.text2 }]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
 
         {loading ? (
           <View style={styles.loadingRows}>
@@ -231,18 +257,18 @@ function AdminUsersScreen() {
                     leading={<Avatar size={40} label={initials(name)} />}
                     title={name}
                     subtitle={email}
-                    trailing={
-                      <View style={styles.userMeta}>
-                        <Text numberOfLines={1} style={[styles.roles, { color: t.text2 }]}>{roles}</Text>
-                        {warnings ? <Text numberOfLines={1} style={[styles.warning, { color: WARNING_AMBER }]}>{warnings}</Text> : null}
-                        {user.status !== 'active' ? (
-                          <StatusDot
-                            label={user.status[0]!.toUpperCase() + user.status.slice(1)}
-                            color={user.status === 'suspended' ? WARNING_AMBER : t.text3}
-                          />
-                        ) : null}
-                      </View>
+                    detail={
+                      <Text numberOfLines={1} style={styles.userDetail}>
+                        <Text style={{ color: t.text3 }}>{roles}</Text>
+                        {warnings ? <Text style={{ color: WARNING_AMBER }}> · {warnings}</Text> : null}
+                      </Text>
                     }
+                    trailing={user.status !== 'active' ? (
+                      <StatusDot
+                        label={user.status[0]!.toUpperCase() + user.status.slice(1)}
+                        color={user.status === 'suspended' ? WARNING_AMBER : t.text3}
+                      />
+                    ) : null}
                     accessibilityLabel={`${name}, ${email}, ${roles}`}
                     onPress={() => router.push(`/admin_user?id=${encodeURIComponent(user.id)}`)}
                   />
@@ -284,9 +310,7 @@ const styles = StyleSheet.create({
   loadingRows: { gap: 8 },
   countLabel: { fontSize: 12, fontWeight: '600' },
   emptyText: { fontSize: 13, marginTop: 8 },
-  userMeta: { width: 112, alignItems: 'flex-end', gap: 4 },
-  roles: { fontSize: 10.5, textAlign: 'right' },
-  warning: { fontSize: 10.5, fontWeight: '600', textAlign: 'right' },
+  userDetail: { fontSize: 10.5 },
   more: { padding: 13, alignItems: 'center' },
   moreText: { fontSize: 13, fontWeight: '600' },
 });
