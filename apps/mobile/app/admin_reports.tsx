@@ -10,6 +10,7 @@ import { api, type ContentReport } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
 import { AdminTabs, safetyTabs, useAdminHubCounts } from '../lib/AdminTabs';
+import { AdminMfaGate } from '../lib/AdminMfaGate';
 
 const REASON_LABEL: Record<string, string> = {
   harassment: 'Harassment',
@@ -23,7 +24,7 @@ function reportTargetName(report: ContentReport): string | undefined {
   return report.autoFlagged && report.targetKind === 'user' ? 'Deleted account' : report.targetName;
 }
 
-export default function AdminReports() {
+function AdminReportsScreen() {
   const t = useTheme();
   const router = useRouter();
   const { me, loading: meLoading, isAdmin } = useMe();
@@ -142,3 +143,11 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8, marginTop: 2 },
   empty: { paddingVertical: 28, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center' },
 });
+
+export default function AdminReports() {
+  return (
+    <AdminMfaGate>
+      <AdminReportsScreen />
+    </AdminMfaGate>
+  );
+}

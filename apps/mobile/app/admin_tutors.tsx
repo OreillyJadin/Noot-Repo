@@ -15,8 +15,9 @@ import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
 import { interviewLabel, nextInterviewSlots } from '../lib/interviewSlots';
 import { AdminTabs, tutorTabs, useAdminHubCounts } from '../lib/AdminTabs';
+import { AdminMfaGate } from '../lib/AdminMfaGate';
 
-export default function AdminTutors() {
+function AdminTutorsScreen() {
   const t = useTheme();
   const router = useRouter();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
@@ -386,3 +387,11 @@ const styles = StyleSheet.create({
   slot: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 11, borderWidth: 1 },
   slotText: { fontSize: 13, fontWeight: '700' },
 });
+
+export default function AdminTutors() {
+  return (
+    <AdminMfaGate>
+      <AdminTutorsScreen />
+    </AdminMfaGate>
+  );
+}

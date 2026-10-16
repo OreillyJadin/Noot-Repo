@@ -8,6 +8,7 @@ import { Screen, NavTop, Body, Card, Button, Badge, Eyebrow, EmptyState, Skeleto
 import { api, type AdminBooking } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { AdminTabs, safetyTabs, useAdminHubCounts } from '../lib/AdminTabs';
+import { AdminMfaGate } from '../lib/AdminMfaGate';
 
 function when(iso: string): string {
   const d = new Date(iso);
@@ -17,7 +18,7 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   confirmed: 'good', completed: 'accentSoft', cancelled: 'neutral', pending: 'neutral', no_show: 'neutral',
 };
 
-export default function AdminBookings() {
+function AdminBookingsScreen() {
   const t = useTheme();
   const router = useRouter();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
@@ -116,3 +117,11 @@ const styles = StyleSheet.create({
   noDispute: { fontSize: 12.5 },
   reason: { fontSize: 12, marginTop: 8 },
 });
+
+export default function AdminBookings() {
+  return (
+    <AdminMfaGate>
+      <AdminBookingsScreen />
+    </AdminMfaGate>
+  );
+}
