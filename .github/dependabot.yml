@@ -1,0 +1,38 @@
+# Dependency updates. Security updates (Settings → Code security → Dependabot security
+# updates) are separate from these version updates and are not affected by the ignore list.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    # The web marketing site is out of scope (CLAUDE.md "Current scope").
+    exclude-paths:
+      - "apps/web/**"
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    # Expo SDK-managed packages move only with an Expo SDK upgrade (`npx expo install --fix`),
+    # never one at a time. react-native-worklets / react-native-reanimated are pinned on
+    # purpose (CLAUDE.md "Local environment gotchas"); react-native-* covers them.
+    ignore:
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "@react-native/*"
+      - dependency-name: "@react-native-async-storage/*"
+      - dependency-name: "@stripe/stripe-react-native"
+      - dependency-name: "@types/react"
+      - dependency-name: "@types/react-dom"
