@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { api, type AdminCalendarEvent } from '@noot/core';
@@ -32,11 +32,13 @@ function AdminCalendarScreen() {
   const { active, onTab } = useTabNav({ scrollRef: bodyRef });
   const { me, loading: meLoading } = useMe();
   const isAdmin = !!me?.roles?.includes('admin');
-  const [today] = useState(() => new Date());
+  const [today, setToday] = useState(() => new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const [visibleMonth, setVisibleMonth] = useState(firstOfMonth(today));
   const [mode, setMode] = useState<ViewMode>('month');
   const cache = useRef<Record<string, AdminCalendarEvent[]>>({});
+  const gen = useRef<Record<string, number>>({});
+  const visibleMonthRef = useRef(visibleMonth);
   const [calendarCache, setCalendarCache] = useState<Record<string, AdminCalendarEvent[]>>({});
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
   const [errorKey, setErrorKey] = useState<string | null>(null);
@@ -44,23 +46,35 @@ function AdminCalendarScreen() {
   const loadMonth = useCallback(async (date: Date, force = false) => {
     const key = monthKey(date);
     if (!force && cache.current[key]) return;
+    const generation = (gen.current[key] ?? 0) + 1;
+    gen.current[key] = generation;
     setLoadingKey(key);
-    setErrorKey(null);
+    setErrorKey((current) => current === key ? null : current);
     const range = monthRange(date.getFullYear(), date.getMonth());
     try {
       const events = await api.admin.calendar(range.fromIso, range.toIso);
+      if (gen.current[key] !== generation) return;
       cache.current[key] = events;
       setCalendarCache((previous) => ({ ...previous, [key]: events }));
+      setErrorKey((current) => current === key ? null : current);
     } catch {
-      setErrorKey(key);
+      if (gen.current[key] === generation) setErrorKey(key);
     } finally {
-      setLoadingKey((current) => current === key ? null : current);
+      if (gen.current[key] === generation) {
+        setLoadingKey((current) => current === key ? null : current);
+      }
     }
   }, []);
 
+  useEffect(() => {
+    visibleMonthRef.current = visibleMonth;
+    void loadMonth(visibleMonth);
+  }, [loadMonth, visibleMonth]);
+
   useFocusEffect(useCallback(() => {
-    void loadMonth(visibleMonth, true);
-  }, [loadMonth, visibleMonth]));
+    setToday(new Date());
+    void loadMonth(visibleMonthRef.current, true);
+  }, [loadMonth]));
 
   if (!meLoading && me && !isAdmin) {
     router.replace('/home');
@@ -68,12 +82,14 @@ function AdminCalendarScreen() {
   }
 
   const selectedKey = dayKey(selectedDate);
-  const monthEvents = calendarCache[monthKey(visibleMonth)] ?? [];
+  const currentMonthKey = monthKey(visibleMonth);
+  const hasCachedMonth = Object.prototype.hasOwnProperty.call(calendarCache, currentMonthKey);
+  const monthEvents = calendarCache[currentMonthKey] ?? [];
   const groupedEvents = groupByDay(monthEvents);
   const selectedEvents = groupedEvents[selectedKey] ?? [];
   const cells = mode === 'month' ? monthMatrix(visibleMonth.getFullYear(), visibleMonth.getMonth()).flat() : weekDates(selectedDate);
-  const currentLoading = loadingKey === monthKey(visibleMonth);
-  const currentError = errorKey === monthKey(visibleMonth);
+  const currentLoading = loadingKey === currentMonthKey && !hasCachedMonth;
+  const currentError = errorKey === currentMonthKey && !hasCachedMonth;
   const monthLabel = visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   const selectedLabel = selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 
@@ -88,8 +104,10 @@ function AdminCalendarScreen() {
     setVisibleMonth(firstOfMonth(next));
   };
   const jumpToday = () => {
-    setSelectedDate(today);
-    setVisibleMonth(firstOfMonth(today));
+    const now = new Date();
+    setToday(now);
+    setSelectedDate(now);
+    setVisibleMonth(firstOfMonth(now));
   };
 
   return (
@@ -98,7 +116,7 @@ function AdminCalendarScreen() {
         ref={bodyRef}
         pad={20}
         contentStyle={styles.content}
-        onRefresh={() => void loadMonth(visibleMonth, true)}
+        onRefresh={() => loadMonth(visibleMonth, true)}
       >
         <AdminLargeHeader
           title="Calendar"

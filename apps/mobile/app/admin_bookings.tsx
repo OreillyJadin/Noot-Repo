@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { api, type AdminBooking } from '@noot/core';
 import { Body, EmptyState, NavTop, Screen, Skeleton, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
@@ -35,12 +35,16 @@ function AdminBookingsScreen() {
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const tab = tabParam === 'disputes' ? 'disputes' : 'all';
   const { me, loading: meLoading } = useMe();
-  const [today] = useState(() => new Date());
+  const [today, setToday] = useState(() => new Date());
   const isAdmin = !!me?.roles?.includes('admin');
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const counts = useAdminHubCounts();
+
+  useFocusEffect(useCallback(() => {
+    setToday(new Date());
+  }, []));
 
   useEffect(() => {
     let alive = true;
@@ -147,13 +151,15 @@ function BookingRow({
   const action = booking.disputeStatus === 'none' ? 'Flag' : booking.disputeStatus === 'flagged' ? 'Resolve' : null;
   const color = booking.disputeStatus === 'flagged' ? '#C2783A' : statusColor(booking.status, t);
   const amount = `$${(booking.price + booking.studentFee).toFixed(2).replace(/\.00$/, '')}`;
-  const subtitle = disputedOnly && booking.disputeReason
-    ? `${booking.subject} · ${when(booking.scheduledAt)} · ${booking.disputeReason}`
-    : `${booking.subject} · ${when(booking.scheduledAt)}`;
+  const subtitle = `${booking.subject} · ${when(booking.scheduledAt)}`;
   return (
     <AdminRow
       title={`${booking.studentName} → ${booking.tutorName}`}
       subtitle={subtitle}
+      subtitleLines={disputedOnly ? 0 : 1}
+      detail={disputedOnly && booking.disputeReason
+        ? <Text style={[styles.reason, { color: t.text2 }]}>{booking.disputeReason}</Text>
+        : undefined}
       trailing={
         <View style={styles.trailing}>
           <Text style={[styles.amount, { color: t.text }]}>{amount}</Text>
@@ -186,6 +192,7 @@ const styles = StyleSheet.create({
   countLine: { fontSize: 12, fontWeight: '600' },
   trailing: { alignItems: 'flex-end', gap: 5, minWidth: 62 },
   amount: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  reason: { fontSize: 12, lineHeight: 17 },
   action: { paddingVertical: 2, paddingHorizontal: 4 },
   actionText: { fontSize: 11.5, fontWeight: '700' },
 });

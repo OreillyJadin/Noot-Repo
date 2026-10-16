@@ -1820,37 +1820,52 @@ export const api = {
 
     async calendar(fromIso: string, toIso: string): Promise<AdminCalendarEvent[]> {
       const sb = getSupabase();
-      const [bookingsResult, interviewsResult] = await Promise.all([
-        sb
+      const fetchPages = async <T,>(
+        query: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+      ): Promise<T[]> => {
+        const rows: T[] = [];
+        for (let from = 0; ; from += 1000) {
+          const { data, error } = await query(from, from + 999);
+          if (error) throw error;
+          const page = data ?? [];
+          rows.push(...page);
+          if (page.length < 1000) return rows;
+        }
+      };
+      const [bookings, interviews] = await Promise.all([
+        fetchPages((from, to) => sb
           .from('bookings')
           .select('id, student_id, tutor_id, subject, scheduled_at, duration_minutes, status, dispute_status')
           .gte('scheduled_at', fromIso)
           .lt('scheduled_at', toIso)
           .order('scheduled_at', { ascending: true })
-          .limit(500),
-        sb
+          .order('id', { ascending: true })
+          .range(from, to)),
+        fetchPages((from, to) => sb
           .from('tutor_interviews')
           .select('id, tutor_id, scheduled_at, details')
           .is('cancelled_at', null)
           .gte('scheduled_at', fromIso)
           .lt('scheduled_at', toIso)
-          .order('scheduled_at', { ascending: true }),
+          .order('scheduled_at', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to)),
       ]);
-      if (bookingsResult.error) throw bookingsResult.error;
-      if (interviewsResult.error) throw interviewsResult.error;
 
-      const bookings = bookingsResult.data ?? [];
-      const interviews = interviewsResult.data ?? [];
       const ids = [
         ...new Set([
           ...bookings.flatMap((booking) => [booking.student_id, booking.tutor_id]),
           ...interviews.map((interview) => interview.tutor_id),
         ]),
       ];
-      const { data: users, error: usersError } = ids.length
-        ? await sb.from('users').select('id, first_name, last_name').in('id', ids)
-        : { data: [], error: null };
-      if (usersError) throw usersError;
+      const userResults = await Promise.all(
+        Array.from({ length: Math.ceil(ids.length / 200) }, (_, index) => ids.slice(index * 200, (index + 1) * 200))
+          .map((userIds) => sb.from('users').select('id, first_name, last_name').in('id', userIds)),
+      );
+      for (const { error } of userResults) {
+        if (error) throw error;
+      }
+      const users = userResults.flatMap(({ data }) => data ?? []);
 
       const nameById = new Map(
         (users ?? []).map((user) => [
@@ -1887,7 +1902,7 @@ export const api = {
           disputeStatus: null,
           details: interview.details,
         })),
-      ].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+      ].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt) || a.id.localeCompare(b.id));
     },
 
     /** Flag or resolve a booking dispute (resolve-dispute Edge Function). */
