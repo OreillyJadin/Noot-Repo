@@ -20,8 +20,8 @@ import { useApp } from './store';
 // remember the user's place per mode without a mid-switch transient (role changed but
 // the old route still mounted) recording a route under the wrong mode.
 const ROLE_TABS: Record<string, string[]> = {
-  student: ['home', 'student_home', 'sessions', 'profile'],
-  tutor: ['tutor_home', 'tutor_calendar', 'tutor_sessions', 'tutor_profile'],
+  student: ['home', 'student_home', 'sessions', 'chats', 'profile'],
+  tutor: ['tutor_home', 'tutor_calendar', 'tutor_sessions', 'chats', 'tutor_profile'],
   ambassador: ['ambassador_home', 'ambassador_referrals', 'profile'],
 };
 

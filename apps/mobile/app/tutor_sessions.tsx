@@ -88,20 +88,25 @@ export default function TutorSessions() {
     router.push('/tb2');
   };
 
+  // A pending request opens its chat — the student's intro message is already
+  // there (confirm-booking created it), so the tutor can read it before deciding.
+  const openChat = (r: SessionRow) => {
+    patchBooking(draftFromBooking(r.booking));
+    router.push('/chat_tutor');
+  };
+
   const acceptRequest = async (id: string) => {
     if (busyId) return;
     setBusyId(id);
     try {
       await api.bookings.respond({ bookingId: id, action: 'accept' });
       const acceptedAt = new Date().toISOString();
+      const row = upcoming.find((r) => r.id === id);
       setUpcoming((rows) => rows.map((r) => r.id === id
-        ? {
-          ...r,
-          status: 'confirmed',
-          booking: { ...r.booking, status: 'confirmed', acceptedAt },
-        }
+        ? { ...r, status: 'confirmed', booking: { ...r.booking, status: 'confirmed', acceptedAt } }
         : r));
-      Alert.alert('Session confirmed', 'The student has been notified.');
+      // Land in the thread: accepting means the session + its chat exist now.
+      if (row) openChat({ ...row, status: 'confirmed', booking: { ...row.booking, status: 'confirmed', acceptedAt } });
     } catch (e) {
       Alert.alert('Could not accept request', e instanceof Error ? e.message : 'Please try again.');
     } finally {
@@ -166,7 +171,7 @@ export default function TutorSessions() {
           ) : (
             <View style={{ gap: 10 }}>
               {upcoming.map((r) => (
-                <Card key={r.id} onPress={r.status === 'pending' ? undefined : () => openDetail(r)} style={{ padding: 14 }}>
+                <Card key={r.id} onPress={() => (r.status === 'pending' ? openChat(r) : openDetail(r))} style={{ padding: 14 }}>
                   <View style={styles.upcomingRow}>
                     <Avatar size={44} label={r.av} />
                     <View style={{ flex: 1, minWidth: 0 }}>
