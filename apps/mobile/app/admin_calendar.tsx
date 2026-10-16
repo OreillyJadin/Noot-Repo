@@ -83,12 +83,13 @@ function AdminCalendarScreen() {
 
   const selectedKey = dayKey(selectedDate);
   const currentMonthKey = monthKey(visibleMonth);
-  const monthEvents = calendarCache[currentMonthKey] ?? cache.current[currentMonthKey] ?? [];
+  const hasCachedMonth = Object.prototype.hasOwnProperty.call(calendarCache, currentMonthKey);
+  const monthEvents = calendarCache[currentMonthKey] ?? [];
   const groupedEvents = groupByDay(monthEvents);
   const selectedEvents = groupedEvents[selectedKey] ?? [];
   const cells = mode === 'month' ? monthMatrix(visibleMonth.getFullYear(), visibleMonth.getMonth()).flat() : weekDates(selectedDate);
-  const currentLoading = loadingKey === currentMonthKey && !cache.current[currentMonthKey];
-  const currentError = errorKey === currentMonthKey && !cache.current[currentMonthKey];
+  const currentLoading = loadingKey === currentMonthKey && !hasCachedMonth;
+  const currentError = errorKey === currentMonthKey && !hasCachedMonth;
   const monthLabel = visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   const selectedLabel = selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 

@@ -112,13 +112,11 @@ function AdminUserScreen() {
       await api.admin.setUserStatus(targetId, next);
       if (currentUserId.current === targetId) {
         setHistory((previous) => previous?.user?.id === targetId
-        ? { ...previous, user: { ...previous.user, status: next } }
-        : previous);
+          ? { ...previous, user: { ...previous.user, status: next } }
+          : previous);
       }
-      try {
-        const refreshed = await api.admin.userHistory(targetId);
-        if (currentUserId.current === targetId) setHistory(refreshed);
-      } catch {}
+      const refreshed = await api.admin.userHistory(targetId).catch(() => null);
+      if (refreshed && currentUserId.current === targetId) setHistory(refreshed);
     } catch (error) {
       Alert.alert('Could not update', errText(error, 'Please try again.'));
     } finally {
