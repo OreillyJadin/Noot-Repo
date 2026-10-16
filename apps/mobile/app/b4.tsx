@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
 import { useStripe } from '@stripe/stripe-react-native';
 import Constants from 'expo-constants';
-import { api, creditToApply } from '@noot/core';
+import { api, creditToApply, studentFeeFor } from '@noot/core';
 import { useApp } from '../lib/store';
 import { DAYS, MONTHS } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
@@ -45,16 +45,17 @@ function B4Inner() {
   const dollars = (cents: number) => (cents / 100).toFixed(2).replace(/\.00$/, '');
   const costCents = Math.round((rate * lengthMin * 100) / 60);
   const cost = dollars(costCents);
-  // Noot credit comes off automatically. Display only — create-payment-intent applies the
-  // same rule to the real balance, and the payment sheet shows what's actually charged.
+  const feeCents = Math.round(studentFeeFor(costCents / 100) * 100);
+  // Noot credit comes off the session price plus service fee. Display only —
+  // create-payment-intent applies the same rule to the real balance.
   const [balanceCents, setBalanceCents] = useState(0);
   useEffect(() => {
     let alive = true;
     api.credits.balance().then((b) => { if (alive) setBalanceCents(b); }).catch(() => {});
     return () => { alive = false; };
   }, []);
-  const creditCents = creditToApply(balanceCents, costCents);
-  const due = dollars(costCents - creditCents);
+  const creditCents = creditToApply(balanceCents, costCents + feeCents);
+  const due = dollars(costCents + feeCents - creditCents);
 
   const rows: [string, string][] = [
     ['Tutor', tutor.name],
@@ -178,6 +179,10 @@ function B4Inner() {
           <View style={styles.rowBetween}>
             <Text style={{ fontSize: 14, color: t.text2 }}>Session · {lenLabel}</Text>
             <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>${cost}</Text>
+          </View>
+          <View style={styles.rowBetween}>
+            <Text style={{ fontSize: 14, color: t.text2 }}>Service fee</Text>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>${dollars(feeCents)}</Text>
           </View>
           {creditCents > 0 ? (
             <View style={[styles.rowBetween, { marginTop: 10 }]}>

@@ -26,7 +26,7 @@ import {
   HeroIcon,
   useTheme,
 } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, studentFeeFor } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
 import { DAYS, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
@@ -98,6 +98,9 @@ function XStudentCancelInner() {
   const { booking } = useApp();
   const tutor = booking.tutor!;
   const cost = baseCost(booking, tutor);
+  const sessionPrice = booking.price ?? cost;
+  const studentFee = booking.studentFee ?? studentFeeFor(sessionPrice);
+  const studentPaid = sessionPrice + studentFee - (booking.creditApplied ?? 0);
   // Which tier actually applies, from the booked start time. No session time (an older draft
   // that never carried one) → no tier is highlighted rather than guessing a favourable one.
   const hoursUntil = booking.scheduledAt
@@ -110,8 +113,8 @@ function XStudentCancelInner() {
   // When a real booking is cancelled, the server decides the refund %; prefer it.
   const [serverRefund, setServerRefund] = useState<number | null>(null);
   const tobj = TIERS.find((x) => x.id === tier) ?? null;
-  const tierRefund = tobj ? cost * tobj.refundPct : null;
-  const refund = serverRefund ?? (booking.status === 'pending' ? cost : tierRefund);
+  const tierRefund = tobj ? studentPaid * tobj.refundPct : null;
+  const refund = serverRefund ?? (booking.status === 'pending' ? studentPaid : tierRefund);
 
   const onCancel = async () => {
     // Demo path: no real booking (e.g. reached via the dev launcher) — keep tier UI.
@@ -122,7 +125,7 @@ function XStudentCancelInner() {
     setSubmitting(true);
     try {
       const res = await api.bookings.cancel(booking.bookingId);
-      setServerRefund(cost * (res.refundPercent / 100));
+      setServerRefund(studentPaid * (res.refundPercent / 100));
       setDone(true);
     } catch (e) {
       Alert.alert(
@@ -204,12 +207,12 @@ function XStudentCancelInner() {
           <View style={{ gap: 10 }}>
             <View style={styles.rowBetween}>
               <Text style={{ fontSize: 14, color: t.text2 }}>You paid</Text>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>{money(cost)}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>{money(studentPaid)}</Text>
             </View>
             <View style={styles.rowBetween}>
               <Text style={{ fontSize: 14, color: t.text2 }}>Paid to tutor</Text>
               <Text style={{ fontSize: 14, fontWeight: '600', color: t.text3 }}>
-                {tobj ? money(cost * tobj.tutorPct) : '—'}
+                {tobj ? money(sessionPrice * tobj.tutorPct) : '—'}
               </Text>
             </View>
           </View>

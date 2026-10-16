@@ -20,6 +20,9 @@ export interface BookingDraft {
    *  Optional — when absent, useCounterpart falls back to the first booking counterparty. */
   studentId?: string;
   course?: string;
+  price?: number;
+  studentFee?: number;
+  creditApplied?: number;
   /** ISO time of the real booking. Drives the live cancellation refund tier. */
   scheduledAt?: string;
   acceptBy?: string | null;
