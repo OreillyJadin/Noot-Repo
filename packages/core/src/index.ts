@@ -58,5 +58,6 @@ export {
   type AdminUserStatus,
   type AdminReview,
   type AdminBooking,
+  type AdminCalendarEvent,
 } from './api';
 export { initSupabase, getSupabase, type SupabaseConfig } from './supabase';

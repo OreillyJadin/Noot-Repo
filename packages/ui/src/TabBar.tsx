@@ -27,17 +27,23 @@ const AMBASSADOR: Tab[] = [
   { label: 'Referrals', icon: 'gift', key: 'ambassador_referrals' },
   { label: 'Profile', icon: 'user', key: 'profile' },
 ];
+const ADMIN: Tab[] = [
+  { label: 'Hub', icon: 'shield', key: 'admin_home' },
+  { label: 'Calendar', icon: 'cal', key: 'admin_calendar' },
+  { label: 'Users', icon: 'user', key: 'admin_users' },
+];
 
 export interface TabBarProps {
   active: string;
   onTab: (key: string) => void;
-  role?: 'student' | 'tutor' | 'ambassador';
+  role?: 'student' | 'tutor' | 'ambassador' | 'admin';
 }
 
-const TAB_SETS: Record<'student' | 'tutor' | 'ambassador', Tab[]> = {
+const TAB_SETS: Record<'student' | 'tutor' | 'ambassador' | 'admin', Tab[]> = {
   student: STUDENT,
   tutor: TUTOR,
   ambassador: AMBASSADOR,
+  admin: ADMIN,
 };
 
 export function TabBar({ active, onTab, role = 'student' }: TabBarProps) {

@@ -28,11 +28,15 @@ export function safetyTabs(counts?: AdminHubCounts): AdminTab[] {
   ];
 }
 
-export function useAdminHubCounts(): AdminHubCounts | undefined {
+export function useAdminHubCounts(enabled = true): AdminHubCounts | undefined {
   const [counts, setCounts] = useState<AdminHubCounts>();
 
   useFocusEffect(
     useCallback(() => {
+      if (!enabled) {
+        setCounts(undefined);
+        return;
+      }
       let alive = true;
       setCounts(undefined);
       api.admin
@@ -40,10 +44,10 @@ export function useAdminHubCounts(): AdminHubCounts | undefined {
         .then((value) => { if (alive) setCounts(value); })
         .catch(() => { if (alive) setCounts(undefined); });
       return () => { alive = false; };
-    }, []),
+    }, [enabled]),
   );
 
-  return counts;
+  return enabled ? counts : undefined;
 }
 
 export function AdminTabs({ tabs, active }: { tabs: AdminTab[]; active: string }) {

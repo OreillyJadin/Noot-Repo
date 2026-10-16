@@ -1,12 +1,13 @@
 // Role switcher + "Viewing as" indicator for the multi-role experience. A user can hold
 // student / tutor / ambassador simultaneously; these are pure presentational components —
-// the screen wires onSelect to persist active_role and swap the home. Admin is NOT a mode
-// and never appears here (it's a separate gated entry point).
+// the screen wires onSelect to persist active_role and swap the home. Admin is a gated
+// entry point here, not a persisted active_role.
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from './ThemeProvider';
 
 export type SwitchableRole = 'student' | 'tutor' | 'ambassador';
+export type SwitcherTarget = SwitchableRole | 'admin';
 
 const LABELS: Record<SwitchableRole, string> = {
   student: 'Student',
@@ -24,15 +25,24 @@ export interface RoleSwitcherProps {
    * review). Shown with a dot to mark them as a preview.
    */
   previewRoles?: string[];
-  active: SwitchableRole;
-  onSelect: (role: SwitchableRole) => void;
+  showAdmin?: boolean;
+  adminAttention?: number;
+  active: SwitcherTarget;
+  onSelect: (role: SwitcherTarget) => void;
 }
 
 /** Segmented control of the modes. Renders null only if there's genuinely nothing to switch. */
-export function RoleSwitcher({ roles, previewRoles = [], active, onSelect }: RoleSwitcherProps) {
+export function RoleSwitcher({
+  roles,
+  previewRoles = [],
+  showAdmin = false,
+  adminAttention = 0,
+  active,
+  onSelect,
+}: RoleSwitcherProps) {
   const t = useTheme();
   const shown = ORDER.filter((r) => roles.includes(r) || previewRoles.includes(r));
-  if (shown.length < 2) return null;
+  if (shown.length + (showAdmin ? 1 : 0) < 2) return null;
   return (
     <View style={[styles.switcher, { backgroundColor: t.surface2 }]}>
       {shown.map((r) => {
@@ -54,6 +64,25 @@ export function RoleSwitcher({ roles, previewRoles = [], active, onSelect }: Rol
           </Pressable>
         );
       })}
+      {showAdmin ? (
+        <Pressable
+          key="admin"
+          onPress={() => active !== 'admin' && onSelect('admin')}
+          accessibilityRole="button"
+          accessibilityState={{ selected: active === 'admin' }}
+          accessibilityLabel={`Open Noot Admin${adminAttention > 0 ? `, ${adminAttention} ${adminAttention === 1 ? 'needs' : 'need'} a look` : ''}`}
+          style={[styles.seg, active === 'admin' && { backgroundColor: t.surface }, active === 'admin' && styles.segOn]}
+        >
+          <Text style={[styles.segLabel, { color: active === 'admin' ? t.text : t.text3, fontWeight: active === 'admin' ? '700' : '600' }]}>
+            Admin
+          </Text>
+          {adminAttention > 0 ? (
+            <View style={[styles.attentionBadge, { backgroundColor: t.accentWeak }]}>
+              <Text style={[styles.attentionText, { color: t.accent }]}>{adminAttention > 9 ? '9+' : adminAttention}</Text>
+            </View>
+          ) : null}
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -106,6 +135,8 @@ const styles = StyleSheet.create({
   switcher: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 14 },
   seg: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: 10 },
   previewDot: { width: 5, height: 5, borderRadius: 2.5, opacity: 0.7 },
+  attentionBadge: { minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  attentionText: { fontSize: 10, fontWeight: '700' },
   segOn: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   segLabel: { fontSize: 13.5 },
   pill: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },

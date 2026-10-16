@@ -1,9 +1,8 @@
-// Central role-switch logic shared by the profile screens (and anywhere else that
-// switches mode). Persists the choice to users.active_role, updates local app state,
-// and swaps to that role's home. Admin is never a switch target — it's a separate gated
-// entry point, so it's filtered out of the roles offered.
+// Central role-switch logic shared by the profile screens. Switchable modes persist to
+// users.active_role; Admin is a gated entry point that leaves the current mode unchanged.
 import { useRouter } from 'expo-router';
 import { api } from '@noot/core';
+import type { SwitcherTarget } from '@noot/ui';
 import { useApp, type Role } from './store';
 import { useMe } from './useMe';
 import { previewRolesFor } from './roleTabs';
@@ -18,7 +17,7 @@ export function useRoleSwitch() {
   const router = useRouter();
   const { role, setRole, lastRouteByRole } = useApp();
   const { me, isAdmin, tutorStatus } = useMe();
-  // Roles the user actually holds; default to student until loaded. Admin is not switchable.
+  // Roles the user actually holds; default to student until loaded.
   const roles = (me?.roles ?? ['student']).filter((r): r is Role => r === 'student' || r === 'tutor' || r === 'ambassador');
   // Modes shown without holding the role yet — only a submitted tutor application (see roleTabs).
   const previewRoles = previewRolesFor(roles, role, tutorStatus);
@@ -48,6 +47,20 @@ export function useRoleSwitch() {
     router.replace(dest as never);
   };
 
+  const openAdmin = () => {
+    router.push('/admin_home');
+  };
+
+  const exitAdmin = () => {
+    const dest = lastRouteByRole[role] ?? HOME[role];
+    router.replace(dest as never);
+  };
+
+  const select = (target: SwitcherTarget) => {
+    if (target === 'admin') openAdmin();
+    else void switchTo(target);
+  };
+
   return {
     roles,
     previewRoles,
@@ -56,5 +69,8 @@ export function useRoleSwitch() {
     /** True when the CURRENT mode is one the user is only previewing. */
     previewing: !roles.includes(role),
     switchTo,
+    openAdmin,
+    exitAdmin,
+    select,
   };
 }
