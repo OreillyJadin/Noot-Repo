@@ -192,7 +192,9 @@ try {
   const reminderDeadline = hoursFromNow(30);
   const { error: reminderInsertError } = await admin.from('bookings').insert({
     id: reminderId, student_id: studentId, tutor_id: tutorId, subject: courseCode,
-    scheduled_at: hoursFromNow(120), duration_minutes: 60, price: 30, platform_fee: 5.25,
+    // 0063 forbids two live bookings for one tutor at once — the pending request at +120h
+    // still holds that hour, so the reminder fixture uses +126h.
+    scheduled_at: hoursFromNow(126), duration_minutes: 60, price: 30, platform_fee: 5.25,
     tutor_payout_amount: 24.75, session_type: 'in_person', status: 'pending',
     created_at: new Date(Date.now() - 3 * 3_600_000).toISOString(), accept_by: reminderDeadline,
     cancellation_deadline: hoursFromNow(108), refund_status: 'not_applicable',

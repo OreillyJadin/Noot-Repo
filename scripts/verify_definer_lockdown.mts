@@ -38,7 +38,8 @@ if (!hasRlsAuto) {
 // when it exists locally.
 const triggerFns: string[] = [
   'handle_new_user', 'enforce_active_role', 'notify_on_booking', 'notify_on_message',
-  'on_ambassador_approved', 'on_ambassador_role_added', 'set_updated_at', 'log_admin_write',
+  'on_ambassador_approved', 'on_ambassador_role_added', 'set_updated_at',
+  'set_booking_scheduled_end', 'log_admin_write',
   ...(hasRlsAuto ? ['rls_auto_enable'] : []),
 ]
 // Other locked-down functions, with dummy args of the right types.
