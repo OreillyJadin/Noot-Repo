@@ -13,6 +13,7 @@ import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
+import { AdminShortcut } from '../lib/AdminShortcut';
 import { NotificationBell } from '../lib/NotificationBell';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { formatSessionTime } from '../lib/formatSessionTime';
@@ -187,6 +188,7 @@ export default function TutorHome() {
             {/* Verified = grades checked by an admin (T6), not merely approved. */}
             {tutorStatus === 'approved' && gradesVerified ? <Badge label="✓ Verified" tone="good" /> : null}
             {tutorStatus === 'pending' ? <Badge label="In review" tone="accentSoft" /> : null}
+            <AdminShortcut />
             <NotificationBell />
           </View>
         </View>
