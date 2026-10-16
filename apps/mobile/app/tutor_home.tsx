@@ -117,9 +117,9 @@ export default function TutorHome() {
           ? accepted
           : current,
       );
-      // Straight into the thread: the session's chat (with the student's first
-      // message) already exists, so accepting lands the tutor in it.
-      openRequestChat(accepted);
+      // Accept → straight into the conversation confirm-booking created at booking time.
+      patchBooking(draftFromBooking(accepted));
+      router.push('/chat_tutor');
     } catch (e) {
       Alert.alert('Could not accept request', e instanceof Error ? e.message : 'Please try again.');
     } finally {

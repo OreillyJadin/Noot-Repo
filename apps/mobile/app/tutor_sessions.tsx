@@ -105,8 +105,11 @@ export default function TutorSessions() {
       setUpcoming((rows) => rows.map((r) => r.id === id
         ? { ...r, status: 'confirmed', booking: { ...r.booking, status: 'confirmed', acceptedAt } }
         : r));
-      // Land in the thread: accepting means the session + its chat exist now.
-      if (row) openChat({ ...row, status: 'confirmed', booking: { ...row.booking, status: 'confirmed', acceptedAt } });
+      // Accept → straight into the conversation confirm-booking created at booking time.
+      if (row) {
+        patchBooking(draftFromBooking({ ...row.booking, status: 'confirmed', acceptedAt }));
+        router.push('/chat_tutor');
+      }
     } catch (e) {
       Alert.alert('Could not accept request', e instanceof Error ? e.message : 'Please try again.');
     } finally {

@@ -4,8 +4,9 @@ import type { Tutor } from './data';
 import { draftFromBooking } from './bookingDraft';
 import type { BookingDraft, Role } from './store';
 
+// 'New session request' is deliberately NOT here: the request can only be accepted from
+// the sessions surface, so its notice lands on /tutor_sessions — the chat has no accept UI.
 export const BOOKING_CHAT_NOTIFICATION_TITLES = new Set([
-  'New session request',
   'New session booked',
   'Session confirmed',
 ]);

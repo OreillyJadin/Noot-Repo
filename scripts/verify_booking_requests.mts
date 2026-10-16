@@ -139,6 +139,18 @@ try {
   step('tutor accepts and student is notified', accepted.status === 200 && acceptedRow?.status === 'confirmed' && !!acceptedRow.accepted_at && await notification(studentId, bookingId, 'Session confirmed'));
   step('repeated acceptance returns 409', repeated.status === 409, `HTTP ${repeated.status}`);
 
+  // The surfaces the tutor lands on after accepting: the session must show in their
+  // upcoming list, and the conversation must already hold the student's booking message.
+  await auth.signInWithPassword(tutor.email as string, 'password123');
+  const tutorUpcoming = await api.listUpcoming('tutor');
+  step('accepted session shows in the tutor upcoming list',
+    tutorUpcoming.some((b) => b.id === bookingId && b.status === 'confirmed'));
+  const tutorConversation = await api.chat.getConversationWithStudent(studentId);
+  const opening = await api.chat.listMessages(tutorConversation.id);
+  step("student's booking message is already in the chat",
+    opening.some((m) => m.senderId === studentId && /ERR-039 verification/.test(m.content ?? '')));
+  await auth.signInWithPassword(studentEmail, PASSWORD);
+
   stage = 'verify tutor decline and credit return';
   const declineAt = hoursFromNow(96);
   await admin.from('credit_ledger').insert({ user_id: studentId, amount_cents: 500, kind: 'adjustment' });
