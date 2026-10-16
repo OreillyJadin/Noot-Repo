@@ -221,9 +221,10 @@ Deno.serve(async (req) => {
     const cancellationDeadline = cancellationDeadlineFor(new Date(resolved.scheduledAt)).toISOString();
     const acceptBy = acceptDeadline(Date.now(), new Date(resolved.scheduledAt).getTime()).toISOString();
 
-    const { data: booking, error: bookingError } = await db
-      .from('bookings')
-      .insert({
+    const insertBooking = () =>
+      db
+        .from('bookings')
+        .insert({
         student_id: studentId,
         tutor_id: resolved.tutorId,
         subject: resolved.courseCode,
@@ -246,6 +247,13 @@ Deno.serve(async (req) => {
       .select('id')
       .single();
 
+    // Two concurrent confirms can each wait on the other's exclusion-constraint tuple and
+    // get aborted by the deadlock detector (40P01). The abort is transient — retry the
+    // identical write once; a second 40P01 is handled like 23P01 below.
+    const firstTry = await insertBooking();
+    const { data: booking, error: bookingError } =
+      firstTry.error?.code === '40P01' ? await insertBooking() : firstTry;
+
     if (bookingError) {
       // Another confirm with this PaymentIntent got there first (bookings_one_per_payment_intent).
       // Its booking uses the hold and any credit — leave both alone.
@@ -260,9 +268,10 @@ Deno.serve(async (req) => {
         if (backErr && backErr.code !== '23505') console.error('confirm-booking: credit NOT returned after failed insert', storedPaymentIntentId, backErr.message);
       }
       if (releaseHold) await releaseHold().catch((e) => console.error('confirm-booking: release hold failed', String(e)));
-      // Lost the slot to a concurrent confirm (bookings_tutor_no_overlap, 0062): the
+      // Lost the slot to a concurrent confirm (bookings_tutor_no_overlap, 0063): the
       // credit and hold were just given back above, so say so instead of a generic error.
-      if (bookingError.code === '23P01') {
+      // 40P01 is the same race surfacing as an un-retryable deadlock.
+      if (bookingError.code === '23P01' || bookingError.code === '40P01') {
         return Response.json({ error: SLOT_TAKEN_NOT_CHARGED }, { status: 409, headers: cors });
       }
       throw bookingError;
