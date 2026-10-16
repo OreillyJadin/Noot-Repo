@@ -7,6 +7,8 @@
 import { getSupabase } from '../supabase';
 import { passwordProblem } from './passwordRule';
 
+export * as mfa from './mfa';
+
 export {
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN_LENGTH,

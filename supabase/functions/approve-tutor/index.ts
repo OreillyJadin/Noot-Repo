@@ -10,7 +10,8 @@
 //   • verifyGrades: true — an admin checked the transcript. Sets grades_verified_at/_by,
 //     which is the Verified badge and the 17.5% (vs 32.5%) fee. Needs an uploaded transcript.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { requireActiveUser } from '../_shared/auth.ts';
+import { requireActiveUser, requireAdmin } from '../_shared/auth.ts';
+import { logAdminAction } from '../_shared/audit.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -37,14 +38,8 @@ Deno.serve(async (req: Request) => {
     const inactiveResponse = await requireActiveUser(db, user.id, cors);
     if (inactiveResponse) return inactiveResponse;
 
-    // Re-verify admin server-side (do NOT trust the client).
-    const { data: adminRow } = await db
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .maybeSingle();
-    if (!adminRow) return Response.json({ error: 'Forbidden' }, { status: 403, headers: cors });
+    const notAdmin = await requireAdmin(userClient, cors);
+    if (notAdmin) return notAdmin;
 
     const { tutorUserId, decision, verifyGrades } = await req.json().catch(() => ({}));
     const deciding = decision === 'approved' || decision === 'rejected';
@@ -81,6 +76,15 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     if (error) return Response.json({ error: error.message }, { status: 400, headers: cors });
     if (!updated) return Response.json({ error: 'tutor profile not found' }, { status: 404, headers: cors });
+
+    await logAdminAction(db, {
+      actorId: user.id,
+      action: deciding ? (decision === 'approved' ? 'tutor.approve' : 'tutor.reject') : 'tutor.verify_grades',
+      targetType: 'user',
+      targetId: tutorUserId,
+      details: { ...(deciding ? { decision } : {}), verify_grades: verifyGrades === true },
+    });
+
     if (!deciding) {
       return Response.json(
         { ok: true, approvalStatus: updated.approval_status, gradesVerified: updated.grades_verified_at != null },
