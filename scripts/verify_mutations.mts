@@ -176,6 +176,14 @@ await check('bookings.cancel (expect 100% refund)', async () => {
   if (r.refundPercent !== 100) throw new Error(`expected 100% got ${r.refundPercent}`);
   return r;
 });
+await check('confirmed student cancellation records attribution', async () => {
+  const { data, error } = await admin.from('bookings')
+    .select('cancelled_by_role,cancelled_from_status').eq('id', b2?.bookingId).single();
+  if (error || data?.cancelled_by_role !== 'student' || data.cancelled_from_status !== 'confirmed') {
+    throw error ?? new Error('confirmed student cancellation attribution was not recorded');
+  }
+  return data;
+});
 
 // third booking → report tutor no-show (student reports → full refund)
 const pi3 = await heldIntent(future(1));
@@ -188,14 +196,20 @@ const b3 = await check('bookings.confirm #3', () =>
 await check('tutor accepts booking #3', () => acceptAsTutor(b3?.bookingId));
 // A no-show can only be reported once the session is actually over (T17), so backdate it
 // rather than asserting the old, unguarded behaviour.
-await admin
+const { error: scheduleError } = await admin
   .from('bookings')
-  .update({ scheduled_at: new Date(Date.now() - 3 * 3600_000).toISOString() })
+  .update({ scheduled_at: new Date(Date.now() - 6 * 3600_000).toISOString() })
   .eq('id', b3?.bookingId);
+if (scheduleError) throw scheduleError;
 await check('bookings.reportNoShow(tutor)', async () => {
   const r = await api.bookings.reportNoShow({ bookingId: b3?.bookingId, party: 'tutor' });
   if (r.status !== 'no_show') throw new Error(`expected no_show got ${r.status}`);
   return r;
+});
+await check('tutor no-show records the party', async () => {
+  const { data, error } = await admin.from('bookings').select('no_show_party').eq('id', b3?.bookingId).single();
+  if (error || data?.no_show_party !== 'tutor') throw error ?? new Error(`expected tutor, got ${data?.no_show_party}`);
+  return data;
 });
 
 await auth.signOut();

@@ -2,7 +2,7 @@
 // Student always gets a 100% refund; this screen surfaces the cancellation-rate
 // impact and nudges toward proposing a reschedule instead. "Propose a reschedule
 // instead" → Propose Reschedule (X3). "Cancel & refund" confirms, then Done → Home.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -68,7 +68,22 @@ function XTutorCancelInner() {
   const cost = baseCost(booking, tutor);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
-  const cancelsThisMonth = 1; // tracked internally; flag at >2 / 30 days
+  const [cancelsThisMonth, setCancelsThisMonth] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    api.bookings
+      .myTutorCancelCount30d()
+      .then((count) => {
+        if (active) setCancelsThisMonth(count);
+      })
+      .catch(() => {
+        if (active) setCancelsThisMonth(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function onConfirmCancel() {
     if (!booking.bookingId) {
@@ -130,15 +145,26 @@ function XTutorCancelInner() {
             <Text style={{ fontSize: 14, fontWeight: '700', color: t.accent }}>This affects your cancellation rate</Text>
           </View>
           <Text style={{ fontSize: 13, color: t.text2, lineHeight: 19 }}>
-            You&apos;ve cancelled <Text style={{ color: t.text, fontWeight: '700' }}>{cancelsThisMonth} session</Text> in the
-            last 30 days. More than <Text style={{ color: t.text, fontWeight: '700' }}>2</Text> flags your account for
-            review and can affect your ranking.
+            {cancelsThisMonth !== null ? (
+              <>
+                You&apos;ve cancelled{' '}
+                <Text style={{ color: t.text, fontWeight: '700' }}>
+                  {cancelsThisMonth} {cancelsThisMonth === 1 ? 'session' : 'sessions'}
+                </Text>{' '}
+                in the last 30 days.{' '}
+              </>
+            ) : null}
+            More than <Text style={{ color: t.text, fontWeight: '700' }}>2</Text> flags your account for review and can
+            affect your ranking.
           </Text>
           <View style={styles.meterRow}>
             {[0, 1, 2].map((i) => (
               <View
                 key={i}
-                style={[styles.meterBar, { backgroundColor: i < cancelsThisMonth ? t.accent : t.surface2 }]}
+                style={[
+                  styles.meterBar,
+                  { backgroundColor: i < Math.min(cancelsThisMonth ?? 0, 3) ? t.accent : t.surface2 },
+                ]}
               />
             ))}
           </View>

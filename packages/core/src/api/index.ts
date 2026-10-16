@@ -87,6 +87,72 @@ export interface AdminUser {
   /** When the owner deleted the account; its name and email are scrubbed by then. */
   deletedAt: string | null;
   createdAt: string;
+  tutorCancels30d: number;
+  noShows: number;
+}
+export const TUTOR_CANCEL_FLAG_OVER = 2;
+export const NO_SHOW_FLAG_AT = 2;
+
+export interface AdminUserHistoryUser {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  status: string;
+  createdAt: string;
+  roles: string[];
+}
+export interface AdminUserHistoryCounts {
+  sessionsAsStudent: number;
+  sessionsAsTutor: number;
+  completedAsStudent: number;
+  completedAsTutor: number;
+  studentCancelsFull: number;
+  studentCancelsPartial: number;
+  studentRequestCancels: number;
+  tutorCancels: number;
+  tutorCancels30d: number;
+  tutorDeclines: number;
+  requestsExpired: number;
+  noShowsAsStudent: number;
+  noShowsAsTutor: number;
+  reportsReceived: number;
+  reportsFiled: number;
+}
+export interface AdminUserHistoryBooking {
+  id: string;
+  scheduledAt: string;
+  subject: string;
+  status: string;
+  role: 'student' | 'tutor';
+  counterpartName: string;
+  price: number;
+  refundPercent: number | null;
+  cancelledByRole: 'student' | 'tutor' | null;
+  cancelledFromStatus: 'pending' | 'confirmed' | null;
+  cancelReason: string | null;
+  noShowParty: 'student' | 'tutor' | null;
+}
+export interface AdminUserHistoryReport {
+  id: string;
+  targetKind: string;
+  reason: string;
+  detail: string | null;
+  status: string;
+  createdAt: string;
+}
+export interface AdminUserHistoryAction {
+  action: string;
+  actorName: string;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+export interface AdminUserHistory {
+  user: AdminUserHistoryUser | null;
+  counts: AdminUserHistoryCounts;
+  bookings: AdminUserHistoryBooking[];
+  reports: AdminUserHistoryReport[];
+  adminActions: AdminUserHistoryAction[];
 }
 export type AdminUserRole = 'student' | 'tutor' | 'ambassador' | 'admin';
 export type AdminUserStatus = 'active' | 'suspended' | 'banned' | 'deleted';
@@ -364,6 +430,126 @@ function mapBooking(row: any): Booking {
     stripePaymentIntentId: row.stripe_payment_intent_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+type AdminUserHistoryPayload = {
+  user?: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string;
+    status: string;
+    created_at: string;
+    roles: string[];
+  } | null;
+  counts?: Record<string, number | string | null>;
+  bookings?: Array<{
+    id: string;
+    scheduled_at: string;
+    subject: string;
+    status: string;
+    role: string;
+    counterpart_name: string;
+    price: number | string;
+    refund_percent: number | string | null;
+    cancelled_by_role: string | null;
+    cancelled_from_status: string | null;
+    cancel_reason: string | null;
+    no_show_party: string | null;
+  }>;
+  reports?: Array<{
+    id: string;
+    target_kind: string;
+    reason: string;
+    detail: string | null;
+    status: string;
+    created_at: string;
+  }>;
+  admin_actions?: Array<{
+    action: string;
+    actor_name: string;
+    details: unknown;
+    created_at: string;
+  }>;
+};
+
+function mapAdminUserHistory(payload: unknown): AdminUserHistory {
+  const raw = payload as AdminUserHistoryPayload | null;
+  const user = raw?.user;
+  const counts = raw?.counts ?? {};
+  return {
+    user: user
+      ? {
+          id: user.id,
+          firstName: user.first_name ?? null,
+          lastName: user.last_name ?? null,
+          email: user.email,
+          status: user.status,
+          createdAt: user.created_at,
+          roles: user.roles ?? [],
+        }
+      : null,
+    counts: {
+      sessionsAsStudent: Number(counts.sessions_as_student ?? 0),
+      sessionsAsTutor: Number(counts.sessions_as_tutor ?? 0),
+      completedAsStudent: Number(counts.completed_as_student ?? 0),
+      completedAsTutor: Number(counts.completed_as_tutor ?? 0),
+      studentCancelsFull: Number(counts.student_cancels_full ?? 0),
+      studentCancelsPartial: Number(counts.student_cancels_partial ?? 0),
+      studentRequestCancels: Number(counts.student_request_cancels ?? 0),
+      tutorCancels: Number(counts.tutor_cancels ?? 0),
+      tutorCancels30d: Number(counts.tutor_cancels_30d ?? 0),
+      tutorDeclines: Number(counts.tutor_declines ?? 0),
+      requestsExpired: Number(counts.requests_expired ?? 0),
+      noShowsAsStudent: Number(counts.no_shows_as_student ?? 0),
+      noShowsAsTutor: Number(counts.no_shows_as_tutor ?? 0),
+      reportsReceived: Number(counts.reports_received ?? 0),
+      reportsFiled: Number(counts.reports_filed ?? 0),
+    },
+    bookings: (raw?.bookings ?? []).map((booking) => ({
+      id: booking.id,
+      scheduledAt: booking.scheduled_at,
+      subject: booking.subject,
+      status: booking.status,
+      role: booking.role === 'tutor' ? 'tutor' : 'student',
+      counterpartName: booking.counterpart_name ?? 'Deleted account',
+      price: Number(booking.price ?? 0),
+      refundPercent: booking.refund_percent == null ? null : Number(booking.refund_percent),
+      cancelledByRole:
+        booking.cancelled_by_role === 'student' || booking.cancelled_by_role === 'tutor'
+          ? booking.cancelled_by_role
+          : null,
+      cancelledFromStatus:
+        booking.cancelled_from_status === 'pending' || booking.cancelled_from_status === 'confirmed'
+          ? booking.cancelled_from_status
+          : null,
+      cancelReason: booking.cancel_reason ?? null,
+      noShowParty:
+        booking.no_show_party === 'student' || booking.no_show_party === 'tutor'
+          ? booking.no_show_party
+          : null,
+    })),
+    reports: (raw?.reports ?? []).map((report) => ({
+      id: report.id,
+      targetKind: report.target_kind,
+      reason: report.reason,
+      detail: report.detail ?? null,
+      status: report.status,
+      createdAt: report.created_at,
+    })),
+    adminActions: (raw?.admin_actions ?? []).map((action) => {
+      const details = action.details;
+      return {
+        action: action.action,
+        actorName: action.actor_name ?? 'Deleted account',
+        details:
+          details && typeof details === 'object' && !Array.isArray(details)
+            ? details as Record<string, unknown>
+            : {},
+        createdAt: action.created_at,
+      };
+    }),
   };
 }
 
@@ -1487,8 +1673,17 @@ export const api = {
           status: u.status,
           deletedAt: u.deleted_at ?? null,
           createdAt: u.created_at,
+          tutorCancels30d: Number(u.tutor_cancels_30d ?? 0),
+          noShows: Number(u.no_shows ?? 0),
         })),
       };
+    },
+
+    /** A user's account, booking, report, and admin-action history. */
+    async userHistory(userId: string): Promise<AdminUserHistory> {
+      const { data, error } = await getSupabase().rpc('admin_user_history', { p_user: userId });
+      if (error) throw error;
+      return mapAdminUserHistory(data);
     },
 
     /** Suspend / ban / reactivate an account (admin-set-user-status Edge Function). */
@@ -1656,6 +1851,20 @@ export const api = {
         .maybeSingle();
       if (error) throw error;
       return data ? mapBooking(data) : null;
+    },
+
+    /** Count this tutor's confirmed-session cancellations in the last 30 days. */
+    async myTutorCancelCount30d(): Promise<number> {
+      const uid = await requireUid();
+      const { count, error } = await getSupabase()
+        .from('bookings')
+        .select('id', { count: 'exact', head: true })
+        .eq('tutor_id', uid)
+        .eq('cancelled_by_role', 'tutor')
+        .eq('cancelled_from_status', 'confirmed')
+        .gte('cancelled_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+      if (error) throw error;
+      return count ?? 0;
     },
 
     /** Create the booking + conversation with the held PaymentIntent (confirm-booking). */

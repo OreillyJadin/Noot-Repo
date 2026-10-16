@@ -35,8 +35,8 @@
 // or already closed is treated as no account and recreated.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
-import {
 import { serveWithErrorReporting } from '../_shared/observability.ts';
+import {
   createRecipientAccount,
   getPayoutStatus,
   isDeadAccountError,
