@@ -17,6 +17,7 @@ import { AdminShortcut } from '../lib/AdminShortcut';
 import { NotificationBell } from '../lib/NotificationBell';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { formatSessionTime } from '../lib/formatSessionTime';
+import { CountdownPills } from '../lib/CountdownPills';
 
 /** Booking scheduledAt (+ optional location) → "Tomorrow · 3:00 PM · Gorgas Library". */
 function sessionMeta(iso: string, location: string | null): string {
@@ -28,41 +29,6 @@ function sessionMeta(iso: string, location: string | null): string {
     dayDiff === 0 ? 'Today' : dayDiff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   return [dayLabel, time, location].filter(Boolean).join(' · ');
-}
-
-function useCountdown(target: number) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30000);
-    return () => clearInterval(id);
-  }, []);
-  let ms = Math.max(0, target - now);
-  const d = Math.floor(ms / 86400000);
-  ms -= d * 86400000;
-  const h = Math.floor(ms / 3600000);
-  ms -= h * 3600000;
-  const m = Math.floor(ms / 60000);
-  return { d, h, m };
-}
-
-function CountdownPills({ target }: { target: number }) {
-  const t = useTheme();
-  const { d, h, m } = useCountdown(target);
-  const parts: [number, string][] = [
-    [d, 'days'],
-    [h, 'hrs'],
-    [m, 'min'],
-  ];
-  return (
-    <View style={styles.pillsRow}>
-      {parts.map(([v, l]) => (
-        <View key={l} style={styles.pill}>
-          <Text style={[styles.pillValue, { color: t.onAccent }]}>{String(v).padStart(2, '0')}</Text>
-          <Text style={[styles.pillLabel, { color: t.onAccent }]}>{l.toUpperCase()}</Text>
-        </View>
-      ))}
-    </View>
-  );
 }
 
 function StatCard({ icon, big, label }: { icon: IconName; big: string; label: string }) {
@@ -105,7 +71,7 @@ export default function TutorHome() {
   const [names, setNames] = useState<Record<string, { firstName: string; lastName: string }>>({});
   useEffect(() => {
     let active = true;
-    api.listUpcoming().then((list) => {
+    api.listUpcoming('tutor').then((list) => {
       if (!active) return;
       setNext(list.find((booking) => booking.status === 'confirmed') ?? null);
       setRequests(list.filter((booking) => booking.status === 'pending'));
@@ -205,7 +171,7 @@ export default function TutorHome() {
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[styles.payout, { color: t.onAccent }]}>${next.tutorPayoutAmount}</Text>
+                <Text style={[styles.payout, { color: t.onAccent }]}>${next.tutorPayoutAmount.toFixed(2)}</Text>
                 <Text style={[styles.payoutLabel, { color: t.onAccent }]}>payout</Text>
               </View>
             </View>
@@ -313,11 +279,6 @@ const styles = StyleSheet.create({
   nextActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   nextBtn: { flex: 1, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   nextBtnLabel: { fontSize: 14, fontWeight: '600' },
-
-  pillsRow: { flexDirection: 'row', gap: 8 },
-  pill: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.16)' },
-  pillValue: { fontWeight: '800', fontSize: 22, lineHeight: 24 },
-  pillLabel: { fontSize: 10, opacity: 0.85, marginTop: 3, letterSpacing: 0.6 },
 
   sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
   earningsLink: { fontSize: 12.5, fontWeight: '600' },

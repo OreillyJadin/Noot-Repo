@@ -58,14 +58,14 @@ export default function TutorSessions() {
         when: formatWhen(b.scheduledAt),
         // Plain "Online" — see the note in tutor_calendar.tsx (T14).
         where: b.sessionType === 'video' ? 'Online' : b.location ?? 'In person',
-        pay: `$${b.tutorPayoutAmount}`,
+        pay: `$${b.tutorPayoutAmount.toFixed(2)}`,
         status: b.status,
       };
     };
     // Resolve real student names via the edge function (RLS blocks a tutor reading a
     // student row directly). Falls back to "Student" if it's unavailable.
     Promise.all([
-      api.listUpcoming(),
+      api.listUpcoming('tutor'),
       api.listPast().catch(() => []),
       api.resolveParticipantNames().catch(() => ({} as Record<string, { firstName: string; lastName: string }>)),
     ])

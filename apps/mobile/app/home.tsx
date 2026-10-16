@@ -1,7 +1,7 @@
 // S2 Student Home (For You) — ported from screens-home.jsx (StudentHomeFeed).
 // Study hub: next-session countdown, exam nudge, streak/goals, "pick up where you
-// left off". This is a tab root (Home tab). No live session store yet — the next
-// session + weekly numbers are demo data, same as the prototype.
+// left off". This is a tab root (Home tab). The next session + weekly numbers are
+// real data via @noot/core.
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ import { AdminShortcut } from '../lib/AdminShortcut';
 import { NotificationBell } from '../lib/NotificationBell';
 import { VerifiedBadge, VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 import { nudgeCourse } from '../lib/browse';
+import { CountdownPills } from '../lib/CountdownPills';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
 function formatWhen(iso: string): string {
@@ -30,41 +31,6 @@ function formatWhen(iso: string): string {
   const label =
     dayDiff === 0 ? 'Today' : dayDiff === 1 ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
   return `${label} · ${time}`;
-}
-
-function useCountdown(target: number) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30000);
-    return () => clearInterval(id);
-  }, []);
-  let ms = Math.max(0, target - now);
-  const d = Math.floor(ms / 86400000);
-  ms -= d * 86400000;
-  const h = Math.floor(ms / 3600000);
-  ms -= h * 3600000;
-  const m = Math.floor(ms / 60000);
-  return { d, h, m };
-}
-
-function CountdownPills({ target }: { target: number }) {
-  const t = useTheme();
-  const { d, h, m } = useCountdown(target);
-  const parts: [number, string][] = [
-    [d, 'days'],
-    [h, 'hrs'],
-    [m, 'min'],
-  ];
-  return (
-    <View style={styles.pillsRow}>
-      {parts.map(([v, l]) => (
-        <View key={l} style={styles.pill}>
-          <Text style={[styles.pillValue, { color: t.onAccent }]}>{String(v).padStart(2, '0')}</Text>
-          <Text style={[styles.pillLabel, { color: t.onAccent }]}>{l.toUpperCase()}</Text>
-        </View>
-      ))}
-    </View>
-  );
 }
 
 function StatCard({ icon, big, label, onPress }: { icon: IconName; big: string; label: string; onPress?: () => void }) {
@@ -148,7 +114,7 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     api
-      .listUpcoming()
+      .listUpcoming('student')
       .then(async (bookings) => {
         const b = bookings.find((booking) => booking.status === 'confirmed');
         if (!b) { if (active) setNext(null); return; }
@@ -266,7 +232,7 @@ export default function Home() {
             <GeckoLogo style={styles.geckoDeco} />
             <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>NO UPCOMING SESSIONS</Text>
             <Text style={[styles.nextName, { color: t.onAccent, marginTop: 8 }]}>
-              {nextLoading ? 'Loading…' : 'Book your first session'}
+              {nextLoading ? 'Loading…' : stats && stats.sessionsCompleted > 0 ? 'Book your next session' : 'Book your first session'}
             </Text>
             <Text style={[styles.nextMeta, { color: t.onAccent, marginBottom: 12 }]}>
               Find a verified tutor for your courses and lock in a time.
@@ -361,11 +327,6 @@ const styles = StyleSheet.create({
   nextActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   nextBtn: { flex: 1, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   nextBtnLabel: { fontSize: 14, fontWeight: '600' },
-
-  pillsRow: { flexDirection: 'row', gap: 8 },
-  pill: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.16)' },
-  pillValue: { fontWeight: '800', fontSize: 22, lineHeight: 24 },
-  pillLabel: { fontSize: 10, opacity: 0.85, marginTop: 3, letterSpacing: 0.6 },
 
   examCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   examIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
