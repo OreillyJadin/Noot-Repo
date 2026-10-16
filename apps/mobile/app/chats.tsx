@@ -63,10 +63,14 @@ export default function Chats() {
           return {
             conversation: c,
             name,
+            // Badge only when the pending booking sits on THIS conversation's
+            // side — a dual-role user can have a convo in each direction.
             pending: upcoming.some(
               (b) =>
                 b.status === 'pending' &&
-                (b.studentId === c.counterpart.id || b.tutorId === c.counterpart.id),
+                (c.side === 'student'
+                  ? b.tutorId === c.counterpart.id
+                  : b.studentId === c.counterpart.id),
             ),
           };
         });
@@ -83,7 +87,9 @@ export default function Chats() {
   }, [reloadKey]);
 
   const openChat = async (row: ChatRow) => {
-    if (role === 'tutor') {
+    // Route by the row's side, not the active mode: a dual-role account's inbox
+    // lists conversations on BOTH sides, and each needs its own thread screen.
+    if (row.conversation.side === 'tutor') {
       patchBooking({ studentId: row.conversation.counterpart.id });
       router.push('/chat_tutor');
       return;

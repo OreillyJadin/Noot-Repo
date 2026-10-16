@@ -1,11 +1,12 @@
 // Edge Function: resolve-participants.
-// Returns the display names of the people the caller shares a booking with, as
-// { [userId]: { firstName, lastName } }. This exists because users_select RLS is
-// `self OR approved-tutor OR admin` (migration 0002), so a tutor cannot read a
-// STUDENT's row directly. Rather than weaken RLS, we resolve names here with the
-// service role — but ONLY for genuine booking counterparties of the caller, so the
-// privacy boundary is preserved (you can only learn the name of someone you have a
-// booking with).
+// Returns the display names of the people the caller shares a booking or direct
+// conversation with, as { [userId]: { firstName, lastName } }. This exists
+// because users_select RLS is `self OR approved-tutor OR admin` (migration
+// 0002), so a tutor cannot read a STUDENT's row directly. Rather than weaken
+// RLS, we resolve names here with the service role — but ONLY for genuine
+// counterparties of the caller (a shared booking, or a shared conversation —
+// including the student-started chats confirm-booking hasn't tied to a booking
+// yet), so the privacy boundary is preserved.
 //
 // Deno runtime. Self-contained (no _shared import), mirrors cancel-booking.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -47,6 +48,20 @@ serveWithErrorReporting('resolve-participants', async (req: Request) => {
     const counterpartyIds = new Set<string>();
     for (const b of bookings ?? []) {
       const other = b.student_id === user.id ? b.tutor_id : b.student_id;
+      if (other && other !== user.id) counterpartyIds.add(other);
+    }
+
+    // Same for direct conversations — a student can start one before booking
+    // (getOrCreateConversation), so booking counterparties alone leave names
+    // unresolved in the tutor's inbox.
+    const { data: convos, error: cErr } = await db
+      .from('conversations')
+      .select('student_id, tutor_id')
+      .eq('kind', 'direct')
+      .or(`student_id.eq.${user.id},tutor_id.eq.${user.id}`);
+    if (cErr) return Response.json({ error: cErr.message }, { status: 400, headers: cors });
+    for (const c of convos ?? []) {
+      const other = c.student_id === user.id ? c.tutor_id : c.student_id;
       if (other && other !== user.id) counterpartyIds.add(other);
     }
 

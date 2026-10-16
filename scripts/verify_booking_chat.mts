@@ -28,6 +28,7 @@ const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const tag = Date.now();
 const studentEmail = `chat-student-${tag}@crimson.ua.edu`;
 const tutorEmail = `chat-tutor-${tag}@crimson.ua.edu`;
+const loneEmail = `chat-lone-${tag}@crimson.ua.edu`;
 const cleanup = { bookings: [] as string[], conversations: [] as string[], users: [] as string[] };
 let pass = 0;
 let fail = 0;
@@ -119,6 +120,7 @@ try {
   const studentConvos = await api.chat.listConversations();
   const studentConvo = studentConvos.find((c) => c.id === created.conversationId);
   step('student conversation list contains the new chat', !!studentConvo);
+  step('student row is marked on the student side', studentConvo?.side === 'student');
   step('student inbox shows the tutor as counterpart + the intro as preview',
     studentConvo?.counterpart.id === tutorId && studentConvo?.lastMessage?.content === intro,
     `${studentConvo?.counterpart.firstName} ${studentConvo?.counterpart.lastName} · "${studentConvo?.lastMessage?.content}"`);
@@ -140,6 +142,7 @@ try {
   const tutorConvos = await api.chat.listConversations();
   const tutorRow = tutorConvos.find((c) => c.id === created.conversationId);
   step('tutor conversation list contains the new chat', !!tutorRow && tutorRow.counterpart.id === studentId);
+  step('tutor row is marked on the tutor side', tutorRow?.side === 'tutor');
   const names = await api.resolveParticipantNames();
   step('tutor inbox resolves the student name (RLS-safe)',
     names[studentId]?.firstName === 'Chat' && names[studentId]?.lastName === 'Student',
@@ -150,6 +153,21 @@ try {
   const tutorUpcoming = await api.listUpcoming('tutor');
   step('tutor upcoming shows the booking still pending',
     tutorUpcoming.some((b) => b.id === created.bookingId && b.status === 'pending'));
+
+  stage = 'unbooked chat counterpart resolves';
+  // A student can open a conversation without booking (getOrCreateConversation).
+  // Booking counterparties alone leave that name unresolved for the tutor —
+  // resolve-participants also covers conversation counterparties now.
+  const loneId = await makeUser(loneEmail, 'Lone', 'Chatter');
+  await auth.signInWithPassword(loneEmail, PASSWORD);
+  const loneConvo = await api.chat.getOrCreateConversation(tutorId);
+  cleanup.conversations.push(loneConvo.id);
+  await api.chat.sendMessage(loneConvo.id, 'Hi — do you tutor this course?');
+  await auth.signInWithPassword(tutorEmail, PASSWORD);
+  const namesWithLone = await api.resolveParticipantNames();
+  step('resolve-participants covers unbooked conversation counterparties',
+    namesWithLone[loneId]?.firstName === 'Lone' && namesWithLone[loneId]?.lastName === 'Chatter',
+    JSON.stringify(namesWithLone[loneId]));
 
   stage = 'tutor accepts — chat stays put';
   const accepted = await call('respond-booking-request', { bookingId: created.bookingId, action: 'accept' }, tutorToken);

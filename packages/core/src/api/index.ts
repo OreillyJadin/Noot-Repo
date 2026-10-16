@@ -2300,6 +2300,7 @@ export const api = {
         const last = lastByConvo.get(c.id);
         return {
           id: c.id,
+          side: c.student_id === uid ? 'student' : 'tutor',
           counterpart: {
             id: otherId,
             firstName: u?.first_name ?? '',
