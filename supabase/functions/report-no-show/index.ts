@@ -7,8 +7,8 @@
 // Self-contained; SUPABASE_* env vars are auto-injected by the runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
-import {
 import { serveWithErrorReporting } from '../_shared/observability.ts';
+import {
   BookingError,
   NO_SHOW_WINDOW_HOURS,
   assertPayoutReady,
