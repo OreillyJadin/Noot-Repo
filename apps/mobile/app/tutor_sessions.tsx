@@ -65,7 +65,7 @@ export default function TutorSessions() {
     // Resolve real student names via the edge function (RLS blocks a tutor reading a
     // student row directly). Falls back to "Student" if it's unavailable.
     Promise.all([
-      api.listUpcoming(),
+      api.listUpcoming('tutor'),
       api.listPast().catch(() => []),
       api.resolveParticipantNames().catch(() => ({} as Record<string, { firstName: string; lastName: string }>)),
     ])

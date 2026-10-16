@@ -105,7 +105,7 @@ export default function TutorHome() {
   const [names, setNames] = useState<Record<string, { firstName: string; lastName: string }>>({});
   useEffect(() => {
     let active = true;
-    api.listUpcoming().then((list) => {
+    api.listUpcoming('tutor').then((list) => {
       if (!active) return;
       setNext(list.find((booking) => booking.status === 'confirmed') ?? null);
       setRequests(list.filter((booking) => booking.status === 'pending'));

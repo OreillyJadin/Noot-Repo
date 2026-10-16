@@ -148,7 +148,7 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     api
-      .listUpcoming()
+      .listUpcoming('student')
       .then(async (bookings) => {
         const b = bookings.find((booking) => booking.status === 'confirmed');
         if (!b) { if (active) setNext(null); return; }
