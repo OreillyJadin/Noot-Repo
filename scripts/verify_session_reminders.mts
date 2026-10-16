@@ -71,7 +71,9 @@ const runAt = async (pNow?: string) => {
   return data as number;
 };
 const minutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60000).toISOString();
-const central = (time: string) => new Date(`2030-06-15T${time}:00-05:00`).toISOString();
+// 0063 forbids two live bookings for one tutor at once, so each same-time fixture gets
+// its own day; the runAt calls stay on that day so the relative timing is unchanged.
+const central = (time: string, day = '15') => new Date(`2030-06-${day}T${time}:00-05:00`).toISOString();
 
 try {
   const { data: users, error: usersErr } = await svc.from('users').select('id,email').in('email', [studentEmail, tutorEmail]);
@@ -106,8 +108,8 @@ try {
   step(found.length === 2, 'a second run does not duplicate reminders');
 
   await clearPrefs();
-  const defaultBefore = await makeBooking(central('15:00'));
-  await runAt(central('14:31'));
+  const defaultBefore = await makeBooking(central('15:00', '16'));
+  await runAt(central('14:31', '16'));
   found = await reminders(defaultBefore);
   step(found.length === 2 && found.every((n) => n.body.includes('29 minutes')), 'no-row defaults send only the 60-minute offset');
 
@@ -122,14 +124,17 @@ try {
 
   await setPrefs(studentId, [], false);
   await setPrefs(tutorId, [], false);
-  const off = await makeBooking(minutesFromNow(9));
+  const off = await makeBooking(minutesFromNow(99));
   await runAt();
   step((await reminders(off, studentId)).length === 0, 'empty offset preferences turn before-reminders off');
 
-  const pending = await makeBooking(minutesFromNow(9), 'pending');
+  const pending = await makeBooking(minutesFromNow(189), 'pending');
   await runAt();
   step((await reminders(pending)).length === 0, 'pending bookings do not receive reminders');
 
+  // `ten`'s live booking still holds the next hour — move it out of the way so the
+  // reschedule fixture can sit 20–30 minutes out.
+  await svc.from('bookings').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('id', ten);
   await setPrefs(studentId, [30], false);
   await setPrefs(tutorId, [30], false);
   const moved = await makeBooking(minutesFromNow(25));
@@ -151,15 +156,15 @@ try {
     await setPrefs(tutorId, [], morning);
   };
   await morningPrefs(true);
-  const today = await makeBooking(central('15:00'));
-  await runAt(central('06:55'));
+  const today = await makeBooking(central('15:00', '17'));
+  await runAt(central('06:55', '17'));
   step((await reminders(today)).length === 0, 'morning reminder is not sent before 7 AM Chicago time');
-  await runAt(central('07:05'));
+  await runAt(central('07:05', '17'));
   const morningSent = await reminders(today);
   step(morningSent.length === 2 && morningSent.every((n) => n.title === 'Session today' && n.body.endsWith('today.')), 'morning reminder sends to both participants at 7:05');
 
-  const lateMorning = await makeBooking(central('15:00'));
-  await runAt(central('07:20'));
+  const lateMorning = await makeBooking(central('15:00', '18'));
+  await runAt(central('07:20', '18'));
   step((await reminders(lateMorning)).length === 0, 'morning reminder is not sent after the 15-minute window');
   const tooEarlySession = await makeBooking(central('07:45'));
   await runAt(central('07:05'));
@@ -167,8 +172,8 @@ try {
 
   await setPrefs(studentId, [60], true);
   await setPrefs(tutorId, [60], true);
-  const exactlyEight = await makeBooking(central('08:00'));
-  await runAt(central('07:00'));
+  const exactlyEight = await makeBooking(central('08:00', '19'));
+  await runAt(central('07:00', '19'));
   const eightAmReminders = await reminders(exactlyEight);
   const eightAmBefore = eightAmReminders.filter((n) => n.title === 'Upcoming session');
   const eightAmMorning = eightAmReminders.filter((n) => n.title === 'Session today');
@@ -180,8 +185,8 @@ try {
   );
 
   await morningPrefs(true);
-  const shortlyAfterEight = await makeBooking(central('08:15'));
-  await runAt(central('07:05'));
+  const shortlyAfterEight = await makeBooking(central('08:15', '20'));
+  await runAt(central('07:05', '20'));
   const eightFifteenReminders = await reminders(shortlyAfterEight);
   step(
     eightFifteenReminders.length === 2 &&
@@ -190,8 +195,8 @@ try {
   );
 
   await morningPrefs(false);
-  const morningOff = await makeBooking(central('15:00'));
-  await runAt(central('07:05'));
+  const morningOff = await makeBooking(central('15:00', '21'));
+  await runAt(central('07:05', '21'));
   step((await reminders(morningOff)).length === 0, 'morning_of=false disables the morning reminder');
 
   await clearPrefs();

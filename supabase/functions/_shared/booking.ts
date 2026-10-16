@@ -48,12 +48,18 @@ export type ResolvedBooking = {
 /** Thrown for anything the client is allowed to be told about. */
 export class BookingError extends Error {
   status: number;
-  constructor(message: string, status = 400) {
+  /** Marks the slot-taken failures so a caller can release the card hold they left behind. */
+  reason?: 'slot_taken';
+  constructor(message: string, status = 400, reason?: 'slot_taken') {
     super(message);
     this.name = 'BookingError';
     this.status = status;
+    this.reason = reason;
   }
 }
+
+/** What the loser of a same-slot race is told — their hold is released, not captured. */
+export const SLOT_TAKEN_NOT_CHARGED = 'Someone just booked that time, so you weren’t charged. Please pick another time.';
 
 /**
  * A PostgrestError is a plain object, so `String(err)` on one yields "[object Object]" and
@@ -173,14 +179,14 @@ export async function resolveBooking(
     const bStart = new Date(b.scheduled_at as string).getTime();
     const bEnd = bStart + Number(b.duration_minutes ?? 0) * 60 * 1000;
     if (bStart < endMs && startMs < bEnd) {
-      throw new BookingError('That time was just booked. Please pick another slot.', 409);
+      throw new BookingError('That time was just booked. Please pick another slot.', 409, 'slot_taken');
     }
   }
 
   // An interview the noot team has scheduled with this tutor blocks its hour (ERR-032). Same
   // words as a booked slot: a student should not be able to tell the two apart.
   if (await interviewClash(db, tutorId, startMs, endMs)) {
-    throw new BookingError('That time was just booked. Please pick another slot.', 409);
+    throw new BookingError('That time was just booked. Please pick another slot.', 409, 'slot_taken');
   }
 
   const price = round2((hourlyRate * durationMinutes) / 60);

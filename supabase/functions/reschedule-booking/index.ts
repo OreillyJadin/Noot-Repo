@@ -201,15 +201,29 @@ Deno.serve(async (req: Request) => {
       }
       // New cancellation deadline is 12h before the new session time.
       const deadline = cancellationDeadlineFor(newTime);
-      const { error } = await db
-        .from('bookings')
-        .update({
-          scheduled_at: newTime.toISOString(),
-          cancellation_deadline: deadline.toISOString(),
-          reschedule_proposed_at: null,
-          reschedule_proposed_by: null,
-        })
-        .eq('id', bookingId);
+      const applyProposal = () =>
+        db
+          .from('bookings')
+          .update({
+            scheduled_at: newTime.toISOString(),
+            cancellation_deadline: deadline.toISOString(),
+            reschedule_proposed_at: null,
+            reschedule_proposed_by: null,
+          })
+          .eq('id', bookingId);
+      // A concurrent write for this tutor can deadlock against the exclusion constraint
+      // (40P01); the abort is transient, so retry the identical update once.
+      let { error } = await applyProposal();
+      if (error?.code === '40P01') {
+        ({ error } = await applyProposal());
+      }
+      // The slot was free at propose time but taken since (bookings_tutor_no_overlap, 0063).
+      if (error?.code === '23P01' || error?.code === '40P01') {
+        return Response.json(
+          { error: 'That time was booked after it was suggested. Decline it and suggest another time.' },
+          { status: 409, headers: cors },
+        );
+      }
       if (error) throw error;
       // TODO(stripe): no money movement — schedule change only.
       await notifyOtherParty(
