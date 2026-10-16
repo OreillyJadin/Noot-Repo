@@ -1,12 +1,12 @@
 // X5 Report a No-Show — ported from screens-changes.jsx (XNoShow).
 // A persona toggle previews both sides of the same flow: a student reporting a
-// tutor no-show (full refund) and a tutor reporting a student no-show (payout +
-// 3-strike policy). The signed-in role picks the starting persona. Done → Home.
+// tutor no-show (full refund) and a tutor reporting a student no-show (payout).
+// The signed-in role picks the starting persona. Done → Home.
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, Eyebrow, Ic, H1, Sub, HeroIcon, useTheme } from '@noot/ui';
+import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, Ic, H1, Sub, HeroIcon, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
 import { DAYS, type Tutor } from '../lib/data';
@@ -52,12 +52,6 @@ function SessionStrip({ booking, tutor, who, studentName }: { booking: BookingDr
   );
 }
 
-const STRIKES: [string, string, boolean][] = [
-  ['1st no-show', 'Warning + loses any cancellation credits', true],
-  ['2nd no-show', 'Must pre-pay all sessions, no refunds for 30 days', false],
-  ['3rd no-show', 'Account suspended pending review', false],
-];
-
 export default function XNoShow() {
   const { booking } = useApp();
   if (!booking.tutor) return <NoSession />;
@@ -72,7 +66,7 @@ function XNoShowInner() {
   const student = useCounterpart(booking.studentId);
   const tutor = booking.tutor!;
   const cost = baseCost(booking, tutor);
-  const [persona, setPersona] = useState<'student' | 'tutor'>(role === 'tutor' ? 'tutor' : 'student');
+  const persona: 'student' | 'tutor' = role === 'tutor' ? 'tutor' : 'student';
   const [done, setDone] = useState(false);
 
   if (done) {
@@ -88,7 +82,7 @@ function XNoShowInner() {
               {studentMarked ? (
                 <>
                   You&apos;ll be refunded <Text style={{ color: t.text, fontWeight: '700' }}>{money(cost)}</Text> in full.
-                  This impacts {tutor.name.split(' ')[0]!}&apos;s cancellation rate.
+                  This is recorded on {tutor.name.split(' ')[0]!}&apos;s account.
                 </>
               ) : (
                 <>
@@ -100,23 +94,9 @@ function XNoShowInner() {
           </View>
 
           {!studentMarked ? (
-            <Card style={{ marginTop: 22, padding: 16 }}>
-              <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>{student.first}&apos;s record · 3-strike policy</Eyebrow>
-              {STRIKES.map(([k, v, active], i) => (
-                <View key={k} style={[styles.strikeRow, i < 2 ? { borderBottomWidth: 1, borderBottomColor: t.border } : null]}>
-                  <View style={[styles.strikeBadge, { backgroundColor: active ? t.accent : t.surface2 }]}>
-                    <Text style={{ color: active ? t.onAccent : t.text3, fontSize: 11, fontWeight: '700' }}>{i + 1}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '600', color: active ? t.text : t.text3 }}>
-                      {k}
-                      {active ? ' · now' : ''}
-                    </Text>
-                    <Text style={{ fontSize: 12, color: t.text3 }}>{v}</Text>
-                  </View>
-                </View>
-              ))}
-            </Card>
+            <Text style={{ marginTop: 22, fontSize: 13, lineHeight: 19, color: t.text3, textAlign: 'center' }}>
+              No-shows are recorded on {student.first}&apos;s account. Repeated no-shows can lead to restrictions.
+            </Text>
           ) : null}
         </Body>
         <ActionBar>
@@ -139,7 +119,7 @@ function XNoShowInner() {
     try {
       await api.bookings.reportNoShow({ bookingId: booking.bookingId, party });
       setDone(true);
-    } catch (e) {
+    } catch {
       Alert.alert('Something went wrong', "Couldn't report the no-show. Please try again.");
     }
   };
@@ -185,7 +165,5 @@ function XNoShowInner() {
 
 const styles = StyleSheet.create({
   doneWrap: { alignItems: 'center', paddingTop: 22 },
-  strikeRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 8 },
-  strikeBadge: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   clockIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 });
