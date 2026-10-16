@@ -10,6 +10,12 @@
 import { getSupabase } from '../supabase';
 import { notifyUserChanged } from '../changes';
 import { normalizeCourseQuery, rankCourseMatches } from '../courseSearch';
+import {
+  friendlyStorageError,
+  MIME_BY_EXT,
+  resolveUploadType,
+  type UploadBucket,
+} from '../storageLimits';
 import type { AdminHubCounts } from '../adminHub';
 export type { AdminHubCounts } from '../adminHub';
 import type {
@@ -178,21 +184,6 @@ function emailFileName(email: string): string {
   return slug || 'avatar';
 }
 
-/** Storage needs an explicit contentType when the body is raw bytes (no Blob.type to read). */
-const MIME_BY_EXT: Record<string, string> = {
-  pdf: 'application/pdf',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  heic: 'image/heic',
-  heif: 'image/heif',
-};
-
-/** Mirrors the chat-attachments bucket's file_size_limit (0021) so we fail early and kindly. */
-const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-
 /** Columns of `messages` — spelled out so embeds can be appended without pulling `*`. */
 const MESSAGE_SELECT = 'id, conversation_id, sender_id, content, read_at, created_at, attachment_count';
 
@@ -212,28 +203,40 @@ function byteLength(data: Blob | ArrayBuffer | Uint8Array): number {
  * contents, so passing one writes a 0-byte object — callers decode to an ArrayBuffer first.
  */
 async function putUserFile(
-  bucket: string,
+  bucket: UploadBucket,
   data: Blob | ArrayBuffer | Uint8Array,
   opts: { ext: string; fallbackExt: string; contentType?: string; label: string },
 ): Promise<{ uid: string; path: string }> {
-  const { uid, email } = await requireUser();
-  if (!byteLength(data)) {
+  const size = byteLength(data);
+  if (!size) {
     throw new Error(`That ${opts.label} came through empty — please pick it again.`);
   }
 
   const safeExt =
     (opts.ext || opts.fallbackExt).replace(/[^a-z0-9]/gi, '').toLowerCase() || opts.fallbackExt;
-  const fileName = `${emailFileName(email)}.${safeExt}`;
+  const result = resolveUploadType(bucket, {
+    declared: opts.contentType || (data instanceof Blob ? data.type : ''),
+    ext: safeExt,
+    size,
+  });
+  if (!result.ok) throw new Error(result.message);
+  const type = result.type;
+  const canonicalExtByMime: Record<string, string> = {
+    'application/pdf': 'pdf',
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/heic': 'heic',
+    'image/heif': 'heif',
+  };
+  const storedExt = MIME_BY_EXT[safeExt] === type ? safeExt : canonicalExtByMime[type]!;
+  const { uid, email } = await requireUser();
+  const fileName = `${emailFileName(email)}.${storedExt}`;
   const path = `${uid}/${fileName}`;
-  const type =
-    opts.contentType ||
-    (data instanceof Blob ? data.type : '') ||
-    MIME_BY_EXT[safeExt] ||
-    'application/octet-stream';
 
   const sb = getSupabase();
   const { error } = await sb.storage.from(bucket).upload(path, data, { upsert: true, contentType: type });
-  if (error) throw error;
+  if (error) throw friendlyStorageError(bucket, error) ?? error;
 
   // Drop any earlier file for this user (a legacy fixed name, a previous email, a different
   // extension) so the folder doesn't accumulate. Best-effort — never fail the upload.
@@ -1839,21 +1842,23 @@ export const api = {
     ): Promise<OutgoingAttachment> {
       const size = byteLength(data);
       if (!size) throw new Error('That file came through empty — please pick it again.');
-      if (size > MAX_ATTACHMENT_BYTES) {
-        throw new Error(`Attachments are limited to ${Math.floor(MAX_ATTACHMENT_BYTES / 1024 / 1024)} MB.`);
-      }
 
       const safeName = (filename || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
       const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const storagePath = `${conversationId}/${unique}-${safeName}`;
       const ext = safeName.split('.').pop()?.toLowerCase() ?? '';
-      const type =
-        mimeType || (data instanceof Blob ? data.type : '') || MIME_BY_EXT[ext] || 'application/octet-stream';
+      const result = resolveUploadType('chat-attachments', {
+        declared: mimeType || (data instanceof Blob ? data.type : ''),
+        ext,
+        size,
+      });
+      if (!result.ok) throw new Error(result.message);
+      const type = result.type;
 
       const { error } = await getSupabase()
         .storage.from('chat-attachments')
         .upload(storagePath, data, { contentType: type, upsert: false });
-      if (error) throw error;
+      if (error) throw friendlyStorageError('chat-attachments', error) ?? error;
 
       return {
         storagePath,
