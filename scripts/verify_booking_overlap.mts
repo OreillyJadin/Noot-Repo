@@ -1,4 +1,4 @@
-// Verify migration 0062 against the LOCAL stack: the database refuses two live bookings
+// Verify migration 0063 against the LOCAL stack: the database refuses two live bookings
 // for one tutor at once, and the Edge Functions turn a lost slot race into a 409 that
 // releases the losing card hold.
 //
@@ -102,7 +102,7 @@ const insert = async (over: Record<string, unknown>) => {
 try {
   // ---------- database ----------
   console.log('— concurrent inserts —');
-  for (let round = 1; round <= 5; round++) {
+  for (let round = 1; round <= 10; round++) {
     const at = slot();
     const [a, b] = await Promise.all([
       insert({ student_id: SA, scheduled_at: at }),
@@ -111,9 +111,15 @@ try {
     const winner = a.error ? b : a;
     if (winner.data?.id) bookingIds.push(winner.data.id as string);
     const loser = a.error ? a : b;
-    step(1, !!winner.data && (loser.error as { code?: string } | null)?.code === '23P01',
+    // The loser can be aborted two ways: 23P01 (exclusion violation) or 40P01 — the
+    // deadlock detector kills one txn when both wait on each other's constraint tuple.
+    const loserCode = (loser.error as { code?: string } | null)?.code;
+    const { data: live } = await svc.from('bookings').select('id')
+      .eq('tutor_id', T1).eq('scheduled_at', at).in('status', ['pending', 'confirmed']);
+    for (const row of live ?? []) if (!bookingIds.includes(row.id)) bookingIds.push(row.id);
+    step(1, !!winner.data && (loserCode === '23P01' || loserCode === '40P01') && (live ?? []).length === 1,
       `round ${round}: exactly one of two overlapping pending inserts succeeds`,
-      `loser code ${(loser.error as { code?: string } | null)?.code ?? 'none'}`);
+      `loser code ${loserCode ?? 'none'}, live rows ${(live ?? []).length}`);
   }
 
   const t = slot();
@@ -220,6 +226,7 @@ try {
       const loser = results.find((x) => x.r.status !== 200);
       if (winner?.r.body?.bookingId) bookingIds.push(winner.r.body.bookingId as string);
       const loserPi = loser ? await getPaymentIntent(loser.pi) : null;
+      if (loserPi && !loserPi.status) console.log('   loser pi raw:', JSON.stringify(loserPi));
       const rows = await liveRows(at);
       for (const row of rows) if (!bookingIds.includes(row.id)) bookingIds.push(row.id);
       step(`6.${round}`, !!winner && !!loser && loser!.r.status === 409 && loser!.r.body?.error === SLOT_TAKEN
