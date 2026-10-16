@@ -19,6 +19,8 @@ import { NotificationBell } from '../lib/NotificationBell';
 import { VerifiedBadge, VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 import { nudgeCourse } from '../lib/browse';
 import { CountdownPills } from '../lib/CountdownPills';
+import { pickStudentNext } from '../lib/nextSession';
+import { formatSessionTime } from '../lib/formatSessionTime';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
 function formatWhen(iso: string): string {
@@ -109,14 +111,14 @@ export default function Home() {
   const multiRole = (me?.roles ?? []).filter((r) => r === 'student' || r === 'tutor' || r === 'ambassador').length > 1;
 
   // Next session: the soonest real upcoming booking, or null → a "find a tutor" CTA.
-  const [next, setNext] = useState<{ course: string; when: string; where: string; tutorName: string; tutor: Tutor | null; at: number } | null>(null);
+  const [next, setNext] = useState<{ course: string; when: string; where: string; tutorName: string; tutor: Tutor | null; at: number; pending: boolean; acceptBy: string } | null>(null);
   const [nextLoading, setNextLoading] = useState(true);
   useEffect(() => {
     let active = true;
     api
       .listUpcoming('student')
       .then(async (bookings) => {
-        const b = bookings.find((booking) => booking.status === 'confirmed');
+        const b = pickStudentNext(bookings);
         if (!b) { if (active) setNext(null); return; }
         const summary = await api.tutors.getById(b.tutorId).catch(() => null);
         if (!active) return;
@@ -128,6 +130,8 @@ export default function Home() {
           tutorName: tutor?.name ?? 'Your tutor',
           tutor,
           at: new Date(b.scheduledAt).getTime(),
+          pending: b.status === 'pending',
+          acceptBy: b.acceptBy ?? b.scheduledAt,
         });
       })
       .catch(() => { if (active) setNext(null); })
@@ -204,7 +208,7 @@ export default function Home() {
           <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
             <GeckoLogo style={styles.geckoDeco} />
             <View style={styles.rowBetween}>
-              <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>YOUR NEXT SESSION</Text>
+              <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>{next.pending ? 'REQUEST SENT' : 'YOUR NEXT SESSION'}</Text>
               <Badge label={next.course} tone="ink" />
             </View>
             <View style={styles.nextTutorRow}>
@@ -216,7 +220,15 @@ export default function Home() {
                 </Text>
               </View>
             </View>
-            <CountdownPills target={next.at} />
+            {next.pending ? (
+              <View style={styles.pendingPill}>
+                <Text style={[styles.pendingPillText, { color: t.onAccent }]}>
+                  Waiting for {next.tutorName} to accept · by {formatSessionTime(next.acceptBy)}
+                </Text>
+              </View>
+            ) : (
+              <CountdownPills target={next.at} />
+            )}
             <View style={styles.nextActions}>
               <Pressable onPress={openChat} style={[styles.nextBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
                 <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />
@@ -324,6 +336,8 @@ const styles = StyleSheet.create({
   nextTutorRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 12 },
   nextName: { fontSize: 16, fontWeight: '700' },
   nextMeta: { fontSize: 12.5, opacity: 0.85, marginTop: 1 },
+  pendingPill: { alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.16)' },
+  pendingPillText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   nextActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   nextBtn: { flex: 1, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   nextBtnLabel: { fontSize: 14, fontWeight: '600' },

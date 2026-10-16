@@ -31,7 +31,7 @@ export default function History() {
   useEffect(() => {
     let active = true;
     Promise.all([
-      api.listPast(),
+      api.listPast(isTutor ? 'tutor' : 'student'),
       api.resolveParticipantNames().catch(() => ({} as Record<string, { firstName: string; lastName: string }>)),
     ])
       .then(([past, nm]) => { if (active) { setRows(past); setNames(nm); } })
