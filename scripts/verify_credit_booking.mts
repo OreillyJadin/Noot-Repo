@@ -157,6 +157,10 @@ try {
   await accept(b1);
   const r100 = await api.bookings.cancel(b1);
   check('cancel 30h out: full refund', r100.refundPercent === 100);
+  const { data: cancelled100 } = await svc.from('bookings')
+    .select('cancelled_by_role,cancelled_from_status').eq('id', b1).single();
+  check('full student cancellation records confirmed attribution',
+    cancelled100?.cancelled_by_role === 'student' && cancelled100.cancelled_from_status === 'confirmed');
   check('…and the full $5 credit comes back', (await api.credits.balance()) === bal0 + 500, String(await api.credits.balance()));
 
   const t5 = at(10);
@@ -166,7 +170,11 @@ try {
   const bal1 = await api.credits.balance();
   const r50 = await api.bookings.cancel(b5);
   const captured = await getPaymentIntent(pi5.paymentIntentId);
+  const { data: cancelled50 } = await svc.from('bookings')
+    .select('cancelled_by_role,cancelled_from_status').eq('id', b5).single();
   check('cancel 10h out: 50% refund', r50.refundPercent === 50);
+  check('partial student cancellation records confirmed attribution',
+    cancelled50?.cancelled_by_role === 'student' && cancelled50.cancelled_from_status === 'confirmed');
   check('…captures half of price + service fee − credit',
     captured.amount_received === Math.round((Math.round(pi5.price * 100) + pi5.studentFeeCents - pi5.creditCents) / 2),
     `${captured.amount_received} vs half of ${pi5.amountCents} − ${pi5.creditCents}`);

@@ -95,6 +95,8 @@ serveWithErrorReporting('respond-booking-request', async (req: Request) => {
       .from('bookings')
       .update({
         status: 'cancelled',
+        cancelled_by_role: 'tutor',
+        cancelled_from_status: 'pending',
         cancelled_at: now.toISOString(),
         refund_percent: 100,
         refund_status: 'refunded',
