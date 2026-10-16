@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api, NO_SHOW_FLAG_AT, TUTOR_CANCEL_FLAG_OVER, type AdminUserHistory, type AdminUserHistoryBooking } from '@noot/core';
@@ -57,6 +57,7 @@ function AdminUserScreen() {
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const userId = Array.isArray(params.id) ? params.id[0] : params.id;
   const { me, loading: meLoading, isAdmin } = useMe();
+  const currentUserId = useRef(userId);
   const [history, setHistory] = useState<AdminUserHistory | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState<string | null>(null);
@@ -64,6 +65,7 @@ function AdminUserScreen() {
 
   useEffect(() => {
     let active = true;
+    currentUserId.current = userId;
     setHistory(null);
     setFailed(null);
     setLoading(true);
@@ -104,12 +106,19 @@ function AdminUserScreen() {
 
   const updateStatus = async (next: 'active' | 'suspended' | 'banned') => {
     if (!user || isSelf || deleted || busy) return;
+    const targetId = user.id;
     setBusy(true);
     try {
-      await api.admin.setUserStatus(user.id, next);
-      setHistory((previous) => previous?.user
+      await api.admin.setUserStatus(targetId, next);
+      if (currentUserId.current === targetId) {
+        setHistory((previous) => previous?.user?.id === targetId
         ? { ...previous, user: { ...previous.user, status: next } }
         : previous);
+      }
+      try {
+        const refreshed = await api.admin.userHistory(targetId);
+        if (currentUserId.current === targetId) setHistory(refreshed);
+      } catch {}
     } catch (error) {
       Alert.alert('Could not update', errText(error, 'Please try again.'));
     } finally {
@@ -216,7 +225,9 @@ function AdminUserScreen() {
                 <AdminRow
                   key={booking.id}
                   title={booking.subject}
-                  subtitle={`${dateTimeLabel(booking.scheduledAt)} · ${booking.role === 'student' ? 'Student' : 'Tutor'} · ${booking.counterpartName} · ${bookingOutcome(booking)}`}
+                  subtitleLines={0}
+                  subtitle={`${dateTimeLabel(booking.scheduledAt)} · ${booking.role === 'student' ? 'Student' : 'Tutor'} · ${booking.counterpartName}`}
+                  detail={<Text style={[styles.historyDetail, { color: t.text2 }]}>{bookingOutcome(booking)}</Text>}
                   trailing={<Text style={[styles.status, { color: t.text3 }]}>{booking.status.replaceAll('_', ' ')}</Text>}
                 />
               )) : <AdminRow title="No bookings" muted />}
@@ -227,7 +238,9 @@ function AdminUserScreen() {
                 <AdminRow
                   key={report.id}
                   title={report.reason.replaceAll('_', ' ')}
-                  subtitle={`${report.targetKind} · ${report.status} · ${dateTimeLabel(report.createdAt)}${report.detail ? ` · ${report.detail}` : ''}`}
+                  subtitleLines={0}
+                  subtitle={`${report.targetKind} · ${report.status} · ${dateTimeLabel(report.createdAt)}`}
+                  detail={report.detail ? <Text style={[styles.historyDetail, { color: t.text2 }]}>{report.detail}</Text> : undefined}
                 />
               )) : <AdminRow title="No reports" muted />}
             </AdminSection>
@@ -237,7 +250,11 @@ function AdminUserScreen() {
                 <AdminRow
                   key={`${action.action}-${action.createdAt}-${index}`}
                   title={action.action.replaceAll('.', ' ')}
-                  subtitle={`By ${action.actorName} · ${dateTimeLabel(action.createdAt)}${Object.keys(action.details).length ? ` · ${JSON.stringify(action.details)}` : ''}`}
+                  subtitleLines={0}
+                  subtitle={`By ${action.actorName} · ${dateTimeLabel(action.createdAt)}`}
+                  detail={Object.keys(action.details).length
+                    ? <Text style={[styles.historyDetail, { color: t.text2 }]}>{JSON.stringify(action.details)}</Text>
+                    : undefined}
                 />
               )) : <AdminRow title="No admin actions" muted />}
             </AdminSection>
@@ -260,6 +277,7 @@ const styles = StyleSheet.create({
   joined: { fontSize: 11.5 },
   actions: { flexDirection: 'row', gap: 8 },
   warning: { fontSize: 11, fontWeight: '600' },
+  historyDetail: { fontSize: 12, lineHeight: 17 },
   countValue: { fontSize: 13, fontWeight: '700' },
   status: { fontSize: 11, textTransform: 'capitalize' },
 });

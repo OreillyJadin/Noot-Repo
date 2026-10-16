@@ -78,6 +78,7 @@ export function AdminRow({
   leading,
   title,
   subtitle,
+  subtitleLines = 1,
   detail,
   trailing,
   count,
@@ -92,6 +93,7 @@ export function AdminRow({
   title: string;
   titleStyle?: TextStyle;
   subtitle?: string;
+  subtitleLines?: number;
   detail?: React.ReactNode;
   trailing?: React.ReactNode;
   count?: number;
@@ -106,7 +108,7 @@ export function AdminRow({
       {leading ?? (icon ? <Ic name={icon} size={20} color={muted ? t.text3 : t.text2} strokeWidth={1.7} /> : null)}
       <View style={styles.rowText}>
         <Text numberOfLines={1} style={[styles.rowTitle, { color: muted ? t.text2 : t.text }, titleStyle]}>{title}</Text>
-        {subtitle ? <Text numberOfLines={1} style={[styles.rowSubtitle, { color: t.text3 }]}>{subtitle}</Text> : null}
+        {subtitle ? <Text numberOfLines={subtitleLines || undefined} style={[styles.rowSubtitle, { color: t.text3 }]}>{subtitle}</Text> : null}
         {detail ? <View style={styles.rowDetail}>{detail}</View> : null}
       </View>
       {count && count > 0 ? <CountPill count={count} /> : null}

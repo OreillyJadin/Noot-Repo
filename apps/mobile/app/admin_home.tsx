@@ -23,7 +23,7 @@ const EMPTY_COUNTS: AdminHubCounts = {
 function AdminHomeScreen() {
   const t = useTheme();
   const router = useRouter();
-  const [today] = useState(() => new Date());
+  const [today, setToday] = useState(() => new Date());
   const bodyRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef: bodyRef });
   const { exitAdmin } = useRoleSwitch();
@@ -39,6 +39,7 @@ function AdminHomeScreen() {
       let alive = true;
       const now = new Date();
       const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      setToday(now);
       setLoading(true);
       setEventsLoading(true);
       api.admin
@@ -49,7 +50,12 @@ function AdminHomeScreen() {
       api.admin
         .calendar(now.toISOString(), tomorrow.toISOString())
         .then((value) => {
-          if (alive) setEvents(value.filter((event) => Date.parse(event.startsAt) >= now.getTime()).slice(0, 3));
+          if (alive) {
+            setEvents(value
+              .filter((event) => Date.parse(event.startsAt) >= now.getTime())
+              .filter((event) => event.kind !== 'booking' || (event.status !== 'cancelled' && event.status !== 'no_show'))
+              .slice(0, 3));
+          }
         })
         .catch(() => { if (alive) setEvents([]); })
         .finally(() => { if (alive) setEventsLoading(false); });
