@@ -10,7 +10,7 @@
 //   • verifyGrades: true — an admin checked the transcript. Sets grades_verified_at/_by,
 //     which is the Verified badge and the 17.5% (vs 32.5%) fee. Needs an uploaded transcript.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { requireActiveUser } from '../_shared/auth.ts';
+import { requireActiveUser, requireAdmin } from '../_shared/auth.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -37,14 +37,8 @@ Deno.serve(async (req: Request) => {
     const inactiveResponse = await requireActiveUser(db, user.id, cors);
     if (inactiveResponse) return inactiveResponse;
 
-    // Re-verify admin server-side (do NOT trust the client).
-    const { data: adminRow } = await db
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
-      .maybeSingle();
-    if (!adminRow) return Response.json({ error: 'Forbidden' }, { status: 403, headers: cors });
+    const notAdmin = await requireAdmin(userClient, cors);
+    if (notAdmin) return notAdmin;
 
     const { tutorUserId, decision, verifyGrades } = await req.json().catch(() => ({}));
     const deciding = decision === 'approved' || decision === 'rejected';

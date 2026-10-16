@@ -5,6 +5,7 @@ import { Screen, NavTop, Body, Card, Badge, Ic, Eyebrow, Skeleton, useTheme, typ
 import { api, attentionTotal, type AdminHubCounts } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { interviewLabel } from '../lib/interviewSlots';
+import { AdminMfaGate } from '../lib/AdminMfaGate';
 
 type HubTile = {
   key: string;
@@ -25,7 +26,7 @@ const EMPTY_COUNTS: AdminHubCounts = {
   disputes: 0,
 };
 
-export default function AdminHome() {
+function AdminHomeScreen() {
   const t = useTheme();
   const router = useRouter();
   const { me, loading: meLoading } = useMe();
@@ -227,3 +228,11 @@ const styles = StyleSheet.create({
   manageHint: { fontSize: 12, marginTop: 1 },
   note: { fontSize: 12, lineHeight: 17, marginTop: 18, paddingHorizontal: 2 },
 });
+
+export default function AdminHome() {
+  return (
+    <AdminMfaGate>
+      <AdminHomeScreen />
+    </AdminMfaGate>
+  );
+}

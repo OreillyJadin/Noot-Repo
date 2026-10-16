@@ -52,3 +52,37 @@ Connect events other than `account.updated` are acknowledged without processing.
 Handler failures return 500 so Stripe redelivers the event; handlers are idempotent under
 redelivery. Set the Connect endpoint signing secret with
 `supabase secrets set STRIPE_CONNECT_WEBHOOK_SECRET=...`.
+
+## Admin two-step sign-in (MFA)
+
+Admin authorization is defined by `public.is_admin()` in migration `0059_admin_mfa.sql`.
+Admin RLS policies, RPCs, and Edge Functions all use this function so the same role and
+two-step sign-in rule applies everywhere. A verified authenticator always requires the
+second step; the rollout switch can additionally require it for every admin.
+
+Admins can enroll from an app build with the setup screen while the switch is off. Only turn
+on the switch after every admin has enrolled:
+
+```sql
+update public.app_settings
+set value = 'true'::jsonb, updated_at = now()
+where key = 'require_admin_mfa';
+```
+
+To turn it back off:
+
+```sql
+update public.app_settings
+set value = 'false'::jsonb, updated_at = now()
+where key = 'require_admin_mfa';
+```
+
+Supabase has no authenticator recovery codes. If an admin loses their authenticator, another
+admin or Jadin can delete that user's factor in Studio (Table Editor → `auth` schema →
+`mfa_factors`) or run:
+
+```sql
+delete from auth.mfa_factors where user_id = '<user uuid>';
+```
+
+The admin will enroll again the next time they open an admin screen.

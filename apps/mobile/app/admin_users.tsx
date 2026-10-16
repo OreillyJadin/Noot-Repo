@@ -11,6 +11,7 @@ import { Screen, NavTop, Body, Card, Button, Badge, Chip, Field, Eyebrow, EmptyS
 import { api, type AdminUser, type AdminUserRole, type AdminUserStatus } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
+import { AdminMfaGate } from '../lib/AdminMfaGate';
 
 const STATUS_TONE: Record<string, BadgeTone> = { active: 'good', suspended: 'accentSoft', banned: 'neutral', deleted: 'neutral' };
 
@@ -34,7 +35,7 @@ function dateLabel(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export default function AdminUsers() {
+function AdminUsersScreen() {
   const t = useTheme();
   const router = useRouter();
   const { me, loading: meLoading } = useMe();
@@ -213,3 +214,11 @@ const styles = StyleSheet.create({
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 12 },
 });
+
+export default function AdminUsers() {
+  return (
+    <AdminMfaGate>
+      <AdminUsersScreen />
+    </AdminMfaGate>
+  );
+}
