@@ -8,13 +8,10 @@
 import { Alert, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { api, type OutgoingAttachment } from '@noot/core';
+import { api, STORAGE_LIMITS, type OutgoingAttachment } from '@noot/core';
 import { readUriBytes } from './bytes';
 import { errText } from './errText';
 import { ensurePhotoAccess } from './photoAccess';
-
-/** Mirrors the bucket's file_size_limit (migration 0021) — checked here for a kind message. */
-export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 interface Picked {
   uri: string;
@@ -31,7 +28,11 @@ async function pickImage(): Promise<Picked | null> {
 }
 
 async function pickDocument(): Promise<Picked | null> {
-  const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
+  const res = await DocumentPicker.getDocumentAsync({
+    type: [...STORAGE_LIMITS['chat-attachments'].mimeTypes],
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
   if (res.canceled || !res.assets?.[0]) return null;
   const a = res.assets[0];
   return { uri: a.uri, name: a.name || 'attachment', mimeType: a.mimeType };
@@ -75,9 +76,6 @@ export async function pickAndUploadChatAttachment(
     // Real bytes — `fetch(uri).blob()` yields a file-backed RN Blob that Storage writes as 0.
     const bytes = await readUriBytes(picked.uri);
     if (bytes.byteLength === 0) throw new Error('That file came through empty.');
-    if (bytes.byteLength > MAX_ATTACHMENT_BYTES) {
-      throw new Error(`Attachments are limited to ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB.`);
-    }
     return await api.chat.uploadAttachment(conversationId, bytes, picked.name, picked.mimeType);
   } catch (e) {
     Alert.alert('Attachment failed', errText(e, 'Please try again.'));

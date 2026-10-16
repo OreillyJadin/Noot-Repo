@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, STORAGE_LIMITS } from '@noot/core';
 import { useTutorApplication } from '../lib/useTutorApplication';
 import { errText } from '../lib/errText';
 import { readUriBytes } from '../lib/bytes';
@@ -66,7 +66,7 @@ export default function T6() {
     if (busy) return;
     try {
       const res = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/*'],
+        type: [...STORAGE_LIMITS.transcripts.mimeTypes],
         copyToCacheDirectory: true,
         multiple: false,
       });

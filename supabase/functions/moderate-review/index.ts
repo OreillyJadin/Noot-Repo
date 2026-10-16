@@ -5,6 +5,7 @@
 // denormalized rating_avg from their approved reviews.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser, requireAdmin } from '../_shared/auth.ts';
+import { logAdminAction } from '../_shared/audit.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -46,6 +47,14 @@ serveWithErrorReporting('moderate-review', async (req: Request) => {
       .maybeSingle();
     if (rErr) return Response.json({ error: rErr.message }, { status: 400, headers: cors });
     if (!review) return Response.json({ error: 'review not found' }, { status: 404, headers: cors });
+
+    await logAdminAction(db, {
+      actorId: user.id,
+      action: decision === 'approved' ? 'review.approve' : 'review.reject',
+      targetType: 'review',
+      targetId: reviewId,
+      details: { decision, subject_user_id: review.subject_user_id },
+    });
 
     // Recompute the rated user's denormalized average from their APPROVED reviews.
     if (decision === 'approved') {

@@ -5,6 +5,7 @@
 // writable only by the service role, so this function is the authoritative path.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser, requireAdmin } from '../_shared/auth.ts';
+import { logAdminAction } from '../_shared/audit.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -49,6 +50,14 @@ serveWithErrorReporting('admin-set-user-status', async (req: Request) => {
       ban_duration: status === 'active' ? 'none' : '876000h',
     });
     if (banErr) return Response.json({ error: banErr.message }, { status: 400, headers: cors });
+
+    await logAdminAction(db, {
+      actorId: user.id,
+      action: status === 'active' ? 'user.reactivate' : status === 'suspended' ? 'user.suspend' : 'user.ban',
+      targetType: 'user',
+      targetId: userId,
+      details: { status },
+    });
 
     return Response.json({ ok: true, status }, { headers: cors });
   } catch (e) {

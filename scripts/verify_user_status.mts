@@ -112,7 +112,7 @@ try {
 
   const upload = await student.storage
     .from('avatars')
-    .upload(savedPath, new Uint8Array([110, 111, 111, 116]), { contentType: 'text/plain' });
+    .upload(savedPath, new Uint8Array([110, 111, 111, 116]), { contentType: 'image/png' });
   check('suspended student cannot upload an avatar', !!upload.error, upload.error?.message ?? 'upload succeeded');
 
   const { error: claimError } = await student.rpc('claim_invite', { p_code: 'NOOT-INVALID' });
