@@ -1,15 +1,29 @@
-// Unread-notification count for the bell badge. Fetches once on mount (and whenever the
-// caller bumps `deps`, e.g. a screen-focus tick). Silent on failure → 0.
-import { useEffect, useState } from 'react';
+// Unread-notification count for the bell badge. Refreshes when visible or when a push arrives.
+import { useCallback, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { api } from '@noot/core';
+import { onPushReceived } from './push';
 
-export function useUnread(deps: unknown[] = []): number {
+export function useUnread(): number {
   const [count, setCount] = useState(0);
+  const refresh = useCallback(() => {
+    api.notifications.unreadCount().then(setCount).catch(() => {});
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    refresh();
+  }, [refresh]));
+
   useEffect(() => {
-    let active = true;
-    api.notifications.unreadCount().then((c) => { if (active) setCount(c); }).catch(() => {});
-    return () => { active = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+    const unsubscribe = onPushReceived(refresh);
+    return () => {
+      appState.remove();
+      unsubscribe();
+    };
+  }, [refresh]);
   return count;
 }
