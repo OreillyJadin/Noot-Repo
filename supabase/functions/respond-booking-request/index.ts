@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
+import { isBlockedBetween } from '../_shared/booking.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -80,28 +81,37 @@ serveWithErrorReporting('respond-booking-request', async (req: Request) => {
       // The chat is part of the session: confirm-booking normally creates it, but
       // upsert here so an accepted session can never end up without a thread, then
       // post the acceptance as a tutor message so the student sees it in the chat
-      // (trg_notify_on_message notifies them too).
-      const { data: conversation, error: conversationError } = await db
-        .from('conversations')
-        .upsert(
-          { student_id: booking.student_id, tutor_id: booking.tutor_id },
-          { onConflict: 'student_id,tutor_id' },
-        )
-        .select('id')
-        .single();
-      if (conversationError) {
-        console.error('respond-booking-request: conversation upsert failed', bookingId, conversationError.message);
+      // (trg_notify_on_message notifies them too). Skipped when either party has
+      // blocked the other — service role bypasses messages_insert's block check.
+      const blocked = await isBlockedBetween(db, booking.student_id, booking.tutor_id).catch((e) => {
+        console.error('respond-booking-request: block check failed', bookingId, e?.message ?? e);
+        return true; // can't prove the pair is unblocked → don't post
+      });
+      if (blocked) {
+        console.log('respond-booking-request: accepted a blocked pair — skipping the chat message', bookingId);
       } else {
-        const when = new Date(booking.scheduled_at).toLocaleString('en-US', {
-          weekday: 'long', month: 'long', day: 'numeric',
-          hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago',
-        });
-        const { error: messageError } = await db.from('messages').insert({
-          conversation_id: conversation.id,
-          sender_id: user.id,
-          content: `Accepted your ${booking.subject} session — see you ${when}!`,
-        });
-        if (messageError) console.error('respond-booking-request: acceptance message failed', bookingId, messageError.message);
+        const { data: conversation, error: conversationError } = await db
+          .from('conversations')
+          .upsert(
+            { student_id: booking.student_id, tutor_id: booking.tutor_id },
+            { onConflict: 'student_id,tutor_id' },
+          )
+          .select('id')
+          .single();
+        if (conversationError) {
+          console.error('respond-booking-request: conversation upsert failed', bookingId, conversationError.message);
+        } else {
+          const when = new Date(booking.scheduled_at).toLocaleString('en-US', {
+            weekday: 'long', month: 'long', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago',
+          });
+          const { error: messageError } = await db.from('messages').insert({
+            conversation_id: conversation.id,
+            sender_id: user.id,
+            content: `Accepted your ${booking.subject} session — see you ${when}!`,
+          });
+          if (messageError) console.error('respond-booking-request: acceptance message failed', bookingId, messageError.message);
+        }
       }
 
       let tutorName = 'Your tutor';

@@ -29,6 +29,22 @@ export type ResolveBookingInput = {
   scheduledAt: unknown;
 };
 
+/**
+ * True when either direction of user_blocks exists between the pair. Mirrors
+ * is_blocked_between() in 0028_reports_and_blocks.sql, for service-role writes
+ * that bypass the block check inside the messages_insert policy. Read off the
+ * table rather than the RPC: that function is granted only to `authenticated`.
+ */
+export async function isBlockedBetween(db: SupabaseClient, a: string, b: string): Promise<boolean> {
+  const { data, error } = await db
+    .from('user_blocks')
+    .select('blocker_id') // composite PK (blocker_id, blocked_id) — there is no id column
+    .or(`and(blocker_id.eq.${a},blocked_id.eq.${b}),and(blocker_id.eq.${b},blocked_id.eq.${a})`)
+    .limit(1);
+  if (error) dbFail('block lookup', error);
+  return (data ?? []).length > 0;
+}
+
 export type ResolvedBooking = {
   tutorId: string;
   courseCode: string;
@@ -134,20 +150,10 @@ export async function resolveBooking(
     throw new BookingError('This tutor has not finished setting up payouts yet, so they cannot be booked.', 409);
   }
 
-  // Blocks are symmetric, matching is_blocked_between() in 0028_reports_and_blocks.sql. Read
-  // straight off the table rather than via RPC: that function is only granted to
-  // `authenticated`, and this runs as service role.
-  const { data: blocks, error: blockErr } = await db
-    .from('user_blocks')
-    .select('blocker_id')  // composite PK (blocker_id, blocked_id) — there is no id column
-    .or(
-      `and(blocker_id.eq.${input.studentId},blocked_id.eq.${tutorId}),` +
-        `and(blocker_id.eq.${tutorId},blocked_id.eq.${input.studentId})`,
-    )
-    .limit(1);
-  if (blockErr) dbFail('block lookup', blockErr);
   // Deliberately vague: don't disclose that the other party blocked you.
-  if ((blocks ?? []).length > 0) throw new BookingError('That tutor is no longer available', 404);
+  if (await isBlockedBetween(db, input.studentId, tutorId)) {
+    throw new BookingError('That tutor is no longer available', 404);
+  }
 
   // Price comes from the tutor's own rate for this specific course. Never from the client.
   const { data: course, error: courseErr } = await db

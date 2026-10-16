@@ -3,10 +3,10 @@
 // the student sees it as "Awaiting response" until the tutor accepts or declines, and
 // the tutor sees the student's opening message as a "New request". Tapping a row opens
 // the thread on whichever side of that conversation the user is on.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, H1, TabBar, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import type { Booking, ConversationSummary } from '@noot/core';
@@ -14,7 +14,7 @@ import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
-import { draftFromBooking } from '../lib/bookingDraft';
+import { draftFromBooking, blankSessionFields } from '../lib/bookingDraft';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -82,51 +82,63 @@ export default function Chats() {
   const [loading, setLoading] = useState(true);
   const [opening, setOpening] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    Promise.all([
-      api.chat.listConversations(),
-      api.listUpcoming().catch(() => [] as Booking[]),
-      auth.getSessionUserId().catch(() => null),
-    ])
-      .then(([convos, bookings, me]) => {
-        if (!active) return;
-        const byOther: Record<string, Booking> = {};
-        for (const b of bookings) {
-          const other = b.studentId === me ? b.tutorId : b.studentId;
-          // A pending request outranks a confirmed session — it's the state that
-          // still needs someone's response.
-          if (!byOther[other] || byOther[other].status !== 'pending') byOther[other] = b;
-        }
-        const sorted = [...convos].sort(
-          (a, b) =>
-            new Date(b.lastMessage?.createdAt ?? b.createdAt).getTime() -
-            new Date(a.lastMessage?.createdAt ?? a.createdAt).getTime(),
-        );
-        setUid(me);
-        setBookingBy(byOther);
-        setRows(sorted);
-      })
-      .catch(() => { /* no session / offline → empty state */ })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [reloadKey]);
+  // Reload on every focus — a thread pushed on top can change the pair's state
+  // (new messages, an accepted request) and the list must not come back stale.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      Promise.all([
+        api.chat.listConversations(),
+        api.listUpcoming().catch(() => [] as Booking[]),
+        auth.getSessionUserId().catch(() => null),
+      ])
+        .then(([convos, bookings, me]) => {
+          if (!active) return;
+          const byOther: Record<string, Booking> = {};
+          for (const b of bookings) {
+            const other = b.studentId === me ? b.tutorId : b.studentId;
+            // listUpcoming is ascending by session time, so the first booking per
+            // counterpart is the next one; a pending request outranks a confirmed
+            // session since it's the state that still needs someone's response.
+            const cur = byOther[other];
+            if (!cur || (cur.status !== 'pending' && b.status === 'pending')) byOther[other] = b;
+          }
+          const sorted = [...convos].sort(
+            (a, b) =>
+              new Date(b.lastMessage?.createdAt ?? b.createdAt).getTime() -
+              new Date(a.lastMessage?.createdAt ?? a.createdAt).getTime(),
+          );
+          setUid(me);
+          setBookingBy(byOther);
+          setRows(sorted);
+        })
+        .catch(() => { /* no session / offline → empty state */ })
+        .finally(() => { if (active) setLoading(false); });
+      return () => { active = false; };
+    }, [reloadKey]),
+  );
 
   const open = async (c: ConversationSummary) => {
     if (opening) return;
     setOpening(c.id);
     try {
       const booking = bookingBy[c.counterpart.id];
+      const session = booking ? draftFromBooking(booking) : {};
       if (c.side === 'student') {
         let tutor: Tutor | null = null;
         try {
           const summary = await api.tutors.getById(c.counterpart.id);
           if (summary) tutor = toTutor(summary);
         } catch { /* fallback below */ }
-        patchBooking({ tutor: tutor ?? fallbackTutor(c), ...(booking ? draftFromBooking(booking) : {}) });
+        patchBooking({
+          ...blankSessionFields(),
+          tutor: tutor ?? fallbackTutor(c),
+          tutorId: c.counterpart.id,
+          ...session,
+        });
         router.push('/chat');
       } else {
-        patchBooking({ studentId: c.counterpart.id, ...(booking ? draftFromBooking(booking) : {}) });
+        patchBooking({ ...blankSessionFields(), studentId: c.counterpart.id, ...session });
         router.push('/chat_tutor');
       }
     } finally {

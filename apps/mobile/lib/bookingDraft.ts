@@ -23,3 +23,29 @@ export function draftFromBooking(b: Booking): Partial<BookingDraft> {
     lengthMin: b.durationMinutes,
   };
 }
+
+/**
+ * The same fields draftFromBooking fills, all undefined — spread into a
+ * patchBooking() call when opening a thread that has no upcoming booking, so a
+ * previously opened session's details can't leak into this conversation.
+ * Keep the key set in sync with draftFromBooking above.
+ */
+export function blankSessionFields(): Partial<BookingDraft> {
+  return {
+    bookingId: undefined,
+    studentId: undefined,
+    tutorId: undefined,
+    course: undefined,
+    scheduledAt: undefined,
+    acceptBy: undefined,
+    acceptedAt: undefined,
+    status: undefined,
+    cancelReason: undefined,
+    declineNote: undefined,
+    rescheduleProposedAt: undefined,
+    rescheduleProposedBy: undefined,
+    location: undefined,
+    sessionType: undefined,
+    lengthMin: undefined,
+  };
+}

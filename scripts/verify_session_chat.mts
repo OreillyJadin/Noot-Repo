@@ -155,6 +155,8 @@ try {
     !!quietConvo && quietMsgs?.[0]?.sender_id === studentId && quietMsgs[0].content.length > 0,
     quietMsgs?.[0]?.content?.slice(0, 60));
 
+  const quietBookingId = quietBooking.bookingId;
+
   // ── 4. Accept → confirmed session + the tutor's message lands in the thread ──
   stage = 'tutor accepts';
   const accepted = await call('respond-booking-request', { bookingId, action: 'accept' }, tutorToken);
@@ -177,10 +179,25 @@ try {
   const { data: msgNotif } = await admin.from('notifications')
     .select('id').eq('user_id', studentId).eq('type', 'message').contains('data', { conversationId }).maybeSingle();
   step('student is notified of the confirmation and the new message', !!confirmNotif && !!msgNotif);
+
+  // ── 5. A block between booking and accept skips the message (service role
+  //        bypasses messages_insert's block check, so the function re-checks) ───
+  stage = 'accept while blocked';
+  await admin.from('user_blocks').insert({ blocker_id: studentId, blocked_id: tutorId });
+  const blockedAccept = await call('respond-booking-request', { bookingId: quietBookingId, action: 'accept' }, tutorToken);
+  const { data: quietRow } = await admin.from('bookings').select('status').eq('id', quietBookingId).single();
+  const { data: tutorMsgs } = await admin.from('messages')
+    .select('id').eq('conversation_id', conversationId).eq('sender_id', tutorId);
+  step('a blocked accept still confirms but posts nothing to the thread',
+    blockedAccept.status === 200 && quietRow?.status === 'confirmed' && tutorMsgs?.length === 1);
+  await admin.from('user_blocks').delete().eq('blocker_id', studentId).eq('blocked_id', tutorId);
 } catch (e) {
   console.error(`Verification setup/error at ${stage}:`, e);
   fail++;
 } finally {
+  try {
+    await admin.from('user_blocks').delete().eq('blocker_id', studentId).eq('blocked_id', tutorId);
+  } catch { /* cleanup best-effort */ }
   for (const bookingId of bookings) {
     await admin.from('notifications').delete().contains('data', { bookingId });
   }
