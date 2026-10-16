@@ -9,8 +9,9 @@ import { Screen, NavTop, Body, Card, Button, Badge, Ic, Eyebrow, EmptyState, Ske
 import { api, type AdminReview } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { AdminTabs, tutorTabs, useAdminHubCounts } from '../lib/AdminTabs';
+import { AdminMfaGate } from '../lib/AdminMfaGate';
 
-export default function AdminReviews() {
+function AdminReviewsScreen() {
   const t = useTheme();
   const router = useRouter();
   const { me, loading: meLoading } = useMe();
@@ -92,3 +93,11 @@ const styles = StyleSheet.create({
   comment: { fontSize: 14, lineHeight: 20, marginTop: 10 },
   actions: { flexDirection: 'row', gap: 10, marginTop: 14 },
 });
+
+export default function AdminReviews() {
+  return (
+    <AdminMfaGate>
+      <AdminReviewsScreen />
+    </AdminMfaGate>
+  );
+}
