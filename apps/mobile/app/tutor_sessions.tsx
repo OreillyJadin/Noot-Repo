@@ -58,7 +58,7 @@ export default function TutorSessions() {
         when: formatWhen(b.scheduledAt),
         // Plain "Online" — see the note in tutor_calendar.tsx (T14).
         where: b.sessionType === 'video' ? 'Online' : b.location ?? 'In person',
-        pay: `$${b.tutorPayoutAmount}`,
+        pay: `$${b.tutorPayoutAmount.toFixed(2)}`,
         status: b.status,
       };
     };
