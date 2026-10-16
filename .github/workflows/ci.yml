@@ -38,6 +38,13 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.1.4
+
+      - name: Lint Edge Function entrypoints
+        run: deno lint supabase/functions/*/index.ts
+
   # Merging to main auto-deploys supabase/migrations to production, so every PR must
   # apply all migrations from scratch and pass the backend checks that need no Edge
   # Functions or Stripe.
