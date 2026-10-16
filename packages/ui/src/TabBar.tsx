@@ -14,12 +14,14 @@ const STUDENT: Tab[] = [
   { label: 'Home', icon: 'home', key: 'home' },
   { label: 'Search', icon: 'search', key: 'student_home' },
   { label: 'Sessions', icon: 'cal', key: 'sessions' },
+  { label: 'Chats', icon: 'chat', key: 'chats' },
   { label: 'Profile', icon: 'user', key: 'profile' },
 ];
 const TUTOR: Tab[] = [
   { label: 'Home', icon: 'home', key: 'tutor_home' },
   { label: 'Calendar', icon: 'cal', key: 'tutor_calendar' },
   { label: 'Sessions', icon: 'list', key: 'tutor_sessions' },
+  { label: 'Chats', icon: 'chat', key: 'chats' },
   { label: 'Profile', icon: 'user', key: 'tutor_profile' },
 ];
 const AMBASSADOR: Tab[] = [

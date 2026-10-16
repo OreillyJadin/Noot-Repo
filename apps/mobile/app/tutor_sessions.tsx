@@ -88,6 +88,13 @@ export default function TutorSessions() {
     router.push('/tb2');
   };
 
+  // A pending request opens its chat — the student's intro message is already
+  // there (confirm-booking created it), so the tutor can read it before deciding.
+  const openChat = (r: SessionRow) => {
+    patchBooking(draftFromBooking(r.booking));
+    router.push('/chat_tutor');
+  };
+
   const acceptRequest = async (id: string) => {
     if (busyId) return;
     setBusyId(id);
@@ -96,11 +103,7 @@ export default function TutorSessions() {
       const acceptedAt = new Date().toISOString();
       const row = upcoming.find((r) => r.id === id);
       setUpcoming((rows) => rows.map((r) => r.id === id
-        ? {
-          ...r,
-          status: 'confirmed',
-          booking: { ...r.booking, status: 'confirmed', acceptedAt },
-        }
+        ? { ...r, status: 'confirmed', booking: { ...r.booking, status: 'confirmed', acceptedAt } }
         : r));
       // Accept → straight into the conversation confirm-booking created at booking time.
       if (row) {
@@ -171,7 +174,7 @@ export default function TutorSessions() {
           ) : (
             <View style={{ gap: 10 }}>
               {upcoming.map((r) => (
-                <Card key={r.id} onPress={r.status === 'pending' ? undefined : () => openDetail(r)} style={{ padding: 14 }}>
+                <Card key={r.id} onPress={() => (r.status === 'pending' ? openChat(r) : openDetail(r))} style={{ padding: 14 }}>
                   <View style={styles.upcomingRow}>
                     <Avatar size={44} label={r.av} />
                     <View style={{ flex: 1, minWidth: 0 }}>

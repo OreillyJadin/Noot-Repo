@@ -125,6 +125,9 @@ export interface TutorSummary {
 /** A conversation plus the counterpart and last message, for the chat list. */
 export interface ConversationSummary {
   id: UUID;
+  /** Which side of the conversation the signed-in user is on — dual-role users
+   * see rows of both, so route by this, not the app's active mode. */
+  side: 'student' | 'tutor';
   counterpart: { id: UUID; firstName: string; lastName: string };
   lastMessage: Message | null;
   createdAt: Timestamp;
