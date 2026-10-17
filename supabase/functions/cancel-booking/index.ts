@@ -64,10 +64,10 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
       );
     }
 
-    if (booking.status === 'cancelled') {
+    if (booking.status !== 'pending' && booking.status !== 'confirmed') {
       return Response.json(
-        { error: 'Booking is already cancelled' },
-        { status: 400, headers: cors },
+        { error: `Cannot cancel a booking with status '${booking.status}'` },
+        { status: 409, headers: cors },
       );
     }
 
