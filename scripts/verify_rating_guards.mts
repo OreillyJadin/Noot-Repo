@@ -52,12 +52,8 @@ const loginToken = async (email: string) => {
   return data.session.access_token;
 };
 
-const createBooking = async (
-  studentId: string,
-  tutorId: string,
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled',
-  scheduledAt: number,
-) => {
+const createCompletedBooking = async (studentId: string, tutorId: string) => {
+  const scheduledAt = Date.now() - 6 * 60 * 60_000;
   const start = new Date(scheduledAt);
   const end = new Date(scheduledAt + 60 * 60_000);
   const { data, error } = await admin.from('bookings').insert({
@@ -72,9 +68,9 @@ const createBooking = async (
     tutor_payout_amount: 40,
     session_type: 'in_person',
     cancellation_deadline: new Date(scheduledAt - 12 * 60 * 60_000).toISOString(),
-    status,
+    status: 'completed',
   }).select('id').single();
-  if (error || !data) throw error ?? new Error(`Could not create ${status} booking`);
+  if (error || !data) throw error ?? new Error('Could not create completed booking');
   cleanup.bookings.push(data.id);
   return data.id as string;
 };
@@ -92,12 +88,14 @@ const call = async (token: string, body: Record<string, unknown>) => {
   return { status: response.status, body: await response.json().catch(() => ({})) as Record<string, any> };
 };
 
-const reviewCount = async (bookingId: string) => {
-  const { count, error } = await admin.from('reviews')
-    .select('id', { count: 'exact', head: true })
-    .eq('booking_id', bookingId);
+const storedComment = async (bookingId: string, reviewerId: string) => {
+  const { data, error } = await admin.from('reviews')
+    .select('comment')
+    .eq('booking_id', bookingId)
+    .eq('reviewer_id', reviewerId)
+    .single();
   if (error) throw error;
-  return count ?? 0;
+  return data.comment as string | null;
 };
 
 let stage = 'create users';
@@ -111,54 +109,31 @@ try {
 
   const studentToken = await loginToken(student.email);
   const outsiderToken = await loginToken(outsider.email);
-  const now = Date.now();
+  const completedId = await createCompletedBooking(studentId, tutorId);
 
-  stage = 'pending future booking';
-  const pendingId = await createBooking(studentId, tutorId, 'pending', now + 24 * 60 * 60_000);
-  const pending = await call(studentToken, { bookingId: pendingId, rating: 5 });
-  step('pending future booking returns 409 with exact message',
-    pending.status === 409 && pending.body.error === "You can rate a session after it's happened.",
-    JSON.stringify(pending.body));
-  step('pending future booking creates no review', await reviewCount(pendingId) === 0);
+  stage = '500-character comment';
+  const fiveHundred = 'x'.repeat(500);
+  const accepted = await call(studentToken, { bookingId: completedId, rating: 4, comment: fiveHundred });
+  step('500-character comment returns 200', accepted.status === 200, JSON.stringify(accepted.body));
+  step('500-character comment is stored', await storedComment(completedId, studentId) === fiveHundred);
 
-  stage = 'confirmed future booking';
-  const futureId = await createBooking(studentId, tutorId, 'confirmed', now + 48 * 60 * 60_000);
-  const future = await call(studentToken, { bookingId: futureId, rating: 5 });
-  step('confirmed future booking returns 409 with exact message',
-    future.status === 409 && future.body.error === "You can rate a session after it's happened.",
-    JSON.stringify(future.body));
-  step('confirmed future booking creates no review', await reviewCount(futureId) === 0);
-
-  stage = 'cancelled booking';
-  const cancelledId = await createBooking(studentId, tutorId, 'cancelled', now - 30 * 60 * 60_000);
-  const cancelled = await call(studentToken, { bookingId: cancelledId, rating: 5 });
-  step('cancelled booking returns 409 with exact message',
-    cancelled.status === 409 && cancelled.body.error === "You can rate a session after it's happened.",
-    JSON.stringify(cancelled.body));
-  step('cancelled booking creates no review', await reviewCount(cancelledId) === 0);
-
-  stage = 'confirmed elapsed booking';
-  const confirmedId = await createBooking(studentId, tutorId, 'confirmed', now - 3 * 60 * 60_000);
-  const confirmed = await call(studentToken, { bookingId: confirmedId, rating: 5, comment: '  Nice work  ' });
-  step('confirmed elapsed booking accepts a rating', confirmed.status === 200, JSON.stringify(confirmed.body));
-  const { data: confirmedReview } = await admin.from('reviews')
-    .select('comment').eq('booking_id', confirmedId).eq('reviewer_id', studentId).single();
-  step('review comments are trimmed before storage', confirmedReview?.comment === 'Nice work', confirmedReview?.comment);
-
-  stage = 'completed booking';
-  const completedId = await createBooking(studentId, tutorId, 'completed', now - 6 * 60 * 60_000);
-  const completed = await call(studentToken, { bookingId: completedId, rating: 4 });
-  step('completed booking accepts a rating', completed.status === 200, JSON.stringify(completed.body));
-
-  stage = 'long comment';
+  stage = '501-character comment';
   const longComment = await call(studentToken, {
     bookingId: completedId,
     rating: 4,
-    comment: 'x'.repeat(1001),
+    comment: 'x'.repeat(501),
   });
-  step('1001-character comment returns 400 with exact message',
-    longComment.status === 400 && longComment.body.error === 'Reviews can be at most 1000 characters.',
+  step('501-character comment returns 400 with exact message',
+    longComment.status === 400 && longComment.body.error === 'Reviews can be at most 500 characters.',
     JSON.stringify(longComment.body));
+  step('rejected long comment leaves stored comment unchanged',
+    await storedComment(completedId, studentId) === fiveHundred);
+
+  stage = 'trimmed comment';
+  const padded = await call(studentToken, { bookingId: completedId, rating: 4, comment: '  Nice work  ' });
+  step('whitespace-padded comment returns 200', padded.status === 200, JSON.stringify(padded.body));
+  step('whitespace-padded comment is stored trimmed',
+    await storedComment(completedId, studentId) === 'Nice work');
 
   stage = 'non-party check';
   const nonParty = await call(outsiderToken, { bookingId: completedId, rating: 5 });

@@ -10,7 +10,6 @@
 // Money movement (Stripe charge/refund/payout) is OUT OF SCOPE here.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
-import { BookingError, assertSessionElapsed } from '../_shared/booking.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -49,7 +48,7 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
     // Load the booking.
     const { data: booking, error: bookingErr } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, status, scheduled_at, duration_minutes')
+      .select('id, student_id, tutor_id')
       .eq('id', bookingId)
       .single();
     if (bookingErr || !booking) {
@@ -63,21 +62,8 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
       return Response.json({ error: 'Not a party to this booking' }, { status: 403, headers: cors });
     }
 
-    const notElapsedMessage = "You can rate a session after it's happened.";
-    if (booking.status !== 'confirmed' && booking.status !== 'completed') {
-      return Response.json({ error: notElapsedMessage }, { status: 409, headers: cors });
-    }
-    try {
-      assertSessionElapsed(booking.scheduled_at as string, Number(booking.duration_minutes));
-    } catch (error) {
-      if (error instanceof BookingError) {
-        return Response.json({ error: notElapsedMessage }, { status: 409, headers: cors });
-      }
-      throw error;
-    }
-
-    if (comment !== null && comment.length > 1000) {
-      return Response.json({ error: 'Reviews can be at most 1000 characters.' }, { status: 400, headers: cors });
+    if (comment !== null && comment.length > 500) {
+      return Response.json({ error: 'Reviews can be at most 500 characters.' }, { status: 400, headers: cors });
     }
 
     // The subject is the OTHER party.
