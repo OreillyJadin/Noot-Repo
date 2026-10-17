@@ -66,7 +66,7 @@ export default function TutorSessions() {
     // student row directly). Falls back to "Student" if it's unavailable.
     Promise.all([
       api.listUpcoming('tutor'),
-      api.listPast().catch(() => []),
+      api.listPast('tutor').catch(() => []),
       api.resolveParticipantNames().catch(() => ({} as Record<string, { firstName: string; lastName: string }>)),
     ])
       .then(([up, pastRows, names]) => {
@@ -264,7 +264,9 @@ export default function TutorSessions() {
                             : r.status === 'no_show' ? 'No-show'
                               : r.booking.cancelReason === 'tutor_declined' ? 'Declined'
                                 : r.booking.cancelReason === 'tutor_no_response' ? 'Expired, not accepted'
-                                  : 'Cancelled'
+                                  : r.status === 'cancelled' && r.booking.cancelledByRole === 'tutor' ? 'You cancelled'
+                                    : r.status === 'cancelled' && r.booking.cancelledByRole === 'student' ? 'Student cancelled'
+                                      : 'Cancelled'
                         }
                         tone={done ? 'good' : 'neutral'}
                       />

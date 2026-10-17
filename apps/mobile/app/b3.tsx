@@ -2,7 +2,7 @@
 // Course, day/time, length, a required focus tag, an auto-drafted intro message,
 // meeting spot. Saves the draft into useApp().booking
 // and continues to payment.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TextInput, Pressable, Modal, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -19,7 +19,7 @@ import {
   useTheme,
   type IconName,
 } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, type TutorAvailability } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
 import { BOOKABLE_DAYS } from '../lib/data';
@@ -76,13 +76,14 @@ function B3Inner() {
   const tutor = booking.tutor!;
   // Real availability: the tutor's recurring weekly windows, mapped onto the 14-day
   // calendar (lib/availability). Empty until loaded / if the tutor has set none.
-  const [slots, setSlots] = useState<Record<number, string[]>>({});
+  const [windows, setWindows] = useState<TutorAvailability[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
-  const availableDays = BOOKABLE_DAYS.filter((d) => slots[d.i] && slots[d.i]!.length);
 
   const [day, setDay] = useState<number>(booking.dayIndex ?? 0);
   const [slot, setSlot] = useState<string | null>(booking.slot ?? null);
   const [length, setLength] = useState<number>(booking.lengthMin ?? 60);
+  const slots = useMemo(() => slotsFromWindows(windows, length), [windows, length]);
+  const availableDays = BOOKABLE_DAYS.filter((d) => slots[d.i] && slots[d.i]!.length);
   const [course, setCourse] = useState<string>(booking.course ?? tutor.courses[0]![0]);
   const [courseOpen, setCourseOpen] = useState(false);
   const [spotOpen, setSpotOpen] = useState(false);
@@ -105,20 +106,24 @@ function B3Inner() {
     setSlotsLoading(true);
     api.tutors
       .getAvailability(tutor.id)
-      .then((windows) => {
+      .then((fetchedWindows) => {
         if (!active) return;
-        const next = slotsFromWindows(windows);
-        setSlots(next);
+        setWindows(fetchedWindows);
+        const next = slotsFromWindows(fetchedWindows, length);
         if (booking.dayIndex == null) {
           const first = BOOKABLE_DAYS.find((d) => (next[d.i]?.length ?? 0) > 0);
           if (first) setDay(first.i);
         }
       })
-      .catch(() => { if (active) setSlots({}); })
+      .catch(() => { if (active) setWindows([]); })
       .finally(() => { if (active) setSlotsLoading(false); });
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tutor.id]);
+
+  useEffect(() => {
+    if (!slotsLoading && slot && !slots[day]?.includes(slot)) setSlot(null);
+  }, [day, slot, slots, slotsLoading]);
 
   // Pick a focus -> auto-fill the intro message (unless the student already typed their own).
   const pickTag = (newTag: string) => {

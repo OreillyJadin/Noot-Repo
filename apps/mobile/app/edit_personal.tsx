@@ -9,6 +9,7 @@ import { api } from '@noot/core';
 import { SubjectField } from '../lib/SubjectField';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import { useMe } from '../lib/useMe';
+import { validatePersonal } from '../lib/profileValidation';
 
 export default function EditPersonal() {
   const t = useTheme();
@@ -18,6 +19,7 @@ export default function EditPersonal() {
   const [year, setYear] = useState('');
   const [major, setMajor] = useState('');
   const [email, setEmail] = useState('');
+  const [error, setError] = useState<string | null>(null);
   // The photo is read live from useMe (see profile.tsx) rather than copied at mount.
   const avatarUrl = useMe().me?.avatarUrl ?? null;
   const [, setLoading] = useState(true);
@@ -44,12 +46,18 @@ export default function EditPersonal() {
   };
 
   const save = async () => {
+    const validationError = validatePersonal({ firstName, lastName, year, major }, { requireYearMajor: false });
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError(null);
     try {
       await api.profile.updatePersonal({
-        firstName,
-        lastName,
-        year: year || null,
-        major: major || null,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        year: year.trim() || null,
+        major: major.trim() || null,
       });
       Alert.alert('Profile updated');
       router.back();
@@ -89,6 +97,7 @@ export default function EditPersonal() {
         <Select label="Year" value={year} options={['Freshman', 'Sophomore', 'Junior', 'Senior', 'Grad']} onChange={setYear} />
 
         <SubjectField value={major} onChange={setMajor} />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <View>
           <Label style={{ fontSize: 13, marginBottom: 8 }}>Campus email</Label>
@@ -131,4 +140,5 @@ const styles = StyleSheet.create({
   },
   lockedEmail: { flex: 1, fontSize: 15 },
   lockedHint: { fontSize: 12, marginTop: 7 },
+  error: { color: '#C0392B', fontSize: 14, marginTop: 10 },
 });

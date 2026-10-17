@@ -18,8 +18,8 @@ export async function requireActiveUser(
   userId: string,
   headers: Record<string, string>,
 ): Promise<Response | null> {
-  const { data, error } = await db.from('users').select('status').eq('id', userId).maybeSingle();
-  if (error || !data || data.status !== 'active') {
+  const { data, error } = await db.from('users').select('status, deleted_at').eq('id', userId).maybeSingle();
+  if (error || !data || data.status !== 'active' || data.deleted_at !== null) {
     return Response.json({ error: 'Account is not active' }, { status: 403, headers });
   }
   return null;

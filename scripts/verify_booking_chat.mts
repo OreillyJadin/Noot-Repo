@@ -36,6 +36,38 @@ const step = (name: string, ok: boolean, detail = '') => {
   ok ? pass++ : fail++;
   console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ` — ${detail}` : ''}`);
 };
+const chicagoFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Chicago',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+const chicagoSlot = (days: number, hour: number) => {
+  const partsAt = (date: Date) =>
+    Object.fromEntries(chicagoFormatter.formatToParts(date).map((part) => [part.type, part.value]));
+  const local = partsAt(new Date(Date.now() + days * 24 * 60 * 60 * 1000));
+  const target = Date.UTC(Number(local.year), Number(local.month) - 1, Number(local.day), hour);
+  let instant = target;
+  for (let i = 0; i < 4; i++) {
+    const parts = partsAt(new Date(instant));
+    const represented = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second),
+    );
+    const adjusted = instant + target - represented;
+    if (adjusted === instant) break;
+    instant = adjusted;
+  }
+  return new Date(instant).toISOString();
+};
 const call = async (name: string, body: unknown, token?: string) => {
   const res = await fetch(`${URL}/functions/v1/${name}`, {
     method: 'POST',
@@ -90,11 +122,16 @@ try {
   const { error: tcError } = await admin.from('tutor_courses').insert(
     { tutor_id: tutorId, course_code: courseCode, grade: 'A', hourly_rate: 40, sessions: 0 });
   if (tcError) throw tcError;
+  const { error: availabilityError } = await admin.from('tutor_availability').insert(
+    Array.from({ length: 7 }, (_, day_of_week) => ({
+      tutor_id: tutorId, day_of_week, start_time: '14:00', end_time: '19:00',
+    })));
+  if (availabilityError) throw availabilityError;
 
   stage = 'book a session';
   const signIn = await auth.signInWithPassword(studentEmail, PASSWORD);
   if (!signIn.ok) throw new Error(signIn.error);
-  const scheduledAt = new Date(Date.now() + 72 * 3_600_000).toISOString();
+  const scheduledAt = chicagoSlot(3, 15);
   const pi = await api.createPaymentIntent({ tutorId, courseCode, durationMinutes: 60, scheduledAt });
   const intro = 'Hi! Excited to work together — can we focus on problem sets?';
   const created = await api.bookings.confirm({
@@ -191,12 +228,13 @@ try {
 
   stage = 'message-less booking still gets an intro';
   // A student who skips the note still leaves the tutor an opening message.
+  const scheduledAt2 = chicagoSlot(4, 15);
   const pi2 = await api.createPaymentIntent({
     tutorId, courseCode, durationMinutes: 60,
-    scheduledAt: new Date(Date.now() + 96 * 3_600_000).toISOString(),
+    scheduledAt: scheduledAt2,
   });
   const created2 = await api.bookings.confirm({
-    tutorId, courseCode, scheduledAt: new Date(Date.now() + 96 * 3_600_000).toISOString(),
+    tutorId, courseCode, scheduledAt: scheduledAt2,
     durationMinutes: 60, sessionType: 'in_person', paymentIntentId: pi2.paymentIntentId, message: '',
   });
   cleanup.bookings.push(created2.bookingId);
@@ -214,6 +252,12 @@ try {
   }
   if (cleanup.bookings.length) await admin.from('bookings').delete().in('id', cleanup.bookings);
   if (cleanup.conversations.length) await admin.from('conversations').delete().in('id', cleanup.conversations);
+  if (cleanup.users.length > 1) {
+    await admin.from('tutor_availability').delete().eq('tutor_id', cleanup.users[1]);
+    await admin.from('tutor_courses').delete().eq('tutor_id', cleanup.users[1]);
+    await admin.from('tutor_profiles').delete().eq('user_id', cleanup.users[1]);
+    await admin.from('user_roles').delete().in('user_id', cleanup.users);
+  }
   for (const userId of cleanup.users) await admin.auth.admin.deleteUser(userId);
 }
 

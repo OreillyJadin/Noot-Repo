@@ -7,7 +7,12 @@
 // booking apply (APP_REVIEW_TICKETS.md T19).
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
-import { BOOKING_HORIZON_DAYS, BookingError, interviewClash } from '../_shared/booking.ts';
+import {
+  assertWithinAvailability,
+  BOOKING_HORIZON_DAYS,
+  BookingError,
+  interviewClash,
+} from '../_shared/booking.ts';
 import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
@@ -124,6 +129,21 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
           { error: `Sessions can only be moved up to ${BOOKING_HORIZON_DAYS} days ahead.` },
           { status: 400, headers: cors },
         );
+      }
+      if (booking.student_id === user.id) {
+        try {
+          await assertWithinAvailability(
+            db,
+            booking.tutor_id as string,
+            when.getTime(),
+            Number(booking.duration_minutes),
+          );
+        } catch (e) {
+          if (e instanceof BookingError && e.reason === 'outside_availability') {
+            return Response.json({ error: e.message }, { status: 409, headers: cors });
+          }
+          throw e;
+        }
       }
 
       // Don't propose a slot the tutor already has taken.
