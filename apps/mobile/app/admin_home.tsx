@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, attentionTotal, type AdminCalendarEvent, type AdminHubCounts } from '@noot/core';
 import { Body, Ic, Screen, Skeleton, TabBar, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
@@ -23,6 +24,7 @@ const EMPTY_COUNTS: AdminHubCounts = {
 function AdminHomeScreen() {
   const t = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [today, setToday] = useState(() => new Date());
   const bodyRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef: bodyRef });
@@ -122,7 +124,7 @@ function AdminHomeScreen() {
   ];
 
   return (
-    <Screen>
+    <Screen style={{ paddingTop: insets.top }}>
       <Body ref={bodyRef} pad={20} contentStyle={styles.content}>
         <AdminLargeHeader
           title="Admin"
