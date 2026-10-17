@@ -1,13 +1,16 @@
 // T10 Application In Review — ported from screens-tutor.jsx (T10). Final screen
 // of the tutor application; no StepHead (matches source, which just pads for the
 // safe area). → Tutor Home (dashboard tab root).
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, HeroIcon, H1, Sub, Eyebrow, Ic, useTheme, type IconName } from '@noot/ui';
+import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useTutorApplication } from '../lib/useTutorApplication';
+import { guidelinesAreCurrent } from '../lib/guidelines';
+import { markAppReady } from '../lib/pushOpen';
 
 // These used to be Alert-only stubs, which read as unfinished on the very first screen a
 // new tutor sees. Each now goes to the screen that actually does the thing.
@@ -34,9 +37,21 @@ export default function T10() {
   // That was the reported "selecting Home returns you to Student Mode" bug. active_role isn't
   // persisted here: the tutor role isn't granted until an admin approves the application, and
   // the 0007 trigger would reject it — so this is a local mode switch until approval lands.
-  const openDashboard = () => {
+  // A new tutor reaches this screen straight from sign-up, without passing routeAfterAuth,
+  // so the Community Guidelines are asked for here before the dashboard. A failed read asks
+  // too: agreeing again is harmless, skipping them is not.
+  const [opening, setOpening] = useState(false);
+  const openDashboard = async () => {
+    if (opening) return;
+    setOpening(true);
+    const me = await api.getMe().catch(() => null);
+    if (!me || !guidelinesAreCurrent(me.guidelinesAcceptedAt, me.guidelinesVersion)) {
+      router.replace('/guidelines?next=tutor');
+      return;
+    }
     setRole('tutor');
     router.replace('/tutor_home');
+    markAppReady();
   };
 
   return (
@@ -67,7 +82,7 @@ export default function T10() {
         </View>
       </Body>
       <ActionBar>
-        <Button label="Go to dashboard" kind="secondary" full onPress={openDashboard} />
+        <Button label="Go to dashboard" kind="secondary" full disabled={opening} onPress={() => void openDashboard()} />
       </ActionBar>
     </Screen>
   );

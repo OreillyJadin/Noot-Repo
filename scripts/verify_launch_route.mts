@@ -6,7 +6,8 @@
 //
 // Needs: supabase start && node supabase/seed_demo.mjs
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
-import { decidePostAuthRoute, lookupWithRetry } from '../apps/mobile/lib/postAuthRoute.ts'
+import { accountStateFrom, decidePostAuthRoute, lookupWithRetry } from '../apps/mobile/lib/postAuthRoute.ts'
+import { GUIDELINES_VERSION } from '../apps/mobile/lib/guidelines.ts'
 import { createClient } from '@supabase/supabase-js'
 
 const URL = 'http://127.0.0.1:54321'
@@ -24,14 +25,7 @@ const noWait = async () => {}
 const route = async () => {
   const read = await lookupWithRetry(async () => {
     const me = await api.getMe()
-    return me
-      ? {
-          hasPassword: me.passwordSetAt != null,
-          acceptedTerms: me.termsAcceptedAt != null,
-          acceptedGuidelines: me.guidelinesAcceptedAt != null,
-          activeRole: me.activeRole,
-        }
-      : null
+    return me ? accountStateFrom(me) : null
   }, [1, 1], noWait)
   return decidePostAuthRoute(read.ok ? { ok: true, account: read.value } : { ok: false })
 }
@@ -96,7 +90,7 @@ try {
     await api.profile.acceptTerms('verify_launch_route')
     const afterTerms = await route()
     step('5b', afterTerms.kind === 'guidelines', `after accepting the Terms → ${show(afterTerms)}`)
-    await api.profile.acceptGuidelines('verify_launch_route')
+    await api.profile.acceptGuidelines(GUIDELINES_VERSION)
     const afterGuidelines = await route()
     step('5c', afterGuidelines.kind === 'home' && afterGuidelines.route === '/home', `after accepting the Community Guidelines → ${show(afterGuidelines)}`)
   }
