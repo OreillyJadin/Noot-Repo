@@ -220,8 +220,17 @@ try {
 
   stage = 'inside end boundary';
   const beforeEnd = await createBooking(studentToken, tutorId, courseCode, chicagoTime(1, 18));
-  step('18:00 Chicago start before the end boundary succeeds', beforeEnd.confirmation?.status === 200,
+  step('18:00 Chicago + 60 min ends exactly at 19:00 and succeeds', beforeEnd.confirmation?.status === 200,
     `status=${beforeEnd.confirmation?.status ?? 'not attempted'}`);
+  const startsInsideEndsOutside = await call('create-payment-intent', {
+    tutorId,
+    courseCode,
+    durationMinutes: 60,
+    scheduledAt: chicagoTime(1, 18, 30),
+  }, studentToken);
+  step('18:30 Chicago + 60 min is refused because it ends after 19:00',
+    startsInsideEndsOutside.status === 409,
+    `status=${startsInsideEndsOutside.status}`);
 
   stage = 'student reschedule';
   const rescheduleSourceAt = chicagoTime(2, 15);
@@ -240,6 +249,14 @@ try {
     step('student reschedule proposal to 09:00 Chicago is refused with 409',
       proposal.status === 409 && String(proposal.body.error).includes('outside this tutor'),
       `status=${proposal.status}`);
+    const overrunProposal = await call('reschedule-booking', {
+      bookingId,
+      action: 'propose',
+      newScheduledAt: chicagoTime(2, 18, 30),
+    }, studentToken);
+    step('student reschedule to 18:30 Chicago + 60 min is refused with 409',
+      overrunProposal.status === 409 && String(overrunProposal.body.error).includes('outside this tutor'),
+      `status=${overrunProposal.status}`);
   }
 
   stage = 'booking horizon';

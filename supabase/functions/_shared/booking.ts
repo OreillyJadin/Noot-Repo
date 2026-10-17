@@ -110,12 +110,15 @@ export async function assertWithinAvailability(
   db: SupabaseClient,
   tutorId: string,
   startMs: number,
+  durationMinutes: number,
 ): Promise<void> {
   const local = Object.fromEntries(
     campusTimeFormatter.formatToParts(new Date(startMs)).map(({ type, value }) => [type, value]),
   );
   const dayOfWeek = CAMPUS_DAYS.indexOf(local.weekday ?? '');
   const startMinute = Number(local.hour) * 60 + Number(local.minute);
+  // Availability windows cannot span midnight because the schema requires start_time < end_time.
+  const endMinute = startMinute + durationMinutes;
   const { data: windows, error } = await db
     .from('tutor_availability')
     .select('start_time,end_time')
@@ -124,7 +127,7 @@ export async function assertWithinAvailability(
   if (error) dbFail('availability lookup', error);
   if ((windows ?? []).some((window) =>
     minutesOfDay(window.start_time as string) <= startMinute &&
-    startMinute < minutesOfDay(window.end_time as string)
+    endMinute <= minutesOfDay(window.end_time as string)
   )) return;
   throw new BookingError(
     "That time is outside this tutor's availability. Please pick another slot.",
@@ -174,7 +177,7 @@ export async function resolveBooking(
   if (scheduled.getTime() > now + BOOKING_HORIZON_DAYS * 24 * 60 * 60 * 1000) {
     throw new BookingError(`Sessions can only be booked up to ${BOOKING_HORIZON_DAYS} days ahead`);
   }
-  await assertWithinAvailability(db, tutorId, scheduled.getTime());
+  await assertWithinAvailability(db, tutorId, scheduled.getTime(), durationMinutes);
 
   // Tutor must be a real, live, approved tutor who can take money.
   const { data: tutor, error: tutorErr } = await db

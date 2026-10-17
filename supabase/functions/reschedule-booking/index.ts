@@ -132,7 +132,12 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
       }
       if (booking.student_id === user.id) {
         try {
-          await assertWithinAvailability(db, booking.tutor_id as string, when.getTime());
+          await assertWithinAvailability(
+            db,
+            booking.tutor_id as string,
+            when.getTime(),
+            Number(booking.duration_minutes),
+          );
         } catch (e) {
           if (e instanceof BookingError && e.reason === 'outside_availability') {
             return Response.json({ error: e.message }, { status: 409, headers: cors });
