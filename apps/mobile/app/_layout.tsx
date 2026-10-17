@@ -14,6 +14,7 @@ import { initSupabase } from '@noot/core';
 import { AppProvider } from '../lib/store';
 import { MeProvider } from '../lib/useMe';
 import { AuthGate } from '../lib/AuthGate';
+import { SignedOutGuard } from '../lib/SignedOutGuard';
 import { PushRegistrar } from '../lib/PushRegistrar';
 import { PushOpener } from '../lib/PushOpener';
 import { PayoutSetupHost } from '../lib/PayoutSetupHost';
@@ -52,6 +53,7 @@ function ThemedApp() {
       <StatusBar style={dark ? 'light' : 'dark'} />
         <PushRegistrar />
         <PushOpener />
+        <SignedOutGuard />
         <AuthGate>
           {/* Tab roots cross-fade instead of the jerky horizontal slide; drill-down
               screens (booking, edit, etc.) keep the default push animation. */}

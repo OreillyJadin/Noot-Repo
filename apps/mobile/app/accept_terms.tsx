@@ -10,6 +10,7 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { resetToSignedOut } from '../lib/resetToSignedOut';
 import { Button, Ic, useTheme } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -57,7 +58,7 @@ export default function AcceptTerms() {
     // The device registers on sign-in, before this screen: take it back while the session exists.
     await forgetThisDevice();
     try { await auth.signOut(); } catch { /* leave regardless */ }
-    router.replace('/');
+    resetToSignedOut(router);
   };
 
   return (
