@@ -11,6 +11,7 @@
 //   • spending / returning on a booking; cash-out for approved ambassadors, 7-day hold
 // Local stack only; doesn't need Edge Functions.
 //   pnpm dlx tsx scripts/verify_credits.mts
+import { spawn } from 'node:child_process';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const URL = 'http://127.0.0.1:54321';
@@ -204,6 +205,34 @@ try {
   check('approval without the role pays no goal yet', (await balance(roleLate.c)) === 2500);
   await roleLate.c.from('user_roles').insert({ user_id: roleLate.uid, role: 'ambassador' });
   check('…adding the role then pays it', (await balance(roleLate.c)) === 2500 + m5!.bonus_cents, String(await balance(roleLate.c)));
+
+  // Two transactions landing at once (two invitees' sessions completed together, or the
+  // approval racing a reward) must still pay the goal. The first holds its transaction open.
+  const overlap = async (slowSql: string, then: () => Promise<unknown>) => {
+    const slow = spawn('docker', ['exec', 'supabase_db_noot', 'psql', '-U', 'postgres', '-d', 'postgres', '-qAtc', `begin; ${slowSql}; select pg_sleep(1.5); commit;`]);
+    const closed = new Promise((r) => slow.on('close', r));
+    await new Promise((r) => setTimeout(r, 500));
+    await then();
+    await closed;
+  };
+  const goals = async (u: { c: SupabaseClient }) => ((await u.c.from('credit_ledger').select('id').eq('kind', 'milestone_bonus')).data ?? []).length;
+  const raceAmb = await newUser('RaceAmb');
+  await raceAmb.c.from('user_roles').insert({ user_id: raceAmb.uid, role: 'ambassador' });
+  await svc.from('ambassador_approvals').insert({ user_id: raceAmb.uid });
+  const raceCode = (await raceAmb.c.rpc('my_invite_code')).data as string;
+  const raceB: string[] = [];
+  for (let i = 0; i < 5; i++) raceB.push(await completedBooking((await newUser(`RPal${i}`, raceCode)).uid));
+  for (const b of raceB.slice(0, 3)) await svc.rpc('award_invite_rewards', { p_booking: b });
+  await overlap(`select award_invite_rewards('${raceB[3]}')`, () => svc.rpc('award_invite_rewards', { p_booking: raceB[4] }));
+  check('two rewards landing at once still pay the 5-invite goal, once', (await goals(raceAmb)) === 1 && (await balance(raceAmb.c)) === 2500 + m5!.bonus_cents, String(await balance(raceAmb.c)));
+  const raceApp = await newUser('RaceApproval');
+  await raceApp.c.from('user_roles').insert({ user_id: raceApp.uid, role: 'ambassador' });
+  const appCode = (await raceApp.c.rpc('my_invite_code')).data as string;
+  const appB: string[] = [];
+  for (let i = 0; i < 5; i++) appB.push(await completedBooking((await newUser(`APal${i}`, appCode)).uid));
+  for (const b of appB.slice(0, 4)) await svc.rpc('award_invite_rewards', { p_booking: b });
+  await overlap(`insert into ambassador_approvals (user_id) values ('${raceApp.uid}')`, () => svc.rpc('award_invite_rewards', { p_booking: appB[4] }));
+  check('approval landing with the 5th reward still pays the goal, once', (await goals(raceApp)) === 1 && (await balance(raceApp.c)) === 2500 + m5!.bonus_cents, String(await balance(raceApp.c)));
 
   console.log('\n— spending and returning —');
   blocked(await svc.rpc('spend_credit', { p_user: inviter.uid, p_cents: 600, p_payment_intent: 'pi_over' }), 'cannot spend more than the balance');
