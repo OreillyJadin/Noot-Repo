@@ -179,7 +179,7 @@ export default function TutorProfile() {
   const becomeAmbassador = async () => {
     try {
       await api.profile.addRole('ambassador');
-      await switchTo('ambassador');
+      if (!(await switchTo('ambassador', ['ambassador']))) throw new Error('mode not saved');
     } catch {
       Alert.alert('Could not join the ambassador program', 'Please try again in a moment.');
     }
