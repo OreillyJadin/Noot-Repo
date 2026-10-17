@@ -69,13 +69,6 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
       return Response.json({ error: 'Reviews can be at most 500 characters.' }, { status: 400, headers: cors });
     }
 
-    if (booking.status !== 'completed') {
-      return Response.json(
-        { error: `Cannot submit a rating for a booking with status '${booking.status}'` },
-        { status: 409, headers: cors },
-      );
-    }
-
     // The subject is the OTHER party.
     const subjectUserId = isStudent ? booking.tutor_id : booking.student_id;
 
