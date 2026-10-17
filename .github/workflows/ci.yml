@@ -141,5 +141,6 @@ jobs:
             verify_terms
             verify_terms_gate
             verify_tutor_status
+            verify_tutoring_locations
             verify_uploads
             verify_verified_grade_lock

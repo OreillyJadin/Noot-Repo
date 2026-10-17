@@ -3,7 +3,7 @@
 // meeting spot. Saves the draft into useApp().booking
 // and continues to payment.
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TextInput, Pressable, Modal, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TextInput, Pressable, Modal, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   Screen,
@@ -19,11 +19,12 @@ import {
   useTheme,
   type IconName,
 } from '@noot/ui';
-import { api, type TutorAvailability } from '@noot/core';
+import { api, type TutorAvailability, type TutoringLocation } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
 import { BOOKABLE_DAYS } from '../lib/data';
 import { slotsFromWindows } from '../lib/availability';
+import { defaultMeetingSpot, meetingSpotSections, OTHER_SPOT } from '../lib/meetingSpots';
 import { NoSession } from '../lib/NoSession';
 import { VerifiedBadge } from '../lib/VerifiedBadge';
 
@@ -58,8 +59,6 @@ function focusMessage(tag: string | null, course: string, me = 'there'): string 
   }
 }
 
-const IN_PERSON_SPOTS = ['Gorgas Library, Fl 2', 'Bidgood Hall lobby', "Other — I'll suggest"];
-
 export default function B3() {
   const { booking } = useApp();
   if (!booking.tutor) return <NoSession />;
@@ -87,18 +86,17 @@ function B3Inner() {
   const [course, setCourse] = useState<string>(booking.course ?? tutor.courses[0]![0]);
   const [courseOpen, setCourseOpen] = useState(false);
   const [spotOpen, setSpotOpen] = useState(false);
+  const [locations, setLocations] = useState<TutoringLocation[]>([]);
+  const [spotsLoading, setSpotsLoading] = useState(true);
   const [tag, setTag] = useState<string | null>(booking.tag ?? null);
   const [msg, setMsg] = useState(booking.message ?? '');
   const [msgEdited, setMsgEdited] = useState(!!booking.message);
   const tutorFirst = tutor.name.split(' ')[0];
 
-  // In-person only for launch: noot has no video provider, so a "Virtual" option would
-  // sell a session with no way to meet. See APP_REVIEW_TICKETS.md T14.
-  const [spot, setSpot] = useState(
-    (booking.location ?? '').startsWith('Online') ? IN_PERSON_SPOTS[0]! : booking.location ?? IN_PERSON_SPOTS[0]!,
+  // In-person only for launch; campus choices come from the read-only tutoring_locations list.
+  const [spot, setSpot] = useState<string | null>(
+    booking.location?.startsWith('Online') ? null : booking.location ?? null,
   );
-  const location = spot;
-
   // Load the tutor's real weekly availability and, once it arrives, snap the picker to
   // the first day that actually has open slots (unless the student already chose one).
   useEffect(() => {
@@ -122,6 +120,24 @@ function B3Inner() {
   }, [tutor.id]);
 
   useEffect(() => {
+    let active = true;
+    api.locations
+      .list()
+      .then((fetchedLocations) => {
+        if (!active) return;
+        setLocations(fetchedLocations);
+        setSpot((current) => current ?? defaultMeetingSpot(fetchedLocations));
+      })
+      .catch(() => {
+        if (!active) return;
+        setLocations([]);
+        setSpot((current) => current ?? defaultMeetingSpot([]));
+      })
+      .finally(() => { if (active) setSpotsLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     if (!slotsLoading && slot && !slots[day]?.includes(slot)) setSlot(null);
   }, [day, slot, slots, slotsLoading]);
 
@@ -143,18 +159,18 @@ function B3Inner() {
   const rate = courseEntry[2];
   const cost = ((rate * length) / 60).toFixed(2).replace(/\.00$/, '');
   const daySlots = slots[day] ?? [];
-  const ready = !!slot && !!tag && msg.trim().length > 0;
+  const ready = !!slot && !!tag && !!spot && msg.trim().length > 0;
   const dayObj = BOOKABLE_DAYS.find((d) => d.i === day) ?? BOOKABLE_DAYS[0]!;
 
   const continueToPayment = () => {
-    if (!ready) return;
+    if (!ready || !spot) return;
     patchBooking({
       tutor,
       course,
       dayIndex: day,
       slot: slot ?? undefined,
       lengthMin: length,
-      location,
+      location: spot,
       sessionType: 'in_person',
       tag: tag ?? undefined,
       message: msg.trim(),
@@ -306,9 +322,9 @@ function B3Inner() {
         <FieldBlock label="Where you'll meet">
           <Selectable
             onPress={() => setSpotOpen(true)}
-            value={spot}
+            value={spot ?? 'Loading…'}
             icon="pin"
-            sub={spot.startsWith('Other') ? "You'll propose a spot in chat" : `${tutorFirst}'s agreed meeting spot`}
+            sub={spot === OTHER_SPOT ? "You'll propose a spot in chat" : "You'll confirm the exact room in chat"}
           />
         </FieldBlock>
 
@@ -358,7 +374,7 @@ function B3Inner() {
           <Text style={{ fontSize: 18, fontWeight: '700', color: t.text }}>${cost}</Text>
         </View>
         <Button
-          label={!slot ? 'Pick a time to continue' : !tag ? 'Pick a session focus' : !msg.trim() ? 'Add a message to continue' : 'Continue to payment'}
+          label={!spot ? 'Loading meeting spots…' : !slot ? 'Pick a time to continue' : !tag ? 'Pick a session focus' : !msg.trim() ? 'Add a message to continue' : 'Continue to payment'}
           full
           disabled={!ready}
           iconRight="chevron"
@@ -393,24 +409,100 @@ function B3Inner() {
         ))}
       </Sheet>
 
-      <Sheet visible={spotOpen} onClose={() => setSpotOpen(false)} title="Meeting spot">
-        {IN_PERSON_SPOTS.map((l) => (
-          <Card
-            key={l}
-            selected={spot === l}
-            onPress={() => {
-              setSpot(l);
-              setSpotOpen(false);
-            }}
-            style={styles.spotRow}
-          >
-            <Ic name={l.startsWith('Other') ? 'edit' : 'pin'} size={19} color={t.accent} strokeWidth={1.8} />
-            <Text style={{ flex: 1, fontSize: 15, color: t.text }}>{l}</Text>
-            {spot === l ? <Ic name="check" size={18} color={t.accent} strokeWidth={2.6} /> : null}
-          </Card>
-        ))}
-      </Sheet>
+      <SpotSheet
+        visible={spotOpen}
+        onClose={() => setSpotOpen(false)}
+        locations={locations}
+        loading={spotsLoading}
+        selected={spot}
+        onSelect={setSpot}
+      />
     </Screen>
+  );
+}
+
+function SpotSheet({
+  visible,
+  onClose,
+  locations,
+  loading,
+  selected,
+  onSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  locations: TutoringLocation[];
+  loading: boolean;
+  selected: string | null;
+  onSelect: (spot: string) => void;
+}) {
+  const t = useTheme();
+  const [query, setQuery] = useState('');
+  const sections = useMemo(() => meetingSpotSections(locations, query), [locations, query]);
+  const close = () => {
+    setQuery('');
+    onClose();
+  };
+
+  const choose = (name: string) => {
+    onSelect(name);
+    close();
+  };
+
+  return (
+    <Sheet
+      visible={visible}
+      onClose={close}
+      title="Meeting spot"
+      contentStyle={styles.spotSheetContent}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={[styles.spotSearch, { backgroundColor: t.surface, borderColor: t.borderStrong }]}>
+        <Ic name="search" size={17} color={t.text3} strokeWidth={1.8} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search libraries and buildings"
+          placeholderTextColor={t.text3}
+          style={[styles.spotSearchInput, { color: t.text }]}
+        />
+      </View>
+      {loading ? (
+        <Text style={[styles.spotEmpty, { color: t.text3 }]}>Loading…</Text>
+      ) : (
+        <>
+          {sections.length === 0 && query.trim() ? (
+            <Text style={[styles.spotEmpty, { color: t.text3 }]}>
+              No matches — pick Other and suggest a spot in chat.
+            </Text>
+          ) : null}
+          {sections.map((section) => (
+            <View key={section.title}>
+              <Label style={styles.spotSectionTitle}>{section.title}</Label>
+              {section.items.map((name) => (
+                <Pressable
+                  key={name}
+                  onPress={() => choose(name)}
+                  style={[styles.spotOption, { borderBottomColor: t.border }]}
+                >
+                  <Ic name="pin" size={18} color={t.accent} strokeWidth={1.8} />
+                  <Text style={[styles.spotOptionName, { color: t.text }]}>{name}</Text>
+                  {selected === name ? <Ic name="check" size={18} color={t.accent} strokeWidth={2.6} /> : null}
+                </Pressable>
+              ))}
+            </View>
+          ))}
+        </>
+      )}
+      <Pressable
+        onPress={() => choose(OTHER_SPOT)}
+        style={styles.spotOtherOption}
+      >
+        <Ic name="edit" size={18} color={t.accent} strokeWidth={1.8} />
+        <Text style={[styles.spotOptionName, { color: t.text }]}>{OTHER_SPOT}</Text>
+        {selected === OTHER_SPOT ? <Ic name="check" size={18} color={t.accent} strokeWidth={2.6} /> : null}
+      </Pressable>
+    </Sheet>
   );
 }
 
@@ -453,11 +545,15 @@ function Sheet({
   onClose,
   title,
   children,
+  contentStyle,
+  keyboardShouldPersistTaps,
 }: {
   visible: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  contentStyle?: StyleProp<ViewStyle>;
+  keyboardShouldPersistTaps?: 'always' | 'never' | 'handled';
 }) {
   const t = useTheme();
   return (
@@ -465,7 +561,13 @@ function Sheet({
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
       <View style={[styles.sheetBody, { backgroundColor: t.bg }]}>
         <Text style={[styles.sheetTitle, { color: t.text }]}>{title}</Text>
-        <ScrollView contentContainerStyle={{ gap: 8, paddingBottom: 24 }}>{children}</ScrollView>
+        <ScrollView
+          style={styles.sheetScroll}
+          contentContainerStyle={[{ gap: 8, paddingBottom: 24 }, contentStyle]}
+          keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+        >
+          {children}
+        </ScrollView>
       </View>
     </Modal>
   );
@@ -492,7 +594,15 @@ const styles = StyleSheet.create({
   selectable: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 14, borderRadius: 13, borderWidth: 1.5 },
   courseRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
   courseGrade: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  spotRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  sheetScroll: { flexShrink: 1 },
+  spotSheetContent: { gap: 0 },
+  spotSearch: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 12, borderRadius: 13, borderWidth: 1.5 },
+  spotSearchInput: { flex: 1, height: 44, paddingVertical: 0, fontSize: 14 },
+  spotEmpty: { fontSize: 13, paddingVertical: 14 },
+  spotSectionTitle: { fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 12, marginBottom: 2 },
+  spotOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth },
+  spotOptionName: { flex: 1, fontSize: 15 },
+  spotOtherOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheetBody: { maxHeight: '75%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
