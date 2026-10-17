@@ -177,6 +177,16 @@ try {
   allowed(await amb.c.from('user_roles').insert({ user_id: amb.uid, role: 'ambassador' }), 'opt in as ambassador');
   const ambCode = (await amb.c.rpc('create_my_ambassador_profile')).data as string;
   check('ambassador code is the same as their invite code', ambCode === (await amb.c.rpc('my_invite_code')).data);
+  noRows(
+    await amb.c.from('ambassador_profiles').update({ total_referrals: 999, total_earned: 9999, referral_code: `NOOT-F${Date.now() % 1e6}` }).eq('user_id', amb.uid).select(),
+    'ambassador cannot rewrite their own profile totals or code',
+  );
+  const noProfile = await newUser('NoProfile');
+  noRows(
+    await noProfile.c.from('ambassador_profiles').insert({ user_id: noProfile.uid, referral_code: `NOOT-C${Date.now() % 1e6}`, total_referrals: 50 }).select(),
+    'a user cannot create their profile with a chosen code',
+  );
+  check('…create_my_ambassador_profile still makes it', /^NOOT-/.test(((await noProfile.c.rpc('create_my_ambassador_profile')).data as string) ?? ''));
   for (let i = 0; i < 5; i++) {
     const f = await newUser(`Pal${i}`, ambCode);
     await svc.rpc('award_invite_rewards', { p_booking: await completedBooking(f.uid) });
