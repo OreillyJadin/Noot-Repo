@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, NO_SHOW_FLAG_AT, TUTOR_CANCEL_FLAG_OVER, type AdminUser, type AdminUserRole, type AdminUserStatus } from '@noot/core';
 import { Avatar, Body, Ic, Screen, Skeleton, TabBar, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
@@ -40,6 +41,7 @@ function initials(name: string): string {
 function AdminUsersScreen() {
   const t = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const bodyRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef: bodyRef });
   const { me, loading: meLoading } = useMe();
@@ -119,7 +121,7 @@ function AdminUsersScreen() {
   const filtered = !!search || role !== null || status !== null;
 
   return (
-    <Screen>
+    <Screen style={{ paddingTop: insets.top }}>
       <Body
         ref={bodyRef}
         pad={20}

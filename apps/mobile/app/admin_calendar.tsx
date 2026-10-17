@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, type AdminCalendarEvent } from '@noot/core';
 import { Body, EmptyState, Ic, Screen, Skeleton, TabBar, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
@@ -28,6 +29,7 @@ function weekDates(date: Date): Date[] {
 function AdminCalendarScreen() {
   const t = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const bodyRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef: bodyRef });
   const { me, loading: meLoading } = useMe();
@@ -111,7 +113,7 @@ function AdminCalendarScreen() {
   };
 
   return (
-    <Screen>
+    <Screen style={{ paddingTop: insets.top }}>
       <Body
         ref={bodyRef}
         pad={20}
@@ -120,7 +122,6 @@ function AdminCalendarScreen() {
       >
         <AdminLargeHeader
           title="Calendar"
-          subtitle={monthLabel}
           trailing={
             <View style={[styles.modeSwitch, { backgroundColor: t.surface2 }]}>
               {(['month', 'week'] as const).map((option) => (

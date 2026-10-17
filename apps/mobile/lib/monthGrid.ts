@@ -41,3 +41,13 @@ export function monthRange(year: number, month0: number): { fromIso: string; toI
     toIso: new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1).toISOString(),
   };
 }
+
+export function splitClock(label: string): { clock: string; meridiem: string | null } {
+  const trimmed = label.trim();
+  const match = trimmed.match(/^(.*?)\s*([ap])\.?\s*m\.?$/i);
+  if (!match) return { clock: trimmed, meridiem: null };
+  return {
+    clock: match[1]!.trim(),
+    meridiem: match[2]!.toUpperCase() === 'A' ? 'AM' : 'PM',
+  };
+}

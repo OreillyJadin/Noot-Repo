@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native'
 import type { AdminCalendarEvent } from '@noot/core';
 import { Ic, useTheme, type IconName } from '@noot/ui';
 import { INTERVIEW_MINUTES } from './interviewBlock';
+import { splitClock } from './monthGrid';
 
 export const INTERVIEW_INDIGO = '#5B6CC2';
 export const WARNING_AMBER = '#C2783A';
@@ -189,6 +190,7 @@ export function CalendarEventRow({
   const muted = eventMuted(event);
   const color = eventColor(event, t);
   const time = new Date(event.startsAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const { clock, meridiem } = splitClock(time);
   const duration = event.kind === 'interview' ? `${INTERVIEW_MINUTES} min` : event.minutes ? `${event.minutes} min` : null;
   const title = variant === 'hub' && event.kind === 'interview'
     ? `Interview · ${event.tutorName}`
@@ -207,7 +209,10 @@ export function CalendarEventRow({
     <AdminRow
       leading={
         <View style={styles.eventLeading}>
-          <Text style={[styles.eventTime, { color: variant === 'hub' ? t.text : t.text3 }]}>{time}</Text>
+          <View style={styles.eventTimeColumn}>
+            <Text numberOfLines={1} style={[styles.eventTime, { color: variant === 'hub' ? t.text : t.text3 }]}>{clock}</Text>
+            {meridiem ? <Text numberOfLines={1} style={[styles.eventMeridiem, { color: t.text3 }]}>{meridiem}</Text> : null}
+          </View>
           <View style={[styles.eventBar, { backgroundColor: color }]} />
         </View>
       }
@@ -258,8 +263,10 @@ const styles = StyleSheet.create({
   statusLabel: { fontSize: 11.5, fontWeight: '600' },
   countPill: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
   countText: { fontSize: 11.5, fontWeight: '700' },
-  eventLeading: { width: 53, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  eventTime: { width: 39, fontSize: 10.5, fontVariant: ['tabular-nums'] },
+  eventLeading: { width: 58, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  eventTimeColumn: { width: 44, flexShrink: 0 },
+  eventTime: { width: 44, fontSize: 10.5, fontVariant: ['tabular-nums'] },
+  eventMeridiem: { fontSize: 11, lineHeight: 13 },
   eventBar: { width: 3, height: 29, borderRadius: 2 },
   eventTrailing: { alignItems: 'flex-end', gap: 3 },
   eventDuration: { fontSize: 10 },
