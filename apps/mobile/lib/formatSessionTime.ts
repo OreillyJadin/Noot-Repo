@@ -13,3 +13,12 @@ export function formatSessionTime(iso: string): string {
       : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
   return `${day} · ${time}`;
 }
+
+export function sessionDayAndTime(
+  scheduledAt: string | undefined,
+  fallback: { day: string; time: string },
+): { day: string; time: string } {
+  if (scheduledAt === undefined) return fallback;
+  const [day, time] = formatSessionTime(scheduledAt).split(' · ');
+  return { day: day!, time: time! };
+}

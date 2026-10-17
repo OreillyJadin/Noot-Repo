@@ -12,6 +12,7 @@ import { useApp, type BookingDraft } from '../lib/store';
 import { DAYS, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
+import { sessionDayAndTime } from '../lib/formatSessionTime';
 
 function money(n: number): string {
   return '$' + n.toFixed(2).replace('.00', '');
@@ -35,6 +36,7 @@ function baseCost(booking: BookingDraft, tutor: Tutor): number {
 function SessionStrip({ booking, tutor, who, studentName }: { booking: BookingDraft; tutor: Tutor; who: 'student' | 'tutor'; studentName: string }) {
   const t = useTheme();
   const f = sessionFacts(booking, tutor);
+  const sessionTime = sessionDayAndTime(booking.scheduledAt, { day: f.dayObj.label, time: f.slot });
   const name = who === 'tutor' ? studentName : tutor.name;
   const sub = who === 'tutor' ? f.course : `${f.course} · ${tutor.year}`;
   return (
@@ -45,8 +47,8 @@ function SessionStrip({ booking, tutor, who, studentName }: { booking: BookingDr
         <Text style={{ fontSize: 13, color: t.text3 }}>{sub}</Text>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={{ fontSize: 13, fontWeight: '600', color: t.text }}>{f.dayObj.label}</Text>
-        <Text style={{ fontSize: 12, color: t.text3 }}>{f.slot}</Text>
+        <Text style={{ fontSize: 13, fontWeight: '600', color: t.text }}>{sessionTime.day}</Text>
+        <Text style={{ fontSize: 12, color: t.text3 }}>{sessionTime.time}</Text>
       </View>
     </Card>
   );
