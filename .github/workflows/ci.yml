@@ -128,6 +128,7 @@ jobs:
             verify_filter
             verify_guidelines
             verify_interviews
+            verify_landing_copy
             verify_launch_route
             verify_magiclink
             verify_moderation
