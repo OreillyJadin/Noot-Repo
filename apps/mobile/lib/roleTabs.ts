@@ -20,6 +20,24 @@ export function previewRolesFor(held: Role[], active: Role, tutorStatus: TutorSt
 }
 
 /**
+ * Whether switching to `next` is only a preview (nothing saved to users.active_role).
+ * `granted` lists roles the caller has just been given, which the loaded profile may not
+ * show yet — e.g. "Become an ambassador" adds the role and switches in the same tap.
+ */
+export function isPreviewSwitch(held: Role[], next: Role, granted: Role[] = []): boolean {
+  return !held.includes(next) && !granted.includes(next);
+}
+
+/**
+ * Whether the mode on screen should now be saved as users.active_role: it was a preview a
+ * moment ago (`wasPreview`), the user holds that role now (e.g. their tutor application was
+ * approved while they were previewing Tutor mode), and it isn't saved yet.
+ */
+export function shouldSaveHeldMode(wasPreview: boolean, held: Role[], active: Role, saved: Role): boolean {
+  return wasPreview && held.includes(active) && saved !== active;
+}
+
+/**
  * ERR-025: whether Profile shows its referral card. Not in ambassador mode — the Referrals
  * tab already sits in that mode's tab bar. Student mode keeps it, including for an ambassador
  * viewing as a student, since that tab bar has no Referrals tab. (Tutor mode has its own

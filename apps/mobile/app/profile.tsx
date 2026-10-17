@@ -105,7 +105,7 @@ export default function Profile() {
   const becomeAmbassador = async () => {
     try {
       await api.profile.addRole('ambassador');
-      await switchTo('ambassador');
+      await switchTo('ambassador', ['ambassador']);
     } catch {
       Alert.alert('Could not join the ambassador program', 'Please try again in a moment.');
     }
