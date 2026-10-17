@@ -10,6 +10,7 @@
 import { getSupabase } from '../supabase';
 import { notifyUserChanged } from '../changes';
 import { normalizeCourseQuery, rankCourseMatches } from '../courseSearch';
+import { mergeAvailabilityWindows } from '../availability';
 import {
   friendlyStorageError,
   MIME_BY_EXT,
@@ -1124,7 +1125,7 @@ export const api = {
       const { error: delErr } = await sb.from('tutor_availability').delete().eq('tutor_id', uid);
       if (delErr) throw delErr;
       if (weekly.length === 0) return notifyUserChanged();
-      const rows = weekly.map((w) => ({
+      const rows = mergeAvailabilityWindows(weekly).map((w) => ({
         tutor_id: uid,
         day_of_week: w.dayOfWeek,
         start_time: w.startTime,

@@ -109,8 +109,14 @@ function chicagoTime(days: number, hour: number, minute = 0) {
   return new Date(instant).toISOString();
 }
 
-async function createBooking(studentToken: string, tutorId: string, courseCode: string, scheduledAt: string) {
-  const input = { tutorId, courseCode, durationMinutes: 60, scheduledAt };
+async function createBooking(
+  studentToken: string,
+  tutorId: string,
+  courseCode: string,
+  scheduledAt: string,
+  durationMinutes = 60,
+) {
+  const input = { tutorId, courseCode, durationMinutes, scheduledAt };
   const pi = await call('create-payment-intent', input, studentToken);
   if (pi.status !== 200 || typeof pi.body.paymentIntentId !== 'string') {
     return { intent: pi, confirmation: null as null | Awaited<ReturnType<typeof call>> };
@@ -165,12 +171,10 @@ try {
   });
   if (tutorCourseError) throw tutorCourseError;
   const { error: availabilityError } = await admin.from('tutor_availability').insert(
-    Array.from({ length: 7 }, (_, day_of_week) => ({
-      tutor_id: tutorId,
-      day_of_week,
-      start_time: '14:00',
-      end_time: '19:00',
-    })),
+    Array.from({ length: 7 }, (_, day_of_week) => [
+      { tutor_id: tutorId, day_of_week, start_time: '14:00', end_time: '17:00' },
+      { tutor_id: tutorId, day_of_week, start_time: '17:00', end_time: '19:00' },
+    ]).flat(),
   );
   if (availabilityError) throw availabilityError;
 
@@ -207,6 +211,12 @@ try {
     `status=${inside.intent.status}`);
   step('15:00 Chicago booking succeeds', inside.confirmation?.status === 200,
     `status=${inside.confirmation?.status ?? 'not attempted'}`);
+
+  stage = 'booking across adjacent windows';
+  const acrossAdjacent = await createBooking(studentToken, tutorId, courseCode, chicagoTime(1, 16), 120);
+  step('16:00 Chicago + 120 min booking spanning adjacent windows succeeds',
+    acrossAdjacent.intent.status === 200 && acrossAdjacent.confirmation?.status === 200,
+    `intent=${acrossAdjacent.intent.status}; confirmation=${acrossAdjacent.confirmation?.status ?? 'not attempted'}`);
 
   stage = 'availability end boundary';
   const atEnd = await call('create-payment-intent', {
