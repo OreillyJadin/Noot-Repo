@@ -6,7 +6,7 @@ import { Button, Ic, useTheme } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
-import { GUIDELINES, GUIDELINES_VERSION } from '../lib/guidelines';
+import { GUIDELINES, GUIDELINES_VERSION, splitGuidelineBody } from '../lib/guidelines';
 import { openLegal } from '../lib/legal';
 import { forgetThisDevice } from '../lib/push';
 
@@ -74,25 +74,28 @@ export default function CommunityGuidelines() {
           The promises every noot student makes. Read them, then agree to finish signing up.
         </Text>
 
-        {GUIDELINES.map((section, sectionIndex) => (
-          <View key={`${section.title}-${sectionIndex}`} style={styles.section}>
-            {section.title ? <Text style={[styles.sectionTitle, { color: t.text }]}>{section.title}</Text> : null}
-            {section.body.slice(0, section.bullets ? 1 : undefined).map((paragraph, index) =>
-              renderParagraph(paragraph, section.title, `${sectionIndex}-before-${index}`))}
-            {section.bullets ? (
-              <View style={styles.bullets}>
-                {section.bullets.map((bullet, index) => (
-                  <View key={`${sectionIndex}-bullet-${index}`} style={styles.bulletRow}>
-                    <Text style={[styles.bulletMark, { color: t.text2 }]}>•</Text>
-                    <Text style={[styles.bodyText, styles.bulletText, { color: t.text2 }]}>{bullet}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : null}
-            {section.body.slice(section.bullets ? 1 : 0).map((paragraph, index) =>
-              renderParagraph(paragraph, section.title, `${sectionIndex}-after-${index}`))}
-          </View>
-        ))}
+        {GUIDELINES.map((section, sectionIndex) => {
+          const { before, after } = splitGuidelineBody(section);
+          return (
+            <View key={`${section.title}-${sectionIndex}`} style={styles.section}>
+              {section.title ? <Text style={[styles.sectionTitle, { color: t.text }]}>{section.title}</Text> : null}
+              {before.map((paragraph, index) =>
+                renderParagraph(paragraph, section.title, `${sectionIndex}-before-${index}`))}
+              {section.bullets ? (
+                <View style={styles.bullets}>
+                  {section.bullets.map((bullet, index) => (
+                    <View key={`${sectionIndex}-bullet-${index}`} style={styles.bulletRow}>
+                      <Text style={[styles.bulletMark, { color: t.text2 }]}>•</Text>
+                      <Text style={[styles.bodyText, styles.bulletText, { color: t.text2 }]}>{bullet}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              {after.map((paragraph, index) =>
+                renderParagraph(paragraph, section.title, `${sectionIndex}-after-${index}`))}
+            </View>
+          );
+        })}
 
         <Pressable
           onPress={() => { setAccepted((value) => !value); if (error) setError(null); }}
