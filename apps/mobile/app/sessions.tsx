@@ -162,6 +162,8 @@ export default function Sessions() {
         price: realBooking?.price,
         studentFee: realBooking?.studentFee,
         creditApplied: realBooking?.creditApplied,
+        course: realBooking?.subject,
+        lengthMin: realBooking?.durationMinutes,
       });
       router.push('/xsc');
     } catch (e) {
@@ -175,7 +177,18 @@ export default function Sessions() {
         router.push('/xns');
         return;
       }
-      patchBooking({ tutor: tutor ?? undefined, bookingId });
+      const realBooking = upcoming.find((item) => item.booking.id === bookingId)?.booking;
+      patchBooking({
+        tutor: tutor ?? undefined,
+        bookingId,
+        scheduledAt: realBooking?.scheduledAt,
+        course: realBooking?.subject,
+        lengthMin: realBooking?.durationMinutes,
+        price: realBooking?.price,
+        studentFee: realBooking?.studentFee,
+        creditApplied: realBooking?.creditApplied,
+        tutorPayoutAmount: realBooking?.tutorPayoutAmount,
+      });
       router.push('/xns');
     } catch (e) {
       Alert.alert('Something went wrong', 'Could not open no-show report. Please try again.');
