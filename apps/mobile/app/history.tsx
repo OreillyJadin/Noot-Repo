@@ -31,14 +31,14 @@ export default function History() {
   useEffect(() => {
     let active = true;
     Promise.all([
-      api.listPast(),
+      api.listPast(isTutor ? 'tutor' : 'student'),
       api.resolveParticipantNames().catch(() => ({} as Record<string, { firstName: string; lastName: string }>)),
     ])
       .then(([past, nm]) => { if (active) { setRows(past); setNames(nm); } })
       .catch(() => { if (active) setRows([]); })
       .finally(() => {});
     return () => { active = false; };
-  }, []);
+  }, [isTutor]);
 
   const title = isTutor ? 'Earnings & payment history' : 'Booking & payment history';
 

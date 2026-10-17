@@ -125,6 +125,7 @@ export default function C3() {
         <Field
           multiline
           value={review}
+          maxLength={REVIEW_MAX}
           onChangeText={(v) => setReview(v.slice(0, REVIEW_MAX))}
           placeholder="Punctual? Prepared? Anything other tutors should know…"
           hint={`${review.length} / ${REVIEW_MAX}`}

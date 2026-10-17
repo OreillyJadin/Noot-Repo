@@ -138,9 +138,9 @@ try {
   const { data: unchangedLedger, error: ledgerError } = await admin.from('credit_ledger')
     .select('id,amount_cents,kind')
     .eq('booking_id', fixtures.completed);
-  check('completed booking cancellation is rejected with the requested 409',
+  check('completed booking cancellation is rejected with the terminal-state 409',
     completedCancel.status === 409 &&
-      completedCancel.body.error === "Cannot cancel a booking with status 'completed'",
+      completedCancel.body.error === 'This booking can no longer be cancelled',
     `status=${completedCancel.status}, error=${completedCancel.body.error ?? ''}`);
   check('completed booking and payment fields remain unchanged',
     !completedError && completedRow?.status === 'completed' &&
@@ -164,8 +164,12 @@ try {
   for (const status of ['cancelled', 'no_show'] as const) {
     const bookingId = fixtures[status]!;
     const result = await callFunction('cancel-booking', studentToken, { bookingId });
-    check(`${status} booking cancellation is rejected with 409`,
-      result.status === 409 && result.body.error === `Cannot cancel a booking with status '${status}'`,
+    const expectedStatus = status === 'cancelled' ? 400 : 409;
+    const expectedError = status === 'cancelled'
+      ? 'Booking is already cancelled'
+      : 'This booking can no longer be cancelled';
+    check(`${status} booking cancellation is rejected`,
+      result.status === expectedStatus && result.body.error === expectedError,
       `status=${result.status}, error=${result.body.error ?? ''}`);
   }
 
@@ -182,7 +186,7 @@ try {
       .eq('booking_id', bookingId)
       .eq('reviewer_id', student.id);
     check(`${status} booking cannot be rated`, result.status === 409 &&
-      result.body.error === `Cannot submit a rating for a booking with status '${status}'` &&
+      result.body.error === 'You can rate a session once it is complete.' &&
       !reviewError && (reviews ?? []).length === 0,
     `status=${result.status}, reviews=${reviews?.length ?? 'error'}`);
   }

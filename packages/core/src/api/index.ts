@@ -10,6 +10,7 @@
 import { getSupabase } from '../supabase';
 import { notifyUserChanged } from '../changes';
 import { normalizeCourseQuery, rankCourseMatches } from '../courseSearch';
+import { mergeAvailabilityWindows } from '../availability';
 import {
   friendlyStorageError,
   MIME_BY_EXT,
@@ -437,6 +438,10 @@ function mapBooking(row: any): Booking {
     status: row.status,
     acceptBy: row.accept_by ?? null,
     acceptedAt: row.accepted_at ?? null,
+    cancelledByRole:
+      row.cancelled_by_role === 'student' || row.cancelled_by_role === 'tutor'
+        ? row.cancelled_by_role
+        : null,
     cancelReason: row.cancel_reason ?? null,
     declineNote: row.decline_note ?? null,
     cancellationDeadline: row.cancellation_deadline,
@@ -1120,7 +1125,7 @@ export const api = {
       const { error: delErr } = await sb.from('tutor_availability').delete().eq('tutor_id', uid);
       if (delErr) throw delErr;
       if (weekly.length === 0) return notifyUserChanged();
-      const rows = weekly.map((w) => ({
+      const rows = mergeAvailabilityWindows(weekly).map((w) => ({
         tutor_id: uid,
         day_of_week: w.dayOfWeek,
         start_time: w.startTime,
@@ -1259,29 +1264,25 @@ export const api = {
   },
 
   /**
-   * Past sessions for the signed-in user (as student OR tutor): anything scheduled
-   * before now that wasn't cancelled, plus declined/expired requests, newest first.
+   * Past sessions for the signed-in user, optionally scoped to one role, newest first.
    * RLS lets a user read their own bookings (bookings_select), so this needs no new
-   * table. Note: resolving the
-   * COUNTERPARTY's name still depends on users_select — a student can read the
-   * (approved) tutor, but a tutor cannot read a student (RLS gap, see notes).
+   * table. Note: resolving the COUNTERPARTY's name still depends on users_select — a
+   * student can read the (approved) tutor, but a tutor cannot read a student (RLS gap).
    */
-  async listPast(): Promise<Booking[]> {
+  async listPast(side?: 'student' | 'tutor'): Promise<Booking[]> {
     const uid = await requireUid();
     const nowMs = Date.now();
-    const { data, error } = await getSupabase()
+    let query = getSupabase()
       .from('bookings')
       .select('*')
-      .or(`student_id.eq.${uid},tutor_id.eq.${uid}`)
-      .in('status', ['confirmed', 'completed', 'cancelled'])
-      .order('scheduled_at', { ascending: false });
+      .in('status', ['confirmed', 'completed', 'cancelled', 'no_show']);
+    query = side
+      ? query.eq(side === 'student' ? 'student_id' : 'tutor_id', uid)
+      : query.or(`student_id.eq.${uid},tutor_id.eq.${uid}`);
+    const { data, error } = await query.order('scheduled_at', { ascending: false });
     if (error) throw error;
     return (data ?? [])
-      .filter((row) =>
-        row.status === 'cancelled'
-          ? row.cancel_reason != null
-          : new Date(row.scheduled_at).getTime() < nowMs,
-      )
+      .filter((row) => row.status === 'cancelled' || new Date(row.scheduled_at).getTime() < nowMs)
       .map(mapBooking);
   },
 

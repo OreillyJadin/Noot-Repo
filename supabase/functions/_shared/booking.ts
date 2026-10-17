@@ -65,8 +65,8 @@ export type ResolvedBooking = {
 export class BookingError extends Error {
   status: number;
   /** Marks the slot-taken failures so a caller can release the card hold they left behind. */
-  reason?: 'slot_taken';
-  constructor(message: string, status = 400, reason?: 'slot_taken') {
+  reason?: 'slot_taken' | 'outside_availability';
+  constructor(message: string, status = 400, reason?: 'slot_taken' | 'outside_availability') {
     super(message);
     this.name = 'BookingError';
     this.status = status;
@@ -89,6 +89,70 @@ function dbFail(where: string, error: unknown): never {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Campuses have no timezone column; UA is Central.
+const CAMPUS_TZ = 'America/Chicago';
+const CAMPUS_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const campusTimeFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: CAMPUS_TZ,
+  weekday: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+function minutesOfDay(value: string): number {
+  const [hour, minute] = value.split(':').map(Number);
+  return hour * 60 + minute;
+}
+
+function mergeAvailabilityRanges(windows: { start_time: string; end_time: string }[]) {
+  const sorted = windows
+    .map((window) => ({
+      start: minutesOfDay(window.start_time),
+      end: minutesOfDay(window.end_time),
+    }))
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged: { start: number; end: number }[] = [];
+  for (const window of sorted) {
+    const previous = merged[merged.length - 1];
+    if (previous && window.start <= previous.end) {
+      previous.end = Math.max(previous.end, window.end);
+    } else {
+      merged.push({ ...window });
+    }
+  }
+  return merged;
+}
+
+export async function assertWithinAvailability(
+  db: SupabaseClient,
+  tutorId: string,
+  startMs: number,
+  durationMinutes: number,
+): Promise<void> {
+  const local = Object.fromEntries(
+    campusTimeFormatter.formatToParts(new Date(startMs)).map(({ type, value }) => [type, value]),
+  );
+  const dayOfWeek = CAMPUS_DAYS.indexOf(local.weekday ?? '');
+  const startMinute = Number(local.hour) * 60 + Number(local.minute);
+  // Availability windows cannot span midnight because the schema requires start_time < end_time.
+  const endMinute = startMinute + durationMinutes;
+  const { data: windows, error } = await db
+    .from('tutor_availability')
+    .select('start_time,end_time')
+    .eq('tutor_id', tutorId)
+    .eq('day_of_week', dayOfWeek);
+  if (error) dbFail('availability lookup', error);
+  if (mergeAvailabilityRanges((windows ?? []) as { start_time: string; end_time: string }[]).some((window) =>
+    window.start <= startMinute && endMinute <= window.end
+  )) return;
+  throw new BookingError(
+    "That time is outside this tutor's availability. Please pick another slot.",
+    409,
+    'outside_availability',
+  );
+}
 
 /**
  * Validate a booking request and derive its price from the database.
@@ -131,6 +195,7 @@ export async function resolveBooking(
   if (scheduled.getTime() > now + BOOKING_HORIZON_DAYS * 24 * 60 * 60 * 1000) {
     throw new BookingError(`Sessions can only be booked up to ${BOOKING_HORIZON_DAYS} days ahead`);
   }
+  await assertWithinAvailability(db, tutorId, scheduled.getTime(), durationMinutes);
 
   // Tutor must be a real, live, approved tutor who can take money.
   const { data: tutor, error: tutorErr } = await db

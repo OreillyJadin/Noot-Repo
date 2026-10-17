@@ -23,6 +23,7 @@ export interface BookingDraft {
   price?: number;
   studentFee?: number;
   creditApplied?: number;
+  tutorPayoutAmount?: number;
   /** ISO time of the real booking. Drives the live cancellation refund tier. */
   scheduledAt?: string;
   acceptBy?: string | null;
