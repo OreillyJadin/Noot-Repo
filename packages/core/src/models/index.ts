@@ -278,6 +278,13 @@ export interface CatalogCourse {
   collegeName: string;
 }
 
+/** A campus location available for in-person tutoring sessions. */
+export interface TutoringLocation {
+  id: string;
+  name: string;
+  category: 'library' | 'building';
+}
+
 /** Who sent a message, for group threads where the sender isn't implied by the header. */
 export interface ChatParticipant {
   id: UUID;

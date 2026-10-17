@@ -39,6 +39,7 @@ import type {
   TutorCourse,
   MyTutorProfile,
   TutorSummary,
+  TutoringLocation,
   User,
 } from '../models';
 
@@ -594,6 +595,14 @@ function mapCatalogCourse(row: any): CatalogCourse {
     subjectName: row.subject_name ?? '',
     creditHours: row.credit_hours ?? null,
     collegeName: row.college_name ?? '',
+  };
+}
+
+function mapTutoringLocation(row: any): TutoringLocation {
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
   };
 }
 
@@ -2391,6 +2400,21 @@ export const api = {
       });
       if (error) throw error;
       return !!data;
+    },
+  },
+
+  // --- campus locations ---
+  locations: {
+    /** Active locations available for in-person sessions. */
+    async list(): Promise<TutoringLocation[]> {
+      const { data, error } = await getSupabase()
+        .from('tutoring_locations')
+        .select('id, name, category')
+        .eq('is_active', true)
+        .order('category')
+        .order('name');
+      if (error) throw error;
+      return (data ?? []).map(mapTutoringLocation);
     },
   },
 

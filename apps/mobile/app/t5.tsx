@@ -11,8 +11,7 @@
 //
 // The "Common locations" editor was removed with it. There is nowhere to store a
 // per-tutor location — `tutoring_locations` (0027) is a read-only campus list maintained
-// out of band, and B3's spot picker has its own list — so the field only ever discarded
-// what the tutor typed.
+// out of band, and B3 now reads its campus options from `tutoring_locations`.
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
