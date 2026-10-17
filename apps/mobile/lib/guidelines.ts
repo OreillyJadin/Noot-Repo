@@ -2,6 +2,12 @@
 // version on a material change.
 export const GUIDELINES_VERSION = '2026-10-13';
 
+export function splitGuidelineBody(section: { body: string[]; bullets?: string[] }): { before: string[]; after: string[] } {
+  return section.bullets
+    ? { before: section.body.slice(0, 1), after: section.body.slice(1) }
+    : { before: section.body, after: [] };
+}
+
 export const GUIDELINES: { title: string; body: string[]; bullets?: string[] }[] = [
   {
     title: '',
