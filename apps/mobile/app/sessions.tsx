@@ -187,6 +187,7 @@ export default function Sessions() {
         price: realBooking?.price,
         studentFee: realBooking?.studentFee,
         creditApplied: realBooking?.creditApplied,
+        tutorPayoutAmount: realBooking?.tutorPayoutAmount,
       });
       router.push('/xns');
     } catch (e) {
