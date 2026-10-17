@@ -102,7 +102,7 @@ export default function Sessions() {
   useEffect(() => {
     let active = true;
     api
-      .listPast()
+      .listPast('student')
       .then(async (bookings) => {
         const items = await Promise.all(
           bookings.map(async (b) => {

@@ -66,7 +66,7 @@ export default function TutorSessions() {
     // student row directly). Falls back to "Student" if it's unavailable.
     Promise.all([
       api.listUpcoming('tutor'),
-      api.listPast().catch(() => []),
+      api.listPast('tutor').catch(() => []),
       api.resolveParticipantNames().catch(() => ({} as Record<string, { firstName: string; lastName: string }>)),
     ])
       .then(([up, pastRows, names]) => {
