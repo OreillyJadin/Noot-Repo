@@ -84,3 +84,17 @@ Evidence references are screenshot basenames only; screenshots are not committed
 | #90 | Validate profile names on client and server. | 0080 |
 | #91 | Bound rating comments and add an elapsed-session rating guard. | — |
 | #92 | Include no-show bookings in Past history and scope history by role. | — |
+
+## Open questions for the team
+
+Detail for each is in [DEFECT_REGISTER.md](DEFECT_REGISTER.md) and [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
+
+| ID | Question | Status |
+|---|---|---|
+| AMB-04 | The signed-out invite-code check (30 tries / 10 min) identifies callers by an IP header the caller can set. Key it only on a platform-set header, also add a global cap, or leave it? Depends on whether Cloudflare/Supabase overwrite `x-forwarded-for` / `cf-connecting-ip` in production. | Open |
+| TUT-4 | The app's minimum rate is $10/hr, but the server accepts $0–9.99 (4 prod tutor courses are under $10). Enforce $10 on the server? If yes, those 4 rows need repricing first. | Open |
+| TUT-5 | Tutors can save overlapping availability windows on the same day. | Decided: merge them |
+| SEC-006 | Any signed-in user can read every column of an approved tutor's `users` / `tutor_profiles` row (email, Stripe customer and Connect IDs, transcript path, signed agreement name). Restrict to display fields? | Open |
+| IOS-2 | At the largest accessibility text sizes, titles and tab labels break mid-word. Cap font scaling, or redesign those layouts? | Open |
+| Ratings | Should no-show sessions be ratable? | Decided: no (current behavior after #82) |
+| History | Should bookings a student cancelled appear in their past sessions? | Decided: yes |
