@@ -172,7 +172,7 @@ Inventory of tables created in `supabase/migrations`. Every listed table has RLS
 | `campuses` (`0003_auth_and_campus_gate.sql`) | Yes | S: anon/authenticated for active campuses; I/U/D: none for clients. |
 | `content_reports` (`0028_reports_and_blocks.sql`) | Yes | S: reporter/admin; I: reporter; U: admin; D: none. |
 | `conversations` (`0001_init.sql`) | Yes | S: participants/admin; I: student opening direct chat with approved tutor; U/D: none for clients. |
-| `courses` (`0020_courses.sql`) | Yes | S/I/U/D: none for clients; service role only. |
+| `courses` (`0020_courses.sql`; `0023_courses_public_read.sql`; `0051_enforce_user_status.sql`) | Yes | S: anon and active authenticated users (public select; authenticated access is subject to `active_user_only`); I/U/D: no client policies. |
 | `credit_cashouts` (`0040_noot_credits.sql`) | Yes | S: owner/admin; I/U/D: none for clients (RPC/server). |
 | `credit_ledger` (`0040_noot_credits.sql`) | Yes | S: owner/admin; I/U/D: none for clients (RPC/server). |
 | `invite_code_checks` (`0050_lock_down_definer_functions.sql`) | Yes | S/I/U/D: none for clients; rate-limited definer RPC only. |
@@ -197,7 +197,7 @@ Inventory of tables created in `supabase/migrations`. Every listed table has RLS
 | `user_roles` (`0001_init.sql`) | Yes | S: owner/admin; I: own ambassador role only; D: own ambassador role or admin; U: none. |
 | `users` (`0001_init.sql`) | Yes | S: self, approved tutor, or admin; U: self; I/D: none for clients. |
 
-Five RLS-enabled tables have no client policy in the migrations: `app_settings`, `courses`, `invite_code_checks`, `redeemed_invite_emails`, and `session_reminders_sent`. `courses` is a notable code-path mismatch: `api.courses` queries it, while `0020_courses.sql` explicitly says anon/authenticated reads are denied until a select policy is added. No table created in the migrations was found without RLS enabled.
+Four RLS-enabled tables have no client policy in the migrations: `app_settings`, `invite_code_checks`, `redeemed_invite_emails`, and `session_reminders_sent`. `courses` is not among them: `0023_courses_public_read.sql` creates a public SELECT policy, and `0051_enforce_user_status.sql` restricts authenticated access to active users. No table created in the migrations was found without RLS enabled.
 
 ### Callable SECURITY DEFINER RPCs
 
