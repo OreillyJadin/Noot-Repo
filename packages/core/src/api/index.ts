@@ -364,6 +364,7 @@ function mapUser(row: any): User {
     passwordSetAt: row.password_set_at ?? null,
     termsAcceptedAt: row.terms_accepted_at ?? null,
     guidelinesAcceptedAt: row.guidelines_accepted_at ?? null,
+    guidelinesVersion: row.guidelines_version ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -829,7 +830,7 @@ export const api = {
       notifyUserChanged();
     },
 
-    /** Record that the user accepted the Community Guidelines during student onboarding. */
+    /** Record that the user accepted the Community Guidelines (once per account, every role). */
     async acceptGuidelines(version: string): Promise<void> {
       const uid = await requireUid();
       const { error } = await getSupabase()
