@@ -80,3 +80,9 @@ export const GUIDELINES: { title: string; body: string[]; bullets?: string[] }[]
     ],
   },
 ];
+
+export function splitGuidelineBody(section: { body: string[]; bullets?: string[] }): { before: string[]; after: string[] } {
+  return section.bullets
+    ? { before: section.body.slice(0, 1), after: section.body.slice(1) }
+    : { before: section.body, after: [] };
+}
