@@ -10,7 +10,7 @@ import { useApp } from '../lib/store';
 import { NoSession } from '../lib/NoSession';
 
 const RATING_WORDS = ['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'];
-const REVIEW_MAX = 500;
+const REVIEW_MAX = 1000;
 
 // Interactive 1–5 star rating. Defined locally (not shared) per porting guide.
 function StarRating({ value, onChange, size = 40 }: { value: number; onChange: (n: number) => void; size?: number }) {
@@ -131,6 +131,7 @@ function C2Inner() {
         <Field
           multiline
           value={review}
+          maxLength={REVIEW_MAX}
           onChangeText={(v) => setReview(v.slice(0, REVIEW_MAX))}
           placeholder={`What stood out about your session with ${tutor.name.split(' ')[0]}?`}
           hint={`${review.length} / ${REVIEW_MAX}`}

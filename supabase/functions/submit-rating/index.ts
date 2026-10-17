@@ -10,6 +10,7 @@
 // Money movement (Stripe charge/refund/payout) is OUT OF SCOPE here.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
+import { BookingError, assertSessionElapsed } from '../_shared/booking.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -37,7 +38,7 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
 
     const bookingId: string | undefined = body?.bookingId;
     const rating: number | undefined = body?.rating;
-    const comment: string | null = body?.comment ?? null;
+    const comment = typeof body?.comment === 'string' ? body.comment.trim() : null;
     const happened: boolean = body?.happened ?? true;
 
     if (!bookingId) return Response.json({ error: 'bookingId is required' }, { status: 400, headers: cors });
@@ -48,7 +49,7 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
     // Load the booking.
     const { data: booking, error: bookingErr } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id')
+      .select('id, student_id, tutor_id, status, scheduled_at, duration_minutes')
       .eq('id', bookingId)
       .single();
     if (bookingErr || !booking) {
@@ -60,6 +61,23 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
     const isTutor = booking.tutor_id === user.id;
     if (!isStudent && !isTutor) {
       return Response.json({ error: 'Not a party to this booking' }, { status: 403, headers: cors });
+    }
+
+    const notElapsedMessage = "You can rate a session after it's happened.";
+    if (booking.status !== 'confirmed' && booking.status !== 'completed') {
+      return Response.json({ error: notElapsedMessage }, { status: 409, headers: cors });
+    }
+    try {
+      assertSessionElapsed(booking.scheduled_at as string, Number(booking.duration_minutes));
+    } catch (error) {
+      if (error instanceof BookingError) {
+        return Response.json({ error: notElapsedMessage }, { status: 409, headers: cors });
+      }
+      throw error;
+    }
+
+    if (comment !== null && comment.length > 1000) {
+      return Response.json({ error: 'Reviews can be at most 1000 characters.' }, { status: 400, headers: cors });
     }
 
     // The subject is the OTHER party.
