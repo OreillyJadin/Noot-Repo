@@ -110,11 +110,18 @@ serveWithErrorReporting('complete-session', async (req: Request) => {
         // The money IS captured at this point, so record that fact and flag the booking
         // rather than throwing and leaving the row looking untouched. Both ids are
         // idempotency-keyed, so a retry resumes safely.
-        await db
+        const failedAt = new Date().toISOString();
+        const { data: flagged } = await db
           .from('bookings')
-          .update({ status: 'completed', stripe_charge_id: chargeId, payout_failed_at: new Date().toISOString() })
+          .update({ status: 'completed', stripe_charge_id: chargeId, payout_failed_at: failedAt })
           .eq('id', bookingId)
-          .eq('status', 'confirmed');
+          .eq('status', 'confirmed')
+          .select('id');
+        // A cancel or no-show won meanwhile: keep its status, but still flag the captured charge.
+        if (!flagged?.length) {
+          await db.from('bookings').update({ payout_failed_at: failedAt }).eq('id', bookingId);
+          console.error('complete-session: captured, transfer failed and the booking left confirmed meanwhile', bookingId, chargeId);
+        }
         console.error('complete-session: captured but transfer failed', bookingId, String(transferErr));
         // The session did happen and was paid for, so the invite reward still applies.
         await awardInvites(url, bookingId);
