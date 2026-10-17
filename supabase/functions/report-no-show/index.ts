@@ -164,7 +164,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
       }
     }
 
-    const { error: updateErr } = await db
+    const { data: noShowRows, error: updateErr } = await db
       .from('bookings')
       .update({
         status: 'no_show',
@@ -174,8 +174,14 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
         stripe_charge_id: chargeId,
         stripe_transfer_id: transferId,
       })
-      .eq('id', bookingId);
+      .eq('id', bookingId)
+      .eq('status', 'confirmed')
+      .select('id');
     if (updateErr) return Response.json({ error: updateErr.message }, { status: 400, headers: cors });
+    // Completed or cancelled while we worked: that outcome stands, and no credit comes back.
+    if (!noShowRows?.length) {
+      return Response.json({ error: 'This session was already completed or cancelled.' }, { status: 409, headers: cors });
+    }
 
     // The tutor didn't show: the student gets their Noot credit back too (0040).
     if (tutorNoShow && Number(booking.credit_applied ?? 0) > 0) {

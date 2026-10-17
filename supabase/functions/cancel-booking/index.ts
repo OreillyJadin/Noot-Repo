@@ -156,6 +156,15 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
       );
     }
 
+    // Only an upcoming session can be cancelled; a completed, no-show or disputed one has
+    // already settled its money and credit.
+    if (booking.status !== 'confirmed') {
+      return Response.json(
+        { error: 'This booking can no longer be cancelled' },
+        { status: 409, headers: cors },
+      );
+    }
+
     // Compute refund percent per the cancellation policy.
     let refundPercent: number;
     if (isStudent) {
