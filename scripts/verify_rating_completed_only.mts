@@ -212,6 +212,16 @@ try {
   });
   if (tutorCourseError) throw tutorCourseError;
 
+  const { error: availabilityError } = await svc.from('tutor_availability').insert(
+    [0, 1, 2, 3, 4, 5, 6].map((day_of_week) => ({
+      tutor_id: tutor.id,
+      day_of_week,
+      start_time: '00:00',
+      end_time: '24:00',
+    })),
+  );
+  if (availabilityError) throw availabilityError;
+
   check('fixtures', 'service-role users and approved tutor fixture created', true);
 
   const pending = await book(tutor, student, course.course_code, atHoursUtc(48));

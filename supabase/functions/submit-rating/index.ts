@@ -37,7 +37,7 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
 
     const bookingId: string | undefined = body?.bookingId;
     const rating: number | undefined = body?.rating;
-    const comment: string | null = body?.comment ?? null;
+    const comment = typeof body?.comment === 'string' ? body.comment.trim() : null;
     const happened: boolean = body?.happened ?? true;
 
     if (!bookingId) return Response.json({ error: 'bookingId is required' }, { status: 400, headers: cors });
@@ -63,6 +63,10 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
     }
     if (booking.status !== 'completed') {
       return Response.json({ error: 'You can rate a session once it is complete.' }, { status: 409, headers: cors });
+    }
+
+    if (comment !== null && comment.length > 500) {
+      return Response.json({ error: 'Reviews can be at most 500 characters.' }, { status: 400, headers: cors });
     }
 
     // The subject is the OTHER party.
