@@ -120,7 +120,6 @@ function AdminCalendarScreen() {
       >
         <AdminLargeHeader
           title="Calendar"
-          subtitle={monthLabel}
           trailing={
             <View style={[styles.modeSwitch, { backgroundColor: t.surface2 }]}>
               {(['month', 'week'] as const).map((option) => (

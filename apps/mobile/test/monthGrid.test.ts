@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dayKey, groupByDay, monthMatrix, monthRange } from '../lib/monthGrid.ts';
+import { dayKey, groupByDay, monthMatrix, monthRange, splitClock } from '../lib/monthGrid.ts';
 
 test('October 2026 starts on Thursday and uses five Sunday-start weeks', () => {
   const matrix = monthMatrix(2026, 9);
@@ -39,4 +39,20 @@ test('monthRange covers the entire visible matrix in local time', () => {
   const { fromIso, toIso } = monthRange(2026, 9);
   assert.equal(fromIso, matrix[0]![0]!.toISOString());
   assert.equal(toIso, new Date(2026, 10, 1).toISOString());
+});
+
+test('splitClock separates a standard meridiem', () => {
+  assert.deepEqual(splitClock('4:22 PM'), { clock: '4:22', meridiem: 'PM' });
+});
+
+test('splitClock handles a narrow no-break space before the meridiem', () => {
+  assert.deepEqual(splitClock('4:22\u202fPM'), { clock: '4:22', meridiem: 'PM' });
+});
+
+test('splitClock normalizes a dotted meridiem', () => {
+  assert.deepEqual(splitClock('11:05 a.m.'), { clock: '11:05', meridiem: 'AM' });
+});
+
+test('splitClock leaves 24-hour labels intact', () => {
+  assert.deepEqual(splitClock('16:22'), { clock: '16:22', meridiem: null });
 });
