@@ -9,6 +9,7 @@ import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
 import { GUIDELINES, GUIDELINES_VERSION, splitGuidelineBody } from '../lib/guidelines';
 import { openLegal } from '../lib/legal';
 import { forgetThisDevice } from '../lib/push';
+import { markAppReady } from '../lib/pushOpen';
 
 export default function CommunityGuidelines() {
   const t = useTheme();
@@ -39,6 +40,7 @@ export default function CommunityGuidelines() {
       if (next === 'tutor') {
         setRole('tutor');
         router.replace('/tutor_home');
+        markAppReady();
         return;
       }
       if (!(await routeAfterAuth(router, setRole)).ok) setError(ACCOUNT_UNAVAILABLE);

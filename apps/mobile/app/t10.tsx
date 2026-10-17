@@ -10,6 +10,7 @@ import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useTutorApplication } from '../lib/useTutorApplication';
 import { guidelinesAreCurrent } from '../lib/guidelines';
+import { markAppReady } from '../lib/pushOpen';
 
 // These used to be Alert-only stubs, which read as unfinished on the very first screen a
 // new tutor sees. Each now goes to the screen that actually does the thing.
@@ -37,19 +38,20 @@ export default function T10() {
   // persisted here: the tutor role isn't granted until an admin approves the application, and
   // the 0007 trigger would reject it — so this is a local mode switch until approval lands.
   // A new tutor reaches this screen straight from sign-up, without passing routeAfterAuth,
-  // so the Community Guidelines are asked for here before the dashboard. A failed read lets
-  // them through; the next launch's gate asks.
+  // so the Community Guidelines are asked for here before the dashboard. A failed read asks
+  // too: agreeing again is harmless, skipping them is not.
   const [opening, setOpening] = useState(false);
   const openDashboard = async () => {
     if (opening) return;
     setOpening(true);
     const me = await api.getMe().catch(() => null);
-    if (me && !guidelinesAreCurrent(me.guidelinesAcceptedAt, me.guidelinesVersion)) {
+    if (!me || !guidelinesAreCurrent(me.guidelinesAcceptedAt, me.guidelinesVersion)) {
       router.replace('/guidelines?next=tutor');
       return;
     }
     setRole('tutor');
     router.replace('/tutor_home');
+    markAppReady();
   };
 
   return (
