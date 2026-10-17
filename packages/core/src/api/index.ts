@@ -437,6 +437,10 @@ function mapBooking(row: any): Booking {
     status: row.status,
     acceptBy: row.accept_by ?? null,
     acceptedAt: row.accepted_at ?? null,
+    cancelledByRole:
+      row.cancelled_by_role === 'student' || row.cancelled_by_role === 'tutor'
+        ? row.cancelled_by_role
+        : null,
     cancelReason: row.cancel_reason ?? null,
     declineNote: row.decline_note ?? null,
     cancellationDeadline: row.cancellation_deadline,
@@ -1277,11 +1281,7 @@ export const api = {
     const { data, error } = await query.order('scheduled_at', { ascending: false });
     if (error) throw error;
     return (data ?? [])
-      .filter((row) =>
-        row.status === 'cancelled'
-          ? row.cancel_reason != null
-          : new Date(row.scheduled_at).getTime() < nowMs,
-      )
+      .filter((row) => row.status === 'cancelled' || new Date(row.scheduled_at).getTime() < nowMs)
       .map(mapBooking);
   },
 

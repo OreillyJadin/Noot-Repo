@@ -85,6 +85,31 @@ const makeBooking = async (
   return data.id as string;
 };
 
+const makeFutureCancelledBooking = async (studentId: string, tutorId: string) => {
+  const start = Date.now() + 24 * 60 * 60_000;
+  const { data, error } = await admin.from('bookings').insert({
+    student_id: studentId,
+    tutor_id: tutorId,
+    subject: 'QA FUTURE CANCELLED',
+    scheduled_at: new Date(start).toISOString(),
+    scheduled_end: new Date(start + 60 * 60_000).toISOString(),
+    duration_minutes: 60,
+    price: 40,
+    platform_fee: 0,
+    tutor_payout_amount: 40,
+    session_type: 'in_person',
+    cancellation_deadline: new Date(start - 12 * 60 * 60_000).toISOString(),
+    status: 'cancelled',
+    cancel_reason: null,
+    cancelled_by_role: 'student',
+    cancelled_from_status: 'confirmed',
+    cancelled_at: new Date().toISOString(),
+  }).select('id').single();
+  if (error || !data) throw error ?? new Error('Could not create future cancelled booking');
+  cleanup.bookings.push(data.id);
+  return data.id as string;
+};
+
 let stage = 'create users';
 
 try {
@@ -100,6 +125,7 @@ try {
   const studentCompletedId = await makeBooking(user.id, tutor.id, 'completed', 3);
   const tutorCompletedId = await makeBooking(student.id, user.id, 'completed', 6);
   const noShowId = await makeBooking(user.id, tutor.id, 'no_show', 9);
+  const futureCancelledId = await makeFutureCancelledBooking(user.id, tutor.id);
 
   stage = 'sign in as dual-role user';
   const signIn = await auth.signInWithPassword(user.email, PASSWORD);
@@ -110,6 +136,9 @@ try {
   const studentIds = studentPast.map((booking) => booking.id);
   step('student-side list includes U-as-student completed session', studentIds.includes(studentCompletedId));
   step('student-side list includes the past no-show', studentIds.includes(noShowId));
+  step('student-side list includes future student-cancelled booking', studentIds.includes(futureCancelledId));
+  step('future cancelled booking maps the cancelling role',
+    studentPast.find((booking) => booking.id === futureCancelledId)?.cancelledByRole === 'student');
   step('student-side list excludes U-as-tutor session', !studentIds.includes(tutorCompletedId));
 
   stage = 'tutor-side past list';

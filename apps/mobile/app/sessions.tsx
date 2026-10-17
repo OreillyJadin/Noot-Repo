@@ -381,6 +381,17 @@ export default function Sessions() {
                           label={b.cancelReason === 'tutor_declined' ? 'Declined' : 'Expired, not accepted'}
                           tone="neutral"
                         />
+                      ) : b.status === 'cancelled' ? (
+                        <Badge
+                          label={
+                            b.cancelledByRole === 'student'
+                              ? 'You cancelled'
+                              : b.cancelledByRole === 'tutor'
+                                ? 'Tutor cancelled'
+                                : 'Cancelled'
+                          }
+                          tone="neutral"
+                        />
                       ) : null}
                     </View>
                     <Button label="Message" kind="secondary" size="sm" iconRight="chat" onPress={() => message(tutor)} />

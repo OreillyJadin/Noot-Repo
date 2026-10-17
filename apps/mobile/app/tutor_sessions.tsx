@@ -264,7 +264,9 @@ export default function TutorSessions() {
                             : r.status === 'no_show' ? 'No-show'
                               : r.booking.cancelReason === 'tutor_declined' ? 'Declined'
                                 : r.booking.cancelReason === 'tutor_no_response' ? 'Expired, not accepted'
-                                  : 'Cancelled'
+                                  : r.status === 'cancelled' && r.booking.cancelledByRole === 'tutor' ? 'You cancelled'
+                                    : r.status === 'cancelled' && r.booking.cancelledByRole === 'student' ? 'Student cancelled'
+                                      : 'Cancelled'
                         }
                         tone={done ? 'good' : 'neutral'}
                       />
