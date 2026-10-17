@@ -17,7 +17,7 @@ For the schema-level RLS, callable SECURITY DEFINER RPC, and Storage inventory, 
 | SEC-003 | High | Cancellation | Cancel a completed booking as student; returned 200, status `cancelled`, `refund_percent` 100; expected 409. | Fixed-verified | #87 | none | `scripts/verify_booking_state.mts` (11/11) |
 | SEC-004 | Medium | Ratings | Submit a rating on a pending or cancelled booking; returned 200 and created a review; expected 409. | Fixed-verified | #87 | none | `scripts/verify_booking_state.mts` (11/11) |
 | SEC-005 | High | Users / ban re-registration | PATCH own `/rest/v1/users` row with a replacement email; returned 200 and persisted, enabling evasion of the banned re-registration block. | Fixed-verified | #88 | 0071 | `scripts/verify_user_email_lock.mts` (7/7) |
-| SEC-006 | Medium | User / tutor-profile data exposure | `select=*` on `users` and `tutor_profiles` for an approved tutor returned all columns, including email, Stripe IDs, transcript path, and signed name; expected display fields only. | Needs product decision | unclear | unclear | unclear |
+| SEC-006 | Medium | User / tutor-profile data exposure | `select=*` on `users` and `tutor_profiles` for an approved tutor returned all columns, including email, Stripe IDs, transcript path, and signed name; expected display fields only. | Fixed (open PR) | fix/tutor-public-fields | 0086 | `scripts/verify_tutor_public_fields.mts` |
 | AMB-01 | High | Ambassador credit | Concurrent invite rewards could skip the 5-invite milestone bonus (`award_milestones` counted without `credit_lock`). | Fixed (open PR) | #78 | 0075 | unclear |
 | AMB-02 | High | Session lifecycle | `complete-session` versus cancel/no-show races could all succeed, leaving an inconsistent terminal state. | Fixed (open PR) | #79 | unclear | unclear |
 | AMB-02b | Medium | Cancellation | Completed/no-show sessions could still be cancelled and refunded. | Fixed (open PR) | #79 (overlaps #87) | unclear | unclear |
@@ -31,7 +31,7 @@ Duplicates: SEC-003 ≈ AMB-02b; SEC-004 ≈ TUT-1.
 
 ## 3. Open decisions
 
-- **SEC-006:** Decide which approved-tutor fields should be readable to other authenticated users; the intended field policy is unclear in the source.
+- **SEC-006:** Decided (Jadin): other signed-in users see only display fields (name, photo, bio, courses and rates, rating, session count, Verified badge) plus what booking needs (id, approval state); everything else is owner / admin / service_role only. Implemented in 0086 via the `tutor_public_profiles` view.
 - **AMB-04:** Decide the intended signed-out invite-code rate-limit policy when the caller can set the IP header; the trusted key/policy is unclear in the source.
 - **TUT-4:** Decide how to resolve the app's $10 minimum versus server acceptance of $0–9.99; the intended minimum is unclear in the source.
 
