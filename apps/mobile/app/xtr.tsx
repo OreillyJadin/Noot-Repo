@@ -57,7 +57,7 @@ export default function XReschedulePropose() {
       .getAvailability(availabilityTutorId)
       .then((windows) => {
         if (!active) return;
-        const next = slotsFromWindows(windows);
+        const next = slotsFromWindows(windows, booking.lengthMin ?? 60);
         setSlots(next);
         const first = BOOKABLE_DAYS.find((d) => (next[d.i]?.length ?? 0) > 0);
         if (first) setDay(first.i);

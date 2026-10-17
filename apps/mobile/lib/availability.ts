@@ -1,7 +1,7 @@
 // Turns a tutor's recurring weekly availability windows (api.tutors.getAvailability)
 // into the concrete per-day slot maps the booking + calendar screens render. This is
 // the real replacement for the old client-side slotsFor() mock generator.
-import type { TutorAvailability } from '@noot/core';
+import { mergeAvailabilityWindows, type TutorAvailability } from '@noot/core';
 import { DAYS } from './data';
 
 /** "14:00" / "14:30" → minutes since midnight. */
@@ -28,17 +28,18 @@ export function fmtSlot(min: number): string {
  * a day, so offering a time that has already passed sends the student all the way to
  * payment before the server refuses it with "That time is in the past".
  */
-export function slotsFromWindows(windows: TutorAvailability[]): Record<number, string[]> {
+export function slotsFromWindows(windows: TutorAvailability[], lengthMin = 60): Record<number, string[]> {
   const map: Record<number, string[]> = {};
+  const mergedWindows = mergeAvailabilityWindows(windows);
   const now = new Date();
   const minutesNow = now.getHours() * 60 + now.getMinutes();
   for (const d of DAYS) {
-    const dayWindows = windows.filter((w) => w.dayOfWeek === d.dowNum);
+    const dayWindows = mergedWindows.filter((w) => w.dayOfWeek === d.dowNum);
     if (dayWindows.length === 0) continue;
     const starts = new Set<number>();
     for (const w of dayWindows) {
       const end = parseHM(w.endTime);
-      for (let m = parseHM(w.startTime); m < end; m += 60) {
+      for (let m = parseHM(w.startTime); m + lengthMin <= end; m += 60) {
         if (d.i === 0 && m <= minutesNow) continue; // already passed today
         starts.add(m);
       }
