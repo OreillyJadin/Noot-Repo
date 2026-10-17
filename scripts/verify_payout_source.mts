@@ -157,11 +157,22 @@ const call = async (fn: string, body: unknown, token = studentToken) => {
 const grant = (cents: number) => svc.from('credit_ledger').insert({ user_id: studentId, amount_cents: cents, kind: 'adjustment' });
 const bookings: string[] = [];
 let slot = 0;
-const at = (hoursAhead: number) => new Date(Date.now() + hoursAhead * 3600e3 + slot++ * 15 * 60e3).toISOString();
+// now + N hours, picking the first offered hours-ahead whose hour-long session doesn't start
+// at 23:xx Central (the availability check works in America/Chicago and windows can't span
+// midnight). Alternatives must stay inside the same cancellation tier as the first value.
+const chicagoHour = (d: Date) => Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hourCycle: 'h23' }).format(d));
+const at = (hoursAhead: number, ...alternatives: number[]) => {
+  const offset = slot++ * 15 * 60e3;
+  for (const h of [hoursAhead, ...alternatives]) {
+    const start = Date.now() + h * 3600e3 + offset;
+    if (chicagoHour(new Date(start)) !== 23) return new Date(start).toISOString();
+  }
+  return new Date(Date.now() + hoursAhead * 3600e3 + offset).toISOString();
+};
 
 /** A real confirmed booking with an authorized hold (optionally paid partly with credit). */
-async function makeBooking(hoursAhead: number, creditCents = 0) {
-  const scheduledAt = at(hoursAhead);
+async function makeBooking(hoursAhead: number, creditCents = 0, ...alternatives: number[]) {
+  const scheduledAt = at(hoursAhead, ...alternatives);
   if (creditCents > 0) await grant(creditCents);
   const pi = await call('create-payment-intent', { tutorId, courseCode, durationMinutes: 60, scheduledAt });
   if (pi.status !== 200) throw new Error(`create-payment-intent ${pi.status} ${pi.body.error ?? ''}`);
@@ -186,7 +197,7 @@ const payoutCents = (r: Json) => Math.round(Number(r.tutor_payout_amount) * 100)
 try {
   console.log('\n— complete-session: payout funded from the session charge —');
   {
-    const b = await makeBooking(72);
+    const b = await makeBooking(72, 0, 74);
     await backdate(b.bookingId);
     const r = await call('complete-session', { bookingId: b.bookingId }, tutorToken);
     const bk = await row(b.bookingId);
@@ -206,10 +217,10 @@ try {
 
   console.log('\n— complete-session: Noot credit leaves a $1 card charge smaller than the payout —');
   {
-    const probe = await call('create-payment-intent', { tutorId, courseCode, durationMinutes: 60, scheduledAt: at(90) });
+    const probe = await call('create-payment-intent', { tutorId, courseCode, durationMinutes: 60, scheduledAt: at(90, 92) });
     const amountCents = probe.body.amountCents as number;
     await stripe(`payment_intents/${probe.body.paymentIntentId}/cancel`, {});
-    const b = await makeBooking(72, amountCents); // more credit than the total → card still pays $1
+    const b = await makeBooking(72, amountCents, 74); // more credit than the total → card still pays $1
     check('the card is held for exactly $1', b.chargeCents === 100 && b.creditCents === amountCents - 100, `${b.chargeCents}c card, ${b.creditCents}c credit`);
     await backdate(b.bookingId);
     const r = await call('complete-session', { bookingId: b.bookingId }, tutorToken);
@@ -228,7 +239,7 @@ try {
 
   console.log('\n— report-no-show (student): payout funded from the charge —');
   {
-    const b = await makeBooking(72);
+    const b = await makeBooking(72, 0, 74);
     await backdate(b.bookingId);
     const r = await call('report-no-show', { bookingId: b.bookingId, party: 'student' }, tutorToken);
     const bk = await row(b.bookingId);
@@ -241,7 +252,7 @@ try {
 
   console.log('\n— cancel-booking 50% tier: half captured, tutor’s half funded from that capture —');
   {
-    const b = await makeBooking(10); // 2h < 10h < 12h → 50% refund
+    const b = await makeBooking(10, 0, 6, 3); // 2h < 10h < 12h → 50% refund
     const r = await call('cancel-booking', { bookingId: b.bookingId });
     const bk = await row(b.bookingId);
     const ts = await transfersFor(b.bookingId);
@@ -259,10 +270,10 @@ try {
 
   console.log('\n— cancel-booking 0% tier with credit: $1 charge + credit-funded remainder —');
   {
-    const probe = await call('create-payment-intent', { tutorId, courseCode, durationMinutes: 60, scheduledAt: at(95) });
+    const probe = await call('create-payment-intent', { tutorId, courseCode, durationMinutes: 60, scheduledAt: at(95, 97) });
     const amountCents = probe.body.amountCents as number;
     await stripe(`payment_intents/${probe.body.paymentIntentId}/cancel`, {});
-    const b = await makeBooking(1, amountCents); // < 2h → no refund
+    const b = await makeBooking(1, amountCents, 0.5); // < 2h → no refund
     const r = await call('cancel-booking', { bookingId: b.bookingId });
     const bk = await row(b.bookingId);
     const ts = await transfersFor(b.bookingId);
