@@ -834,13 +834,27 @@ export const api = {
     async acceptGuidelines(version: string): Promise<void> {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(version)) throw new Error(`Invalid guidelines version ${version}`);
       const uid = await requireUid();
+      const sb = getSupabase();
       // Never downgrade: an older app build agreeing must not overwrite a newer acceptance,
-      // or the newer build would ask again. Stale, missing or non-date versions are replaced.
-      const { error } = await getSupabase()
+      // or the newer build would ask again. Anything else (stale, missing, malformed) is replaced.
+      const { data: current, error: readError } = await sb
+        .from('users')
+        .select('guidelines_accepted_at, guidelines_version')
+        .eq('id', uid)
+        .single();
+      if (readError) throw readError;
+      const kept = current.guidelines_version as string | null;
+      if (current.guidelines_accepted_at != null && kept != null
+          && /^\d{4}-\d{2}-\d{2}$/.test(kept) && kept > version) {
+        notifyUserChanged();
+        return;
+      }
+      const { error } = await sb
         .from('users')
         .update({ guidelines_accepted_at: new Date().toISOString(), guidelines_version: version })
         .eq('id', uid)
-        .or(`guidelines_version.is.null,guidelines_version.lt.${version},guidelines_version.not.like.____-__-__`);
+        .select('id')
+        .single();
       if (error) throw error;
       notifyUserChanged();
     },

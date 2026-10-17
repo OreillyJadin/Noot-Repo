@@ -113,6 +113,17 @@ try {
   const { data: newer } = await svc.from('users').select('guidelines_version').eq('id', dual.id).single()
   step(newer?.guidelines_version === '2099-01-01',
     `accepting ${GUIDELINES_VERSION} keeps a newer recorded version (version=${newer?.guidelines_version})`)
+  for (const [label, patch] of [
+    ['a current version with no timestamp', { guidelines_accepted_at: null, guidelines_version: GUIDELINES_VERSION }],
+    ['a malformed version', { guidelines_version: 'zzzz-zz-zz' }],
+  ] as const) {
+    await svc.from('users').update(patch).eq('id', dual.id)
+    const before = await route()
+    await api.profile.acceptGuidelines(GUIDELINES_VERSION)
+    const after = await route()
+    step(before === 'guidelines' && after === 'home /ambassador_home',
+      `${label} is asked, and agreeing clears it (before=${before}, after=${after})`)
+  }
   await auth.signOut()
 
   // ---- nobody can record (or clear) acceptance for someone else ----
