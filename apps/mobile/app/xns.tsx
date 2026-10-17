@@ -12,6 +12,8 @@ import { useApp, type BookingDraft } from '../lib/store';
 import { DAYS, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
+import { sessionDayAndTime } from '../lib/formatSessionTime';
+import { noShowAmount } from '../lib/noShowAmount';
 
 function money(n: number): string {
   return '$' + n.toFixed(2).replace('.00', '');
@@ -35,6 +37,7 @@ function baseCost(booking: BookingDraft, tutor: Tutor): number {
 function SessionStrip({ booking, tutor, who, studentName }: { booking: BookingDraft; tutor: Tutor; who: 'student' | 'tutor'; studentName: string }) {
   const t = useTheme();
   const f = sessionFacts(booking, tutor);
+  const sessionTime = sessionDayAndTime(booking.scheduledAt, { day: f.dayObj.label, time: f.slot });
   const name = who === 'tutor' ? studentName : tutor.name;
   const sub = who === 'tutor' ? f.course : `${f.course} · ${tutor.year}`;
   return (
@@ -45,8 +48,8 @@ function SessionStrip({ booking, tutor, who, studentName }: { booking: BookingDr
         <Text style={{ fontSize: 13, color: t.text3 }}>{sub}</Text>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={{ fontSize: 13, fontWeight: '600', color: t.text }}>{f.dayObj.label}</Text>
-        <Text style={{ fontSize: 12, color: t.text3 }}>{f.slot}</Text>
+        <Text style={{ fontSize: 13, fontWeight: '600', color: t.text }}>{sessionTime.day}</Text>
+        <Text style={{ fontSize: 12, color: t.text3 }}>{sessionTime.time}</Text>
       </View>
     </Card>
   );
@@ -65,8 +68,9 @@ function XNoShowInner() {
   const { booking, role } = useApp();
   const student = useCounterpart(booking.studentId);
   const tutor = booking.tutor!;
-  const cost = baseCost(booking, tutor);
+  const fallbackGross = baseCost(booking, tutor);
   const persona: 'student' | 'tutor' = role === 'tutor' ? 'tutor' : 'student';
+  const amount = noShowAmount(persona, booking, fallbackGross);
   const [done, setDone] = useState(false);
 
   if (done) {
@@ -81,12 +85,12 @@ function XNoShowInner() {
             <Sub style={{ marginTop: 10, maxWidth: 264, textAlign: 'center' }}>
               {studentMarked ? (
                 <>
-                  You&apos;ll be refunded <Text style={{ color: t.text, fontWeight: '700' }}>{money(cost)}</Text> in full.
+                  You&apos;ll be refunded <Text style={{ color: t.text, fontWeight: '700' }}>{money(amount)}</Text> in full.
                   This is recorded on {tutor.name.split(' ')[0]!}&apos;s account.
                 </>
               ) : (
                 <>
-                  Payment of <Text style={{ color: t.text, fontWeight: '700' }}>{money(cost)}</Text> is processed to you
+                  Payment of <Text style={{ color: t.text, fontWeight: '700' }}>{money(amount)}</Text> is processed to you
                   automatically — no review needed for routine no-shows.
                 </>
               )}
@@ -148,7 +152,7 @@ function XNoShowInner() {
 
         <Card flat style={{ marginTop: 12, padding: 14, backgroundColor: t.surfaceAlt, flexDirection: 'row', justifyContent: 'space-between' }}>
           <Text style={{ fontSize: 14, color: t.text2 }}>{studentView ? 'Your refund' : 'Your payout'}</Text>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: t.good }}>{money(cost)}</Text>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: t.good }}>{money(amount)}</Text>
         </Card>
       </Body>
       <ActionBar style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>

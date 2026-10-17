@@ -106,6 +106,25 @@ function minutesOfDay(value: string): number {
   return hour * 60 + minute;
 }
 
+function mergeAvailabilityRanges(windows: { start_time: string; end_time: string }[]) {
+  const sorted = windows
+    .map((window) => ({
+      start: minutesOfDay(window.start_time),
+      end: minutesOfDay(window.end_time),
+    }))
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged: { start: number; end: number }[] = [];
+  for (const window of sorted) {
+    const previous = merged[merged.length - 1];
+    if (previous && window.start <= previous.end) {
+      previous.end = Math.max(previous.end, window.end);
+    } else {
+      merged.push({ ...window });
+    }
+  }
+  return merged;
+}
+
 export async function assertWithinAvailability(
   db: SupabaseClient,
   tutorId: string,
@@ -125,9 +144,8 @@ export async function assertWithinAvailability(
     .eq('tutor_id', tutorId)
     .eq('day_of_week', dayOfWeek);
   if (error) dbFail('availability lookup', error);
-  if ((windows ?? []).some((window) =>
-    minutesOfDay(window.start_time as string) <= startMinute &&
-    endMinute <= minutesOfDay(window.end_time as string)
+  if (mergeAvailabilityRanges((windows ?? []) as { start_time: string; end_time: string }[]).some((window) =>
+    window.start <= startMinute && endMinute <= window.end
   )) return;
   throw new BookingError(
     "That time is outside this tutor's availability. Please pick another slot.",

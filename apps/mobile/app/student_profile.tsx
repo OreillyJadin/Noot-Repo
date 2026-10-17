@@ -8,6 +8,7 @@ import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { routeAfterAuth } from '../lib/postAuth';
+import { validatePersonal } from '../lib/profileValidation';
 import { MajorPicker } from '../lib/MajorPicker';
 import { CoursePicker } from '../lib/CoursePicker';
 import {
@@ -67,6 +68,7 @@ export default function StudentProfile() {
   const [year, setYear] = useState('');
   const [major, setMajor] = useState('');
   const [courses, setCourses] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   // Prefill the editable fields once the signed-in user loads (returning user
   // sees their own data). Falls back to empty strings before load / no session.
@@ -92,12 +94,18 @@ export default function StudentProfile() {
   const removeCourse = (code: string) => setCourses((cs) => cs.filter((c) => c !== code));
 
   const complete = async () => {
+    const validationError = validatePersonal({ firstName, lastName, year, major }, { requireYearMajor: true });
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError(null);
     try {
       await api.profile.updatePersonal({
-        firstName,
-        lastName,
-        year: year || null,
-        major: major || null,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        year: year.trim() || null,
+        major: major.trim() || null,
       });
       await api.profile.setCourses(courses);
       // Both writes already triggered a re-read; wait for it so Home and Profile open on
@@ -138,6 +146,7 @@ export default function StudentProfile() {
         <View style={styles.mt14}>
           <MajorPicker value={major} onChange={setMajor} />
         </View>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <Divider style={styles.divider} />
 
@@ -178,4 +187,5 @@ const styles = StyleSheet.create({
   chipLabel: { fontSize: 13, fontWeight: '600' },
   cancel: { fontSize: 13, fontWeight: '600', marginTop: 8, textAlign: 'center' },
   helpText: { fontSize: 13, marginTop: 10, lineHeight: 18 },
+  error: { color: '#C0392B', fontSize: 14, marginTop: 10 },
 });

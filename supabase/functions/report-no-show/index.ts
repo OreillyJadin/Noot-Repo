@@ -129,7 +129,8 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
           } catch (transferErr) {
             // Captured but not paid out — record it and flag for a manual payout rather
             // than returning an error that makes the row look untouched.
-            await db
+            const failedAt = new Date().toISOString();
+            const { data: flagged } = await db
               .from('bookings')
               .update({
                 status: 'no_show',
@@ -137,9 +138,16 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
                 refund_percent: refundPercent,
                 refund_status: refundStatus,
                 stripe_charge_id: chargeId,
-                payout_failed_at: new Date().toISOString(),
+                payout_failed_at: failedAt,
               })
-              .eq('id', bookingId);
+              .eq('id', bookingId)
+              .eq('status', 'confirmed')
+              .select('id');
+            // Another outcome won meanwhile: keep it, but still flag the captured charge.
+            if (!flagged?.length) {
+              await db.from('bookings').update({ payout_failed_at: failedAt }).eq('id', bookingId);
+              console.error('report-no-show: captured, transfer failed and the booking left confirmed meanwhile', bookingId, chargeId);
+            }
             console.error('report-no-show: captured but transfer failed', bookingId, String(transferErr));
             return Response.json(
               {
@@ -164,7 +172,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
       }
     }
 
-    const { error: updateErr } = await db
+    const { data: noShowRows, error: updateErr } = await db
       .from('bookings')
       .update({
         status: 'no_show',
@@ -174,8 +182,14 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
         stripe_charge_id: chargeId,
         stripe_transfer_id: transferId,
       })
-      .eq('id', bookingId);
+      .eq('id', bookingId)
+      .eq('status', 'confirmed')
+      .select('id');
     if (updateErr) return Response.json({ error: updateErr.message }, { status: 400, headers: cors });
+    // Completed or cancelled while we worked: that outcome stands, and no credit comes back.
+    if (!noShowRows?.length) {
+      return Response.json({ error: 'This session was already completed or cancelled.' }, { status: 409, headers: cors });
+    }
 
     // The tutor didn't show: the student gets their Noot credit back too (0040).
     if (tutorNoShow && Number(booking.credit_applied ?? 0) > 0) {

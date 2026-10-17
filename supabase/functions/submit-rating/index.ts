@@ -37,7 +37,7 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
 
     const bookingId: string | undefined = body?.bookingId;
     const rating: number | undefined = body?.rating;
-    const comment: string | null = body?.comment ?? null;
+    const comment = typeof body?.comment === 'string' ? body.comment.trim() : null;
     const happened: boolean = body?.happened ?? true;
 
     if (!bookingId) return Response.json({ error: 'bookingId is required' }, { status: 400, headers: cors });
@@ -48,7 +48,7 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
     // Load the booking.
     const { data: booking, error: bookingErr } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id')
+      .select('id, student_id, tutor_id, status')
       .eq('id', bookingId)
       .single();
     if (bookingErr || !booking) {
@@ -60,6 +60,13 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
     const isTutor = booking.tutor_id === user.id;
     if (!isStudent && !isTutor) {
       return Response.json({ error: 'Not a party to this booking' }, { status: 403, headers: cors });
+    }
+    if (booking.status !== 'completed') {
+      return Response.json({ error: 'You can rate a session once it is complete.' }, { status: 409, headers: cors });
+    }
+
+    if (comment !== null && comment.length > 500) {
+      return Response.json({ error: 'Reviews can be at most 500 characters.' }, { status: 400, headers: cors });
     }
 
     // The subject is the OTHER party.
