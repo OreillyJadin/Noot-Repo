@@ -27,7 +27,7 @@ All six steps passed. Recording filename: `booking_chat_e2e.mp4`.
 | 2 | Alex's Chats shows “Awaiting Sara's response”. | PASS |
 | 3 | Sara's Chats shows “New request”; the note is readable before acceptance. | PASS |
 | 4 | Sara accepts from tutor Home; the auto-posted “Accepted your BSC 103 session — see you Saturday, October 17 at 5:00 PM!” appears. | PASS |
-| 5 | Alex replies, the badge is lifted, and the booking is confirmed. | PASS |
+| 5 | Sara replies; signed back in as Alex, the badge is lifted, her messages render, and Sessions shows the booking confirmed. | PASS |
 | 6 | With no note, the helper posts the fallback intro. | PASS |
 
 ## iOS audit checks
