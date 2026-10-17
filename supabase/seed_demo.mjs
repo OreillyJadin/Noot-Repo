@@ -112,7 +112,15 @@ async function existingIdByEmail() {
 
 async function ensureUser(email) {
   const existing = await existingIdByEmail();
-  if (existing.has(email)) return existing.get(email);
+  if (existing.has(email)) {
+    // Older local seeds used another password; bring it to DEV_PASSWORD so the verify scripts
+    // can sign in. Local stack only: never reset an account on a hosted project.
+    if (IS_LOCAL) {
+      const { error } = await admin.auth.admin.updateUserById(existing.get(email), { password: PASSWORD });
+      if (error) throw new Error(`reset password ${email}: ${error.message}`);
+    }
+    return existing.get(email);
+  }
   const { data, error } = await admin.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
   if (error) throw new Error(`createUser ${email}: ${error.message}`);
   // Created WITH its password, so the "password changed" trigger (0041) never fires for it.
