@@ -454,19 +454,24 @@ function SpotSheet({
       visible={visible}
       onClose={close}
       title="Meeting spot"
+      tall
+      header={
+        <View style={{ marginBottom: 8 }}>
+          <View style={[styles.spotSearch, { backgroundColor: t.surface, borderColor: t.borderStrong }]}>
+            <Ic name="search" size={17} color={t.text3} strokeWidth={1.8} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search libraries and buildings"
+              placeholderTextColor={t.text3}
+              style={[styles.spotSearchInput, { color: t.text }]}
+            />
+          </View>
+        </View>
+      }
       contentStyle={styles.spotSheetContent}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={[styles.spotSearch, { backgroundColor: t.surface, borderColor: t.borderStrong }]}>
-        <Ic name="search" size={17} color={t.text3} strokeWidth={1.8} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search libraries and buildings"
-          placeholderTextColor={t.text3}
-          style={[styles.spotSearchInput, { color: t.text }]}
-        />
-      </View>
       {loading ? (
         <Text style={[styles.spotEmpty, { color: t.text3 }]}>Loading…</Text>
       ) : (
@@ -547,6 +552,8 @@ function Sheet({
   children,
   contentStyle,
   keyboardShouldPersistTaps,
+  tall,
+  header,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -554,13 +561,16 @@ function Sheet({
   children: React.ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
   keyboardShouldPersistTaps?: 'always' | 'never' | 'handled';
+  tall?: boolean;
+  header?: React.ReactNode;
 }) {
   const t = useTheme();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
-      <View style={[styles.sheetBody, { backgroundColor: t.bg }]}>
+      <View style={[styles.sheetBody, tall ? styles.sheetBodyTall : null, { backgroundColor: t.bg }]}>
         <Text style={[styles.sheetTitle, { color: t.text }]}>{title}</Text>
+        {header ? <View>{header}</View> : null}
         <ScrollView
           style={styles.sheetScroll}
           contentContainerStyle={[{ gap: 8, paddingBottom: 24 }, contentStyle]}
@@ -605,5 +615,6 @@ const styles = StyleSheet.create({
   spotOtherOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheetBody: { maxHeight: '75%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  sheetBodyTall: { height: '75%' },
   sheetTitle: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
 });
