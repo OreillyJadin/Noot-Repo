@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { DEV_PASSWORD } from './_devPassword.mjs';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'http://127.0.0.1:54321';
 const ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY ||
@@ -9,7 +10,7 @@ if (!['127.0.0.1', 'localhost'].includes(new globalThis.URL(URL).hostname)) {
   throw new Error('verify_deleted_token only runs against local Supabase');
 }
 
-const PASSWORD = 'NootDeleted!Token2026';
+const PASSWORD = DEV_PASSWORD;
 const tag = Date.now();
 const email = `deleted-token-${tag}@crimson.ua.edu`;
 const reportDetail = `deleted-token-${tag}`;

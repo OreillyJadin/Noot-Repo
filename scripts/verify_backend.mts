@@ -1,6 +1,7 @@
 // Throwaway integration check: drives the REAL @noot/core auth+api against the
 // live local Supabase stack. Run with:
 //   node --experimental-strip-types scripts/verify_backend.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -25,7 +26,7 @@ initSupabase({ url: URL, anonKey: ANON });
 
 // 1. auth: dev sign-in as the seeded student
 await check('auth.signInWithPassword(student)', async () => {
-  const r = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  const r = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   if (!r.ok) throw new Error(r.error);
   return r;
 });

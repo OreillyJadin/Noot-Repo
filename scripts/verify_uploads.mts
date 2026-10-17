@@ -2,6 +2,7 @@
 // real PNG through api.profile.uploadAvatar, and asserts the stored object is email-named,
 // non-zero, and that the previous file was cleaned up. Run with:
 //   node --experimental-strip-types scripts/verify_avatar.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { initSupabase, api, auth, getSupabase } from '../packages/core/src/index.ts';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -20,7 +21,7 @@ function base64ToArrayBuffer(b64: string): ArrayBuffer {
 initSupabase({ url: URL, anonKey: ANON });
 
 const email = 'student@crimson.ua.edu';
-const signIn = await auth.signInWithPassword(email, 'password123');
+const signIn = await auth.signInWithPassword(email, DEV_PASSWORD);
 if (!signIn.ok) throw new Error(signIn.error);
 const uid = await auth.getSessionUserId();
 console.log(`signed in as ${email} (${uid})`);
@@ -64,7 +65,7 @@ try {
 
 // --- transcripts (private bucket, tutor session) ---------------------------------------
 const tutorEmail = 'sara@crimson.ua.edu';
-const tutorIn = await auth.signInWithPassword(tutorEmail, 'password123');
+const tutorIn = await auth.signInWithPassword(tutorEmail, DEV_PASSWORD);
 if (!tutorIn.ok) throw new Error(tutorIn.error);
 const tutorUid = await auth.getSessionUserId();
 console.log(`\nsigned in as ${tutorEmail} (${tutorUid})`);
