@@ -718,7 +718,8 @@ export interface ConfirmBookingInput {
   location?: string;
   meetingLink?: string;
   message?: string;
-  paymentIntentId?: string;
+  /** The held PaymentIntent; omitted for an admin's free booking (create-payment-intent returned none). */
+  paymentIntentId?: string | null;
 }
 
 /** The booking being paid for. The server derives the amount from these (T5). */
@@ -1934,10 +1935,11 @@ export const api = {
   createPaymentIntent(
     input: CreatePaymentIntentInput,
   ): Promise<{
-    paymentIntentClientSecret: string;
+    /** Null for an admin's free booking: nothing to pay, no sheet to present. */
+    paymentIntentClientSecret: string | null;
     ephemeralKeySecret: string | null;
     customerId: string | null;
-    paymentIntentId: string;
+    paymentIntentId: string | null;
     /** Authoritative session + service fee total, before credit. Show this, don't recompute it. */
     amountCents: number;
     studentFeeCents: number;
@@ -1947,6 +1949,8 @@ export const api = {
     chargeCents: number;
     price: number;
     simulated: boolean;
+    /** The server priced this at $0 because the caller is an admin (TUT-4). */
+    free?: boolean;
   }> {
     return invokeFn('create-payment-intent', input as unknown as Record<string, unknown>);
   },

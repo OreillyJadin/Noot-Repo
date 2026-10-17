@@ -284,6 +284,15 @@ export async function resolveBooking(
 }
 
 /**
+ * Admins book for free (TUT-4, Jadin 2026-10): the same session, priced at $0 — no student
+ * fee, no card charge, no Noot credit, no tutor payout, no platform fee. Decided only on the
+ * server from public.is_admin() on the caller's JWT, never from client input.
+ */
+export function freeBookingFor(resolved: ResolvedBooking): ResolvedBooking {
+  return { ...resolved, price: 0, studentFee: 0, amountCents: 0, platformFee: 0, tutorPayout: 0 };
+}
+
+/**
  * How long a tutor's interview with the noot team blocks their time, in minutes. Interviews
  * are stored as a start time only (tutor_interviews, 0042) and are offered at the top of an
  * availability window, so an hour is what they are given.

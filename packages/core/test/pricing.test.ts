@@ -1,7 +1,7 @@
 // Run: pnpm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { creditToApply, MIN_CHARGE_CENTS } from '../src/pricing.ts';
+import { bookingQuote, creditToApply, MIN_CHARGE_CENTS, MIN_HOURLY_RATE } from '../src/pricing.ts';
 import * as server from '../../../supabase/functions/_shared/credits.ts';
 
 test('the card is always charged at least $1', () => {
@@ -34,4 +34,20 @@ test('the app shows the same credit the server charges', () => {
       assert.equal(creditToApply(balance, amount), server.creditToApply(balance, amount), `${balance} of ${amount}`);
     }
   }
+});
+
+test('the checkout quote matches the server: price, 17% fee, credit, due', () => {
+  const q = bookingQuote({ hourlyRate: 28, durationMinutes: 60, creditBalanceCents: 500 });
+  assert.deepEqual(q, { priceCents: 2800, feeCents: 476, creditCents: 500, dueCents: 2776, free: false });
+  const half = bookingQuote({ hourlyRate: 28, durationMinutes: 30 });
+  assert.deepEqual(half, { priceCents: 1400, feeCents: 238, creditCents: 0, dueCents: 1638, free: false });
+});
+
+test('an admin booking is quoted at $0 with no fee, credit or charge', () => {
+  const q = bookingQuote({ hourlyRate: 28, durationMinutes: 60, creditBalanceCents: 5000, adminFree: true });
+  assert.deepEqual(q, { priceCents: 0, feeCents: 0, creditCents: 0, dueCents: 0, free: true });
+});
+
+test('the rate floor the server enforces is the one the app shows', () => {
+  assert.equal(MIN_HOURLY_RATE, 10);
 });
