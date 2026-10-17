@@ -48,7 +48,7 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
     // Load the booking.
     const { data: booking, error: bookingErr } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id')
+      .select('id, student_id, tutor_id, status')
       .eq('id', bookingId)
       .single();
     if (bookingErr || !booking) {
@@ -60,6 +60,9 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
     const isTutor = booking.tutor_id === user.id;
     if (!isStudent && !isTutor) {
       return Response.json({ error: 'Not a party to this booking' }, { status: 403, headers: cors });
+    }
+    if (booking.status !== 'completed') {
+      return Response.json({ error: 'You can rate a session once it is complete.' }, { status: 409, headers: cors });
     }
 
     // The subject is the OTHER party.
