@@ -1,5 +1,6 @@
 // Verify cancellation refund tiers and authorization against the LOCAL stack.
 // Needs: SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io supabase start && node supabase/seed_demo.mjs
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { api, auth, initSupabase, studentFeeFor } from '../packages/core/src/index.ts';
 import { authorizeHold, cancelHold, getPaymentIntent, stripeTestMode } from './_stripe_test.mts';
@@ -26,7 +27,7 @@ function check(name: string, ok: boolean, detail = '') {
 
 async function signIn(email: string) {
   const client = createClient(URL, ANON, { auth: { persistSession: false } });
-  const { data, error } = await client.auth.signInWithPassword({ email, password: 'password123' });
+  const { data, error } = await client.auth.signInWithPassword({ email, password: DEV_PASSWORD });
   if (error || !data.session) throw new Error(`${email} sign-in failed: ${error?.message ?? 'no session'}`);
   const { data: userData, error: userError } = await client.auth.getUser();
   if (userError || !userData.user) throw new Error(`${email} getUser failed: ${userError?.message ?? 'no user'}`);
@@ -165,7 +166,7 @@ try {
     paymentIntentId: pi.paymentIntentId,
   });
   ids.push(feeBooking.bookingId);
-  const tutorLogin = await auth.signInWithPassword(tutorUser.email as string, 'password123');
+  const tutorLogin = await auth.signInWithPassword(tutorUser.email as string, DEV_PASSWORD);
   if (!tutorLogin.ok) throw new Error(String(tutorLogin.error));
   await api.bookings.respond({ bookingId: feeBooking.bookingId, action: 'accept' });
   const studentAgain = await auth.signInWithPassword(feeEmail, feePassword);

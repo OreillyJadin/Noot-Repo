@@ -1,6 +1,7 @@
 // Exercise the admin TOTP rollout (migration 0059) against the LOCAL Supabase stack.
 // Needs: supabase start, supabase functions serve, db reset, and the demo seed.
 //   pnpm dlx tsx scripts/verify_admin_mfa.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createHmac } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { auth, getSupabase, initSupabase } from '../packages/core/src/index.ts';
@@ -47,7 +48,7 @@ const emailFor = (name: string) => `${tag}_${name}@crimson.ua.edu`;
 const makeUser = async (name: string) => {
   const result = await service.auth.admin.createUser({
     email: emailFor(name),
-    password: 'password123',
+    password: DEV_PASSWORD,
     email_confirm: true,
     user_metadata: { first_name: `Mfa${name}`, last_name: tag },
   });
@@ -65,7 +66,7 @@ const rawClient = () => {
 };
 
 const signInRaw = async (client: ReturnType<typeof createClient>, email: string) => {
-  const { error } = await client.auth.signInWithPassword({ email, password: 'password123' });
+  const { error } = await client.auth.signInWithPassword({ email, password: DEV_PASSWORD });
   if (error) throw error;
 };
 
@@ -168,7 +169,7 @@ try {
   await setSwitch(false);
 
   await step('switch off permits an admin without a factor and asks them to enroll', async () => {
-    const signedIn = await auth.signInWithPassword(admin1.email, 'password123');
+    const signedIn = await auth.signInWithPassword(admin1.email, DEV_PASSWORD);
     expect(signedIn.ok, signedIn.error ?? 'Could not sign in admin1');
     const status = await auth.mfa.status();
     expect(status.state === 'enroll', `expected enroll state, received ${status.state}`);
@@ -196,7 +197,7 @@ try {
   await step('a fresh password-only session is denied, and core reports a challenge', async () => {
     await signInRaw(admin1PasswordClient, admin1.email);
     assertDenied(await probe(admin1PasswordClient, demoStudent.id));
-    const signedIn = await auth.signInWithPassword(admin1.email, 'password123');
+    const signedIn = await auth.signInWithPassword(admin1.email, DEV_PASSWORD);
     expect(signedIn.ok, signedIn.error ?? 'Could not sign in admin1 again');
     const status = await auth.mfa.status();
     expect(status.state === 'challenge' && status.factorId === enrollment.factorId, `expected challenge for enrolled factor, received ${status.state}`);

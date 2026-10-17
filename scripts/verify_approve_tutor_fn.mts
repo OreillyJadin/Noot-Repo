@@ -4,6 +4,7 @@
 //
 // Needs the local edge runtime:  supabase functions serve approve-tutor
 //   pnpm dlx tsx scripts/verify_approve_tutor_fn.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 
@@ -31,7 +32,7 @@ const activeRoleOf = async (uid: string) =>
 // A throwaway applicant sitting at 'pending', which is where t1..t10 leaves someone.
 const EMAIL = `applicant+fn${Date.now()}@crimson.ua.edu`;
 const { data: created, error: cErr } = await svc.auth.admin.createUser({
-  email: EMAIL, password: 'password123', email_confirm: true,
+  email: EMAIL, password: DEV_PASSWORD, email_confirm: true,
 });
 if (cErr) throw cErr;
 const uid = created.user!.id;
@@ -47,7 +48,7 @@ check('starts pending with no tutor role', (await roleOf(uid)) === 'student');
 
 // Sign in as a real admin — the function re-verifies is_admin() server-side.
 initSupabase({ url: URL, anonKey: ANON });
-const adminIn = await auth.signInWithPassword('admin@crimson.ua.edu', 'password123');
+const adminIn = await auth.signInWithPassword('admin@crimson.ua.edu', DEV_PASSWORD);
 if (!adminIn.ok) throw new Error(`admin sign-in: ${adminIn.error}`);
 
 // --- approve ------------------------------------------------------------------------------
@@ -66,7 +67,7 @@ check('function WITHDREW the tutor role', (await roleOf(uid)) === 'student', awa
 check('function reset them out of tutor mode', (await activeRoleOf(uid)) === 'student', String(await activeRoleOf(uid)));
 
 // --- a non-admin must not be able to call it -------------------------------------------------
-const studentIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+const studentIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
 if (!studentIn.ok) throw new Error(studentIn.error);
 let refused = false;
 try {

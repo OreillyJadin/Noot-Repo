@@ -85,7 +85,7 @@ up SMTP on cloud. In the Supabase **dashboard** for `nepnxbvseuzuayhxaigo`:
    the link signs you in.
 
 Until then, the seeded demo accounts (`student@crimson.ua.edu` / `sara@crimson.ua.edu`,
-password `password123`) are pre-confirmed and work today.
+password `Noot-dev-2026`, from `scripts/_devPassword.mjs`) are pre-confirmed and work today.
 
 📱 **Phone caveat:** in **Expo Go** the deep-link scheme is `exp://…`, not `noot://`; the
 `noot://` return only works in a real dev/production build.

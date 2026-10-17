@@ -10,6 +10,7 @@
 //     serve with STRIPE_WEBHOOK_SECRET=whsec_local_verify in the env file too)
 //   supabase functions serve --env-file <file with STRIPE_SECRET_KEY=sk_test_…>
 //   pnpm dlx tsx scripts/verify_credit_booking.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 import { createClient } from '@supabase/supabase-js';
 import { createHmac } from 'node:crypto';
@@ -20,7 +21,7 @@ const ANON =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 const SERVICE =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'password123';
+const PASSWORD = DEV_PASSWORD;
 
 if (!stripeTestMode()) {
   console.error('STRIPE_SECRET_KEY must be an sk_test_ key (source scripts/dev-env.sh).');
@@ -225,7 +226,7 @@ try {
     cancellation_deadline: new Date(Date.now() - 2 * 864e5).toISOString(),
   }).select('id').single();
   const tutorClient = createClient(URL, ANON, { auth: { persistSession: false } });
-  const { data: tutorUser } = await svc.from('users').select('email').eq('id', tutorId).single(); // seeded, password123
+  const { data: tutorUser } = await svc.from('users').select('email').eq('id', tutorId).single(); // seeded, DEV_PASSWORD
   await tutorClient.auth.signInWithPassword({ email: tutorUser!.email as string, password: PASSWORD });
   const { data: { session: ts } } = await tutorClient.auth.getSession();
   const retry = await fetch(`${URL}/functions/v1/complete-session`, {

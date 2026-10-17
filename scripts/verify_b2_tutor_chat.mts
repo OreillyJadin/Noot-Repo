@@ -7,6 +7,7 @@
 // (student@ ↔ sara@), plus the deny cases.
 // Local stack only (never reads EXPO_PUBLIC_SUPABASE_URL, which may point at production).
 //   pnpm dlx tsx scripts/verify_b2_tutor_chat.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 
@@ -23,7 +24,7 @@ function check(name: string, ok: boolean, detail = '') {
   ok ? pass++ : fail++;
 }
 const as = async (email: string) => {
-  const r = await auth.signInWithPassword(email, 'password123');
+  const r = await auth.signInWithPassword(email, DEV_PASSWORD);
   if (!r.ok) throw new Error(`${email}: ${r.error}`);
   return (await api.getMe())!.id;
 };

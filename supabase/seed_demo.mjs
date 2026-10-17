@@ -4,17 +4,18 @@
 //
 //   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node supabase/seed_demo.mjs
 //
-// Defaults target the local stack. Dev password for every account: "password123".
+// Defaults target the local stack. Password for every account: DEV_PASSWORD (scripts/_devPassword.mjs).
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
+import { DEV_PASSWORD } from '../scripts/_devPassword.mjs';
 
 const URL = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const SERVICE =
   process.env.SUPABASE_SERVICE_ROLE_KEY ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'password123';
+const PASSWORD = DEV_PASSWORD;
 
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 

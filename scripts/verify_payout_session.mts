@@ -4,6 +4,7 @@
 //
 // Needs: supabase start + node supabase/seed_demo.mjs + supabase functions serve
 //   pnpm dlx tsx scripts/verify_payout_session.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { createClient } from '@supabase/supabase-js'
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 import { getPayoutStatus, retrieveAccount, StripeApiError } from '../supabase/functions/_shared/connect.ts'
@@ -76,7 +77,7 @@ step(anonOnly.status === 401 && none.status === 401 && !('clientSecret' in anonO
 const sb = createClient(URL, ANON, { auth: { persistSession: false } })
 const { data: sess, error: signInErr } = await sb.auth.signInWithPassword({
   email: 'sara@crimson.ua.edu',
-  password: 'password123',
+  password: DEV_PASSWORD,
 })
 if (signInErr || !sess.session) throw new Error(`tutor sign-in failed: ${signInErr?.message ?? 'no session'}`)
 const token = sess.session.access_token
@@ -100,7 +101,7 @@ if (!LIVE) {
   step(switched.length === 0, `non-session modes stay simulated${switched.length ? `: ${switched.join(', ')}` : ''}`)
 
   initSupabase({ url: URL, anonKey: ANON })
-  await auth.signInWithPassword('sara@crimson.ua.edu', 'password123')
+  await auth.signInWithPassword('sara@crimson.ua.edu', DEV_PASSWORD)
   const viaCore = await api.connect.accountSession()
   step(viaCore.clientSecret === null && viaCore.simulated === true,
     '@noot/core maps the simulated answer to the hosted-page fallback')

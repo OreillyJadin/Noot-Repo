@@ -2,6 +2,7 @@
 // against the live local stack and exercises the NEW read paths — tutor availability,
 // tutorStats, studentStats, and the extended resolve-participants shape.
 //   node --experimental-strip-types scripts/verify_realdata.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -34,7 +35,7 @@ initSupabase({ url: URL, anonKey: ANON });
 
 // ---- Student side ----
 await check('signIn(student)', async () => {
-  const r = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  const r = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   if (!r.ok) throw new Error(r.error);
   return { ok: true };
 });
@@ -66,7 +67,7 @@ await check('studentStats()', async () => {
 
 // ---- Tutor side ----
 await check('signIn(tutor sara)', async () => {
-  const r = await auth.signInWithPassword('sara@crimson.ua.edu', 'password123');
+  const r = await auth.signInWithPassword('sara@crimson.ua.edu', DEV_PASSWORD);
   if (!r.ok) throw new Error(r.error);
   return { ok: true };
 });

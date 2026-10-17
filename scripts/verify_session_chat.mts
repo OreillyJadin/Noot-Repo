@@ -13,6 +13,7 @@
 //
 // Needs `supabase start` + `supabase functions serve` + `node supabase/seed_demo.mjs`.
 //   pnpm dlx tsx scripts/verify_session_chat.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { api, auth, initSupabase } from '../packages/core/src/index.ts';
 import { authorizeHold, cancelHold } from './_stripe_test.mts';
@@ -27,7 +28,7 @@ const ANON =
 const SERVICE =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'NootVerify!39_Chat';
+const PASSWORD = DEV_PASSWORD;
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const emailTag = Date.now();
 const studentEmail = `chat-student-${emailTag}@crimson.ua.edu`;
@@ -84,7 +85,7 @@ try {
   });
   if (created.error || !created.data.user) throw created.error ?? new Error('Could not create verification student');
   studentId = created.data.user.id;
-  tutorToken = await login(tutor.email as string, 'password123');
+  tutorToken = await login(tutor.email as string, DEV_PASSWORD);
   stage = 'sign in core student client';
   const studentSignIn = await auth.signInWithPassword(studentEmail, PASSWORD);
   if (!studentSignIn.ok) throw new Error(studentSignIn.error);
@@ -124,7 +125,7 @@ try {
   step("student's chat list shows the pending thread", !!studentRow && studentRow.side === 'student' &&
     studentRow.lastMessage?.content === intro, studentRow?.counterpart.firstName);
 
-  await auth.signInWithPassword(tutor.email as string, 'password123');
+  await auth.signInWithPassword(tutor.email as string, DEV_PASSWORD);
   const tutorConvos = await api.chat.listConversations();
   const tutorRow = tutorConvos.find((c) => c.id === conversationId);
   step("tutor's chat list shows the pending thread", !!tutorRow && tutorRow.side === 'tutor');

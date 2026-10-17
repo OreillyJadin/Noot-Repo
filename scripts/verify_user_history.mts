@@ -1,10 +1,11 @@
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { api, auth, initSupabase } from '../packages/core/src/index.ts';
 
 const URL = 'http://127.0.0.1:54321';
 const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 const SERVICE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'NootVerify!39_History';
+const PASSWORD = DEV_PASSWORD;
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const anon = createClient(URL, ANON, { auth: { persistSession: false } });
 const tag = Date.now();
@@ -277,7 +278,7 @@ try {
 
   const adminEmail = seededAdmin?.email as string | undefined;
   const adminLoginEmail = adminEmail ?? 'student@crimson.ua.edu';
-  const adminRelogin = await auth.signInWithPassword(adminLoginEmail, 'password123');
+  const adminRelogin = await auth.signInWithPassword(adminLoginEmail, DEV_PASSWORD);
   if (!adminRelogin.ok) throw new Error(`Could not sign in as admin fixture: ${adminRelogin.error}`);
   const studentHistory = await api.admin.userHistory(studentId);
   const tutorHistory = await api.admin.userHistory(tutorId);
@@ -326,7 +327,7 @@ try {
   if (!tutorLogin.ok) throw new Error(`Could not sign in as tutor: ${tutorLogin.error}`);
   const tutorCount = await api.bookings.myTutorCancelCount30d();
   step('tutor core count query returns three recent cancels', tutorCount === 3, String(tutorCount));
-  const adminLogin = await auth.signInWithPassword(adminLoginEmail, 'password123');
+  const adminLogin = await auth.signInWithPassword(adminLoginEmail, DEV_PASSWORD);
   if (!adminLogin.ok) throw new Error(`Could not sign in as admin fixture: ${adminLogin.error}`);
   const tutorList = await api.admin.listUsers({ search: tutorEmail });
   const tutorListRow = tutorList.users.find((user) => user.id === tutorId);

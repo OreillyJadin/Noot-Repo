@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { DEV_PASSWORD } from './_devPassword.mjs';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'http://127.0.0.1:54321';
 const ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY ||
@@ -9,7 +10,7 @@ if (!['127.0.0.1', 'localhost'].includes(new globalThis.URL(URL).hostname)) {
   throw new Error('verify_booking_state only runs against local Supabase');
 }
 
-const PASSWORD = 'NootBooking!State42';
+const PASSWORD = DEV_PASSWORD;
 const tag = Date.now();
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false, autoRefreshToken: false } });
 const users: string[] = [];
