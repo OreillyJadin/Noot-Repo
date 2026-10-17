@@ -131,6 +131,7 @@ function C2Inner() {
         <Field
           multiline
           value={review}
+          maxLength={REVIEW_MAX}
           onChangeText={(v) => setReview(v.slice(0, REVIEW_MAX))}
           placeholder={`What stood out about your session with ${tutor.name.split(' ')[0]}?`}
           hint={`${review.length} / ${REVIEW_MAX}`}
