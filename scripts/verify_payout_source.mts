@@ -5,13 +5,17 @@
 // than what the card paid gets two transfers: the card-funded part from the charge, the
 // credit-funded remainder from the platform balance (see _shared/payouts.ts).
 //
+// Creates its own student and tutor and removes both afterwards. Sessions are booked at
+// now + N hours, so a run that lands a session across midnight Central is refused by the
+// availability check — re-run a little later.
+//
 // Runs against the LOCAL stack with `supabase functions serve --env-file <STRIPE_SECRET_KEY=sk_test_…>`
 // and needs a test-mode connected account whose transfers capability is active. It uses
 // NOOT_VERIFY_CONNECT_ACCOUNT=acct_… when set, otherwise the first active account under the
 // key. To make one: run connect-onboarding-link (verify_payout_session creates one), open the
 // hosted onboarding link and use Stripe's test-mode "skip this form" button.
 //   pnpm dlx tsx scripts/verify_payout_source.mts
-import { initSupabase, api, auth } from '../packages/core/src/index.ts';
+import { initSupabase, auth } from '../packages/core/src/index.ts';
 import { createClient } from '@supabase/supabase-js';
 import { authorizeHold, getPaymentIntent, stripeTestMode } from './_stripe_test.mts';
 import { chargeAvailableCents, splitPayoutFunding } from '../supabase/functions/_shared/payouts.ts';
@@ -61,8 +65,13 @@ check('a fully refunded charge funds nothing; everything from the balance',
   JSON.stringify(splitPayoutFunding(2310, 0)) === JSON.stringify({ fromCharge: 0, fromBalance: 2310 }));
 check('a zero payout moves nothing',
   JSON.stringify(splitPayoutFunding(0, 5000)) === JSON.stringify({ fromCharge: 0, fromBalance: 0 }));
-check('a partial capture counts only what was kept',
-  chargeAvailableCents({ amount: 3276, amount_refunded: 1638 }) === 1638 && chargeAvailableCents(null) === 0);
+check('a full capture with no refunds is all available',
+  chargeAvailableCents({ amount: 3276, amount_captured: 3276, amount_refunded: 0 }) === 3276 && chargeAvailableCents(null) === 0);
+check('a partial capture counts only what was captured, not the authorized total',
+  chargeAvailableCents({ amount: 4000, amount_captured: 2000, amount_refunded: 0 }) === 2000);
+check('refunds since the capture come off the available amount',
+  chargeAvailableCents({ amount: 3276, amount_captured: 3276, amount_refunded: 500 }) === 2776 &&
+    chargeAvailableCents({ amount: 4000, amount_captured: 2000, amount_refunded: 500 }) === 1500);
 
 // --- a connected account that can receive transfers --------------------------------------
 let acct = process.env.NOOT_VERIFY_CONNECT_ACCOUNT ?? '';
@@ -104,19 +113,37 @@ const asStudent = await raw.auth.signInWithPassword({ email, password: PASSWORD 
 const studentToken = asStudent.data.session!.access_token;
 await auth.signInWithPassword(email, PASSWORD);
 
-const tutors = await api.tutors.search();
-const tutor = tutors[0]!;
-const tutorId = tutor.userId;
-const { data: origProfile } = await svc.from('tutor_profiles')
-  .select('stripe_connect_account_id, stripe_charges_enabled, stripe_payouts_enabled').eq('user_id', tutorId).single();
-await svc.from('tutor_profiles')
-  .update({ stripe_connect_account_id: acct, stripe_charges_enabled: true, stripe_payouts_enabled: true }).eq('user_id', tutorId);
-const { data: tc } = await svc.from('tutor_courses').select('course_code').eq('tutor_id', tutorId).limit(1).single();
-const courseCode = tc!.course_code as string;
-const { data: tutorUser } = await svc.from('users').select('email').eq('id', tutorId).single();
-const asTutor = await raw.auth.signInWithPassword({ email: tutorUser!.email as string, password: 'password123' });
+// Its own tutor, so nothing here touches anyone else's bookings: approved, bookable,
+// available all week, paid out to the connected account above.
+const tutorEmail = `payoutsrc-tutor+${Date.now()}@crimson.ua.edu`;
+const { data: createdTutor, error: tErr } = await svc.auth.admin.createUser({ email: tutorEmail, password: PASSWORD, email_confirm: true });
+if (tErr) throw tErr;
+const tutorId = createdTutor.user!.id;
+{
+  const now = new Date().toISOString();
+  await svc.from('users').update({
+    first_name: 'Payout', last_name: 'Tutor', password_set_at: now,
+    terms_accepted_at: now, terms_version: '2026-09-17', guidelines_accepted_at: now, guidelines_version: '2026-10-13',
+  }).eq('id', tutorId);
+  await svc.from('user_roles').upsert({ user_id: tutorId, role: 'tutor' }, { onConflict: 'user_id,role' });
+  const { error: pErr } = await svc.from('tutor_profiles').upsert({
+    user_id: tutorId, bio: 'verify_payout_source tutor', approval_status: 'approved', grades_verified_at: null,
+    stripe_connect_account_id: acct, stripe_charges_enabled: true, stripe_payouts_enabled: true, stripe_onboarded_at: now,
+  }, { onConflict: 'user_id' });
+  if (pErr) throw pErr;
+  await svc.from('tutor_availability').insert(
+    [0, 1, 2, 3, 4, 5, 6].map((d) => ({ tutor_id: tutorId, day_of_week: d, start_time: '00:00', end_time: '23:59' })),
+  );
+}
+const { data: anyCourse } = await svc.from('courses').select('course_code').eq('is_active', true).order('course_code').limit(1).single();
+const courseCode = anyCourse!.course_code as string;
+{
+  const { error: cErr2 } = await svc.from('tutor_courses').insert({ tutor_id: tutorId, course_code: courseCode, grade: 'A', hourly_rate: 28 });
+  if (cErr2) throw cErr2;
+}
+const asTutor = await raw.auth.signInWithPassword({ email: tutorEmail, password: PASSWORD });
 const tutorToken = asTutor.data.session?.access_token ?? '';
-check('signed in as a fresh student and the seeded tutor', !!studentToken && !!tutorToken, tutorUser!.email as string);
+check('signed in as a fresh student and a fresh tutor at $28/hr', !!studentToken && !!tutorToken);
 
 const call = async (fn: string, body: unknown, token = studentToken) => {
   const res = await fetch(`${URL}/functions/v1/${fn}`, {
@@ -127,7 +154,6 @@ const call = async (fn: string, body: unknown, token = studentToken) => {
   return { status: res.status, body: (await res.json().catch(() => ({}))) as Json };
 };
 
-await svc.from('bookings').delete().eq('tutor_id', tutorId).in('status', ['pending', 'confirmed']);
 const grant = (cents: number) => svc.from('credit_ledger').insert({ user_id: studentId, amount_cents: cents, kind: 'adjustment' });
 const bookings: string[] = [];
 let slot = 0;
@@ -259,8 +285,8 @@ try {
   }
   await svc.from('credit_ledger').delete().eq('user_id', studentId);
   await svc.from('bookings').delete().in('id', bookings);
-  if (origProfile) await svc.from('tutor_profiles').update(origProfile).eq('user_id', tutorId);
   await svc.auth.admin.deleteUser(studentId);
+  await svc.auth.admin.deleteUser(tutorId);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

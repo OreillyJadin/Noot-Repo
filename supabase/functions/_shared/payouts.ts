@@ -10,12 +10,15 @@
 // retry resumes rather than paying twice.
 import type Stripe from 'https://esm.sh/stripe@16?target=deno';
 
+export type ChargeFunds = Pick<Stripe.Charge, 'amount' | 'amount_captured' | 'amount_refunded'>;
+
 /** Cents of a captured charge still available to back a source_transaction transfer. */
-export function chargeAvailableCents(charge: Pick<Stripe.Charge, 'amount' | 'amount_refunded'> | null): number {
+export function chargeAvailableCents(charge: ChargeFunds | null): number {
   if (!charge) return 0;
-  // After a partial capture the released remainder shows up as a refund, so
-  // amount − amount_refunded is what was actually captured and kept.
-  return Math.max(0, Number(charge.amount) - Number(charge.amount_refunded ?? 0));
+  // A partial capture (late cancel) leaves `amount` at the authorized total and books
+  // nothing as refunded — only `amount_captured` was ever collected. Refunds issued since
+  // (payments-webhook) come off that. `amount` itself is never the right bound.
+  return Math.max(0, Number(charge.amount_captured ?? 0) - Number(charge.amount_refunded ?? 0));
 }
 
 export type PayoutSplit = { fromCharge: number; fromBalance: number };
@@ -44,7 +47,7 @@ export type PayoutArgs = {
   destination: string;
   payoutCents: number;
   /** The captured charge, expanded from the PaymentIntent's `latest_charge`. */
-  charge: Pick<Stripe.Charge, 'id' | 'amount' | 'amount_refunded'> | null;
+  charge: (ChargeFunds & Pick<Stripe.Charge, 'id'>) | null;
   /** Idempotency key for the main transfer; the balance remainder appends `_balance`. */
   idempotencyKey: string;
   metadata: Record<string, string>;
