@@ -2,7 +2,7 @@
 // the LOCAL stack: the real @noot/core reads and writes feeding the app's routing decision
 // (lib/postAuthRoute.ts). Covers student-, tutor-, ambassador- and admin-only accounts that
 // predate the change, role switching and becoming an ambassador after accepting, a
-// GUIDELINES_VERSION bump, and that one account can't record acceptance for another.
+// GUIDELINES_VERSION bump, that an older build never downgrades a newer acceptance, and that one account can't record acceptance for another.
 //
 // Self-contained: creates its own users (strong password) and deletes them afterwards.
 // Needs: supabase start
@@ -106,6 +106,13 @@ try {
   const again = await route()
   step(row?.guidelines_version === GUIDELINES_VERSION && again === 'home /ambassador_home',
     `re-accepting records ${GUIDELINES_VERSION} and goes home (version=${row?.guidelines_version}, got ${again})`)
+
+  // ---- an older build agreeing never downgrades a newer acceptance ----
+  await svc.from('users').update({ guidelines_version: '2099-01-01' }).eq('id', dual.id)
+  await api.profile.acceptGuidelines(GUIDELINES_VERSION)
+  const { data: newer } = await svc.from('users').select('guidelines_version').eq('id', dual.id).single()
+  step(newer?.guidelines_version === '2099-01-01',
+    `accepting ${GUIDELINES_VERSION} keeps a newer recorded version (version=${newer?.guidelines_version})`)
   await auth.signOut()
 
   // ---- nobody can record (or clear) acceptance for someone else ----

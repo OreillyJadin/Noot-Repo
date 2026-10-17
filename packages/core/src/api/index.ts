@@ -832,13 +832,15 @@ export const api = {
 
     /** Record that the user accepted the Community Guidelines (once per account, every role). */
     async acceptGuidelines(version: string): Promise<void> {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(version)) throw new Error(`Invalid guidelines version ${version}`);
       const uid = await requireUid();
+      // Never downgrade: an older app build agreeing must not overwrite a newer acceptance,
+      // or the newer build would ask again. Stale, missing or non-date versions are replaced.
       const { error } = await getSupabase()
         .from('users')
         .update({ guidelines_accepted_at: new Date().toISOString(), guidelines_version: version })
         .eq('id', uid)
-        .select('id')
-        .single();
+        .or(`guidelines_version.is.null,guidelines_version.lt.${version},guidelines_version.not.like.____-__-__`);
       if (error) throw error;
       notifyUserChanged();
     },
