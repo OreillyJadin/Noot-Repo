@@ -94,7 +94,18 @@ const stripeGet = async (path: string): Promise<Json> =>
   (await fetch(`https://api.stripe.com/v1/${path}`, { headers: { Authorization: `Bearer ${KEY}` } })).json();
 
 let slot = 0;
-const at = (hoursAhead: number) => new Date(Date.now() + hoursAhead * 3600e3 + slot++ * 15 * 60e3).toISOString();
+// now + N hours, picking the first offered hours-ahead whose hour-long session doesn't start
+// at 23:xx Central (the availability check works in America/Chicago and windows can't span
+// midnight). Alternatives must stay inside the same cancellation tier as the first value.
+const chicagoHour = (d: Date) => Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hourCycle: 'h23' }).format(d));
+const at = (hoursAhead: number, ...alternatives: number[]) => {
+  const offset = slot++ * 15 * 60e3;
+  for (const h of [hoursAhead, ...alternatives]) {
+    const start = Date.now() + h * 3600e3 + offset;
+    if (chicagoHour(new Date(start)) !== 23) return new Date(start).toISOString();
+  }
+  return new Date(Date.now() + hoursAhead * 3600e3 + offset).toISOString();
+};
 const base = { tutorId: tutor.id, courseCode, durationMinutes: 60 };
 const bookingRow = async (id: string) => (await svc.from('bookings')
   .select('status, price, student_fee, platform_fee, tutor_payout_amount, credit_applied, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, payout_failed_at, refund_percent, refund_status, no_show_party')
@@ -102,8 +113,8 @@ const bookingRow = async (id: string) => (await svc.from('bookings')
 const bookings: string[] = [];
 const holds: string[] = [];
 
-async function adminBooking(hoursAhead: number) {
-  const scheduledAt = at(hoursAhead);
+async function adminBooking(hoursAhead: number, ...alternatives: number[]) {
+  const scheduledAt = at(hoursAhead, ...alternatives);
   const pi = await call('create-payment-intent', { ...base, scheduledAt }, admin.token);
   const r = await call('confirm-booking', { ...base, scheduledAt, sessionType: 'in_person', paymentIntentId: pi.body.paymentIntentId }, admin.token);
   if (r.status !== 200) throw new Error(`admin confirm-booking ${r.status} ${r.body.error ?? ''}`);
@@ -114,7 +125,7 @@ async function adminBooking(hoursAhead: number) {
 try {
   console.log('— admin: priced at $0, no Stripe objects —');
   await svc.from('credit_ledger').insert({ user_id: admin.id, amount_cents: 5000, kind: 'adjustment' });
-  const { pi, r, bookingId } = await adminBooking(72);
+  const { pi, r, bookingId } = await adminBooking(72, 74);
   check('create-payment-intent answers $0 with no PaymentIntent for an admin',
     pi.status === 200 && pi.body.free === true && pi.body.paymentIntentId === null && pi.body.paymentIntentClientSecret === null &&
       pi.body.amountCents === 0 && pi.body.studentFeeCents === 0 && pi.body.creditCents === 0 && pi.body.chargeCents === 0 && pi.body.price === 0,
@@ -122,7 +133,7 @@ try {
   const { data: adminUser } = await svc.from('users').select('stripe_customer_id').eq('id', admin.id).single();
   check('…and created no Stripe Customer', adminUser?.stripe_customer_id === null);
   const row = await bookingRow(bookingId);
-  check('confirm-booking stores a $0 booking: no fee, payout, platform fee, credit or PaymentIntent',
+  check('confirm-booking records a $0 booking: no fee, payout, platform fee, credit or PaymentIntent',
     r.body.free === true && r.body.price === 0 && r.body.studentFee === 0 && row.status === 'pending' &&
       Number(row.price) === 0 && Number(row.student_fee) === 0 && Number(row.platform_fee) === 0 &&
       Number(row.tutor_payout_amount) === 0 && Number(row.credit_applied) === 0 && row.stripe_payment_intent_id === null,
@@ -144,7 +155,7 @@ try {
       doneRow.stripe_charge_id === null && doneRow.stripe_transfer_id === null && doneRow.payout_failed_at === null,
     `${done.status} ${JSON.stringify(done.body)}`);
 
-  const c = await adminBooking(10);
+  const c = await adminBooking(10, 6, 3);
   await call('respond-booking-request', { bookingId: c.bookingId, action: 'accept' }, tutor.token);
   const cancelled = await call('cancel-booking', { bookingId: c.bookingId }, admin.token);
   const cRow = await bookingRow(c.bookingId);
@@ -153,7 +164,7 @@ try {
       cRow.stripe_charge_id === null && cRow.stripe_transfer_id === null && cRow.payout_failed_at === null,
     `${cancelled.status} ${JSON.stringify(cancelled.body)}`);
 
-  const n = await adminBooking(72);
+  const n = await adminBooking(72, 74);
   await call('respond-booking-request', { bookingId: n.bookingId, action: 'accept' }, tutor.token);
   await svc.from('bookings').update({ scheduled_at: new Date(Date.now() - 3 * 3600e3).toISOString() }).eq('id', n.bookingId);
   const noShow = await call('report-no-show', { bookingId: n.bookingId, party: 'student' }, tutor.token);
@@ -162,12 +173,12 @@ try {
     noShow.status === 200 && nRow.status === 'no_show' && nRow.no_show_party === 'student' && nRow.stripe_transfer_id === null && nRow.payout_failed_at === null,
     `${noShow.status} ${JSON.stringify(noShow.body)}`);
 
-  const p = await adminBooking(72);
+  const p = await adminBooking(72, 74);
   const declined = await call('respond-booking-request', { bookingId: p.bookingId, action: 'decline' }, tutor.token);
   check('a declined admin request is just cancelled', declined.status === 200 && (await bookingRow(p.bookingId)).status === 'cancelled', JSON.stringify(declined.body));
 
   console.log('\n— non-admin: the normal price, and no way to $0 —');
-  const sAt = at(72);
+  const sAt = at(72, 74);
   const sPi = await call('create-payment-intent', { ...base, scheduledAt: sAt, free: true, amountCents: 0, price: 0, isAdmin: true }, student.token);
   if (sPi.body.paymentIntentId) holds.push(sPi.body.paymentIntentId);
   check('create-payment-intent prices a student at $28 + 17% with a real hold, whatever the body claims',
@@ -190,13 +201,13 @@ try {
 
   console.log('\n— admin role without is_admin() → normal price —');
   // An admin whose MFA is required but not satisfied is not an admin to the server (0059).
-  await svc.from('app_settings').update({ value: 'true' }).eq('key', 'require_admin_mfa');
-  const gated = await call('create-payment-intent', { ...base, scheduledAt: at(80) }, admin.token);
+  await svc.from('app_settings').update({ value: true }).eq('key', 'require_admin_mfa');
+  const gated = await call('create-payment-intent', { ...base, scheduledAt: at(80, 82) }, admin.token);
   if (gated.body.paymentIntentId) holds.push(gated.body.paymentIntentId);
   check('with require_admin_mfa on and an aal1 session, the admin is priced like anyone else',
     gated.status === 200 && gated.body.free === false && gated.body.amountCents === 3276, JSON.stringify(gated.body));
 } finally {
-  await svc.from('app_settings').update({ value: 'false' }).eq('key', 'require_admin_mfa');
+  await svc.from('app_settings').update({ value: false }).eq('key', 'require_admin_mfa');
   for (const h of holds) {
     await fetch(`https://api.stripe.com/v1/payment_intents/${h}/cancel`, { method: 'POST', headers: { Authorization: `Bearer ${KEY}` } }).catch(() => {});
   }
