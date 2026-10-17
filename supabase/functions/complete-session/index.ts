@@ -110,10 +110,18 @@ serveWithErrorReporting('complete-session', async (req: Request) => {
         // The money IS captured at this point, so record that fact and flag the booking
         // rather than throwing and leaving the row looking untouched. Both ids are
         // idempotency-keyed, so a retry resumes safely.
-        await db
+        const failedAt = new Date().toISOString();
+        const { data: flagged } = await db
           .from('bookings')
-          .update({ status: 'completed', stripe_charge_id: chargeId, payout_failed_at: new Date().toISOString() })
-          .eq('id', bookingId);
+          .update({ status: 'completed', stripe_charge_id: chargeId, payout_failed_at: failedAt })
+          .eq('id', bookingId)
+          .eq('status', 'confirmed')
+          .select('id');
+        // A cancel or no-show won meanwhile: keep its status, but still flag the captured charge.
+        if (!flagged?.length) {
+          await db.from('bookings').update({ payout_failed_at: failedAt }).eq('id', bookingId);
+          console.error('complete-session: captured, transfer failed and the booking left confirmed meanwhile', bookingId, chargeId);
+        }
         console.error('complete-session: captured but transfer failed', bookingId, String(transferErr));
         // The session did happen and was paid for, so the invite reward still applies.
         await awardInvites(url, bookingId);
@@ -128,11 +136,19 @@ serveWithErrorReporting('complete-session', async (req: Request) => {
       }
     }
 
-    const { error: upErr } = await db
+    // Only from confirmed: a cancel or no-show that landed while we worked keeps its outcome
+    // (and its refund) instead of being overwritten, and earns no invite reward.
+    const { data: completedRows, error: upErr } = await db
       .from('bookings')
       .update({ status: 'completed', stripe_charge_id: chargeId, stripe_transfer_id: transferId })
-      .eq('id', bookingId);
+      .eq('id', bookingId)
+      .eq('status', 'confirmed')
+      .select('id');
     if (upErr) throw upErr;
+    if (!completedRows?.length) {
+      if (captured) console.error('complete-session: captured but the booking left confirmed meanwhile', bookingId);
+      return Response.json({ error: 'This session was cancelled or reported as a no-show.' }, { status: 409, headers: cors });
+    }
 
     await awardInvites(url, bookingId);
 
