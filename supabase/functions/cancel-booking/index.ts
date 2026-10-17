@@ -11,6 +11,7 @@ import { requireActiveUser } from '../_shared/auth.ts';
 import { assertPayoutReady } from '../_shared/booking.ts';
 import { lateCancelTutorPayoutCents, studentCancelRefundPercent } from '../_shared/cancellation.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
+import { payTutor } from '../_shared/payouts.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -202,12 +203,11 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
           const captureCents = Math.round((chargedCents * (100 - refundPercent)) / 100);
           const capturedPi = await stripe.paymentIntents.capture(
             pi,
-            { amount_to_capture: captureCents },
+            { amount_to_capture: captureCents, expand: ['latest_charge'] },
             { idempotencyKey: `cancelcap_${bookingId}` },
           );
-          chargeId = typeof capturedPi.latest_charge === 'string'
-            ? capturedPi.latest_charge
-            : (capturedPi.latest_charge?.id ?? null);
+          const charge = typeof capturedPi.latest_charge === 'string' ? null : capturedPi.latest_charge;
+          chargeId = typeof capturedPi.latest_charge === 'string' ? capturedPi.latest_charge : (charge?.id ?? null);
 
           if (booking.tutor_payout_amount == null) {
             payoutFailedAt = now.toISOString();
@@ -223,21 +223,26 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
                 if (profileError) throw profileError;
                 const connectId = (profile?.stripe_connect_account_id as string | null | undefined) ?? null;
                 await assertPayoutReady(stripeKey, connectId);
-                const transfer = await stripe.transfers.create(
-                  {
-                    amount,
-                    currency: 'usd',
-                    destination: connectId!,
-                    transfer_group: bookingId,
-                    metadata: {
-                      booking_id: bookingId,
-                      reason: 'late_cancel',
-                      refund_percent: String(refundPercent),
-                    },
+                // Funded from the part of the charge that was kept; any Noot-credit
+                // remainder comes from the platform balance (see _shared/payouts.ts).
+                const payout = await payTutor({
+                  stripe,
+                  bookingId,
+                  destination: connectId!,
+                  payoutCents: amount,
+                  charge,
+                  idempotencyKey: `cancel_transfer_${bookingId}`,
+                  metadata: {
+                    booking_id: bookingId,
+                    reason: 'late_cancel',
+                    refund_percent: String(refundPercent),
                   },
-                  { idempotencyKey: `cancel_transfer_${bookingId}` },
-                );
-                transferId = transfer.id;
+                });
+                transferId = payout.transferId;
+                if (!payout.complete) {
+                  payoutFailedAt = now.toISOString();
+                  console.error('cancel-booking: late-cancel payout failed', bookingId, `owed ${payout.shortfallCents}c`, String(payout.error));
+                }
               } catch (transferErr) {
                 payoutFailedAt = now.toISOString();
                 console.error('cancel-booking: late-cancel payout failed', bookingId, String(transferErr));
