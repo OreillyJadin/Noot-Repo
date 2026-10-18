@@ -8,6 +8,7 @@
 --    writes it there when the person has no tutor_profiles row; a tutor's account is reused).
 --  • credit_cashouts gains the payment trail: the transfer id, who paid/rejected and when,
 --    a claim timestamp (paying_at) the pay function uses so two admins can't pay twice,
+--    pay_unknown_at for an attempt Stripe never answered (blocks Reject until Pay settles it),
 --    the count of definite Stripe failures (pay_attempts, part of the idempotency key),
 --    and the last Stripe error (so the admin sees why it is still pending).
 --  • request_credit_cashout now also requires a payout-ready account.
@@ -28,6 +29,7 @@ alter table public.credit_cashouts
   add column if not exists stripe_transfer_id text,
   add column if not exists paid_by            uuid references public.users(id) on delete set null,
   add column if not exists paying_at          timestamptz,
+  add column if not exists pay_unknown_at     timestamptz,
   add column if not exists pay_attempts       int not null default 0,
   add column if not exists last_error         text,
   add column if not exists rejected_at        timestamptz,
@@ -155,8 +157,11 @@ begin
   if v.status <> 'pending' then
     raise exception 'this cash-out is already %', v.status using errcode = 'check_violation';
   end if;
-  if v.paying_at is not null and v.paying_at > now() - interval '10 minutes' then
-    raise exception 'this cash-out is being paid right now' using errcode = 'check_violation';
+  -- Never return credit while a Stripe attempt may have moved money: a live claim, a claim
+  -- whose function died mid-call, or an attempt Stripe never answered. Pay settles all of
+  -- these (it replays the same idempotency key), after which Reject is allowed again.
+  if v.paying_at is not null or v.pay_unknown_at is not null then
+    raise exception 'a payment attempt is unresolved — tap Pay to settle it first' using errcode = 'check_violation';
   end if;
 
   update credit_cashouts

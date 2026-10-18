@@ -8,8 +8,8 @@
 //   • RLS: ambassadors read only their own cash-outs, nobody writes them from the client
 //   • admin RPCs refuse non-admins; approve/reject each leave exactly one admin_actions row
 //   • reject returns the credit exactly once, even under concurrent taps; paid/rejected can't flip
-//   • the pay function's claim (paying_at) is exclusive, goes stale after 10 min, and a claimed
-//     row can't be rejected underneath it
+//   • the pay function's claim (paying_at) is exclusive and goes stale after 10 min; a claimed
+//     or unresolved (pay_unknown_at) row can't be rejected — only Pay can settle it
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -153,9 +153,13 @@ try {
   check('second claim gets nothing', ((await claim()).data ?? []).length === 0);
   blocked(await admin.c.rpc('admin_reject_cashout', { p_cashout: cid1 }), 'cannot reject while it is being paid');
   await svc.from('credit_cashouts').update({ paying_at: new Date(Date.now() - 11 * 60 * 1000).toISOString() }).eq('id', cid1);
-  check('a stale claim (>10 min) can be taken over', ((await claim()).data ?? []).length === 1);
+  blocked(await admin.c.rpc('admin_reject_cashout', { p_cashout: cid1 }), 'cannot reject a stale claim either (Pay must settle it)');
+  check('a stale claim (>10 min) can be taken over by Pay', ((await claim()).data ?? []).length === 1);
+  await svc.from('credit_cashouts').update({ paying_at: null, pay_unknown_at: new Date().toISOString() }).eq('id', cid1);
+  blocked(await admin.c.rpc('admin_reject_cashout', { p_cashout: cid1 }), 'cannot reject while a Stripe attempt is unresolved (pay_unknown_at)');
+  check('Pay can retry an unresolved attempt right away', ((await claim()).data ?? []).length === 1);
   const paid = await svc.from('credit_cashouts')
-    .update({ status: 'paid', paid_at: new Date().toISOString(), paid_by: admin.uid, stripe_transfer_id: `tr_verify_${Date.now()}`, paying_at: null })
+    .update({ status: 'paid', paid_at: new Date().toISOString(), paid_by: admin.uid, stripe_transfer_id: `tr_verify_${Date.now()}`, paying_at: null, pay_unknown_at: null })
     .eq('id', cid1).eq('status', 'pending').select('id');
   check('marked paid once', (paid.data ?? []).length === 1);
   blocked(await admin.c.rpc('admin_reject_cashout', { p_cashout: cid1 }), 'a paid cash-out cannot be rejected');
