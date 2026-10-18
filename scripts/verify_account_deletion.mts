@@ -6,6 +6,7 @@
 //   • the MONEY is not — completed bookings survive, de-identified
 //
 //   pnpm dlx tsx scripts/verify_account_deletion.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, auth, api } from '../packages/core/src/index.ts';
 
@@ -28,7 +29,7 @@ const EMAIL = `leaver+${Date.now()}@crimson.ua.edu`;
 
 // --- a user with real history: a completed, paid booking and a sent message ----------------
 const { data: made, error: cErr } = await svc.auth.admin.createUser({
-  email: EMAIL, password: 'password123', email_confirm: true,
+  email: EMAIL, password: DEV_PASSWORD, email_confirm: true,
 });
 if (cErr) throw cErr;
 const uid = made.user!.id;
@@ -69,7 +70,7 @@ initSupabase({ url: URL, anonKey: ANON });
 // Deliberately the production sign-in path. An earlier revision used auth.devSignIn, which
 // was "sign in OR SIGN UP" — it silently re-created the account we had just deleted and the
 // assertion failed for the wrong reason. devSignIn has since been removed from @noot/core.
-const signIn = await auth.signInWithPassword(EMAIL, 'password123');
+const signIn = await auth.signInWithPassword(EMAIL, DEV_PASSWORD);
 check('deleted user can no longer sign in', !signIn.ok, signIn.ok ? 'STILL SIGNED IN' : `rejected: ${signIn.error}`);
 
 const { data: authRow } = await svc.auth.admin.getUserById(uid);
@@ -96,7 +97,7 @@ check('booking still joins to the anonymised user',
 // regardless, so asserting it proved nothing. A deleted tutor keeps an approved
 // tutor_profiles row, so this is the case that can actually leak.
 const { data: leaverTutor } = await svc.auth.admin.createUser({
-  email: `leavertutor+${Date.now()}@crimson.ua.edu`, password: 'password123', email_confirm: true,
+  email: `leavertutor+${Date.now()}@crimson.ua.edu`, password: DEV_PASSWORD, email_confirm: true,
 });
 const tUid = leaverTutor!.user!.id;
 await svc.from('users').update({ first_name: 'Quinn', last_name: 'Rae' }).eq('id', tUid);
@@ -106,7 +107,7 @@ await svc.from('tutor_profiles').upsert(
   { onConflict: 'user_id' },
 );
 
-const asStudent = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+const asStudent = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
 if (!asStudent.ok) throw new Error(asStudent.error);
 check('approved tutor IS listed before deletion',
   (await api.tutors.search({})).some((t) => t.userId === tUid));

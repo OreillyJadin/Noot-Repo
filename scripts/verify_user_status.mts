@@ -1,6 +1,7 @@
 // Verify migration 0051 with an existing access token against the local stack.
 // Needs: supabase start && node supabase/seed_demo.mjs
 //   pnpm dlx tsx scripts/verify_user_status.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 
 const URL = 'http://127.0.0.1:54321';
@@ -23,8 +24,8 @@ const sara = createClient(URL, ANON, { auth: { persistSession: false } });
 const anon = createClient(URL, ANON, { auth: { persistSession: false } });
 
 const [studentSignIn, saraSignIn] = await Promise.all([
-  student.auth.signInWithPassword({ email: 'student@crimson.ua.edu', password: 'password123' }),
-  sara.auth.signInWithPassword({ email: 'sara@crimson.ua.edu', password: 'password123' }),
+  student.auth.signInWithPassword({ email: 'student@crimson.ua.edu', password: DEV_PASSWORD }),
+  sara.auth.signInWithPassword({ email: 'sara@crimson.ua.edu', password: DEV_PASSWORD }),
 ]);
 if (studentSignIn.error) throw studentSignIn.error;
 if (saraSignIn.error) throw saraSignIn.error;

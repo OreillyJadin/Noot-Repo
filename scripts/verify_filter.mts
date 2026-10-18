@@ -3,6 +3,7 @@
 // direct client insert, and a service-role insert must all be rejected.
 //
 // Needs: supabase start && node supabase/seed_demo.mjs
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 import { createClient } from '@supabase/supabase-js'
 
@@ -20,7 +21,7 @@ const step = (n: number | string, ok: boolean, msg: string) => {
 initSupabase({ url: URL, anonKey: ANON })
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } })
 
-const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
+const signIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD)
 step(1, signIn.ok, signIn.ok ? 'signed in as the demo student' : `sign-in failed: ${signIn.error}`)
 
 // A conversation to write into. seed_demo doesn't create one, so make it if absent.
@@ -59,7 +60,7 @@ try {
 // 5) It can't be routed around by inserting into `messages` directly.
 const sb = createClient(URL, ANON, { auth: { persistSession: false } })
 const { data: sess } = await sb.auth.signInWithPassword({
-  email: 'student@crimson.ua.edu', password: 'password123',
+  email: 'student@crimson.ua.edu', password: DEV_PASSWORD,
 })
 const studentId = sess.user!.id
 {
@@ -159,7 +160,7 @@ const studentId = sess.user!.id
 // 12) ...but an admin can manage it, so the list is maintainable without a migration.
 {
   const adminSb = createClient(URL, ANON, { auth: { persistSession: false } })
-  await adminSb.auth.signInWithPassword({ email: 'admin@crimson.ua.edu', password: 'password123' })
+  await adminSb.auth.signInWithPassword({ email: 'admin@crimson.ua.edu', password: DEV_PASSWORD })
   const { data } = await adminSb.from('blocked_terms').select('term')
   step(12, (data ?? []).length > 0, `admin reading blocked_terms → ${(data ?? []).length} terms`)
 }

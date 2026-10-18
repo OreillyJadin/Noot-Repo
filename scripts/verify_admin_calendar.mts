@@ -1,6 +1,7 @@
 // Verify the admin calendar data layer against the LOCAL Supabase stack.
 // Needs: supabase start (migrations applied) and the demo seed.
 //   pnpm dlx tsx scripts/verify_admin_calendar.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createHmac } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { api, auth, initSupabase } from '../packages/core/src/index.ts';
@@ -9,7 +10,7 @@ const URL = 'http://127.0.0.1:54321';
 const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 const SERVICE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 
-const PASSWORD = 'NootCalendar!2026';
+const PASSWORD = DEV_PASSWORD;
 const service = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const tag = `calendar-${Date.now()}`;
 const createdUsers: { id: string; email: string }[] = [];
@@ -188,7 +189,7 @@ try {
   if (studentLookupError || !seededStudent) {
     throw studentLookupError ?? new Error('Run node supabase/seed_demo.mjs first');
   }
-  const studentSignIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  const studentSignIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   if (!studentSignIn.ok) throw new Error(`Seeded student sign-in failed: ${studentSignIn.error}`);
   const studentEvents = await api.admin.calendar(fromIso, toIso);
   step(

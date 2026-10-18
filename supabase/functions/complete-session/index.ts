@@ -1,12 +1,14 @@
 // Edge Function: complete-session.
 // The caller must be the booking's TUTOR. Marks a confirmed session complete: captures the
-// held PaymentIntent, transfers the tutor's payout to their Connect account, sets
-// status='completed', then fires award-referral-bonus (non-fatal). Idempotent: a booking
+// held PaymentIntent, transfers the tutor's payout to their Connect account funded from
+// that charge (see _shared/payouts.ts), sets status='completed', then fires
+// award-referral-bonus (non-fatal). Idempotent: a booking
 // already 'completed' is a no-op apart from re-firing the award. Simulated bookings
 // (sim_pi_…) just flip to completed.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { BookingError, assertPayoutReady, assertSessionElapsed } from '../_shared/booking.ts';
+import { payTutor } from '../_shared/payouts.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -93,30 +95,33 @@ serveWithErrorReporting('complete-session', async (req: Request) => {
       // student charged, the tutor unpaid and the booking still 'confirmed'.
       await assertPayoutReady(stripeKey, connectId);
 
-      const capturedPi = await stripe.paymentIntents.capture(pi, {}, { idempotencyKey: `capture_${bookingId}` });
+      const capturedPi = await stripe.paymentIntents.capture(
+        pi,
+        { expand: ['latest_charge'] },
+        { idempotencyKey: `capture_${bookingId}` },
+      );
       captured = true;
-      chargeId = typeof capturedPi.latest_charge === 'string' ? capturedPi.latest_charge : (capturedPi.latest_charge?.id ?? null);
+      const charge = typeof capturedPi.latest_charge === 'string' ? null : capturedPi.latest_charge;
+      chargeId = typeof capturedPi.latest_charge === 'string' ? capturedPi.latest_charge : (charge?.id ?? null);
 
-      try {
-        const transfer = await stripe.transfers.create(
-          {
-            amount: Math.round(Number(booking.tutor_payout_amount) * 100),
-            currency: 'usd',
-            destination: connectId!,
-            transfer_group: bookingId,
-            metadata: { booking_id: bookingId },
-          },
-          { idempotencyKey: `transfer_${bookingId}` },
-        );
-        transferId = transfer.id;
-      } catch (transferErr) {
+      const payout = await payTutor({
+        stripe,
+        bookingId,
+        destination: connectId!,
+        payoutCents: Math.round(Number(booking.tutor_payout_amount) * 100),
+        charge,
+        idempotencyKey: `transfer_${bookingId}`,
+        metadata: { booking_id: bookingId },
+      });
+      transferId = payout.transferId;
+      if (!payout.complete) {
         // The money IS captured at this point, so record that fact and flag the booking
-        // rather than throwing and leaving the row looking untouched. Both ids are
-        // idempotency-keyed, so a retry resumes safely.
+        // rather than throwing and leaving the row looking untouched. Capture and both
+        // transfers are idempotency-keyed, so a retry resumes safely.
         const failedAt = new Date().toISOString();
         const { data: flagged } = await db
           .from('bookings')
-          .update({ status: 'completed', stripe_charge_id: chargeId, payout_failed_at: failedAt })
+          .update({ status: 'completed', stripe_charge_id: chargeId, stripe_transfer_id: transferId, payout_failed_at: failedAt })
           .eq('id', bookingId)
           .eq('status', 'confirmed')
           .select('id');
@@ -125,7 +130,7 @@ serveWithErrorReporting('complete-session', async (req: Request) => {
           await db.from('bookings').update({ payout_failed_at: failedAt }).eq('id', bookingId);
           console.error('complete-session: captured, transfer failed and the booking left confirmed meanwhile', bookingId, chargeId);
         }
-        console.error('complete-session: captured but transfer failed', bookingId, String(transferErr));
+        console.error('complete-session: captured but transfer failed', bookingId, `owed ${payout.shortfallCents}c`, String(payout.error));
         // The session did happen and was paid for, so the invite reward still applies.
         if (paidSession) await awardInvites(url, bookingId);
         return Response.json(
