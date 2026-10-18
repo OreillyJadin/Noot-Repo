@@ -50,7 +50,7 @@ try {
 
   // Courses saved before any tutor_profiles row exists: the old reader (inner join on
   // tutor_profiles) can't see them; getMyTutorProfile can.
-  await api.profile.setTutorCourses([{ courseCode: codeA, grade: 'A', hourlyRate: 0, currentlyTaking: false }]);
+  await api.profile.setTutorCourses([{ courseCode: codeA, grade: 'A', hourlyRate: 10, currentlyTaking: false }]);
   check('old reader misses courses saved before the application row exists', (await api.tutors.getById(applicant.id)) === null);
   check('getMyTutorProfile sees them', (await api.profile.getMyTutorProfile()).courses.length === 1);
 
@@ -62,10 +62,10 @@ try {
   check('step 2: name/year/major saved to the user', me?.firstName === 'Landon' && me?.major === 'Chemistry' && me?.year === 'Junior');
   check('step 2: bio saved to the application', p.bio === 'I love stoichiometry.');
 
-  // Step 3 — courses with grades, no rates yet
+  // Step 3 — courses with grades, no rates chosen yet: they sit at the $10 floor (0087)
   await api.profile.setTutorCourses([
-    { courseCode: codeA, grade: 'A', hourlyRate: 0, currentlyTaking: false },
-    { courseCode: codeB, grade: 'B+', hourlyRate: 0, currentlyTaking: false },
+    { courseCode: codeA, grade: 'A', hourlyRate: 10, currentlyTaking: false },
+    { courseCode: codeB, grade: 'B+', hourlyRate: 10, currentlyTaking: false },
   ]);
   p = await api.profile.getMyTutorProfile();
   check(

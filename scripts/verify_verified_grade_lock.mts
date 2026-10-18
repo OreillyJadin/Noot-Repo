@@ -85,7 +85,7 @@ try {
 
   const nan = await rejects(() => raw.rpc('set_tutor_courses', { p_courses: [{ course_code: codeA, grade: 'A', hourly_rate: 'NaN' }] }));
   const huge = await rejects(() => raw.rpc('set_tutor_courses', { p_courses: [{ course_code: codeA, grade: 'A', hourly_rate: 99999 }] }));
-  check('DENY: a rate that is not a number, or over $120', /up to \$120/.test(nan) && /up to \$120/.test(huge), `${nan} / ${huge}`);
+  check('DENY: a rate that is not a number, or over $120', /\$10 to \$120/.test(nan) && /\$10 to \$120/.test(huge), `${nan} / ${huge}`);
   check('…and those refused saves changed nothing', (await saved()) === `${codeA}:A:22:0 | ${codeB}:A-:25:0 | ${codeC}:B:30:0`, await saved());
 
   // Sessions a course has earned must survive a save (the old save rewrote the rows).

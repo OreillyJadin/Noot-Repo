@@ -7,6 +7,7 @@
 //     ever see rows the signed-in user is allowed to. We DON'T re-check ownership here.
 //   • Trust-sensitive writes (create booking, capture payment, approve tutor, moderate
 //     review, award bonus) are NOT here — they're Edge Functions (service role). See §5.
+import { MIN_HOURLY_RATE } from '../pricing';
 import { getSupabase } from '../supabase';
 import { notifyUserChanged } from '../changes';
 import { normalizeCourseQuery, rankCourseMatches } from '../courseSearch';
@@ -1118,7 +1119,7 @@ export const api = {
         p_courses: courses.map((c) => ({
           course_code: c.courseCode,
           grade: c.grade ?? null,
-          hourly_rate: c.hourlyRate ?? 0,
+          hourly_rate: c.hourlyRate ?? MIN_HOURLY_RATE,
           currently_taking: c.currentlyTaking,
         })),
       });
