@@ -3,6 +3,7 @@
 //
 // Needs: supabase start && node supabase/seed_demo.mjs
 //   pnpm dlx tsx scripts/verify_notification_lockdown.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { createClient } from '@supabase/supabase-js'
 import { initSupabase, getSupabase, api, auth } from '../packages/core/src/index.ts'
 
@@ -34,7 +35,7 @@ const forged = async () => (await admin.from('notifications').select('id').eq('t
 }
 
 // 2) Signed in as a plain student, aimed at someone else.
-const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
+const signIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD)
 {
   const { error } = await getSupabase().rpc('create_notification', forge)
   step(2, signIn.ok && error?.code === DENIED && (await forged()) === 0, `DENY a student forging a notification for another user → ${error?.message ?? 'CREATED'}`)

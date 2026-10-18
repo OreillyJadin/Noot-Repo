@@ -4,7 +4,7 @@ Backend for noot — Phase 1 (ARCHITECTURE.md §3–§6).
 
 - `config.toml` — local stack config for the Supabase CLI.
 - `migrations/` — SQL schema, RLS, and the `.edu` auth gate:
-  - `0001_init.sql` — tables + enums (ARCHITECTURE.md §4 / prd-data-models.md).
+  - `0001_init.sql` — tables + enums (ARCHITECTURE.md §4 / docs/archive/prd-data-models.md).
   - `0002_rls.sql` — Row Level Security. Client (anon key) touches only its own rows +
     public-by-design data; all trust-sensitive writes go through Edge Functions (service role).
   - `0003_auth_and_campus_gate.sql` — `campuses` allowlist + a trigger on `auth.users` that
@@ -18,7 +18,7 @@ Backend for noot — Phase 1 (ARCHITECTURE.md §3–§6).
 ## Schema decisions (read before touching migrations)
 
 - **Authoritative model is ARCHITECTURE.md §4** (resolved decisions), which supersedes
-  `prd-data-models.md`: multiple roles per account (`user_roles` + `users.active_role`),
+  `docs/archive/prd-data-models.md`: multiple roles per account (`user_roles` + `users.active_role`),
   admin-moderated reviews (`subject_user_id` + `approval_status`), weekly availability +
   one-off overrides, flat $5 one-time ambassador bonus.
 - **Every person reference points to `public.users(id)` (= `auth.uid()`)** so every RLS
@@ -41,7 +41,13 @@ supabase start            # boots Postgres + Auth + Studio + Inbucket (Docker)
 supabase db reset         # applies migrations/ then seed.sql
 supabase status           # prints API URL + anon key for apps/mobile/.env
 supabase functions serve  # run Edge Functions locally
+node supabase/seed_demo.mjs  # demo tutors, dev student, admins
 ```
+
+The seeded accounts (`student@crimson.ua.edu`, tutor `sara@crimson.ua.edu`, admin
+`admin@crimson.ua.edu`, …) all use the dev password `Noot-dev-2026`, exported as `DEV_PASSWORD`
+from `scripts/_devPassword.mjs` and shared by every seed, `scripts/verify_*.mts` and e2e helper.
+It meets the password rules in `config.toml`; keep those rules strict locally.
 
 Then wire the app:
 

@@ -13,9 +13,11 @@
 //     has chosen one (users.password_set_at, 0041) is past it and goes home — however it
 //     got here.
 //
-// It also holds the door on the Terms of Use and, for student accounts, the Community
-// Guidelines. The Terms come first.
+// It also holds the door on the Terms of Use and the Community Guidelines. The Terms come
+// first. Both are per account, whatever its role, so switching modes never asks again.
+import type { User } from '@noot/core';
 import type { Role } from './store';
+import { guidelinesAreCurrent } from './guidelines';
 
 /** What the decision reads about the signed-in account. */
 export interface AccountState {
@@ -23,7 +25,7 @@ export interface AccountState {
   hasPassword: boolean;
   /** The user has accepted the Terms of Use (users.terms_accepted_at, 0030). */
   acceptedTerms: boolean;
-  /** The user has accepted the Community Guidelines (users.guidelines_accepted_at, 0055). */
+  /** The user has accepted the current Community Guidelines (users.guidelines_*, 0055). */
   acceptedGuidelines: boolean;
   activeRole: string;
 }
@@ -48,16 +50,26 @@ export function decidePostAuthRoute(lookup: AccountLookup): PostAuthRoute {
   // onboarding, an acceptance that failed to save, or an account older than the Terms. None
   // of them gets into the app until it has accepted.
   if (!account.acceptedTerms) return { kind: 'terms' };
-  // Students accept the Community Guidelines after the Terms; tutor and ambassador flows
-  // are unchanged for now.
-  if (!account.acceptedGuidelines && account.activeRole !== 'tutor' && account.activeRole !== 'ambassador') {
-    return { kind: 'guidelines' };
-  }
+  // Then the Community Guidelines: every account, whatever its mode, accepts them once.
+  if (!account.acceptedGuidelines) return { kind: 'guidelines' };
   // The home for the user's persisted mode. Admin is not a mode — an admin still browses
   // as student/tutor, so it lands on the student home.
   if (account.activeRole === 'tutor') return { kind: 'home', role: 'tutor', route: '/tutor_home' };
   if (account.activeRole === 'ambassador') return { kind: 'home', role: 'ambassador', route: '/ambassador_home' };
   return { kind: 'home', role: 'student', route: '/home' };
+}
+
+/** The decision's view of a users row. */
+export function accountStateFrom(
+  me: Pick<User, 'passwordSetAt' | 'termsAcceptedAt' | 'guidelinesAcceptedAt' | 'guidelinesVersion' | 'activeRole'>,
+  provenPassword = false,
+): AccountState {
+  return {
+    hasPassword: provenPassword || me.passwordSetAt != null,
+    acceptedTerms: me.termsAcceptedAt != null,
+    acceptedGuidelines: guidelinesAreCurrent(me.guidelinesAcceptedAt, me.guidelinesVersion),
+    activeRole: me.activeRole,
+  };
 }
 
 /**
