@@ -128,10 +128,13 @@ serveWithErrorReporting('admin-pay-cashout', async (req: Request) => {
     };
 
     // Stripe may have moved the money; keep the row pending and unrejectable until we know.
-    // The original unknown timestamp is kept so the settle window below can elapse.
-    const unresolved = async (message: string, httpStatus: number) => {
+    // pay_unknown_at marks the LAST time this key was possibly used at Stripe, so the settle
+    // window below always counts from the latest ambiguous call; a failure before any Stripe
+    // call (keyUsed=false) leaves the existing stamp alone.
+    const unresolved = async (message: string, httpStatus: number, keyUsed: boolean) => {
+      const stamp = keyUsed ? new Date().toISOString() : (cashout.pay_unknown_at ?? new Date().toISOString());
       await db.from('credit_cashouts')
-        .update({ paying_at: null, pay_unknown_at: cashout.pay_unknown_at ?? new Date().toISOString(), last_error: message })
+        .update({ paying_at: null, pay_unknown_at: stamp, last_error: message })
         .eq('id', cashoutId).eq('status', 'pending');
       return Response.json({ error: message, unresolved: true }, { status: httpStatus, headers: cors });
     };
@@ -150,7 +153,7 @@ serveWithErrorReporting('admin-pay-cashout', async (req: Request) => {
         transferId = await findExisting();
       } catch (err) {
         console.error('admin-pay-cashout: reconcile failed', cashoutId, String(err));
-        return unresolved('Stripe didn’t answer. Try again in a few minutes — it won’t be sent twice.', 502);
+        return unresolved('Stripe didn’t answer. Try again in a few minutes — it won’t be sent twice.', 502, false);
       }
       if (!transferId && Date.now() - Date.parse(cashout.pay_unknown_at) >= UNKNOWN_SETTLE_MS) {
         // The old key has expired at Stripe and nothing ever appeared: that attempt created
@@ -212,7 +215,7 @@ serveWithErrorReporting('admin-pay-cashout', async (req: Request) => {
         } catch (listErr) {
           console.error('admin-pay-cashout: reconcile failed', cashoutId, String(listErr));
         }
-        if (!transferId) return unresolved('Stripe didn’t answer. Tap Pay again in a few minutes — it won’t be sent twice.', 502);
+        if (!transferId) return unresolved('Stripe didn’t answer. Tap Pay again in a few minutes — it won’t be sent twice.', 502, true);
       }
     }
 
@@ -235,7 +238,7 @@ serveWithErrorReporting('admin-pay-cashout', async (req: Request) => {
       // The money moved but we could not write it down. Record the unknown (Reject stays
       // blocked) and let a retry replay the same idempotency key and record it.
       console.error('admin-pay-cashout: transfer sent but not recorded', cashoutId, transferId, JSON.stringify(paidErr));
-      return unresolved('The transfer was sent but could not be recorded. Tap Pay again — it won’t be sent twice.', 500);
+      return unresolved('The transfer was sent but could not be recorded. Tap Pay again — it won’t be sent twice.', 500, true);
     }
 
     await logAdminAction(db, {
