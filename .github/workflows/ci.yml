@@ -107,6 +107,7 @@ jobs:
             verify_b2_tutor_chat
             verify_backend
             verify_bad_language
+            verify_become_ambassador
             verify_booking
             verify_browse
             verify_campus_gate
@@ -117,7 +118,9 @@ jobs:
             verify_email_code
             verify_filter
             verify_guidelines
+            verify_guidelines_all_roles
             verify_interviews
+            verify_landing_copy
             verify_launch_route
             verify_magiclink
             verify_moderation

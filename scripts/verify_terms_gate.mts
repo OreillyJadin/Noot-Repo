@@ -7,7 +7,8 @@
 import { DEV_PASSWORD } from './_devPassword.mjs'
 import { createClient } from '@supabase/supabase-js'
 import { initSupabase, auth, api } from '../packages/core/src/index.ts'
-import { decidePostAuthRoute, lookupWithRetry } from '../apps/mobile/lib/postAuthRoute.ts'
+import { accountStateFrom, decidePostAuthRoute, lookupWithRetry } from '../apps/mobile/lib/postAuthRoute.ts'
+import { GUIDELINES_VERSION } from '../apps/mobile/lib/guidelines.ts'
 
 const URL = 'http://127.0.0.1:54321'
 const MAILPIT = 'http://127.0.0.1:54324'
@@ -28,14 +29,7 @@ const made: string[] = []
 const route = async () => {
   const read = await lookupWithRetry(async () => {
     const me = await api.getMe()
-    return me
-      ? {
-          hasPassword: me.passwordSetAt != null,
-          acceptedTerms: me.termsAcceptedAt != null,
-          acceptedGuidelines: me.guidelinesAcceptedAt != null,
-          activeRole: me.activeRole,
-        }
-      : null
+    return me ? accountStateFrom(me) : null
   }, [1, 1], async () => {})
   const r = decidePostAuthRoute(read.ok ? { ok: true, account: read.value } : { ok: false })
   return r.kind === 'home' ? `home ${r.route}` : r.kind
@@ -108,7 +102,7 @@ try {
   await api.profile.acceptTerms('verify_terms_gate')
   const afterTerms = await route()
   step(afterTerms === 'guidelines', `after accepting the Terms, the app opens "${afterTerms}"`)
-  await api.profile.acceptGuidelines('verify_terms_gate')
+  await api.profile.acceptGuidelines(GUIDELINES_VERSION)
   const afterGuidelines = await route()
   const allowed = await send(mine, conversationId, uid!, 'hello after accepting')
   step(afterGuidelines === 'home /home' && allowed === null, `after accepting both: the app opens "${afterGuidelines}" and the message is sent${allowed ? ` (${allowed.message})` : ''}`)
