@@ -6,6 +6,7 @@
 //
 // Needs: supabase start && node supabase/seed_demo.mjs && supabase functions serve
 //   pnpm dlx tsx scripts/verify_banned_reregistration.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
@@ -19,8 +20,8 @@ const LOCAL_SERVICE =
   process.env.SUPABASE_SERVICE_ROLE_KEY ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
 
-const PASSWORD = 'BannedRejoin123!'
-const ACTIVE_PASSWORD = 'ActiveRejoin123!'
+const PASSWORD = DEV_PASSWORD
+const ACTIVE_PASSWORD = DEV_PASSWORD
 let pass = 0
 let fail = 0
 let n = 0
@@ -161,7 +162,7 @@ try {
   const ordinaryStudent = anon()
   const studentSignIn = await ordinaryStudent.auth.signInWithPassword({
     email: 'student@crimson.ua.edu',
-    password: 'password123',
+    password: DEV_PASSWORD,
   })
   if (studentSignIn.error) throw studentSignIn.error
   const denied = async (client: ReturnType<typeof anon>, fn: string, args: Record<string, unknown>) => {
@@ -180,12 +181,12 @@ try {
     'anonymous and ordinary student clients cannot execute the internal signup functions',
   )
 
-  const adminSignIn = await auth.signInWithPassword('admin@crimson.ua.edu', 'password123')
+  const adminSignIn = await auth.signInWithPassword('admin@crimson.ua.edu', DEV_PASSWORD)
   if (!adminSignIn.ok) throw new Error(adminSignIn.error)
   const adminClient = anon()
   const adminClientSignIn = await adminClient.auth.signInWithPassword({
     email: 'admin@crimson.ua.edu',
-    password: 'password123',
+    password: DEV_PASSWORD,
   })
   if (adminClientSignIn.error) throw adminClientSignIn.error
   const adminTable = await adminClient.from('blocked_signup_emails').select('email_hash, user_id').eq('user_id', bannedId)

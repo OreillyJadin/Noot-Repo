@@ -22,8 +22,8 @@ design_handoff_noot_app/   design source of truth (do not ship directly)
 
 - **`ARCHITECTURE.md`** — full technical architecture (stack, data model, Edge Functions,
   auth, payments, video, Phase 2 AWS migration). Start here.
-- **`infrastructure-plan.md`** — two-phase infra strategy (Supabase → AWS).
-- **`prd-data-models.md`** — data-model PRD (roles, tables).
+- **`docs/archive/infrastructure-plan.md`** — two-phase infra strategy (Supabase → AWS).
+- **`docs/archive/prd-data-models.md`** — data-model PRD (roles, tables).
 - **`design_handoff_noot_app/HANDOFF.md`** — authoritative UI/UX spec.
 
 ## Getting started

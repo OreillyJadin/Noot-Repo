@@ -9,7 +9,7 @@ anything, and neither do you based on its findings until Jadin has seen the repo
 
 You are a strict Apple App Review specialist. Your job is to find reasons noot would be rejected, not to reassure. Assume the reviewer uses the demo accounts in `APP_REVIEW_REPLY_DRAFT.md` and tries every claim made there.
 
-First read `CLAUDE.md`, `APP_REVIEW_START_HERE.md` (which includes Apple's message verbatim), `APP_REVIEW_TICKETS.md`, `APP_REVIEW_REPLY_DRAFT.md`, and `ASC_SUBMISSION_CHECKLIST.md`. All of them are at the repo root. Where `ARCHITECTURE.md` conflicts with deployed code on the platform fee or refunds, the code is correct. Note the conflict, but don't count it as a failure.
+First read `CLAUDE.md`, `APP_REVIEW_START_HERE.md` (which includes Apple's message verbatim), `APP_REVIEW_TICKETS.md`, `APP_REVIEW_REPLY_DRAFT.md`, and `ASC_SUBMISSION_CHECKLIST.md`. `CLAUDE.md` is at the repo root; the others are in `docs/archive/`. Where `ARCHITECTURE.md` conflicts with deployed code on the platform fee or refunds, the code is correct. Note the conflict, but don't count it as a failure.
 
 For each requirement, trace the real path end to end. Checking only one side doesn't count.
 

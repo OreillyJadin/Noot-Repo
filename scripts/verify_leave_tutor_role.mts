@@ -2,6 +2,7 @@
 //
 // Needs: supabase db reset, node supabase/seed_demo.mjs, supabase functions serve
 //   pnpm dlx tsx scripts/verify_leave_tutor_role.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, auth, api } from '../packages/core/src/index.ts';
 
@@ -12,7 +13,7 @@ const ANON =
 const SERVICE =
   process.env.SUPABASE_SERVICE_ROLE_KEY ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'TutorExit!9026';
+const PASSWORD = DEV_PASSWORD;
 const TAG = `leave-tutor-${Date.now()}`;
 
 let pass = 0;
@@ -161,7 +162,7 @@ try {
   if (bookingErr || !booking) throw bookingErr ?? new Error('could not create booking');
 
   initSupabase({ url: URL, anonKey: ANON });
-  const studentSignIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  const studentSignIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   if (!studentSignIn.ok) throw new Error(studentSignIn.error);
   step((await api.tutors.search()).some((row) => row.userId === tutor.id), 'approved tutor appears in the core browse query before leaving');
 

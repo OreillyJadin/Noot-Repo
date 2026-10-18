@@ -4,6 +4,7 @@
 // blocked pair must be physically unable to write to their conversation even when the client
 // calls sendMessage directly.
 //   pnpm dlx tsx scripts/verify_moderation.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth, getSupabase } from '../packages/core/src/index.ts';
 
@@ -22,7 +23,7 @@ const check = (n: string, ok: boolean, d = '') => {
 };
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const signIn = async (email: string) => {
-  const r = await auth.signInWithPassword(email, 'password123');
+  const r = await auth.signInWithPassword(email, DEV_PASSWORD);
   if (!r.ok) throw new Error(`${email}: ${r.error}`);
   return (await auth.getSessionUserId())!;
 };

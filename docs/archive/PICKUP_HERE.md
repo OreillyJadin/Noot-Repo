@@ -142,7 +142,7 @@ Commits `961e731`…`ad55a6b` on `origin/main`. Built in 3 verified phases; migr
 4. **Security review** each phase — one finding (unauthenticated `award-referral-bonus`) found + fixed.
    Verified end-to-end on cloud (role switch, ambassador pipeline, all 4 admin actions, non-admin 403).
 
-**New test accounts of note (password `password123`):** multi-role for the switcher —
+**New test accounts of note (local dev password: `DEV_PASSWORD` in `scripts/_devPassword.mjs`):** multi-role for the switcher —
 `sara@` (student+tutor), `ambassador@` (student+ambassador, code `NOOT-DEMO01`, 3 referrals);
 admin panel — `admin@`. Full worklog: `notes/2026-07-10-2110-role-switching-ambassador-admin.md`.
 
@@ -169,7 +169,8 @@ ported demo constants are gone.
    `resolve-participants` deployed to cloud. Verified 8/8 vs **local AND cloud**
    (`scripts/verify_realdata.mts`); `pnpm -r typecheck` clean; web export bundles clean.
 
-**Test accounts (cloud + local, password `password123`):** students `student@`,
+**Test accounts (local, password `Noot-dev-2026` from `scripts/_devPassword.mjs`; the cloud copies
+used `password123` and were wiped from production in 2026-09):** students `student@`,
 `student1@`, `student2@`, `student3@`; tutors `sara@`, `devon@`, `maya@`, `alex@`, `nina@`
 `crimson.ua.edu`.
 
@@ -246,6 +247,6 @@ pnpm dlx tsx scripts/verify_password_auth.mts   # smoke-test password auth
 #   SUPABASE_URL=https://nepnxbvseuzuayhxaigo.supabase.co SUPABASE_SERVICE_ROLE_KEY=… node supabase/seed_cloud.mjs
 ```
 
-Dev sign-in (all `password123`) — students `student@`/`student1@`/`student2@`/`student3@`,
+Dev sign-in (all `DEV_PASSWORD` from `scripts/_devPassword.mjs`) — students `student@`/`student1@`/`student2@`/`student3@`,
 tutors `sara@`/`devon@`/`maya@`/`alex@`/`nina@` `crimson.ua.edu`.
 App currently points at **cloud** (`apps/mobile/.env`), which is now fully seeded.

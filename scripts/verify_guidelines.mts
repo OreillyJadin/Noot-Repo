@@ -1,5 +1,6 @@
 // Verify Community Guidelines acceptance against the LOCAL stack.
 // Needs: supabase start && node supabase/seed_demo.mjs
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 import { GUIDELINES_VERSION } from '../apps/mobile/lib/guidelines.ts';
@@ -47,7 +48,7 @@ try {
   );
   if (clearedError) throw clearedError;
 
-  const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  const signIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   check('signed in as the demo student', signIn.ok, signIn.ok ? '' : signIn.error);
   if (!signIn.ok) throw new Error(signIn.error);
 
@@ -74,7 +75,7 @@ try {
   tutor = createClient(URL, ANON, { auth: { persistSession: false } });
   const tutorSignIn = await tutor.auth.signInWithPassword({
     email: 'sara@crimson.ua.edu',
-    password: 'password123',
+    password: DEV_PASSWORD,
   });
   check('signed in as tutor Sara', !tutorSignIn.error, tutorSignIn.error?.message ?? '');
   if (tutorSignIn.error) throw tutorSignIn.error;

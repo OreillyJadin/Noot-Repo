@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { DEV_PASSWORD } from './_devPassword.mjs';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'http://127.0.0.1:54321';
 const ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
@@ -8,7 +9,7 @@ if (!['127.0.0.1', 'localhost'].includes(new globalThis.URL(URL).hostname)) {
 }
 if (!ANON || !SERVICE) throw new Error('Set local SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY');
 
-const PASSWORD = 'NootAvailability!Strong2026';
+const PASSWORD = DEV_PASSWORD;
 const tag = Date.now();
 const studentEmail = `availability-student-${tag}@crimson.ua.edu`;
 const tutorEmail = `availability-tutor-${tag}@crimson.ua.edu`;
