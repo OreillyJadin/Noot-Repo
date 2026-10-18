@@ -1,5 +1,6 @@
 // Verification for the rebuilt auth flow (sign-up verification + set-password +
 // email/password sign-in), run against the live local Supabase stack.
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, auth } from '../packages/core/src/index.ts';
 
@@ -38,10 +39,10 @@ try {
   // signInWithPassword only signs IN (sign-up is passwordless), so the account is provisioned
   // under the service role first — standing in for a verified sign-up.
   const { error: cErr } = await svc.auth.admin.createUser({
-    email: pwEmail, password: 'password123', email_confirm: true,
+    email: pwEmail, password: DEV_PASSWORD, email_confirm: true,
   });
   if (cErr) throw cErr;
-  const created = await auth.signInWithPassword(pwEmail, 'password123');
+  const created = await auth.signInWithPassword(pwEmail, DEV_PASSWORD);
   ok('throwaway account has a live session', created.ok && !!(await auth.getSessionUserId()), created.error ?? '');
 
   const setP = await auth.setPassword('Newpassword456!');
@@ -52,7 +53,7 @@ try {
   ok('sign in with the NEW password works', newOk.ok, newOk.error ?? '');
 
   await auth.signOut();
-  const oldFail = await auth.signInWithPassword(pwEmail, 'password123');
+  const oldFail = await auth.signInWithPassword(pwEmail, DEV_PASSWORD);
   ok('the OLD password no longer works', !oldFail.ok);
 } finally {
   // Don't leave the throwaway accounts behind on the local stack. public.users doesn't

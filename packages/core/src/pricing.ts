@@ -34,3 +34,32 @@ export function creditToApply(balanceCents: number, amountCents: number): number
   const room = Math.max(0, Math.floor(amountCents) - MIN_CHARGE_CENTS);
   return Math.max(0, Math.min(Math.floor(balanceCents), room));
 }
+
+/** What the checkout screen shows, in cents. Display only — the server recomputes all of it. */
+export type BookingQuote = {
+  priceCents: number;
+  feeCents: number;
+  creditCents: number;
+  /** What the card is charged: price + fee − credit. */
+  dueCents: number;
+  /** An admin's booking: $0 across the board, no card and no credit involved. */
+  free: boolean;
+};
+
+/**
+ * The checkout numbers for a session, mirroring the server (resolveBooking + creditToApply,
+ * and freeBookingFor for admins). `adminFree` must come from the signed-in user's roles; the
+ * server decides it again from public.is_admin() and ignores anything the client claims.
+ */
+export function bookingQuote(input: {
+  hourlyRate: number;
+  durationMinutes: number;
+  creditBalanceCents?: number;
+  adminFree?: boolean;
+}): BookingQuote {
+  if (input.adminFree) return { priceCents: 0, feeCents: 0, creditCents: 0, dueCents: 0, free: true };
+  const priceCents = Math.round(round2((input.hourlyRate * input.durationMinutes) / 60) * 100);
+  const feeCents = Math.round(studentFeeFor(priceCents / 100) * 100);
+  const creditCents = creditToApply(input.creditBalanceCents ?? 0, priceCents + feeCents);
+  return { priceCents, feeCents, creditCents, dueCents: priceCents + feeCents - creditCents, free: false };
+}

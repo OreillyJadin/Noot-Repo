@@ -9,6 +9,7 @@
 // Unlike verify_booking_requests it needs no seed: it makes its own tutor and
 // student so it also runs on a stack where seed_demo.mjs hasn't (the demo seed
 // password predates the local password-strength rule in supabase/config.toml).
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { api, auth, initSupabase } from '../packages/core/src/index.ts';
 
@@ -23,7 +24,7 @@ const SERVICE =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 // Satisfies config.toml's password_requirements = lower_upper_letters_digits_symbols.
-const PASSWORD = 'NootChat!Verify42';
+const PASSWORD = DEV_PASSWORD;
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const tag = Date.now();
 const studentEmail = `chat-student-${tag}@crimson.ua.edu`;

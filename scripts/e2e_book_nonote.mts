@@ -1,6 +1,7 @@
 // e2e_book_nonote — book a second session as the E2E student with NO intro note
 // through the API layer (b3 requires a note in the UI, so this path can't be
 // driven on screen). Proves confirm-booking's fallback intro message.
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { api, auth, initSupabase } from '../packages/core/src/index.ts';
 
@@ -23,7 +24,7 @@ const { data: tc, error: tcError } = await admin
 if (tcError || !tc) throw tcError ?? new Error('sara.chen has no tutor_courses — run scripts/e2e_users.mts first');
 const courseCode = tc.course_code as string;
 
-const signIn = await auth.signInWithPassword('alex.rivera@crimson.ua.edu', 'NootChat!Verify42');
+const signIn = await auth.signInWithPassword('alex.rivera@crimson.ua.edu', DEV_PASSWORD);
 if (!signIn.ok) throw new Error(signIn.error);
 
 // Pick a free hour ~4 days out inside the tutor's availability. The server

@@ -39,6 +39,8 @@ export interface User {
   termsAcceptedAt: Timestamp | null;
   /** When they accepted the Community Guidelines (0055). Null = not yet, so the app asks before letting them in. */
   guidelinesAcceptedAt: Timestamp | null;
+  /** The Community Guidelines version accepted (users.guidelines_version), e.g. 2026-10-13. */
+  guidelinesVersion: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -110,7 +112,7 @@ export interface TutorSummary {
   lastName: string;
   year: string | null;
   major: string | null;
-  gender: 'f' | 'm' | null;
+  avatarUrl: string | null;
   bio: string;
   subjects: string[];
   hourlyRate: number;

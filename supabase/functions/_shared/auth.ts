@@ -13,6 +13,15 @@ export async function requireAdmin(
   return null;
 }
 
+/**
+ * Whether the caller is an admin by the single admin rule (public.is_admin(): role + MFA,
+ * migration 0059), evaluated on the caller's own JWT. False on any error.
+ */
+export async function isAdmin(userClient: SupabaseClient): Promise<boolean> {
+  const { data, error } = await userClient.rpc('is_admin');
+  return !error && data === true;
+}
+
 export async function requireActiveUser(
   db: SupabaseClient,
   userId: string,

@@ -11,6 +11,7 @@
 //   • spending / returning on a booking; cash-out for approved ambassadors, 7-day hold
 // Local stack only; doesn't need Edge Functions.
 //   pnpm dlx tsx scripts/verify_credits.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { spawn } from 'node:child_process';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -19,7 +20,7 @@ const ANON =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 const SERVICE =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'password123';
+const PASSWORD = DEV_PASSWORD;
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false } });
 
 let pass = 0;

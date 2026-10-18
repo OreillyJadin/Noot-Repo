@@ -4,6 +4,7 @@
 //
 // Needs: supabase start && node supabase/seed_demo.mjs
 //   pnpm dlx tsx scripts/verify_sign_out.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { initSupabase, auth, api } from '../packages/core/src/index.ts'
 
 const URL = 'http://127.0.0.1:54321'
@@ -17,7 +18,7 @@ const step = (ok: boolean, msg: string) => {
 
 initSupabase({ url: URL, anonKey: ANON })
 const signIn = async () => {
-  const r = await auth.signInWithPassword('sara@crimson.ua.edu', 'password123')
+  const r = await auth.signInWithPassword('sara@crimson.ua.edu', DEV_PASSWORD)
   if (!r.ok) throw new Error(`sign in: ${r.error}`)
 }
 const signedOuts: string[] = []

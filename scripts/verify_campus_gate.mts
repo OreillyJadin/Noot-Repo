@@ -5,9 +5,11 @@
 //
 // Needs: supabase start (migrations applied)
 //   pnpm dlx tsx scripts/verify_campus_gate.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { createClient } from '@supabase/supabase-js'
 import { initSupabase, auth } from '../packages/core/src/index.ts'
 import { NOT_A_CAMPUS_EMAIL } from '../packages/core/src/auth/index.ts'
+import { DEV_PASSWORD } from './_devPassword.mjs'
 
 const URL = 'http://127.0.0.1:54321'
 const MAILPIT = 'http://127.0.0.1:54324'
@@ -50,16 +52,16 @@ try {
   const outsiders = [`${tag}@gmail.com`, `${tag}@harvard.edu`, `${tag}@crimson.ua.edu.evil.com`, `${tag}@notcrimson.ua.edu`]
   for (const email of outsiders) {
     const otp = await anon().auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
-    const pw = await anon().auth.signUp({ email, password: 'Password123!' })
+    const pw = await anon().auth.signUp({ email, password: DEV_PASSWORD })
     step(!!otp.error && !!pw.error && !(await exists(email)),
       `${email.split('@')[1]}: emailed-code sign-up and password sign-up both refused, no account created`)
   }
 
-  const admin = await svc.auth.admin.createUser({ email: `${tag}_admin@gmail.com`, password: 'password123', email_confirm: true })
+  const admin = await svc.auth.admin.createUser({ email: `${tag}_admin@gmail.com`, password: DEV_PASSWORD, email_confirm: true })
   step(!!admin.error, 'even the service role cannot create a non-campus account (the gate is in the database)')
 
   const campus = `${tag}@CRIMSON.UA.EDU`
-  const good = await anon().auth.signUp({ email: campus, password: 'Password123!' })
+  const good = await anon().auth.signUp({ email: campus, password: DEV_PASSWORD })
   step(!good.error && (await exists(campus)), 'a campus address signs up, whatever its capitalisation')
 
   // ---- what the app tells them ----
@@ -72,11 +74,11 @@ try {
 
   // ---- changing the address afterwards (0044) ----
   const email = `${tag}_move@crimson.ua.edu`
-  const made = await svc.auth.admin.createUser({ email, password: 'password123', email_confirm: true })
+  const made = await svc.auth.admin.createUser({ email, password: DEV_PASSWORD, email_confirm: true })
   if (made.error) throw made.error
   const uid = made.data.user!.id
   const me = anon()
-  await me.auth.signInWithPassword({ email, password: 'password123' })
+  await me.auth.signInWithPassword({ email, password: DEV_PASSWORD })
 
   const move = await me.auth.updateUser({ email: `${tag}_move@gmail.com` })
   const { data: afterMove } = await svc.auth.admin.getUserById(uid)

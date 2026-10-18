@@ -34,7 +34,7 @@ export default function C4() {
   const lengthHours = (booking.lengthMin ?? 60) / 60;
   const gross = rate * lengthHours;
   // Fee follows the course's verification status: 17.5% verified, 32.5% otherwise.
-  const payout = tutorPayoutFor(gross, gradesVerified && !courseEntry?.[4]);
+  const payout = booking.tutorPayoutAmount ?? tutorPayoutFor(gross, gradesVerified && !courseEntry?.[4]);
 
   return (
     <Screen>

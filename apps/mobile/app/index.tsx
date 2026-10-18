@@ -5,9 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Button, Card, useTheme } from '@noot/ui';
 
-const POPULAR: [string, number][] = [
-  ['MGT 300', 18], ['CH 101', 24], ['MATH 125', 31], ['BSC 114', 12], ['EC 110', 15],
-];
+const COURSES = ['MGT 300', 'CH 101', 'MATH 125', 'BSC 114', 'EC 110'];
 
 export default function Landing() {
   const t = useTheme();
@@ -36,18 +34,18 @@ export default function Landing() {
           <Button label="I already have an account" kind="secondary" onPress={() => router.push('/signin')} />
         </View>
 
-        <Text style={[styles.h2, { color: t.text }]}>Popular on campus</Text>
+        <Text style={[styles.h2, { color: t.text }]}>Courses on campus</Text>
         <View style={styles.courseRow}>
-          {POPULAR.map(([code, n]) => (
+          {COURSES.map((code) => (
             <Card key={code} style={styles.courseCard} onPress={() => router.push('/signup')}>
               <Text style={[styles.courseCode, { color: t.text }]}>{code}</Text>
-              <Text style={[styles.courseTutors, { color: t.accent }]}>{n} tutors</Text>
+              <Text style={[styles.courseTutors, { color: t.accent }]}>Find a tutor</Text>
             </Card>
           ))}
         </View>
 
         <Card style={{ backgroundColor: t.surfaceAlt, marginTop: 16 }}>
-          <Text style={{ color: t.text2, fontSize: 13 }}>312 active tutors · 28 departments · grade-verified tutors marked ✓.</Text>
+          <Text style={{ color: t.text2, fontSize: 13 }}>Peer tutors at UA · grade-verified tutors marked ✓.</Text>
         </Card>
       </ScrollView>
     </SafeAreaView>

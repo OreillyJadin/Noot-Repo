@@ -8,6 +8,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
+import { payTutor } from '../_shared/payouts.ts';
 import {
   BookingError,
   NO_SHOW_WINDOW_HOURS,
@@ -112,23 +113,27 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
           const connectId = (prof?.stripe_connect_account_id as string | null | undefined) ?? null;
           // Check the destination before capturing, as in complete-session.
           await assertPayoutReady(stripeKey, connectId);
-          const capped = await stripe.paymentIntents.capture(pi, {}, { idempotencyKey: `noshow_cap_${bookingId}` });
-          chargeId = typeof capped.latest_charge === 'string' ? capped.latest_charge : (capped.latest_charge?.id ?? null);
-          try {
-            const transfer = await stripe.transfers.create(
-              {
-                amount: Math.round(Number(booking.tutor_payout_amount) * 100),
-                currency: 'usd',
-                destination: connectId!,
-                transfer_group: bookingId,
-                metadata: { booking_id: bookingId, reason: 'student_no_show' },
-              },
-              { idempotencyKey: `noshow_transfer_${bookingId}` },
-            );
-            transferId = transfer.id;
-          } catch (transferErr) {
-            // Captured but not paid out — record it and flag for a manual payout rather
-            // than returning an error that makes the row look untouched.
+          const capped = await stripe.paymentIntents.capture(
+            pi,
+            { expand: ['latest_charge'] },
+            { idempotencyKey: `noshow_cap_${bookingId}` },
+          );
+          const charge = typeof capped.latest_charge === 'string' ? null : capped.latest_charge;
+          chargeId = typeof capped.latest_charge === 'string' ? capped.latest_charge : (charge?.id ?? null);
+          // Funded from this booking's charge, remainder (Noot credit) from the balance.
+          const payout = await payTutor({
+            stripe,
+            bookingId,
+            destination: connectId!,
+            payoutCents: Math.round(Number(booking.tutor_payout_amount) * 100),
+            charge,
+            idempotencyKey: `noshow_transfer_${bookingId}`,
+            metadata: { booking_id: bookingId, reason: 'student_no_show' },
+          });
+          transferId = payout.transferId;
+          if (!payout.complete) {
+            // Captured but not (fully) paid out — record it and flag for a manual payout
+            // rather than returning an error that makes the row look untouched.
             const failedAt = new Date().toISOString();
             const { data: flagged } = await db
               .from('bookings')
@@ -138,6 +143,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
                 refund_percent: refundPercent,
                 refund_status: refundStatus,
                 stripe_charge_id: chargeId,
+                stripe_transfer_id: transferId,
                 payout_failed_at: failedAt,
               })
               .eq('id', bookingId)
@@ -148,7 +154,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
               await db.from('bookings').update({ payout_failed_at: failedAt }).eq('id', bookingId);
               console.error('report-no-show: captured, transfer failed and the booking left confirmed meanwhile', bookingId, chargeId);
             }
-            console.error('report-no-show: captured but transfer failed', bookingId, String(transferErr));
+            console.error('report-no-show: captured but transfer failed', bookingId, `owed ${payout.shortfallCents}c`, String(payout.error));
             return Response.json(
               {
                 error: 'The charge went through but the payout failed. Our team has been notified and will complete it.',

@@ -8,6 +8,7 @@
 //
 // Note: admin_actions rows can't be deleted (that's the point), so rows from earlier runs
 // stay — every assertion filters on target + created_at >= this run's start.
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth, getSupabase } from '../packages/core/src/index.ts';
 
@@ -56,14 +57,14 @@ const expectNone = async (name: string, targetType: string, targetId: string, ac
 };
 const newUser = async (tag: string) => {
   const { data, error } = await svc.auth.admin.createUser({
-    email: `audit+${tag}${Date.now()}@crimson.ua.edu`, password: 'password123', email_confirm: true,
+    email: `audit+${tag}${Date.now()}@crimson.ua.edu`, password: DEV_PASSWORD, email_confirm: true,
   });
   if (error) throw error;
   return data.user!.id;
 };
 
 initSupabase({ url: URL, anonKey: ANON });
-const adminIn = await auth.signInWithPassword('admin@crimson.ua.edu', 'password123');
+const adminIn = await auth.signInWithPassword('admin@crimson.ua.edu', DEV_PASSWORD);
 if (!adminIn.ok) throw new Error(`admin sign-in: ${adminIn.error}`);
 adminId = (await auth.getSessionUserId())!;
 const asAdmin = () => getSupabase(); // the shared client, signed in as the admin
@@ -224,7 +225,7 @@ await expectNone('failed setUserStatus (own id) logs nothing', 'user', adminId, 
 
 // ---------- walls ----------
 const student = createClient(URL, ANON, { auth: { persistSession: false } });
-await student.auth.signInWithPassword({ email: 'student@crimson.ua.edu', password: 'password123' });
+await student.auth.signInWithPassword({ email: 'student@crimson.ua.edu', password: DEV_PASSWORD });
 {
   const { data, error } = await student.from('admin_actions').select('id');
   check('student select sees nothing', !error && (data ?? []).length === 0,
@@ -237,7 +238,7 @@ await student.auth.signInWithPassword({ email: 'student@crimson.ua.edu', passwor
   check('student delete fails', !!del.error, del.error?.message ?? 'no error');
 }
 const adminClient = createClient(URL, ANON, { auth: { persistSession: false } });
-await adminClient.auth.signInWithPassword({ email: 'admin@crimson.ua.edu', password: 'password123' });
+await adminClient.auth.signInWithPassword({ email: 'admin@crimson.ua.edu', password: DEV_PASSWORD });
 {
   const { data, error } = await adminClient.from('admin_actions').select('id').gte('created_at', START);
   check('admin select sees the new rows', !error && (data ?? []).length >= 15, `${(data ?? []).length} rows`);

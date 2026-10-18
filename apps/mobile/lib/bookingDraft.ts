@@ -21,6 +21,10 @@ export function draftFromBooking(b: Booking): Partial<BookingDraft> {
     location: b.location ?? undefined,
     sessionType: b.sessionType === 'video' ? 'video' : 'in_person',
     lengthMin: b.durationMinutes,
+    price: b.price,
+    studentFee: b.studentFee,
+    creditApplied: b.creditApplied,
+    tutorPayoutAmount: b.tutorPayoutAmount,
   };
 }
 
@@ -47,5 +51,9 @@ export function blankSessionFields(): Partial<BookingDraft> {
     location: undefined,
     sessionType: undefined,
     lengthMin: undefined,
+    price: undefined,
+    studentFee: undefined,
+    creditApplied: undefined,
+    tutorPayoutAmount: undefined,
   };
 }

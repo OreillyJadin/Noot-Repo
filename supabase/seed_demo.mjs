@@ -4,17 +4,18 @@
 //
 //   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node supabase/seed_demo.mjs
 //
-// Defaults target the local stack. Dev password for every account: "password123".
+// Defaults target the local stack. Password for every account: DEV_PASSWORD (scripts/_devPassword.mjs).
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
+import { DEV_PASSWORD } from '../scripts/_devPassword.mjs';
 
 const URL = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const SERVICE =
   process.env.SUPABASE_SERVICE_ROLE_KEY ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'password123';
+const PASSWORD = DEV_PASSWORD;
 
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 
@@ -111,7 +112,15 @@ async function existingIdByEmail() {
 
 async function ensureUser(email) {
   const existing = await existingIdByEmail();
-  if (existing.has(email)) return existing.get(email);
+  if (existing.has(email)) {
+    // Older local seeds used another password; bring it to DEV_PASSWORD so the verify scripts
+    // can sign in. Local stack only: never reset an account on a hosted project.
+    if (IS_LOCAL) {
+      const { error } = await admin.auth.admin.updateUserById(existing.get(email), { password: PASSWORD });
+      if (error) throw new Error(`reset password ${email}: ${error.message}`);
+    }
+    return existing.get(email);
+  }
   const { data, error } = await admin.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
   if (error) throw new Error(`createUser ${email}: ${error.message}`);
   // Created WITH its password, so the "password changed" trigger (0041) never fires for it.
@@ -124,7 +133,7 @@ async function ensureUser(email) {
       terms_accepted_at: new Date().toISOString(),
       terms_version: '2026-09-17',
       guidelines_accepted_at: new Date().toISOString(),
-      guidelines_version: '2026-10-13',
+      guidelines_version: '2026-10-17',
     })
     .eq('id', data.user.id);
   if (stamp.error) throw new Error(`password_set_at ${email}: ${stamp.error.message}`);

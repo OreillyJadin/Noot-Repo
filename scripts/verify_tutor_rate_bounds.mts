@@ -1,9 +1,10 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { DEV_PASSWORD } from './_devPassword.mjs';
 
 const URL = 'http://127.0.0.1:54321';
 const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 const SERVICE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'NootQA!Rate_B42';
+const PASSWORD = DEV_PASSWORD;
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const tag = Date.now();
 
@@ -125,6 +126,19 @@ try {
   await rejectDirectRate(121);
   await rejectDirectRate(5000);
   await rejectDirectRate(-1);
+  // TUT-4 (0087): the app's $10/hr floor is enforced by the database too.
+  await rejectDirectRate(9);
+  await rejectDirectRate(9.99);
+  await rejectDirectRate(0);
+
+  const directFloor = await tutor.client.from('tutor_courses')
+    .update({ hourly_rate: 10 })
+    .eq('tutor_id', tutor.id)
+    .eq('course_code', courseCode)
+    .select('hourly_rate')
+    .maybeSingle();
+  check('direct-10', 'direct update to exactly $10/hr (the floor) succeeds',
+    !directFloor.error && Number(directFloor.data?.hourly_rate) === 10, directFloor.error?.message ?? `stored=${directFloor.data?.hourly_rate}`);
 
   const directUpdate = await tutor.client.from('tutor_courses')
     .update({ hourly_rate: 45 })
@@ -142,6 +156,21 @@ try {
   });
   check('rpc-121', 'set_tutor_courses still rejects $121/hr', !!tooHigh.error, tooHigh.error?.message ?? 'accepted');
 
+  for (const low of [9, 0, 0.5]) {
+    const tooLow = await tutor.client.rpc('set_tutor_courses', {
+      p_courses: [{ course_code: courseCode, grade: 'A', hourly_rate: low, currently_taking: false }],
+    });
+    const storedLow = await getRate(tutor.id, courseCode);
+    check(`rpc-${low}`, `set_tutor_courses rejects $${low}/hr and keeps the stored rate`,
+      !!tooLow.error && /\$10 to \$120/.test(tooLow.error.message) && storedLow === 45,
+      tooLow.error?.message ?? `accepted, stored=${storedLow}`);
+  }
+  const floorRate = await tutor.client.rpc('set_tutor_courses', {
+    p_courses: [{ course_code: courseCode, grade: 'A', hourly_rate: 10, currently_taking: false }],
+  });
+  check('rpc-10', 'set_tutor_courses accepts exactly $10/hr',
+    !floorRate.error && (await getRate(tutor.id, courseCode)) === 10, floorRate.error?.message ?? `stored=${await getRate(tutor.id, courseCode)}`);
+
   const validRate = await tutor.client.rpc('set_tutor_courses', {
     p_courses: [{ course_code: courseCode, grade: 'A', hourly_rate: 30, currently_taking: false }],
   });
@@ -150,16 +179,18 @@ try {
     !validRate.error && rpcStoredRate === 30,
     validRate.error?.message ?? `stored=${rpcStoredRate}`);
 
-  const serviceInsert = await svc.from('tutor_courses').insert({
-    tutor_id: tutor.id,
-    course_code: insertCourseCode,
-    grade: 'A',
-    hourly_rate: 500,
-  });
-  check('service-insert-500', 'service-role insert is rejected by the database bound constraint',
-    serviceInsert.error?.code === '23514'
-      && serviceInsert.error.message.includes('tutor_courses_hourly_rate_bounds'),
-    `${serviceInsert.error?.code ?? 'none'} ${serviceInsert.error?.message ?? 'inserted'}`);
+  for (const rate of [500, 0, 9.5]) {
+    const serviceInsert = await svc.from('tutor_courses').insert({
+      tutor_id: tutor.id,
+      course_code: insertCourseCode,
+      grade: 'A',
+      hourly_rate: rate,
+    });
+    check(`service-insert-${rate}`, `service-role insert at $${rate}/hr is rejected by the database bound constraint`,
+      serviceInsert.error?.code === '23514'
+        && serviceInsert.error.message.includes('tutor_courses_hourly_rate_bounds'),
+      `${serviceInsert.error?.code ?? 'none'} ${serviceInsert.error?.message ?? 'inserted'}`);
+  }
 } catch (error) {
   check('setup', 'verification setup and requests complete', false, errorText(error));
 } finally {
