@@ -142,7 +142,8 @@ function AdminAmbassadorsScreen() {
                   key={a.userId}
                   icon="user"
                   title={a.name}
-                  subtitle={`${a.completedInvites} of ${a.invites} invite${a.invites === 1 ? '' : 's'} completed · ${dollars(a.balanceCents)} credit · since ${when(a.appliedAt)}`}
+                  subtitle={`${a.completedInvites} of ${a.invites} invite${a.invites === 1 ? '' : 's'} completed · ${dollars(a.balanceCents)} credit\nAmbassador since ${when(a.appliedAt)}`}
+                  subtitleLines={0}
                   trailing={<Text style={[styles.action, { color: busy === a.userId ? t.text3 : t.accent }]}>{busy === a.userId ? 'Approving…' : 'Approve'}</Text>}
                   chevron={false}
                   onPress={() => askApprove(a)}
@@ -162,8 +163,9 @@ function AdminAmbassadorsScreen() {
                   key={c.id}
                   icon="wallet"
                   title={`${dollars(c.amountCents)} · ${c.name}`}
-                  subtitle={`Requested ${when(c.createdAt)}${c.payoutReady ? '' : ' · payout account not ready'}`}
-                  detail={c.lastError ? `Last try: ${c.lastError}` : undefined}
+                  subtitle={`Requested ${when(c.createdAt)}${c.payoutReady ? '' : '\nPayout account not ready'}`}
+                  subtitleLines={0}
+                  detail={c.lastError ? <Text style={[styles.detail, { color: WARNING_AMBER }]}>Last try: {c.lastError}</Text> : undefined}
                   trailing={
                     busy === c.id
                       ? <Text style={[styles.action, { color: t.text3 }]}>Working…</Text>
@@ -210,6 +212,7 @@ const styles = StyleSheet.create({
   content: { gap: 13, paddingBottom: 24 },
   loading: { gap: 10 },
   action: { fontSize: 14, fontWeight: '700' },
+  detail: { fontSize: 12 },
 });
 
 export default function AdminAmbassadors() {

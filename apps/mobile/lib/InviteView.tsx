@@ -277,15 +277,23 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
               <Card style={{ paddingVertical: 4, paddingHorizontal: 16 }}>
                 {cashouts.map((c, i) => {
                   const label = c.status === 'paid'
-                    ? `Sent to your payout account · ${shortDate(c.paidAt ?? c.createdAt)}`
+                    ? 'Sent to your payout account'
                     : c.status === 'rejected'
-                      ? `Returned to your credit · ${shortDate(c.rejectedAt ?? c.createdAt)}`
-                      : `Pending · requested ${shortDate(c.createdAt)}`;
+                      ? 'Returned to your credit'
+                      : 'Pending';
+                  const date = c.status === 'paid'
+                    ? shortDate(c.paidAt ?? c.createdAt)
+                    : c.status === 'rejected'
+                      ? shortDate(c.rejectedAt ?? c.createdAt)
+                      : `Requested ${shortDate(c.createdAt)}`;
                   const color = c.status === 'paid' ? t.good : c.status === 'rejected' ? t.text3 : t.accent;
                   return (
                     <View key={c.id} style={[styles.cashoutRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border }]}>
                       <View style={[styles.dot, { backgroundColor: color }]} />
-                      <Text style={[styles.cashoutLabel, { color: t.text2 }]} numberOfLines={1}>{label}</Text>
+                      <View style={styles.cashoutText}>
+                        <Text style={[styles.cashoutLabel, { color: t.text2 }]}>{label}</Text>
+                        <Text style={[styles.cashoutDate, { color: t.text3 }]}>{date}</Text>
+                      </View>
                       <Text style={[styles.cashoutAmt, { color: t.text }]}>{dollars(c.amountCents)}</Text>
                     </View>
                   );
@@ -362,7 +370,9 @@ const styles = StyleSheet.create({
   cashSub: { fontSize: 12, marginTop: 1 },
   cashoutRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  cashoutLabel: { flex: 1, fontSize: 13 },
+  cashoutText: { flex: 1 },
+  cashoutLabel: { fontSize: 13 },
+  cashoutDate: { fontSize: 12, marginTop: 1 },
   cashoutAmt: { fontSize: 14, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
   name: { fontSize: 15, fontWeight: '600' },
