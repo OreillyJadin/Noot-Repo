@@ -59,7 +59,8 @@ try {
   uid = (await auth.getSessionUserId())!;
   console.log(`signed in as student@crimson.ua.edu (${uid})`);
 
-  const { data: tutor, error: tutorError } = await sb
+  // Looked up with the service role: since 0086 a student can only read their own users row.
+  const { data: tutor, error: tutorError } = await cleanup
     .from('users')
     .select('id')
     .eq('email', 'sara@crimson.ua.edu')

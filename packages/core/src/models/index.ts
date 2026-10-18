@@ -112,7 +112,7 @@ export interface TutorSummary {
   lastName: string;
   year: string | null;
   major: string | null;
-  gender: 'f' | 'm' | null;
+  avatarUrl: string | null;
   bio: string;
   subjects: string[];
   hourlyRate: number;
