@@ -199,7 +199,7 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
                 const hit = paidGoals.has(m.threshold);
                 return (
                   <View key={m.threshold} style={styles.goalRow}>
-                    {large ? null : <Ic name={hit ? 'check' : 'target'} size={16} color={hit ? t.good : t.text3} strokeWidth={2} />}
+                    <Ic name={hit ? 'check' : 'target'} size={16} color={hit ? t.good : t.text3} strokeWidth={2} />
                     <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.goalRowText, { color: hit ? t.text : t.text2 }]}>
                       {m.threshold} completed invites
                     </Text>
