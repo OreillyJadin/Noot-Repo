@@ -162,9 +162,9 @@ function AdminAmbassadorsScreen() {
                 <AdminRow
                   key={c.id}
                   icon="wallet"
-                  title={`${dollars(c.amountCents)} · ${c.name}`}
+                  title={c.name}
                   titleLines={2}
-                  subtitle={`Requested ${when(c.createdAt)}${c.payoutReady ? '' : '\nPayout account not ready'}`}
+                  subtitle={`${dollars(c.amountCents)} · requested ${when(c.createdAt)}${c.payoutReady ? '' : '\nPayout account not ready'}`}
                   subtitleLines={0}
                   detail={c.lastError ? <Text style={[styles.detail, { color: WARNING_AMBER }]}>Last try: {c.lastError}</Text> : undefined}
                   trailing={
@@ -191,9 +191,10 @@ function AdminAmbassadorsScreen() {
                 <AdminRow
                   key={`${h.kind}-${h.id}`}
                   icon={h.kind === 'approval' ? 'check' : 'wallet'}
-                  title={h.kind === 'approval' ? `${h.name} approved` : `${dollars(h.amountCents ?? 0)} · ${h.name}`}
+                  title={h.name}
                   titleLines={2}
-                  subtitle={when(h.at)}
+                  subtitle={`${h.kind === 'approval' ? 'Approved' : `${h.status === 'paid' ? 'Paid' : 'Returned'} ${dollars(h.amountCents ?? 0)}`} · ${when(h.at)}`}
+                  subtitleLines={0}
                   trailing={
                     h.kind === 'cashout'
                       ? <StatusDot label={h.status === 'paid' ? 'Paid' : 'Returned'} color={h.status === 'paid' ? t.good : t.text3} />
