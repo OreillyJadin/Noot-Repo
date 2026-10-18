@@ -1,7 +1,7 @@
 // Layout primitives — ported from app/kit.jsx (Screen/NavTop/Body/ActionBar).
 // The prototype used fixed TOP_INSET/BOT_INSET; here we use real safe-area insets.
 import React from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, type ViewStyle } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, useWindowDimensions, type ViewStyle } from 'react-native';
 import { KeyboardAwareScrollView, type KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from './ThemeProvider';
@@ -22,8 +22,11 @@ export interface NavTopProps {
 export function NavTop({ title, onBack, trailing }: NavTopProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
   const large = useLargeText();
   const side = large ? styles.navSideLarge : null;
+  // Wraps at word boundaries once text is enlarged instead of truncating ("Ambassad…").
+  const titleLines = large ? 3 : fontScale > 1 ? 2 : 1;
   return (
     <View style={[styles.navWrap, { paddingTop: insets.top + 4, backgroundColor: t.bg }]}>
       <View style={styles.navRow}>
@@ -35,7 +38,7 @@ export function NavTop({ title, onBack, trailing }: NavTopProps) {
           ) : null}
         </View>
         <Text
-          numberOfLines={large ? 3 : 1}
+          numberOfLines={titleLines}
           maxFontSizeMultiplier={TEXT_CAPS.screenTitle}
           style={[styles.navTitle, { color: t.text }]}
         >

@@ -12,7 +12,7 @@ Both helpers live in `packages/ui/src/textScale.ts` and are exported from `@noot
   Below that the app looks exactly as it does at the default size. At or above it:
   - `AdaptiveRow` (in `Layout.tsx`) stacks its children vertically: button pairs, dashboard stat cards,
     "next session" rows.
-  - `NavTop` lets the title use up to three lines and widens its side controls.
+  - `NavTop` wraps its title to two lines once text is enlarged at all (three at large sizes) instead of truncating it, and widens its side controls at large sizes.
   - `Button` grows taller and tightens its side padding; labels wrap instead of truncating.
   - `RoleSwitcher` shows one role per line; admin headers (`AdminLargeHeader`) stack the trailing
     actions under the title; `AdminRow` titles/subtitles wrap.
