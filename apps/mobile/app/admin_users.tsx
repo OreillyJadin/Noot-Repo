@@ -3,7 +3,7 @@ import { Alert, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Te
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, NO_SHOW_FLAG_AT, TUTOR_CANCEL_FLAG_OVER, type AdminUser, type AdminUserRole, type AdminUserStatus } from '@noot/core';
-import { Avatar, Body, Ic, Screen, Skeleton, TabBar, useTheme } from '@noot/ui';
+import { Avatar, Body, Ic, Screen, Skeleton, TabBar, useLargeText, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
@@ -40,6 +40,7 @@ function initials(name: string): string {
 
 function AdminUsersScreen() {
   const t = useTheme();
+  const largeText = useLargeText();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const bodyRef = useRef<ScrollView>(null);
@@ -134,7 +135,7 @@ function AdminUsersScreen() {
           <TextInput
             value={typed}
             onChangeText={setTyped}
-            placeholder="Search name or email"
+            placeholder={largeText ? 'Search' : 'Search name or email'}
             placeholderTextColor={t.text3}
             autoCapitalize="none"
             autoCorrect={false}
@@ -148,12 +149,14 @@ function AdminUsersScreen() {
             </Pressable>
           ) : null}
         </View>
-        <View style={styles.filterRow}>
+        <View style={[styles.filterRow, largeText && styles.filterRowStacked]}>
           <ScrollView
-            horizontal
+            horizontal={!largeText}
+            scrollEnabled={!largeText}
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.roleFilters}
+            style={largeText ? styles.roleFiltersStacked : undefined}
+            contentContainerStyle={[styles.roleFilters, largeText && styles.roleFiltersWrap]}
           >
             {ROLES.map(([value, label]) => {
               const selected = role === value;
@@ -305,6 +308,10 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, minWidth: 0, fontSize: 14, paddingVertical: 10 },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   roleFilters: { flexDirection: 'row', gap: 4, alignItems: 'center' },
+  // Large text: role chips wrap onto lines and Status drops below, instead of scrolling off-screen.
+  filterRowStacked: { flexDirection: 'column', alignItems: 'flex-start' },
+  roleFiltersStacked: { alignSelf: 'stretch', flexGrow: 0 },
+  roleFiltersWrap: { flexWrap: 'wrap' },
   roleFilter: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 18 },
   roleLabel: { fontSize: 12, fontWeight: '600' },
   statusFilter: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8 },

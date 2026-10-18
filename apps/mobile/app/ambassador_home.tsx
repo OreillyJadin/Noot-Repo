@@ -51,7 +51,7 @@ export default function AmbassadorHome() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Wordmark size={22} />
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, flexShrink: 1 }}>
             <ViewingAs role="ambassador" preview={previewing} />
             <AdminShortcut />
           </View>
@@ -135,7 +135,7 @@ export default function AmbassadorHome() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  headerTop: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   label: { fontSize: 13 },
   summary: { position: 'relative', overflow: 'hidden', borderRadius: 20, padding: 18, marginBottom: 12 },

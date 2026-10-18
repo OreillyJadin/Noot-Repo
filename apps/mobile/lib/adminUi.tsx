@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import type { AdminCalendarEvent } from '@noot/core';
-import { Ic, useTheme, type IconName } from '@noot/ui';
+import { Ic, TEXT_CAPS, useLargeText, useTheme, type IconName } from '@noot/ui';
 import { INTERVIEW_MINUTES } from './interviewBlock';
 import { splitClock } from './monthGrid';
 
@@ -18,10 +18,11 @@ export function AdminLargeHeader({
   trailing?: React.ReactNode;
 }) {
   const t = useTheme();
+  const large = useLargeText();
   return (
-    <View style={styles.header}>
-      <View style={styles.headerText}>
-        <Text style={[styles.headerTitle, { color: t.text, fontFamily: t.headingFont }]}>{title}</Text>
+    <View style={[styles.header, large && styles.headerStacked]}>
+      <View style={[styles.headerText, large && styles.headerTextStacked]}>
+        <Text maxFontSizeMultiplier={TEXT_CAPS.screenTitle} style={[styles.headerTitle, { color: t.text, fontFamily: t.headingFont }]}>{title}</Text>
         {subtitle ? <Text style={[styles.headerSubtitle, { color: t.text3 }]}>{subtitle}</Text> : null}
       </View>
       {trailing}
@@ -104,12 +105,13 @@ export function AdminRow({
   accessibilityLabel?: string;
 }) {
   const t = useTheme();
+  const large = useLargeText();
   const content = (
     <>
       {leading ?? (icon ? <Ic name={icon} size={20} color={muted ? t.text3 : t.text2} strokeWidth={1.7} /> : null)}
       <View style={styles.rowText}>
-        <Text numberOfLines={1} style={[styles.rowTitle, { color: muted ? t.text2 : t.text }, titleStyle]}>{title}</Text>
-        {subtitle ? <Text numberOfLines={subtitleLines || undefined} style={[styles.rowSubtitle, { color: t.text3 }]}>{subtitle}</Text> : null}
+        <Text numberOfLines={large ? undefined : 1} style={[styles.rowTitle, { color: muted ? t.text2 : t.text }, titleStyle]}>{title}</Text>
+        {subtitle ? <Text numberOfLines={large ? undefined : subtitleLines || undefined} style={[styles.rowSubtitle, { color: t.text3 }]}>{subtitle}</Text> : null}
         {detail ? <View style={styles.rowDetail}>{detail}</View> : null}
       </View>
       {count && count > 0 ? <CountPill count={count} /> : null}
@@ -187,6 +189,7 @@ export function CalendarEventRow({
   variant?: 'calendar' | 'hub';
 }) {
   const t = useTheme();
+  const large = useLargeText();
   const muted = eventMuted(event);
   const color = eventColor(event, t);
   const time = new Date(event.startsAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -208,9 +211,9 @@ export function CalendarEventRow({
   return (
     <AdminRow
       leading={
-        <View style={styles.eventLeading}>
-          <View style={styles.eventTimeColumn}>
-            <Text numberOfLines={1} style={[styles.eventTime, { color: variant === 'hub' ? t.text : t.text3 }]}>{clock}</Text>
+        <View style={[styles.eventLeading, large && styles.eventLeadingLarge]}>
+          <View style={[styles.eventTimeColumn, large && styles.eventLeadingLarge]}>
+            <Text numberOfLines={1} style={[styles.eventTime, large && styles.eventLeadingLarge, { color: variant === 'hub' ? t.text : t.text3 }]}>{clock}</Text>
             {meridiem ? <Text numberOfLines={1} style={[styles.eventMeridiem, { color: t.text3 }]}>{meridiem}</Text> : null}
           </View>
           <View style={[styles.eventBar, { backgroundColor: color }]} />
@@ -244,6 +247,9 @@ function radius(value: string): number {
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, paddingHorizontal: 2, paddingTop: 7, paddingBottom: 3 },
   headerText: { flex: 1, minWidth: 0 },
+  // Large text: the trailing control drops below the title instead of squeezing it.
+  headerStacked: { flexDirection: 'column', alignItems: 'stretch' },
+  headerTextStacked: { flex: 0 },
   headerTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -0.5, lineHeight: 35 },
   headerSubtitle: { fontSize: 13, marginTop: 3 },
   section: { gap: 8 },
@@ -267,6 +273,7 @@ const styles = StyleSheet.create({
   eventTimeColumn: { width: 44, flexShrink: 0 },
   eventTime: { width: 44, fontSize: 10.5, fontVariant: ['tabular-nums'] },
   eventMeridiem: { fontSize: 11, lineHeight: 13 },
+  eventLeadingLarge: { width: undefined },
   eventBar: { width: 3, height: 29, borderRadius: 2 },
   eventTrailing: { alignItems: 'flex-end', gap: 3 },
   eventDuration: { fontSize: 10 },

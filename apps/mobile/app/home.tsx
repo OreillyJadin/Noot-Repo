@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Skeleton, ViewingAs, useTheme, type IconName } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Skeleton, ViewingAs, useTheme, AdaptiveRow, type IconName } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -207,7 +207,7 @@ export default function Home() {
               <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>YOUR NEXT SESSION</Text>
               <Badge label={next.course} tone="ink" />
             </View>
-            <View style={styles.nextTutorRow}>
+            <AdaptiveRow style={styles.nextTutorRow}>
               <Avatar size={40} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.nextName, { color: t.onAccent }]}>{next.tutorName}</Text>
@@ -215,9 +215,9 @@ export default function Home() {
                   {next.when} · {next.where}
                 </Text>
               </View>
-            </View>
+            </AdaptiveRow>
             <CountdownPills target={next.at} />
-            <View style={styles.nextActions}>
+            <AdaptiveRow style={styles.nextActions}>
               <Pressable onPress={openChat} style={[styles.nextBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
                 <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />
                 <Text style={[styles.nextBtnLabel, { color: t.onAccent }]}>Message</Text>
@@ -225,7 +225,7 @@ export default function Home() {
               <Pressable onPress={() => router.push('/sessions')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
                 <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Details</Text>
               </Pressable>
-            </View>
+            </AdaptiveRow>
           </View>
         ) : (
           <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
@@ -237,11 +237,11 @@ export default function Home() {
             <Text style={[styles.nextMeta, { color: t.onAccent, marginBottom: 12 }]}>
               Find a verified tutor for your courses and lock in a time.
             </Text>
-            <View style={styles.nextActions}>
+            <AdaptiveRow style={styles.nextActions}>
               <Pressable onPress={() => router.replace('/student_home')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
                 <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Find a tutor</Text>
               </Pressable>
-            </View>
+            </AdaptiveRow>
           </View>
         )}
 
@@ -251,7 +251,7 @@ export default function Home() {
             <View style={[styles.examIcon, { backgroundColor: t.surface }]}>
               <Ic name="cap" size={20} color={t.accent} strokeWidth={1.8} />
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flex: 1, minWidth: 140 }}>
               <Text style={[styles.examTitle, { color: t.text }]}>Studying {nudge}?</Text>
               <Text style={[styles.examSub, { color: t.text2 }]}>Find a tutor who's taken it</Text>
             </View>
@@ -265,7 +265,7 @@ export default function Home() {
         <View style={styles.sectionHead}>
           <H2 style={{ fontSize: 17 }}>Your momentum</H2>
         </View>
-        <View style={styles.statsRow}>
+        <AdaptiveRow style={styles.statsRow}>
           <StatCard
             icon="cap"
             big={stats ? String(stats.sessionsCompleted) : '—'}
@@ -274,7 +274,7 @@ export default function Home() {
           />
           <StatCard icon="target" big={stats ? String(stats.upcomingCount) : '—'} label="Upcoming booked" />
           <StatCard icon="trophy" big={stats ? `${Math.round(stats.hoursLearned)}h` : '—'} label="Hours learned" />
-        </View>
+        </AdaptiveRow>
 
         {/* Continue / popular */}
         <View style={[styles.sectionHead, { marginTop: 10 }]}>
@@ -313,22 +313,22 @@ export default function Home() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  headerTop: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   welcomeLabel: { fontSize: 13 },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  rowBetween: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between' },
 
   nextCard: { position: 'relative', overflow: 'hidden', borderRadius: 20, padding: 16, marginBottom: 4 },
   geckoDeco: { position: 'absolute', right: -10, bottom: -18, width: 100, height: 100, opacity: 0.16, transform: [{ rotate: '10deg' }] },
   nextEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1, opacity: 0.9 },
-  nextTutorRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 12 },
+  nextTutorRow: { alignItems: 'center', gap: 10, marginVertical: 12 },
   nextName: { fontSize: 16, fontWeight: '700' },
   nextMeta: { fontSize: 12.5, opacity: 0.85, marginTop: 1 },
-  nextActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  nextBtn: { flex: 1, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  nextActions: { gap: 8, marginTop: 12 },
+  nextBtn: { flex: 1, minHeight: 40, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   nextBtnLabel: { fontSize: 14, fontWeight: '600' },
 
-  examCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  examCard: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: 14 },
   examIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   examTitle: { fontSize: 14, fontWeight: '700' },
   examSub: { fontSize: 12.5, marginTop: 1 },
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
   examBtnLabel: { fontSize: 12.5, fontWeight: '700' },
 
   sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
-  statsRow: { flexDirection: 'row', gap: 10 },
+  statsRow: { gap: 10 },
   statCard: { flex: 1, padding: 12, borderRadius: 16, borderWidth: 1 },
   statIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   statBig: { fontWeight: '800', fontSize: 20, lineHeight: 22 },

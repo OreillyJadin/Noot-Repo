@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Button, Skeleton, ViewingAs, PreviewBanner, useTheme, type IconName } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Button, Skeleton, ViewingAs, PreviewBanner, useTheme, AdaptiveRow, type IconName } from '@noot/ui';
 import { api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
@@ -171,7 +171,7 @@ export default function TutorHome() {
               <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>YOUR NEXT SESSION</Text>
               <Badge label={next.subject} tone="ink" />
             </View>
-            <View style={styles.nextTutorRow}>
+            <AdaptiveRow style={styles.nextTutorRow}>
               <Avatar size={40} label={studentName.charAt(0) || 'S'} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.nextName, { color: t.onAccent }]}>{studentName}</Text>
@@ -183,9 +183,9 @@ export default function TutorHome() {
                 <Text style={[styles.payout, { color: t.onAccent }]}>${next.tutorPayoutAmount.toFixed(2)}</Text>
                 <Text style={[styles.payoutLabel, { color: t.onAccent }]}>payout</Text>
               </View>
-            </View>
+            </AdaptiveRow>
             <CountdownPills target={target} />
-            <View style={styles.nextActions}>
+            <AdaptiveRow style={styles.nextActions}>
               <Pressable onPress={openChat} style={[styles.nextBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
                 <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />
                 <Text style={[styles.nextBtnLabel, { color: t.onAccent }]}>Message</Text>
@@ -193,7 +193,7 @@ export default function TutorHome() {
               <Pressable onPress={openNextDetail} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
                 <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Details</Text>
               </Pressable>
-            </View>
+            </AdaptiveRow>
           </View>
         ) : (
           <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
@@ -203,11 +203,11 @@ export default function TutorHome() {
             <Text style={[styles.nextMeta, { color: t.onAccent }]}>
               Open your availability so students can book you.
             </Text>
-            <View style={[styles.nextActions, { marginTop: 12 }]}>
+            <AdaptiveRow style={[styles.nextActions, { marginTop: 12 }]}>
               <Pressable onPress={() => router.push('/edit_availability')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
                 <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Set availability</Text>
               </Pressable>
-            </View>
+            </AdaptiveRow>
           </View>
         )}
 
@@ -243,10 +243,10 @@ export default function TutorHome() {
             Earnings →
           </Text>
         </View>
-        <View style={styles.statsRow}>
+        <AdaptiveRow style={styles.statsRow}>
           <StatCard icon="dollar" big={stats ? `$${Math.round(stats.earnedThisWeek)}` : '—'} label="Earned this week" />
           <StatCard icon="cap" big={stats ? String(stats.sessionsTaught) : '—'} label="Sessions taught" />
-        </View>
+        </AdaptiveRow>
 
         {/* Quick actions */}
         <Eyebrow style={{ marginTop: 8 }}>Manage</Eyebrow>
@@ -272,26 +272,26 @@ export default function TutorHome() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-  headerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  headerTop: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   welcomeLabel: { fontSize: 13 },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  rowBetween: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between' },
 
   nextCard: { position: 'relative', overflow: 'hidden', borderRadius: 20, padding: 16, marginBottom: 4 },
   geckoDeco: { position: 'absolute', right: -10, bottom: -18, width: 100, height: 100, opacity: 0.16, transform: [{ rotate: '10deg' }] },
   nextEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1, opacity: 0.9 },
-  nextTutorRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 12 },
+  nextTutorRow: { alignItems: 'center', gap: 10, marginVertical: 12 },
   nextName: { fontSize: 16, fontWeight: '700' },
   nextMeta: { fontSize: 12.5, opacity: 0.85, marginTop: 1 },
   payout: { fontSize: 18, fontWeight: '800' },
   payoutLabel: { fontSize: 10, opacity: 0.8 },
-  nextActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  nextBtn: { flex: 1, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  nextActions: { gap: 8, marginTop: 12 },
+  nextBtn: { flex: 1, minHeight: 40, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   nextBtnLabel: { fontSize: 14, fontWeight: '600' },
 
   sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
   earningsLink: { fontSize: 12.5, fontWeight: '600' },
-  statsRow: { flexDirection: 'row', gap: 10 },
+  statsRow: { gap: 10 },
   statCard: { flex: 1, padding: 12, borderRadius: 16, borderWidth: 1 },
   statIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   statBig: { fontWeight: '800', fontSize: 20, lineHeight: 22 },

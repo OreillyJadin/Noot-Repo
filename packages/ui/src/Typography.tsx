@@ -2,6 +2,7 @@
 import React from 'react';
 import { Text, StyleSheet, type TextStyle } from 'react-native';
 import { useTheme } from './ThemeProvider';
+import { TEXT_CAPS } from './textScale';
 
 interface TypoProps {
   children: React.ReactNode;
@@ -10,11 +11,11 @@ interface TypoProps {
 
 export function H1({ children, style }: TypoProps) {
   const t = useTheme();
-  return <Text style={[styles.h1, { color: t.text }, style]}>{children}</Text>;
+  return <Text maxFontSizeMultiplier={TEXT_CAPS.screenTitle} style={[styles.h1, { color: t.text }, style]}>{children}</Text>;
 }
 export function H2({ children, style }: TypoProps) {
   const t = useTheme();
-  return <Text style={[styles.h2, { color: t.text }, style]}>{children}</Text>;
+  return <Text maxFontSizeMultiplier={TEXT_CAPS.heading} style={[styles.h2, { color: t.text }, style]}>{children}</Text>;
 }
 export function Eyebrow({ children, style }: TypoProps) {
   const t = useTheme();

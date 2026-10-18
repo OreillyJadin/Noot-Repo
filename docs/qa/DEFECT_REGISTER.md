@@ -12,7 +12,6 @@ Related QA docs: [APP_INVENTORY.md](APP_INVENTORY.md) · [TEST_PLAN.md](TEST_PLA
 | TUT-4 | Medium | Pricing | Server accepts $0–9.99 while app `MIN_HOURLY_RATE=10`; 4 prod rows <$10. | Open – needs decision | — | — | `set_tutor_courses` with rate $5 accepted and stored; regression script unclear. |
 | TUT-5 | Low | Availability | Overlapping availability windows accepted. | Open – needs decision | — | — | Insert two overlapping windows for the same day; both stored; regression script unclear. |
 | SEC-006 | Medium | Data exposure | Any authenticated user reads all columns of approved tutors, including email, Stripe customer/Connect IDs, transcript path, and signed name. | Open – needs decision | — | — | `select=*` on `users` and `tutor_profiles` returned all columns; regression script unclear. |
-| IOS-2 | Medium | A11y | Dynamic Type AX-XXXL: titles/tab labels break mid-word; chips clip. | Open – needs design decision | — | — | `ios_05_sessions_ax_xxxl.png` |
 
 ## Open
 
@@ -24,6 +23,7 @@ Related QA docs: [APP_INVENTORY.md](APP_INVENTORY.md) · [TEST_PLAN.md](TEST_PLA
 
 | ID | Severity | Area | Summary | Status | PR | Migration | Evidence/regression test |
 |---|---|---|---|---|---|---|---|
+| IOS-2 | Medium | A11y | Dynamic Type AX-XXXL: titles/tab labels break mid-word; chips clip. | Fixed (open PR); iPhone AX-XXXL retest pending | `fix/dynamic-type-layouts` | — | Android emulator at font scale 2.0 + largest display size, every main screen per role (before/after screenshots in the PR). Caps and approach: [DYNAMIC_TYPE.md](DYNAMIC_TYPE.md). |
 | AMB-01 | High | Ambassador credit | Concurrent invite rewards could skip the 5-invite milestone bonus (`award_milestones` counted without `credit_lock`). | Fixed (open PR) | #78 | 0075 | `scripts/verify_credits.mts` overlap checks (red 79/2 → green 81/0). |
 | AMB-02 | High | Session lifecycle | `complete-session` vs cancel/no-show races could all succeed, leaving an inconsistent terminal state. | Fixed (open PR) | #79 | — | `scripts/verify_session_race.mts` (red 4/4 → green 8/0); exactly one concurrent action should succeed. |
 | AMB-02b | Medium | Cancellation | Completed/no-show sessions could still be cancelled and refunded. | Fixed (open PR) | #79 (overlaps #87) | — | `scripts/verify_session_race.mts`: a later cancel is refused. |
@@ -59,7 +59,6 @@ Related QA docs: [APP_INVENTORY.md](APP_INVENTORY.md) · [TEST_PLAN.md](TEST_PLA
 - TUT-4: server's $0–9.99 acceptance versus the app's $10 minimum.
 - TUT-5: whether overlapping tutor availability windows should be merged or refused.
 - SEC-006: which approved-tutor columns are visible to other authenticated users.
-- IOS-2: Dynamic Type AX-XXXL design cap.
 - No-show ratability after #82.
 - Whether student-cancelled bookings (`cancel_reason` null) appear in history.
 
