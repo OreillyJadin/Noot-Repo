@@ -315,6 +315,11 @@ try {
   blocked(await amb.c.rpc('request_credit_cashout', { p_cents: 2000 }), 'credit earned this week cannot be cashed out yet');
   await svc.from('credit_ledger').update({ created_at: new Date(Date.now() - 8 * 864e5).toISOString() }).eq('user_id', amb.uid);
   check('after 7 days it is cashable', ((await amb.c.rpc('my_cashable_credit')).data as number) === (await balance(amb.c)));
+  blocked(await amb.c.rpc('request_credit_cashout', { p_cents: 2000 }), 'no payout account yet → cash-out refused (0088)');
+  // 0088: the team pays by Stripe transfer, so a payout-ready account is required. Stand in
+  // for connect-status's write-through cache (an ambassador who is not a tutor keeps it on
+  // ambassador_profiles).
+  await svc.from('ambassador_profiles').update({ stripe_connect_account_id: 'acct_verify_credits', stripe_transfers_enabled: true }).eq('user_id', amb.uid);
   const before = await balance(amb.c);
   allowed(await amb.c.rpc('request_credit_cashout', { p_cents: 2000 }), 'ambassador cashes out $20');
   check('balance drops by $20', (await balance(amb.c)) === before - 2000);

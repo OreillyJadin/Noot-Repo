@@ -10,12 +10,17 @@ const emptyCounts: AdminHubCounts = {
   reviews: 0,
   complaints: 0,
   disputes: 0,
+  ambassadorApplications: 0,
+  cashouts: 0,
 };
 
 test('attentionTotal sums actionable queues and excludes interviews', () => {
   assert.equal(
-    attentionTotal({ ...emptyCounts, applications: 2, gradeChecks: 1, reviews: 3, complaints: 4, disputes: 5 }),
-    15,
+    attentionTotal({
+      ...emptyCounts, applications: 2, gradeChecks: 1, reviews: 3, complaints: 4, disputes: 5,
+      ambassadorApplications: 6, cashouts: 7,
+    }),
+    28,
   );
 });
 

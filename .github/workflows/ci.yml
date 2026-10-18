@@ -102,6 +102,7 @@ jobs:
           VERIFY_SCRIPTS: >-
             verify_account_deletion
             verify_admin_chat
+            verify_ambassador_cashouts
             verify_admin_calendar
             verify_admin_user_search
             verify_b2_tutor_chat

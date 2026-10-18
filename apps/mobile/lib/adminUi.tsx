@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, type TextStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions, type TextStyle } from 'react-native';
 import type { AdminCalendarEvent } from '@noot/core';
 import { Ic, useTheme, type IconName } from '@noot/ui';
 import { INTERVIEW_MINUTES } from './interviewBlock';
@@ -74,10 +74,15 @@ function dividerInset(child: React.ReactNode): number {
   return child.props.icon || child.props.leading ? 48 : 14;
 }
 
+// Above this font scale (iOS AX sizes, Android "largest") a trailing action beside the text
+// squeezes the subtitle into mid-word breaks, so the row stacks: text on top, actions below.
+export const STACK_FONT_SCALE = 1.5;
+
 export function AdminRow({
   icon,
   leading,
   title,
+  titleLines = 1,
   subtitle,
   subtitleLines = 1,
   detail,
@@ -92,6 +97,7 @@ export function AdminRow({
   icon?: IconName;
   leading?: React.ReactNode;
   title: string;
+  titleLines?: number;
   titleStyle?: TextStyle;
   subtitle?: string;
   subtitleLines?: number;
@@ -104,17 +110,46 @@ export function AdminRow({
   accessibilityLabel?: string;
 }) {
   const t = useTheme();
-  const content = (
-    <>
-      {leading ?? (icon ? <Ic name={icon} size={20} color={muted ? t.text3 : t.text2} strokeWidth={1.7} /> : null)}
-      <View style={styles.rowText}>
-        <Text numberOfLines={1} style={[styles.rowTitle, { color: muted ? t.text2 : t.text }, titleStyle]}>{title}</Text>
-        {subtitle ? <Text numberOfLines={subtitleLines || undefined} style={[styles.rowSubtitle, { color: t.text3 }]}>{subtitle}</Text> : null}
-        {detail ? <View style={styles.rowDetail}>{detail}</View> : null}
+  const stacked = useWindowDimensions().fontScale >= STACK_FONT_SCALE;
+  const pill = count && count > 0 ? <CountPill count={count} /> : null;
+  const chev = chevron ? <Ic name="chevR" size={17} color={t.text3} strokeWidth={1.8} /> : null;
+  // Stacked: multi-word titles wrap freely; a single word can't wrap, so it shrinks instead
+  // of breaking mid-word ("Ambassad/ors").
+  const oneWord = !/\s/.test(title.trim());
+  const text = (
+    <View style={styles.rowText}>
+      <Text
+        numberOfLines={stacked ? (oneWord ? 1 : undefined) : titleLines || undefined}
+        adjustsFontSizeToFit={stacked && oneWord}
+        minimumFontScale={0.6}
+        style={[styles.rowTitle, { color: muted ? t.text2 : t.text }, titleStyle]}
+      >
+        {title}
+      </Text>
+      {subtitle ? <Text numberOfLines={(stacked ? 0 : subtitleLines) || undefined} style={[styles.rowSubtitle, { color: t.text3 }]}>{subtitle}</Text> : null}
+      {detail ? <View style={styles.rowDetail}>{detail}</View> : null}
+    </View>
+  );
+  const lead = leading ?? (icon ? <Ic name={icon} size={20} color={muted ? t.text3 : t.text2} strokeWidth={1.7} /> : null);
+  const content = stacked && (trailing || pill) ? (
+    <View style={styles.rowStack}>
+      <View style={styles.rowLine}>
+        {lead}
+        {text}
+        {chev}
       </View>
-      {count && count > 0 ? <CountPill count={count} /> : null}
+      <View style={[styles.rowActions, { paddingLeft: lead ? 32 : 0 }]}>
+        {pill}
+        {trailing}
+      </View>
+    </View>
+  ) : (
+    <>
+      {lead}
+      {text}
+      {pill}
       {trailing}
-      {chevron ? <Ic name="chevR" size={17} color={t.text3} strokeWidth={1.8} /> : null}
+      {chev}
     </>
   );
   const style = ({ pressed }: { pressed: boolean }) => [
@@ -136,9 +171,11 @@ export function AdminRow({
 }
 
 export function StatusDot({ label, color }: { label: string; color: string }) {
+  // The dot and its gap grow with the text, so large type doesn't read as "·Paid".
+  const scale = Math.min(useWindowDimensions().fontScale, 2.5);
   return (
-    <View style={styles.status}>
-      <View style={[styles.statusDot, { backgroundColor: color }]} />
+    <View style={[styles.status, { gap: Math.round(5 * scale) }]}>
+      <View style={[styles.statusDot, { backgroundColor: color, width: 6 * scale, height: 6 * scale, borderRadius: 3 * scale }]} />
       <Text style={[styles.statusLabel, { color }]}>{label}</Text>
     </View>
   );
@@ -255,13 +292,16 @@ const styles = StyleSheet.create({
   divider: { height: StyleSheet.hairlineWidth },
   row: { minHeight: 54, paddingVertical: 11, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
   rowText: { flex: 1, minWidth: 0 },
+  rowStack: { flex: 1, minWidth: 0, gap: 8 },
+  rowLine: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   rowTitle: { fontSize: 14.5, fontWeight: '600' },
   rowSubtitle: { fontSize: 12, marginTop: 2 },
   rowDetail: { marginTop: 2 },
   status: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusLabel: { fontSize: 11.5, fontWeight: '600' },
-  countPill: { minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
+  countPill: { minWidth: 22, minHeight: 22, borderRadius: 11, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' },
   countText: { fontSize: 11.5, fontWeight: '700' },
   eventLeading: { width: 58, flexDirection: 'row', alignItems: 'center', gap: 7 },
   eventTimeColumn: { width: 44, flexShrink: 0 },
