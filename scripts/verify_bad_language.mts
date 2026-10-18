@@ -6,6 +6,7 @@
 //
 // Needs: supabase start (0049 applied) + node supabase/seed_demo.mjs
 //   pnpm dlx tsx scripts/verify_bad_language.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { createClient } from '@supabase/supabase-js'
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 
@@ -23,7 +24,7 @@ const RULES = /community rules/i
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false } })
 const as = async (email: string) => {
   const c = createClient(URL, ANON, { auth: { persistSession: false } })
-  const { data, error } = await c.auth.signInWithPassword({ email, password: 'password123' })
+  const { data, error } = await c.auth.signInWithPassword({ email, password: DEV_PASSWORD })
   if (error) throw new Error(`sign-in as ${email} failed: ${error.message}`)
   return { c, id: data.user!.id }
 }
@@ -40,7 +41,7 @@ const flagsFor = async (messageId: string) =>
   (await svc.from('content_reports').select('*').eq('target_message_id', messageId)).data ?? []
 
 initSupabase({ url: URL, anonKey: ANON })
-await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
+await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD)
 const { data: convo } = await svc.from('conversations')
   .upsert({ student_id: student.id, tutor_id: tutor.id }, { onConflict: 'student_id,tutor_id' })
   .select('id').single()
@@ -124,7 +125,7 @@ try {
 
   // ---- the admin queue ----
   await auth.signOut()
-  await auth.signInWithPassword('admin@crimson.ua.edu', 'password123')
+  await auth.signInWithPassword('admin@crimson.ua.edu', DEV_PASSWORD)
   const queue = await api.admin.listReports()
   const mine = queue.find((r) => r.autoFlagged && r.targetMessageId === sworn?.id)
   step(!!mine && mine.reporterId === null && /bullshit/.test(mine.messageContent ?? '') && !!mine.messageSenderName,

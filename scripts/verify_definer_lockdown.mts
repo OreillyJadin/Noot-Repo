@@ -3,6 +3,7 @@
 //
 // Needs: supabase start && node supabase/seed_demo.mjs
 //   pnpm dlx tsx scripts/verify_definer_lockdown.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { createClient } from '@supabase/supabase-js'
 
 const URL = 'http://127.0.0.1:54321'
@@ -83,7 +84,7 @@ const refused = async (client: typeof anon, name: string, args: Record<string, u
 // 2) Signed in as a plain student: trigger fns still refused; the is_* helpers work.
 const studentClient = createClient(URL, ANON, { auth: { persistSession: false } })
 {
-  const { error: signErr } = await studentClient.auth.signInWithPassword({ email: 'student@crimson.ua.edu', password: 'password123' })
+  const { error: signErr } = await studentClient.auth.signInWithPassword({ email: 'student@crimson.ua.edu', password: DEV_PASSWORD })
   let allRefused = !signErr
   const codes: Record<string, string> = {}
   for (const name of triggerFns) {

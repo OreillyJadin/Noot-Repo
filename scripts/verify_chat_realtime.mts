@@ -5,6 +5,7 @@
 // The interesting case is an attachment message: the realtime payload carries the `messages`
 // row only, so the subscriber has to resolve the child rows itself. Run with:
 //   pnpm dlx tsx scripts/verify_chat_realtime.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth, getSupabase, type Message } from '../packages/core/src/index.ts';
 
@@ -29,7 +30,7 @@ const PNG = new Uint8Array([
 
 // Client A = the tutor, watching through @noot/core exactly as the screen does.
 initSupabase({ url: URL, anonKey: ANON });
-const tutorSignIn = await auth.signInWithPassword('sara@crimson.ua.edu', 'password123');
+const tutorSignIn = await auth.signInWithPassword('sara@crimson.ua.edu', DEV_PASSWORD);
 if (!tutorSignIn.ok) throw new Error(tutorSignIn.error);
 const tutorId = (await auth.getSessionUserId())!;
 
@@ -37,7 +38,7 @@ const tutorId = (await auth.getSessionUserId())!;
 const student = createClient(URL, ANON);
 const { data: sAuth, error: sErr } = await student.auth.signInWithPassword({
   email: 'student@crimson.ua.edu',
-  password: 'password123',
+  password: DEV_PASSWORD,
 });
 if (sErr) throw sErr;
 const studentId = sAuth.user!.id;

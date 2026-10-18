@@ -2,7 +2,7 @@
 
 Single source of truth for how **noot** (peer-to-peer campus tutoring) is built across every
 surface. Merges the client architecture with the two-phase infrastructure plan
-(`infrastructure-plan.md`). The UI/UX contract lives in `design_handoff_noot_app/`
+(`docs/archive/infrastructure-plan.md`). The UI/UX contract lives in `design_handoff_noot_app/`
 (`HANDOFF.md` is authoritative for screens, tokens, and behavior).
 
 **Launch target:** University of Alabama, Fall 2026. One account holds both **student** and
@@ -51,7 +51,7 @@ noot/
 │  ├─ functions/             Edge Functions (§5)
 │  └─ seed.sql                dev seed (mirrors booking-data.jsx demo data)
 ├─ design_handoff_noot_app/   design source of truth (do not ship directly)
-├─ infrastructure-plan.md     two-phase infra strategy
+├─ docs/archive/              old handoffs and plans (incl. infrastructure-plan.md)
 └─ ARCHITECTURE.md            this file
 ```
 
@@ -61,7 +61,7 @@ Tooling: pnpm workspaces + Turborepo (or Nx). TypeScript everywhere.
 
 ## 3. Backend — Phase 1 (launch)
 
-Managed services, near-zero ops. Per `infrastructure-plan.md`.
+Managed services, near-zero ops. Per `docs/archive/infrastructure-plan.md`.
 
 | Concern | Service |
 |---|---|
@@ -83,7 +83,7 @@ outgrows functions.
 
 ## 4. Data model (Postgres)
 
-**Authoritative source: `prd-data-models.md`.** This section summarizes it. RLS on every table.
+**Authoritative source: `docs/archive/prd-data-models.md`.** This section summarizes it. RLS on every table.
 
 ### Roles
 
@@ -308,7 +308,7 @@ native modules). Rough effort: ~1–2 wks basic 1:1, ~3–5 wks production-grade
 ## 10. Phase 2 — AWS migration (scale-up, not launch)
 
 Trigger: thousands of active users / transaction volume where managed per-user cost outweighs
-self-hosting ops. Per `infrastructure-plan.md`.
+self-hosting ops. Per `docs/archive/infrastructure-plan.md`.
 
 | Phase 1 | Phase 2 (AWS) | Migration note |
 |---|---|---|
@@ -362,7 +362,7 @@ it in expo-router.
 - [x] Scaffold monorepo (pnpm + Turborepo), `apps/mobile` (Expo), `apps/web` (Next.js).
 - [x] Port `theme.jsx` → `packages/theme`; starter `kit.jsx` → `packages/ui`.
 - [x] Resolve the PRD ↔ handoff conflicts (§4) — see "Resolved decisions".
-- [ ] Finalize schema in `supabase/migrations/0001_init.sql` from §4 / `prd-data-models.md`.
+- [ ] Finalize schema in `supabase/migrations/0001_init.sql` from §4 / `docs/archive/prd-data-models.md`.
 - [ ] Port remaining `kit.jsx` primitives + screens into `packages/ui` / `apps/mobile`.
 - [ ] Stand up Supabase project + `.edu` auth hook + `campuses` allowlist.
 - [ ] Stripe Connect account + the payment/payout Edge Functions (+ referral-bonus function).

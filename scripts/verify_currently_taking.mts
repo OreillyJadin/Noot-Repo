@@ -1,5 +1,6 @@
 // Verify currently-taking course rules and course-specific booking fees against the LOCAL stack.
 // Course writes use a signed-in tutor client; the service role is limited to setup and cleanup.
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 import { authorizeHold, cancelHold, stripeTestMode } from './_stripe_test.mts';
@@ -10,7 +11,7 @@ const ANON =
 const SERVICE =
   process.env.SUPABASE_SERVICE_ROLE_KEY ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'NootTest123!';
+const PASSWORD = DEV_PASSWORD;
 
 let pass = 0;
 let fail = 0;
@@ -239,7 +240,7 @@ try {
   check('verified tutor removes a currently-taking course through RPC', !removedCurrent);
 
   await auth.signOut();
-  const studentSignIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  const studentSignIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   if (!studentSignIn.ok) throw new Error(studentSignIn.error);
   const tutors = await api.tutors.search();
   const feeTutor = tutors.find(
