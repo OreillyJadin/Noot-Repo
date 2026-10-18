@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import { api, type AdminHubCounts } from '@noot/core';
-import { useTheme } from '@noot/ui';
+import { useLargeText, useTheme } from '@noot/ui';
 
 export interface AdminTab {
   key: string;
@@ -54,12 +54,13 @@ export function AdminTabs({ tabs, active }: { tabs: AdminTab[]; active: string }
   const t = useTheme();
   const router = useRouter();
   const pathname = usePathname();
+  const large = useLargeText();
 
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      style={[styles.track, { borderBottomColor: t.border }]}
+      style={[styles.track, large && styles.trackLarge, { borderBottomColor: t.border }]}
       contentContainerStyle={styles.tabs}
     >
       {tabs.map((tab) => {
@@ -93,6 +94,7 @@ export function AdminTabs({ tabs, active }: { tabs: AdminTab[]; active: string }
 
 const styles = StyleSheet.create({
   track: { maxHeight: 43, marginBottom: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  trackLarge: { maxHeight: undefined, flexGrow: 0 },
   tabs: { flexDirection: 'row', alignItems: 'stretch', gap: 20 },
   tab: { minHeight: 42, flexDirection: 'row', alignItems: 'flex-start', gap: 4, paddingHorizontal: 2, paddingTop: 8, position: 'relative' },
   pressed: { opacity: 0.65 },

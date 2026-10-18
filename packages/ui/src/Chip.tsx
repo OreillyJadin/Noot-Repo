@@ -32,6 +32,6 @@ export function Chip({ label, on, tint, onPress }: ChipProps) {
 }
 
 const styles = StyleSheet.create({
-  base: { height: 34, paddingHorizontal: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 13, fontWeight: '600' },
+  base: { minHeight: 34, paddingHorizontal: 14, paddingVertical: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  label: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
 });

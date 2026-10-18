@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   content: { paddingTop: 4, gap: 19, paddingBottom: 22 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 2 },
   iconButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  exitButton: { height: 36, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11 },
+  exitButton: { minHeight: 36, paddingVertical: 6, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11 },
   exitText: { fontSize: 12.5, fontWeight: '600' },
   hero: { flexDirection: 'row', alignItems: 'baseline', gap: 10, minHeight: 52, paddingHorizontal: 2 },
   heroNumber: { fontSize: 46, fontWeight: '700', letterSpacing: -1.5, lineHeight: 50 },

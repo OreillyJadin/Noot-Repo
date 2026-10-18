@@ -3,7 +3,7 @@
 import React, { useRef } from 'react';
 import { View, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Body, TabBar, H1, Sub, useTheme } from '@noot/ui';
+import { Body, TabBar, H1, Sub, useTheme, useLargeText } from '@noot/ui';
 import { useApp } from '../lib/store';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
@@ -15,15 +15,21 @@ export default function AmbassadorReferrals() {
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef });
   const { reloadKey, onRefresh } = usePullToRefresh();
+  // At large text the header would fill most of the screen, so it scrolls with the content.
+  const large = useLargeText();
+  const header = (
+    <View style={[styles.header, large && styles.headerInline]}>
+      <H1 style={{ fontSize: 26 }}>Refer &amp; earn</H1>
+      <Sub style={{ marginTop: 4 }}>$5 in Noot credit for every friend who completes a session, plus bonuses as you hit your goals.</Sub>
+    </View>
+  );
 
   return (
     <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
-      <View style={styles.header}>
-        <H1 style={{ fontSize: 26 }}>Refer &amp; earn</H1>
-        <Sub style={{ marginTop: 4 }}>$5 in Noot credit for every friend who completes a session, plus bonuses as you hit your goals.</Sub>
-      </View>
+      {large ? null : header}
 
       <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 6 }}>
+        {large ? header : null}
         <InviteView reloadKey={reloadKey} />
       </Body>
 
@@ -35,4 +41,5 @@ export default function AmbassadorReferrals() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 6 },
+  headerInline: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 12 },
 });

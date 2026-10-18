@@ -2,19 +2,23 @@
 import React from 'react';
 import { Text, StyleSheet, type TextStyle } from 'react-native';
 import { useTheme } from './ThemeProvider';
+import { TEXT_CAPS, useLargeText } from './textScale';
 
 interface TypoProps {
   children: React.ReactNode;
   style?: TextStyle;
 }
 
+// A fixed lineHeight keeps scaling past the title's font-size cap, so large text drops it.
 export function H1({ children, style }: TypoProps) {
   const t = useTheme();
-  return <Text style={[styles.h1, { color: t.text }, style]}>{children}</Text>;
+  const large = useLargeText();
+  return <Text maxFontSizeMultiplier={TEXT_CAPS.screenTitle} style={[styles.h1, { color: t.text }, style, large && styles.autoLine]}>{children}</Text>;
 }
 export function H2({ children, style }: TypoProps) {
   const t = useTheme();
-  return <Text style={[styles.h2, { color: t.text }, style]}>{children}</Text>;
+  const large = useLargeText();
+  return <Text maxFontSizeMultiplier={TEXT_CAPS.heading} style={[styles.h2, { color: t.text }, style, large && styles.autoLine]}>{children}</Text>;
 }
 export function Eyebrow({ children, style }: TypoProps) {
   const t = useTheme();
@@ -34,6 +38,7 @@ export function Label({ children, style }: TypoProps) {
 }
 
 const styles = StyleSheet.create({
+  autoLine: { lineHeight: undefined },
   h1: { fontSize: 28, lineHeight: 31, fontWeight: '700', letterSpacing: -0.3 },
   h2: { fontSize: 20, lineHeight: 24, fontWeight: '700', letterSpacing: -0.2 },
   eyebrow: { fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },

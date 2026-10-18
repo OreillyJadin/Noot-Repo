@@ -7,7 +7,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Badge, H1, TabBar, EmptyState, Skeleton, useTheme } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Badge, H1, TabBar, EmptyState, Skeleton, useTheme, useLargeText } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import type { Booking, ConversationSummary } from '@noot/core';
 import { useTabNav } from '../lib/useTabNav';
@@ -69,6 +69,7 @@ function TabHeader({ title }: { title: string }) {
 }
 
 export default function Chats() {
+  const large = useLargeText();
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
@@ -186,8 +187,8 @@ export default function Chats() {
                 <Card key={c.id} onPress={() => void open(c)} style={styles.row}>
                   <Avatar size={46} label={name.charAt(0)} />
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <View style={styles.rowHead}>
-                      <Text numberOfLines={1} style={[styles.name, { color: t.text }]}>{name}</Text>
+                    <View style={[styles.rowHead, large && styles.rowHeadStacked]}>
+                      <Text numberOfLines={large ? 2 : 1} style={[styles.name, { color: t.text }]}>{name}</Text>
                       <Text style={[styles.time, { color: t.text3 }]}>
                         {listTime(last?.createdAt ?? c.createdAt)}
                       </Text>
@@ -226,6 +227,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 30 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
   rowHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
+  rowHeadStacked: { flexDirection: 'column', alignItems: 'flex-start', gap: 0 },
   name: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
   time: { fontSize: 12, flexShrink: 0 },
   preview: { fontSize: 13, marginTop: 2 },

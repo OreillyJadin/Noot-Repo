@@ -42,7 +42,7 @@ Evidence references are screenshot basenames only; screenshots are not committed
 | Background-to-foreground keeps the thread | PASS | `ios_03_after_foreground.png` |
 | Cancel/no-show strips show the selected booking time | Initial FAIL (IOS-1); fixed in #89 and retested PASS | `ios_04_cancel_screen_suspect.png`, `ios_07_cancel_fixed.png`, `ios_08_noshow_fixed.png` |
 | No-show refund amount | Initial FAIL (IOS-3); fixed in #89 and retested PASS | `ios_09_noshow_refund_fixed.png` |
-| Dynamic Type AX-XXXL | FAIL (IOS-2 open) | `ios_05_sessions_ax_xxxl.png` |
+| Dynamic Type AX-XXXL | Initial FAIL (IOS-2); layouts redesigned on `fix/dynamic-type-layouts`, Android large-text PASS, iPhone AX-XXXL retest pending | `ios_05_sessions_ax_xxxl.png` |
 | Dark appearance | N/A by design: in-app preference defaults to light and ignores system appearance | `ios_06_sessions_dark.png` |
 
 ## Build, lint, and test status
@@ -95,6 +95,6 @@ Detail for each is in [DEFECT_REGISTER.md](DEFECT_REGISTER.md) and [SECURITY_REV
 | TUT-4 | The app's minimum rate is $10/hr, but the server accepts $0–9.99 (4 prod tutor courses are under $10). Enforce $10 on the server? If yes, those 4 rows need repricing first. | Open |
 | TUT-5 | Tutors can save overlapping availability windows on the same day. | Decided: merge them |
 | SEC-006 | Any signed-in user can read every column of an approved tutor's `users` / `tutor_profiles` row (email, Stripe customer and Connect IDs, transcript path, signed agreement name). Restrict to display fields? | Open |
-| IOS-2 | At the largest accessibility text sizes, titles and tab labels break mid-word. Cap font scaling, or redesign those layouts? | Open |
+| IOS-2 | At the largest accessibility text sizes, titles and tab labels break mid-word. Cap font scaling, or redesign those layouts? | Decided: redesign; cap only fixed-width slots ([DYNAMIC_TYPE.md](DYNAMIC_TYPE.md)) |
 | Ratings | Should no-show sessions be ratable? | Decided: no (current behavior after #82) |
 | History | Should bookings a student cancelled appear in their past sessions? | Decided: yes |

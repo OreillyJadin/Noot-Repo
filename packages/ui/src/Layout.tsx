@@ -1,11 +1,12 @@
 // Layout primitives — ported from app/kit.jsx (Screen/NavTop/Body/ActionBar).
 // The prototype used fixed TOP_INSET/BOT_INSET; here we use real safe-area insets.
 import React from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, type ViewStyle } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, useWindowDimensions, type ViewStyle } from 'react-native';
 import { KeyboardAwareScrollView, type KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from './ThemeProvider';
 import { Ic } from './Icon';
+import { TEXT_CAPS, useLargeText } from './textScale';
 
 export function Screen({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
   const t = useTheme();
@@ -21,20 +22,29 @@ export interface NavTopProps {
 export function NavTop({ title, onBack, trailing }: NavTopProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const large = useLargeText();
+  const side = large ? styles.navSideLarge : null;
+  // Wraps at word boundaries once text is enlarged instead of truncating ("Ambassad…").
+  const titleLines = large ? 3 : fontScale > 1 ? 2 : 1;
   return (
     <View style={[styles.navWrap, { paddingTop: insets.top + 4, backgroundColor: t.bg }]}>
       <View style={styles.navRow}>
-        <View style={styles.navSide}>
+        <View style={[styles.navSide, side]}>
           {onBack ? (
             <Pressable onPress={onBack} hitSlop={8}>
               <Ic name="back" size={24} color={t.accent} strokeWidth={2.4} />
             </Pressable>
           ) : null}
         </View>
-        <Text numberOfLines={1} style={[styles.navTitle, { color: t.text }]}>
+        <Text
+          numberOfLines={titleLines}
+          maxFontSizeMultiplier={TEXT_CAPS.screenTitle}
+          style={[styles.navTitle, { color: t.text }]}
+        >
           {title}
         </Text>
-        <View style={[styles.navSide, { alignItems: 'flex-end' }]}>{trailing}</View>
+        <View style={[styles.navSide, side, { alignItems: 'flex-end' }]}>{trailing}</View>
       </View>
     </View>
   );
@@ -89,6 +99,33 @@ export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
   );
 });
 
+export interface AdaptiveRowProps {
+  children: React.ReactNode;
+  /** The row's own style (gap, margins…). Its flexDirection is overridden when stacked. */
+  style?: ViewStyle | ViewStyle[];
+}
+
+/**
+ * A row that stacks into a column at large text sizes (see useLargeText), for side-by-side
+ * items that can't share the width once their text grows: button pairs, stat cards, a name
+ * next to a price. Default-size layout is exactly the row it replaces.
+ */
+export function AdaptiveRow({ children, style }: AdaptiveRowProps) {
+  const large = useLargeText();
+  if (!large) return <View style={[styles.adaptiveRow, style]}>{children}</View>;
+  // Each child gets its own row so a child's `flex: 1` keeps stretching it across the width
+  // instead of acting vertically (where it would drop the child's natural height).
+  return (
+    <View style={[styles.adaptiveRow, style, styles.adaptiveStacked]}>
+      {React.Children.toArray(children).map((child, i) => (
+        <View key={React.isValidElement(child) && child.key != null ? child.key : i} style={styles.adaptiveCell}>
+          {child}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function ActionBar({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -110,7 +147,11 @@ const styles = StyleSheet.create({
   navWrap: { zIndex: 4 },
   navRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44, paddingHorizontal: 8, gap: 4 },
   navSide: { width: 64, justifyContent: 'center' },
+  navSideLarge: { width: undefined, minWidth: 44, flexShrink: 0 },
   navTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600' },
   bodyScroll: { flex: 1 },
+  adaptiveRow: { flexDirection: 'row' },
+  adaptiveStacked: { flexDirection: 'column', alignItems: 'stretch' },
+  adaptiveCell: { flexDirection: 'row' },
   actionBar: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, flexDirection: 'row', gap: 10, alignItems: 'center' },
 });

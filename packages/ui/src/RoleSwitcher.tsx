@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from './ThemeProvider';
+import { useLargeText } from './textScale';
 
 export type SwitchableRole = 'student' | 'tutor' | 'ambassador';
 export type SwitcherTarget = SwitchableRole | 'admin';
@@ -41,10 +42,11 @@ export function RoleSwitcher({
   onSelect,
 }: RoleSwitcherProps) {
   const t = useTheme();
+  const large = useLargeText();
   const shown = ORDER.filter((r) => roles.includes(r) || previewRoles.includes(r));
   if (shown.length + (showAdmin ? 1 : 0) < 2) return null;
   return (
-    <View style={[styles.switcher, { backgroundColor: t.surface2 }]}>
+    <View style={[styles.switcher, large && styles.switcherWrap, { backgroundColor: t.surface2 }]}>
       {shown.map((r) => {
         const on = r === active;
         const preview = !roles.includes(r);
@@ -55,7 +57,7 @@ export function RoleSwitcher({
             accessibilityRole="button"
             accessibilityState={{ selected: on }}
             accessibilityLabel={preview ? `Preview the ${LABELS[r]} experience` : `View as ${LABELS[r]}`}
-            style={[styles.seg, on && { backgroundColor: t.surface }, on && styles.segOn]}
+            style={[styles.seg, large && styles.segWrap, on && { backgroundColor: t.surface }, on && styles.segOn]}
           >
             <Text
               numberOfLines={1}
@@ -76,7 +78,7 @@ export function RoleSwitcher({
           accessibilityRole="button"
           accessibilityState={{ selected: active === 'admin' }}
           accessibilityLabel={`Open Noot Admin${adminAttention > 0 ? `, ${adminAttention} ${adminAttention === 1 ? 'needs' : 'need'} a look` : ''}`}
-          style={[styles.seg, active === 'admin' && { backgroundColor: t.surface }, active === 'admin' && styles.segOn]}
+          style={[styles.seg, large && styles.segWrap, active === 'admin' && { backgroundColor: t.surface }, active === 'admin' && styles.segOn]}
         >
           <Text
             numberOfLines={1}
@@ -123,14 +125,15 @@ export interface PreviewBannerProps {
  */
 export function PreviewBanner({ role, ctaLabel, onPress }: PreviewBannerProps) {
   const t = useTheme();
+  const large = useLargeText();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={ctaLabel}
-      style={[styles.banner, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}
+      style={[styles.banner, large && styles.bannerStacked, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}
     >
-      <View style={{ flex: 1 }}>
+      <View style={large ? undefined : { flex: 1 }}>
         <Text style={[styles.bannerTitle, { color: t.text }]}>You&apos;re previewing {LABELS[role]} mode</Text>
         <Text style={[styles.bannerSub, { color: t.text2 }]}>
           This is what it looks like. Nothing here is live until you finish setting it up.
@@ -143,15 +146,20 @@ export function PreviewBanner({ role, ctaLabel, onPress }: PreviewBannerProps) {
 
 const styles = StyleSheet.create({
   switcher: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 14 },
+  // Large text: one role per line instead of squeezing every label into one row.
+  switcherWrap: { flexDirection: 'column' },
+  segWrap: { flex: 0 },
   seg: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: 10 },
   previewDot: { width: 5, height: 5, borderRadius: 2.5, opacity: 0.7 },
   attentionBadge: { minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   attentionText: { fontSize: 10, fontWeight: '700' },
   segOn: { shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
   segLabel: { fontSize: 13.5 },
-  pill: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
+  pill: { alignSelf: 'flex-start', flexShrink: 1, maxWidth: '100%', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
   pillText: { fontSize: 11.5, fontWeight: '700' },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: 14, borderWidth: 1 },
+  // Large text: the action drops under the copy instead of squeezing it.
+  bannerStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   bannerTitle: { fontSize: 13.5, fontWeight: '700' },
   bannerSub: { fontSize: 12, lineHeight: 16.5, marginTop: 2 },
   bannerCta: { fontSize: 13, fontWeight: '700' },

@@ -5,6 +5,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from './ThemeProvider';
+import { TEXT_CAPS } from './textScale';
 import { Ic, type IconName } from './Icon';
 import { GeckoMark } from './Gecko';
 
@@ -74,7 +75,15 @@ export function TabBar({ active, onTab, role = 'student' }: TabBarProps) {
             ) : (
               <Ic name={tab.icon} size={23} color={color} strokeWidth={on ? 2.1 : 1.7} />
             )}
-            <Text style={[styles.label, { color, fontWeight: on ? '700' : '500' }]}>{tab.label}</Text>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              maxFontSizeMultiplier={TEXT_CAPS.tabLabel}
+              style={[styles.label, { color, fontWeight: on ? '700' : '500' }]}
+            >
+              {tab.label}
+            </Text>
           </Pressable>
         );
       })}

@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Alert, Pressable, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Screen, Body, Card, Avatar, Badge, Chip, Button, Ic, H1, TabBar, EmptyState, Skeleton, useTheme } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Badge, Chip, Button, AdaptiveRow, Ic, H1, TabBar, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { api } from '@noot/core';
@@ -305,7 +305,7 @@ export default function Sessions() {
                   <View style={{ padding: 14 }}>
                     <View style={styles.upcomingHead}>
                       <Avatar size={46} />
-                      <View style={{ flex: 1 }}>
+                      <View style={{ flex: 1, minWidth: 140 }}>
                         <Text style={[styles.name, { color: t.text }]}>{tutorName}</Text>
                         <Text style={[styles.sub, { color: t.text3 }]}>{b.subject}</Text>
                       </View>
@@ -326,14 +326,14 @@ export default function Sessions() {
                         <Text style={[styles.metaText, { color: t.accent, marginTop: 12, fontWeight: '600' }]}>
                           Waiting for {tutorName} to accept · by {formatSessionTime(b.acceptBy ?? b.scheduledAt)}
                         </Text>
-                        <View style={styles.btnRow}>
+                        <AdaptiveRow style={styles.btnRow}>
                           <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
                           <Button label="Cancel request" kind="tint" size="sm" style={{ flex: 1 }} onPress={() => cancelSession(tutor, b.id, b.scheduledAt)} />
-                        </View>
+                        </AdaptiveRow>
                       </>
                     ) : (
                       <>
-                        <View style={styles.btnRow}>
+                        <AdaptiveRow style={styles.btnRow}>
                           <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
                           <Button
                             label={fromTutor ? 'Review new time' : fromStudent ? 'Request sent' : 'Reschedule'}
@@ -343,7 +343,7 @@ export default function Sessions() {
                             disabled={fromStudent}
                             onPress={() => reschedule(tutor, b)}
                           />
-                        </View>
+                        </AdaptiveRow>
                         <View style={styles.linkRow}>
                           <Text onPress={() => cancelSession(tutor, b.id, b.scheduledAt)} style={[styles.link, { color: t.text3 }]}>Cancel session</Text>
                           <Text style={[styles.link, { color: t.text3 }]}>·</Text>
@@ -410,25 +410,25 @@ export default function Sessions() {
 const styles = StyleSheet.create({
   header: { flexShrink: 0, paddingHorizontal: 20, paddingBottom: 8 },
   headerTitle: { fontSize: 30 },
-  segments: { flexShrink: 0, flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingBottom: 12 },
+  segments: { flexShrink: 0, flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, paddingBottom: 12 },
   count: { fontSize: 13, marginBottom: 2 },
   cardNoPad: { padding: 0, overflow: 'hidden' },
   soonBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 6 },
   soonText: { fontSize: 12, fontWeight: '700' },
-  upcomingHead: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  upcomingHead: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  metaText: { fontSize: 13 },
+  metaText: { flexShrink: 1, fontSize: 13 },
   btnRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
-  linkRow: { flexDirection: 'row', gap: 10, marginTop: 10, justifyContent: 'center' },
+  linkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10, justifyContent: 'center' },
   link: { fontSize: 12, fontWeight: '600' },
   pastHead: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   savedRow: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
-  rowHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  rowHead: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, justifyContent: 'space-between', alignItems: 'baseline' },
   name: { fontSize: 16, fontWeight: '600' },
   nameSm: { fontSize: 15, fontWeight: '600' },
   rate: { fontSize: 15, fontWeight: '700' },
   rateUnit: { fontSize: 11, fontWeight: '500' },
   sub: { fontSize: 13, marginTop: 1 },
-  tagsRow: { flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 8 },
+  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 8 },
   sessions: { marginLeft: 'auto', fontSize: 12 },
 });

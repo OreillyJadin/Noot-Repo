@@ -9,7 +9,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Badge, Ic, H2, Muted, TabBar, Skeleton, EmptyState, useTheme } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Badge, Ic, H2, Muted, TabBar, Skeleton, EmptyState, useTheme, useLargeText, TEXT_CAPS } from '@noot/ui';
 import { api, type CatalogCourse } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -43,10 +43,11 @@ function matchCourse(tutor: Tutor, query: string): string {
 function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => void; course?: string }) {
   const t = useTheme();
   const badgeCourse = course ?? courseFor(tutor);
+  const large = useLargeText();
   return (
     <Card onPress={onPress} style={styles.rowCard}>
       <View style={styles.rowInner}>
-        <Avatar size={46} />
+        {large ? null : <Avatar size={46} />}
         <View style={styles.rowBody}>
           <View style={styles.rowTop}>
             <Text style={[styles.rowName, { color: t.text }]}>{tutor.name}</Text>
@@ -55,7 +56,7 @@ function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => voi
               <Text style={[styles.rowRateUnit, { color: t.text3 }]}>/hr</Text>
             </Text>
           </View>
-          <Text style={[styles.rowMeta, { color: t.text3 }]}>
+          <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.rowMeta, { color: t.text3 }]}>
             {tutor.year} · {tutor.major}
           </Text>
           <View style={styles.rowFoot}>
@@ -71,6 +72,7 @@ function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => voi
 
 export default function StudentHome() {
   const t = useTheme();
+  const largeText = useLargeText();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { patchBooking, role } = useApp();
@@ -140,7 +142,7 @@ export default function StudentHome() {
               style={[styles.searchInput, { color: t.text }]}
               value={query}
               onChangeText={setQuery}
-              placeholder="What class? e.g. MGT 300 or calculus"
+              placeholder={largeText ? 'Search' : 'What class? e.g. MGT 300 or calculus'}
               placeholderTextColor={t.text3}
               autoCorrect={false}
               // Course codes match case-insensitively, and forcing caps made typing a
@@ -304,7 +306,7 @@ const styles = StyleSheet.create({
   suggestionCode: { fontSize: 13.5, fontWeight: '700' },
   suggestionTitle: { flex: 1, fontSize: 12 },
   searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  searchField: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, height: 50, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5 },
+  searchField: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 50, paddingHorizontal: 14, borderRadius: 14, borderWidth: 1.5 },
   searchInput: { flex: 1, fontSize: 15, fontWeight: '500', padding: 0 },
   filterBtn: { width: 50, height: 50, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   welcome: { fontSize: 13 },
@@ -314,7 +316,7 @@ const styles = StyleSheet.create({
   tabItem: { paddingBottom: 10, borderBottomWidth: 2 },
   tabLabel: { fontSize: 15 },
   bodyContent: { paddingTop: 16 },
-  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 20, paddingBottom: 10 },
+  sectionHead: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 20, paddingBottom: 10 },
   resultsHead: { paddingTop: 4 },
   resultsCount: { fontSize: 13 },
   sectionHeadSpaced: { paddingTop: 20 },
@@ -330,11 +332,11 @@ const styles = StyleSheet.create({
   rowCard: { padding: 12 },
   rowInner: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   rowBody: { flex: 1, minWidth: 0 },
-  rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
+  rowTop: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
   rowName: { fontSize: 16, fontWeight: '600' },
   rowRate: { fontSize: 15, fontWeight: '700' },
   rowRateUnit: { fontSize: 11, fontWeight: '500' },
   rowMeta: { fontSize: 13, marginTop: 2 },
-  rowFoot: { flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 8 },
+  rowFoot: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 8 },
   rowSessions: { fontSize: 12, marginLeft: 'auto' },
 });

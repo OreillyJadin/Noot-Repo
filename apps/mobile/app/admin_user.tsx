@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { api, NO_SHOW_FLAG_AT, TUTOR_CANCEL_FLAG_OVER, type AdminUserHistory, type AdminUserHistoryBooking } from '@noot/core';
-import { Avatar, Body, Button, EmptyState, NavTop, Screen, Skeleton, useTheme } from '@noot/ui';
+import { AdaptiveRow, Avatar, Body, Button, EmptyState, NavTop, Screen, Skeleton, useLargeText, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
@@ -32,6 +32,11 @@ function bookingOutcome(booking: AdminUserHistoryBooking): string {
   return booking.status.replaceAll('_', ' ');
 }
 
+// Zero-width spaces let a long address wrap before "@" and "." instead of mid-word.
+function breakableEmail(email: string): string {
+  return email.replace(/[@.]/g, '\u200B$&');
+}
+
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '—';
 }
@@ -53,6 +58,7 @@ function CountSection({ title, rows }: { title: string; rows: [string, number][]
 
 function AdminUserScreen() {
   const t = useTheme();
+  const large = useLargeText();
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string | string[] }>();
   const userId = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -153,11 +159,13 @@ function AdminUserScreen() {
           <EmptyState icon="user" title="No account history" subtitle="This account could not be found." />
         ) : (
           <>
-            <View style={styles.profile}>
+            <View style={[styles.profile, large && styles.profileStacked]}>
               <Avatar size={58} label={initials(name)} />
-              <View style={styles.profileText}>
+              <View style={large ? styles.profileTextStacked : styles.profileText}>
                 <Text style={[styles.name, { color: t.text }]}>{name}</Text>
-                <Text style={[styles.email, { color: t.text2 }]}>{user.email}</Text>
+                <Text accessibilityLabel={user.email} style={[styles.email, { color: t.text2 }]}>
+                  {large ? breakableEmail(user.email) : user.email}
+                </Text>
                 <Text style={[styles.roles, { color: t.text3 }]}>
                   {user.roles.map((role) => role[0]!.toUpperCase() + role.slice(1)).join(' · ')}
                 </Text>
@@ -172,16 +180,14 @@ function AdminUserScreen() {
             </View>
 
             {!isSelf && !deleted ? (
-              <View style={styles.actions}>
-                {user.status === 'active' ? (
-                  <>
-                    <Button label={busy ? 'Working…' : 'Suspend'} kind="secondary" size="sm" style={{ flex: 1 }} disabled={busy} onPress={() => confirmStatus('suspended')} />
-                    <Button label={busy ? 'Working…' : 'Ban'} kind="tint" size="sm" style={{ flex: 1 }} disabled={busy} onPress={() => confirmStatus('banned')} />
-                  </>
-                ) : (
+              <AdaptiveRow style={styles.actions}>
+                {user.status === 'active' ? [
+                  <Button key="suspend" label={busy ? 'Working…' : 'Suspend'} kind="secondary" size="sm" style={{ flex: 1 }} disabled={busy} onPress={() => confirmStatus('suspended')} />,
+                  <Button key="ban" label={busy ? 'Working…' : 'Ban'} kind="tint" size="sm" style={{ flex: 1 }} disabled={busy} onPress={() => confirmStatus('banned')} />,
+                ] : (
                   <Button label={busy ? 'Working…' : 'Reactivate'} kind="primary" size="sm" style={{ flex: 1 }} disabled={busy} onPress={() => confirmStatus('active')} />
                 )}
-              </View>
+              </AdaptiveRow>
             ) : null}
 
             <AdminSection label="Flags">
@@ -268,10 +274,13 @@ const styles = StyleSheet.create({
   loading: { gap: 10 },
   profile: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, backgroundColor: 'transparent' },
   profileText: { flex: 1, minWidth: 0, gap: 3 },
+  // Large text: avatar above the details so the name, email and join date get the full width.
+  profileStacked: { flexDirection: 'column', alignItems: 'flex-start' },
+  profileTextStacked: { alignSelf: 'stretch', gap: 3 },
   name: { fontSize: 19, fontWeight: '700' },
   email: { fontSize: 13 },
   roles: { fontSize: 12, marginTop: 1 },
-  profileStatus: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 5 },
+  profileStatus: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 4, marginTop: 5 },
   joined: { fontSize: 11.5 },
   actions: { flexDirection: 'row', gap: 8 },
   warning: { fontSize: 11, fontWeight: '600' },

@@ -9,7 +9,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, TabBar, Card, Avatar, Ic, Label, useTheme } from '@noot/ui';
+import { Screen, Body, TabBar, Card, Avatar, Ic, Label, useTheme, useLargeText, TEXT_CAPS } from '@noot/ui';
 import { api, type TutorInterview } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
@@ -64,6 +64,7 @@ const WEEK_TABS: [number, string][] = [
 ];
 
 export default function TutorCalendar() {
+  const largeText = useLargeText();
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
@@ -241,8 +242,8 @@ export default function TutorCalendar() {
                   { backgroundColor: on ? t.accent : t.surface, borderColor: on ? t.accent : t.border },
                 ]}
               >
-                <Text style={[styles.dayDow, { color: on ? t.onAccent : t.text3 }]}>{d.dow}</Text>
-                <Text style={[styles.dayDom, { color: on ? t.onAccent : t.text }]}>{d.dom}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={TEXT_CAPS.cell} style={[styles.dayDow, { color: on ? t.onAccent : t.text3 }]}>{d.dow}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={TEXT_CAPS.cell} style={[styles.dayDom, { color: on ? t.onAccent : t.text }]}>{d.dom}</Text>
                 <View style={styles.dayDots}>
                   {booked && (
                     <View style={[styles.dot, { backgroundColor: on ? t.onAccent : t.accent }]} />
@@ -300,10 +301,11 @@ export default function TutorCalendar() {
             const isBlocked = blocked(day, time);
             const isOpen = openSet.has(time) && !isBlocked;
             return (
-              <View key={time} style={styles.slotRow}>
+              <View key={time} style={[styles.slotRow, largeText && styles.slotRowStacked]}>
                 <Text
                   style={[
                     styles.slotTime,
+                    largeText && styles.slotTimeStacked,
                     { color: s ? t.text : isOpen ? t.text2 : t.text3 },
                   ]}
                 >
@@ -400,12 +402,15 @@ const styles = StyleSheet.create({
   dayDom: { fontSize: 16, fontWeight: '700', marginTop: 1 },
   dayDots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, marginTop: 4, height: 6 },
   dot: { width: 5, height: 5, borderRadius: 2.5 },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 4 },
+  summaryRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 4 },
   summaryText: { fontSize: 12.5 },
   summaryStrong: { fontWeight: '700' },
   copyLink: { fontSize: 12.5, fontWeight: '600' },
   slotRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   slotTime: { width: 60, flexShrink: 0, fontSize: 12, fontWeight: '600', textAlign: 'right' },
+  // Large text: the time sits above its slot instead of in a 60pt column.
+  slotRowStacked: { flexDirection: 'column', alignItems: 'stretch', gap: 4 },
+  slotTimeStacked: { width: undefined, textAlign: 'left' },
   sessionCard: { flex: 1, flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 12 },
   sessionTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
   sessionName: { fontSize: 14, fontWeight: '600' },
@@ -419,6 +424,9 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     paddingHorizontal: 14,
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 10,
+    paddingVertical: 6,
     alignItems: 'center',
     justifyContent: 'space-between',
   },

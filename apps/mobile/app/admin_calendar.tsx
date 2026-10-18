@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, type AdminCalendarEvent } from '@noot/core';
-import { Body, EmptyState, Ic, Screen, Skeleton, TabBar, useTheme } from '@noot/ui';
+import { Body, EmptyState, Ic, Screen, Skeleton, TabBar, useTheme, TEXT_CAPS } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
 import { AdminLargeHeader, AdminRow, AdminSection, CalendarEventRow, eventColor, eventMuted } from '../lib/adminUi';
@@ -196,7 +196,7 @@ function AdminCalendarScreen() {
                   style={({ pressed }) => [styles.dayCell, { opacity: pressed ? 0.72 : inMonth ? 1 : 0.45 }]}
                 >
                   <View style={[styles.dayNumber, selected && { backgroundColor: t.text }]}>
-                    <Text style={[styles.dayText, { color: selected ? t.bg : isToday ? t.accent : t.text, fontWeight: selected || isToday ? '700' : '500' }]}>
+                    <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={TEXT_CAPS.cell} style={[styles.dayText, { color: selected ? t.bg : isToday ? t.accent : t.text, fontWeight: selected || isToday ? '700' : '500' }]}>
                       {date.getDate()}
                     </Text>
                   </View>
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   modeSwitch: { flexDirection: 'row', padding: 3, borderRadius: 12 },
   modeButton: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9 },
   modeText: { fontSize: 11.5, fontWeight: '600' },
-  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  monthNav: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   navButton: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   monthTitle: { fontSize: 14, fontWeight: '700' },
   todayButton: { marginLeft: 'auto', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },

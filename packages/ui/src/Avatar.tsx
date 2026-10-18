@@ -4,6 +4,7 @@ import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { useTheme } from './ThemeProvider';
 import { Ic } from './Icon';
+import { TEXT_CAPS } from './textScale';
 
 export interface AvatarProps {
   size?: number;
@@ -31,7 +32,12 @@ export function Avatar({ size = 44, label, accent, uri }: AvatarProps) {
       {uri ? (
         <Image source={{ uri }} style={{ width: size, height: size }} resizeMode="cover" accessibilityLabel="Profile photo" />
       ) : label ? (
-        <Text style={{ color: accent ? t.onAccent : t.text3, fontWeight: '700', fontSize: size * 0.36 }}>{label}</Text>
+        <Text
+          maxFontSizeMultiplier={TEXT_CAPS.cell}
+          style={{ color: accent ? t.onAccent : t.text3, fontWeight: '700', fontSize: size * 0.36 }}
+        >
+          {label}
+        </Text>
       ) : (
         <Ic name="user" size={size * 0.55} color={accent ? t.onAccent : t.text3} strokeWidth={1.6} />
       )}

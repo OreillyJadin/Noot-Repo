@@ -4,6 +4,7 @@ import { Pressable, Text, View, StyleSheet, type ViewStyle } from 'react-native'
 import { useTheme } from './ThemeProvider';
 import { parseRadius } from './_util';
 import { Ic, type IconName } from './Icon';
+import { useLargeText } from './textScale';
 
 export type ButtonKind = 'primary' | 'secondary' | 'tint' | 'ghost' | 'dark';
 export type ButtonSize = 'lg' | 'md' | 'sm';
@@ -41,6 +42,7 @@ export function Button({
     dark: { bg: t.text, fg: t.surface },
   };
   const c = palette[kind];
+  const large = useLargeText();
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
@@ -48,7 +50,9 @@ export function Button({
       style={({ pressed }) => [
         styles.base,
         {
-          height: HEIGHT[size],
+          minHeight: HEIGHT[size],
+          paddingHorizontal: large ? 14 : 20,
+          paddingVertical: large ? 8 : 0,
           borderRadius: parseRadius(t.btnRadius),
           backgroundColor: pressed && kind === 'primary' ? t.accentPress : c.bg,
           borderColor: c.border ?? 'transparent',
@@ -68,7 +72,7 @@ export function Button({
 }
 
 const styles = StyleSheet.create({
-  base: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  label: { fontWeight: '600' },
+  base: { alignItems: 'center', justifyContent: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, maxWidth: '100%' },
+  label: { fontWeight: '600', textAlign: 'center', flexShrink: 1 },
 });

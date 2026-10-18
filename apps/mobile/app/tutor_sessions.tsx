@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Body, TabBar, Button, Badge, Card, Avatar, Ic, H2, EmptyState, Skeleton, useTheme } from '@noot/ui';
+import { Body, TabBar, Button, Badge, Card, Avatar, Ic, H2, EmptyState, Skeleton, AdaptiveRow, useTheme, TEXT_CAPS } from '@noot/ui';
 import { api } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -153,7 +153,12 @@ export default function TutorSessions() {
                 onPress={() => setTab(v)}
                 style={[styles.segmentItem, on && { backgroundColor: t.surface }]}
               >
-                <Text style={[styles.segmentLabel, { color: on ? t.text : t.text3, fontWeight: on ? '700' : '600' }]}>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.6}
+                  maxFontSizeMultiplier={TEXT_CAPS.label}
+                  style={[styles.segmentLabel, { color: on ? t.text : t.text3, fontWeight: on ? '700' : '600' }]}>
                   {v === 'upcoming' ? 'Upcoming' : 'Past'}
                 </Text>
               </Pressable>
@@ -197,7 +202,7 @@ export default function TutorSessions() {
                     </View>
                   </View>
                   {r.status === 'pending' ? (
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                    <AdaptiveRow style={{ gap: 8, marginTop: 12 }}>
                       <Button
                         label={busyId === r.id ? 'Accepting…' : 'Accept'}
                         kind="primary"
@@ -214,7 +219,7 @@ export default function TutorSessions() {
                         disabled={!!busyId}
                         onPress={() => declineRequest(r)}
                       />
-                    </View>
+                    </AdaptiveRow>
                   ) : null}
                 </Card>
               ))}
@@ -291,10 +296,10 @@ const styles = StyleSheet.create({
   segment: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 13, marginTop: 14, marginBottom: 4 },
   segmentItem: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 11 },
   segmentLabel: { fontSize: 14 },
-  rowBetween: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  rowBetween: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, alignItems: 'baseline', justifyContent: 'space-between' },
 
   upcomingRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  name: { fontSize: 16, fontWeight: '600' },
+  name: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
   pay: { fontSize: 15, fontWeight: '700' },
   meta: { fontSize: 13, marginTop: 2 },
   whereRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },

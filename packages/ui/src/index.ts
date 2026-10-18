@@ -11,7 +11,8 @@ export { Badge, type BadgeProps, type BadgeTone } from './Badge';
 export { Avatar, type AvatarProps } from './Avatar';
 export { Toggle, type ToggleProps } from './Toggle';
 export { Divider, ProgressDots, Stepper, type ProgressDotsProps, type StepperProps } from './Misc';
-export { Screen, NavTop, Body, ActionBar, type NavTopProps, type BodyProps } from './Layout';
+export { Screen, NavTop, Body, ActionBar, AdaptiveRow, type NavTopProps, type BodyProps, type AdaptiveRowProps } from './Layout';
+export { useLargeText, LARGE_TEXT_SCALE, TEXT_CAPS } from './textScale';
 export { TabBar, type TabBarProps } from './TabBar';
 export {
   RoleSwitcher,

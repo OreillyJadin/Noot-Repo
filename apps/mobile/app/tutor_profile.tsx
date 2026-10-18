@@ -7,7 +7,7 @@ import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { resetToSignedOut } from '../lib/resetToSignedOut';
-import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, type IconName } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, useLargeText, TEXT_CAPS, type IconName } from '@noot/ui';
 import { api, auth, attentionTotal } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
@@ -45,14 +45,18 @@ function Row({
   control?: React.ReactNode;
 }) {
   const t = useTheme();
+  // The decorative icon gives its width back to the label at large text.
+  const large = useLargeText();
   const content = (
     <View style={[styles.row, !last && { borderBottomWidth: 1, borderBottomColor: t.border }]}>
-      <View style={[styles.rowIcon, { backgroundColor: danger ? t.accentWeak : t.surface2 }]}>
-        <Ic name={icon} size={17} color={danger ? t.accent : t.text2} strokeWidth={1.8} />
-      </View>
+      {large ? null : (
+        <View style={[styles.rowIcon, { backgroundColor: danger ? t.accentWeak : t.surface2 }]}>
+          <Ic name={icon} size={17} color={danger ? t.accent : t.text2} strokeWidth={1.8} />
+        </View>
+      )}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[styles.rowLabel, { color: danger ? t.accent : t.text }]}>{label}</Text>
-        {sub ? <Text style={[styles.rowSub, { color: t.text3 }]}>{sub}</Text> : null}
+        <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.rowLabel, { color: danger ? t.accent : t.text }]}>{label}</Text>
+        {sub ? <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.rowSub, { color: t.text3 }]}>{sub}</Text> : null}
       </View>
       {control}
       {value ? <Text style={[styles.rowValue, { color: t.text3 }]}>{value}</Text> : null}
@@ -66,6 +70,7 @@ function Row({
 }
 
 export default function TutorProfile() {
+  const large = useLargeText();
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
@@ -196,7 +201,7 @@ export default function TutorProfile() {
       <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 10 }}>
         {/* identity card */}
         <Card style={{ padding: 18 }}>
-          <View style={styles.identityRow}>
+          <View style={[styles.identityRow, large && styles.identityStacked]}>
             <View style={{ position: 'relative' }}>
               <Avatar size={64} label={meFirst[0]} uri={avatarUrl} />
               <Pressable
@@ -206,7 +211,7 @@ export default function TutorProfile() {
                 <Ic name="edit" size={11} color={t.onAccent} strokeWidth={2.2} />
               </Pressable>
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={large ? styles.identityTextStacked : { flex: 1, minWidth: 0 }}>
               {loading ? <Skeleton width={160} height={22} /> : <H2 style={styles.name}>{meName}</H2>}
               <Text style={[styles.sub, { color: t.text3 }]}>
                 {meYearMajor}
@@ -224,7 +229,7 @@ export default function TutorProfile() {
             {STATS.map(([n, l], i) => (
               <View key={l} style={[styles.statCell, i > 0 && { borderLeftWidth: 1, borderLeftColor: t.border }]}>
                 <Text style={[styles.statNum, { color: t.text }]}>{n}</Text>
-                <Text style={[styles.statLabel, { color: t.text3 }]}>{l}</Text>
+                <Text maxFontSizeMultiplier={TEXT_CAPS.cell} style={[styles.statLabel, { color: t.text3 }]}>{l}</Text>
               </View>
             ))}
           </View>
@@ -312,14 +317,14 @@ export default function TutorProfile() {
         {/* add ambassador role if not held yet (switching between held roles is the switcher above) */}
         {!roles.includes('ambassador') ? (
           <Card onPress={becomeAmbassador} style={styles.switchCard}>
-            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
+            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }, large && styles.hidden]}>
               <Ic name="gift" size={21} color={t.accent} strokeWidth={1.7} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.switchTitle, { color: t.text }]}>Become an ambassador</Text>
+              <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.switchTitle, { color: t.text }]}>Become an ambassador</Text>
               <Text style={[styles.switchSub, { color: t.text3 }]}>Earn bonuses for invite goals and cash out your Noot credit</Text>
             </View>
-            <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
+            {large ? null : <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />}
           </Card>
         ) : null}
 
@@ -351,6 +356,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 28 },
   gearBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  identityStacked: { flexDirection: 'column', alignItems: 'flex-start' },
+  identityTextStacked: { alignSelf: 'stretch' },
   editBadge: {
     position: 'absolute',
     bottom: -2,
@@ -369,7 +376,7 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: 'row', marginTop: 16, paddingTop: 16, borderTopWidth: 1 },
   statCell: { flex: 1, alignItems: 'center' },
   statNum: { fontSize: 20, fontWeight: '800' },
-  statLabel: { fontSize: 11, marginTop: 1 },
+  statLabel: { fontSize: 11, marginTop: 1, textAlign: 'center' },
   promo: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1 },
   promoIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   promoTitle: { fontSize: 14, fontWeight: '700' },
@@ -382,6 +389,7 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 14 },
   switchCard: { marginTop: 22, flexDirection: 'row', alignItems: 'center', gap: 13, padding: 16 },
   switchIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  hidden: { display: 'none' },
   switchTitle: { fontSize: 15, fontWeight: '700' },
   switchSub: { fontSize: 12, marginTop: 1 },
   footer: { textAlign: 'center', fontSize: 12, marginTop: 18 },
