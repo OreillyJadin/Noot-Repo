@@ -107,6 +107,7 @@ jobs:
             verify_b2_tutor_chat
             verify_backend
             verify_bad_language
+            verify_become_ambassador
             verify_booking
             verify_browse
             verify_campus_gate
