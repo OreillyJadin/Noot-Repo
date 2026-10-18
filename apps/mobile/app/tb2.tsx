@@ -26,13 +26,17 @@ function sessionFacts(booking: BookingDraft, tutor: Tutor, gradesVerified: boole
   const location = booking.location ?? 'Gorgas Library, Fl 2';
   const course = booking.course ?? tutor.courses[0]![0];
   const courseMatch = tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!;
-  const feeRate = feeRateFor(gradesVerified && !courseMatch[4]);
-  const rate = courseMatch[2];
-  // A real booking carries its own price and payout (a $0 admin booking, a rate changed
-  // since it was booked); the course rate is only the preview before one exists.
-  const gross = booking.price ?? rate * lengthHours;
-  const payout = booking.tutorPayoutAmount ?? gross - gross * feeRate;
+  // A real booking carries its own price and payout (a $0 admin booking, a rate or
+  // verification changed since it was booked), so the rate and fee shown are derived from
+  // those amounts. The tutor's current course rate is only the preview before one exists.
+  const booked = booking.price != null;
+  const previewRate = courseMatch[2];
+  const previewFeeRate = feeRateFor(gradesVerified && !courseMatch[4]);
+  const gross = booked ? booking.price! : previewRate * lengthHours;
+  const payout = booking.tutorPayoutAmount ?? gross - gross * previewFeeRate;
   const fee = gross - payout;
+  const feeRate = booked ? (gross > 0 ? fee / gross : 0) : previewFeeRate;
+  const rate = booked ? gross / lengthHours : previewRate;
   const online = location.startsWith('Online');
   return { dayObj, lengthHours, lenLabel, slot, location, course, rate, feeRate, gross, fee, payout, online };
 }
@@ -163,7 +167,7 @@ export default function TB2() {
         <Card style={{ marginTop: 12, padding: 16 }}>
           <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>Earnings preview</Eyebrow>
           <View style={styles.earnRow}>
-            <Text style={{ fontSize: 14, color: t.text2 }}>{f.gross === 0 ? `${f.lenLabel} · admin booking` : `${f.lenLabel} × $${f.rate}/hr`}</Text>
+            <Text style={{ fontSize: 14, color: t.text2 }}>{f.gross === 0 ? `${f.lenLabel} · admin booking` : `${f.lenLabel} × $${f.rate.toFixed(2).replace(/\.00$/, '')}/hr`}</Text>
             <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>${f.gross.toFixed(2)}</Text>
           </View>
           <View style={[styles.earnRow, { marginTop: 10 }]}>
