@@ -121,15 +121,15 @@ export function AdminRow({
     </View>
   );
   const lead = leading ?? (icon ? <Ic name={icon} size={20} color={muted ? t.text3 : t.text2} strokeWidth={1.7} /> : null);
-  const content = stacked && trailing ? (
+  const content = stacked && (trailing || pill) ? (
     <View style={styles.rowStack}>
       <View style={styles.rowLine}>
         {lead}
         {text}
-        {pill}
         {chev}
       </View>
       <View style={[styles.rowActions, { paddingLeft: lead ? 32 : 0 }]}>
+        {pill}
         {trailing}
       </View>
     </View>
