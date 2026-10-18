@@ -6,15 +6,20 @@
 // they've completed a session yet ($5 credit each when they do — 0040).
 // Ambassadors also see their goals (ambassador_milestones) and cash-out, both of which only
 // pay once the team has approved them; credit earned in the last 7 days can't be cashed out.
+// Cash-outs are paid by Stripe transfer (0088), so an ambassador first sets up the same
+// payout account tutors have (lib/payoutSetup), and sees each request's status below.
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Share, Alert, StyleSheet } from 'react-native';
 import { Card, Badge, Avatar, Ic, Eyebrow, Skeleton, EmptyState, useTheme, type IconName } from '@noot/ui';
-import { api, type Invite, type Milestone } from '@noot/core';
+import { api, type Cashout, type Invite, type Milestone } from '@noot/core';
 import { useMe } from './useMe';
 import { SITE_URL } from './legal';
 import { errText } from './errText';
+import { openPayoutSetup } from './payoutSetup';
 
 const CASHOUT_MIN_CENTS = 1000; // request_credit_cashout's minimum
+
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
 export const dollars = (cents: number) => `$${(cents / 100).toFixed(2).replace(/\.00$/, '')}`;
 
@@ -30,6 +35,10 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
   const [paidGoals, setPaidGoals] = useState<Set<number>>(new Set()); // thresholds actually credited
   const [cashingOut, setCashingOut] = useState(false);
   const [bump, setBump] = useState(0);
+  const [payouts, setPayouts] = useState<{ connected: boolean; chargesEnabled: boolean } | null>(null);
+  const [cashouts, setCashouts] = useState<Cashout[]>([]);
+  const [settingUp, setSettingUp] = useState(false);
+  const payoutReady = !!payouts?.chargesEnabled; // transfers active = we can send them money
 
   useEffect(() => {
     let alive = true;
@@ -40,6 +49,8 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
       api.credits.milestones().then((m) => { if (alive) setMilestones(m); }).catch(() => {});
       api.credits.ambassadorApproved().then((a) => { if (alive) setApproved(a); }).catch(() => {});
       api.credits.cashable().then((c) => { if (alive) setCashable(c); }).catch(() => {});
+      api.credits.cashouts().then((l) => { if (alive) setCashouts(l); }).catch(() => {});
+      api.connect.status().then((s) => { if (alive) setPayouts(s); }).catch(() => { if (alive) setPayouts({ connected: false, chargesEnabled: false }); });
       api.credits
         .history()
         .then((h) => {
@@ -65,11 +76,31 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
   const completed = (invites ?? []).filter((i) => i.completed && !i.reversed).length;
   const nextGoal = milestones.find((m) => m.threshold > completed);
 
+  const setUpPayouts = async () => {
+    if (settingUp) return;
+    setSettingUp(true);
+    try {
+      if (await openPayoutSetup()) {
+        const s = await api.connect.status().catch(() => null);
+        if (s) setPayouts(s);
+      }
+    } finally {
+      setSettingUp(false);
+    }
+  };
+
   const cashOut = () => {
     if (cashable < CASHOUT_MIN_CENTS) return;
+    if (!payoutReady) {
+      Alert.alert('Set up your payout account first', 'Tell us where to send the money, then cash out.', [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Set up', onPress: () => { void setUpPayouts(); } },
+      ]);
+      return;
+    }
     Alert.alert(
       `Cash out ${dollars(cashable)}?`,
-      'That much comes off your credit balance and the noot team will be in touch to send you the money.',
+      'That much comes off your credit balance now. The noot team sends it to your payout account by Stripe transfer.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -78,7 +109,7 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
             setCashingOut(true);
             try {
               await api.credits.requestCashout(cashable);
-              Alert.alert('Cash-out requested', 'We’ll be in touch to send it to you.');
+              Alert.alert('Cash-out requested', 'It shows as pending below until the team sends it to your payout account.');
               setBump((n) => n + 1);
             } catch (e) {
               Alert.alert('Could not cash out', errText(e, 'Please try again.'));
@@ -194,9 +225,33 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
               })}
             </View>
           </Card>
+          {approved ? (
+            <Pressable
+              onPress={() => { void setUpPayouts(); }}
+              disabled={settingUp || payouts === null}
+              style={[styles.cashBtn, { borderColor: t.border, backgroundColor: t.surface }]}
+            >
+              <Ic name={payoutReady ? 'check' : 'card'} size={18} color={payoutReady ? t.good : t.accent} strokeWidth={1.8} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.cashTitle, { color: t.text }]}>Payout account</Text>
+                <Text style={[styles.cashSub, { color: t.text3 }]}>
+                  {payouts === null
+                    ? 'Checking…'
+                    : settingUp
+                      ? 'Opening Stripe…'
+                      : payoutReady
+                        ? 'Ready · we send cash-outs here'
+                        : payouts.connected
+                          ? 'Finish setting up with Stripe'
+                          : 'Tell us where to send your money'}
+                </Text>
+              </View>
+              <Ic name="chevR" size={17} color={t.text3} strokeWidth={1.8} />
+            </Pressable>
+          ) : null}
           <Pressable
             onPress={cashOut}
-            disabled={cashingOut || cashable < CASHOUT_MIN_CENTS}
+            disabled={cashingOut || cashable < CASHOUT_MIN_CENTS || (approved === true && payouts === null)}
             style={[styles.cashBtn, { borderColor: t.border, backgroundColor: t.surface }]}
           >
             <Ic name="wallet" size={18} color={t.accent} strokeWidth={1.8} />
@@ -208,11 +263,36 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
                   : !approved
                     ? 'Opens once the team approves you'
                     : cashable >= CASHOUT_MIN_CENTS
-                      ? `${dollars(cashable)} available now`
+                      ? payoutReady
+                        ? `${dollars(cashable)} available now`
+                        : `${dollars(cashable)} available · set up your payout account first`
                       : `Available at ${dollars(CASHOUT_MIN_CENTS)}+ · credit earned this week unlocks after 7 days`}
               </Text>
             </View>
           </Pressable>
+
+          {cashouts.length ? (
+            <>
+              <Eyebrow style={{ color: t.text3, marginTop: 22, marginBottom: 10 }}>Your cash-outs</Eyebrow>
+              <Card style={{ paddingVertical: 4, paddingHorizontal: 16 }}>
+                {cashouts.map((c, i) => {
+                  const label = c.status === 'paid'
+                    ? `Sent to your payout account · ${shortDate(c.paidAt ?? c.createdAt)}`
+                    : c.status === 'rejected'
+                      ? `Returned to your credit · ${shortDate(c.rejectedAt ?? c.createdAt)}`
+                      : `Pending · requested ${shortDate(c.createdAt)}`;
+                  const color = c.status === 'paid' ? t.good : c.status === 'rejected' ? t.text3 : t.accent;
+                  return (
+                    <View key={c.id} style={[styles.cashoutRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border }]}>
+                      <View style={[styles.dot, { backgroundColor: color }]} />
+                      <Text style={[styles.cashoutLabel, { color: t.text2 }]} numberOfLines={1}>{label}</Text>
+                      <Text style={[styles.cashoutAmt, { color: t.text }]}>{dollars(c.amountCents)}</Text>
+                    </View>
+                  );
+                })}
+              </Card>
+            </>
+          ) : null}
         </>
       ) : null}
 
@@ -280,6 +360,10 @@ const styles = StyleSheet.create({
   cashBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: 1, marginTop: 10 },
   cashTitle: { fontSize: 14.5, fontWeight: '700' },
   cashSub: { fontSize: 12, marginTop: 1 },
+  cashoutRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  cashoutLabel: { flex: 1, fontSize: 13 },
+  cashoutAmt: { fontSize: 14, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
   name: { fontSize: 15, fontWeight: '600' },
   sub: { fontSize: 12.5, marginTop: 1 },

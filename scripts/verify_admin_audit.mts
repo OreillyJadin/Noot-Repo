@@ -1,5 +1,5 @@
 // Integration check for the 0060 admin audit log: every admin mutation path — the four
-// admin Edge Functions, the interview RPCs and the direct is_admin() RLS writes — must
+// admin Edge Functions, the interview and ambassador RPCs and the direct is_admin() RLS writes — must
 // leave EXACTLY ONE correct row in public.admin_actions, and nothing else may write one.
 //
 // Needs the local stack plus the edge runtime for the four functions:
@@ -104,6 +104,24 @@ await expectOne('scheduleInterview → interview.schedule', 'user', applicantUid
 await api.admin.cancelInterview(applicantUid);
 await expectOne('cancelInterview → interview.cancel', 'user', applicantUid, 'interview.cancel',
   (d) => typeof d.scheduled_at === 'string');
+
+// ---------- definer RPCs: ambassador program (0088) ----------
+const ambUid = await newUser('amb');
+await svc.from('user_roles').insert({ user_id: ambUid, role: 'ambassador' });
+await svc.from('ambassador_profiles').insert({
+  user_id: ambUid, referral_code: `NOOT-A${Date.now() % 1e6}`, stripe_connect_account_id: 'acct_audit', stripe_transfers_enabled: true,
+});
+check('approveAmbassador → true', await api.admin.approveAmbassador(ambUid));
+await expectOne('approveAmbassador → ambassador.approve', 'user', ambUid, 'ambassador.approve');
+check('approveAmbassador again → false (already approved)', !(await api.admin.approveAmbassador(ambUid)));
+await expectOne('…still exactly one ambassador.approve row', 'user', ambUid, 'ambassador.approve');
+const { data: cashoutRow } = await svc.from('credit_cashouts').insert({ user_id: ambUid, amount_cents: 1000 }).select('id').single();
+await api.admin.rejectCashout(cashoutRow!.id as string);
+await expectOne('rejectCashout → cashout.reject', 'credit_cashout', cashoutRow!.id as string, 'cashout.reject',
+  (d) => d.amount_cents === 1000 && d.user_id === ambUid);
+await svc.from('credit_ledger').delete().eq('cashout_id', cashoutRow!.id as string);
+await svc.from('credit_cashouts').delete().eq('id', cashoutRow!.id as string);
+await svc.auth.admin.deleteUser(ambUid);
 
 // ---------- Edge Function: moderate-review ----------
 const { data: booking } = await svc.from('bookings').insert({

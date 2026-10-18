@@ -28,7 +28,7 @@ export function safetyTabs(counts?: AdminHubCounts): AdminTab[] {
   ];
 }
 
-export function useAdminHubCounts(enabled = true): AdminHubCounts | undefined {
+export function useAdminHubCounts(enabled = true, refreshKey = 0): AdminHubCounts | undefined {
   const [counts, setCounts] = useState<AdminHubCounts>();
 
   useFocusEffect(
@@ -44,7 +44,7 @@ export function useAdminHubCounts(enabled = true): AdminHubCounts | undefined {
         .then((value) => { if (alive) setCounts(value); })
         .catch(() => { if (alive) setCounts(undefined); });
       return () => { alive = false; };
-    }, [enabled]),
+    }, [enabled, refreshKey]),
   );
 
   return enabled ? counts : undefined;

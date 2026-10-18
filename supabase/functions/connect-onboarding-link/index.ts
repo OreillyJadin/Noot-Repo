@@ -1,8 +1,10 @@
 // Edge Function: connect-onboarding-link.
-// The caller (user.id) is a TUTOR. Creates (or reuses) their Stripe Connect Express
+// The caller (user.id) is a TUTOR or an AMBASSADOR. Creates (or reuses) their Stripe Connect Express
 // account and returns a way to onboard it — a hosted link, or a session for the in-app
 // form (see TWO WAYS TO ONBOARD) — so they can enter payout details. The account id is
-// persisted on tutor_profiles.stripe_connect_account_id. When no Stripe key
+// persisted on tutor_profiles.stripe_connect_account_id — or, for an ambassador who is not
+// a tutor, ambassador_profiles.stripe_connect_account_id (0088; see resolvePayoutProfile,
+// which makes someone who is both reuse the tutor row). When no Stripe key
 // is configured (dev), returns { url: null, simulated: true } so nothing crashes.
 //
 // TWO WAYS TO ONBOARD (ERR-018). With no body, or any mode but 'session', it returns the
@@ -42,6 +44,8 @@ import {
   isDeadAccountError,
   StripeApiError,
   type V2Account,
+  payoutFlagsPatch,
+  resolvePayoutProfile,
 } from '../_shared/connect.ts';
 
 const cors = {
@@ -70,6 +74,10 @@ serveWithErrorReporting('connect-onboarding-link', async (req: Request) => {
     const inactiveResponse = await requireActiveUser(db, user.id, cors);
     if (inactiveResponse) return inactiveResponse;
 
+    // Which row holds this person's account (tutor_profiles, or ambassador_profiles for an
+    // ambassador who is not a tutor).
+    const { table } = await resolvePayoutProfile(db, user.id);
+
     // The body is optional: older builds send none.
     const body = await req.json().catch(() => ({}));
     const wantsSession = (body as { mode?: unknown } | null)?.mode === 'session';
@@ -84,7 +92,7 @@ serveWithErrorReporting('connect-onboarding-link', async (req: Request) => {
 
     const readStored = async () => {
       const { data, error } = await db
-        .from('tutor_profiles')
+        .from(table)
         .select('stripe_connect_account_id')
         .eq('user_id', user.id)
         .maybeSingle();
@@ -114,8 +122,11 @@ serveWithErrorReporting('connect-onboarding-link', async (req: Request) => {
         accountId = null;
       }
       if (!accountId) {
-        await db.from('tutor_profiles')
-          .update({ stripe_connect_account_id: null, stripe_charges_enabled: false, stripe_payouts_enabled: false })
+        await db.from(table)
+          .update({
+            stripe_connect_account_id: null,
+            ...payoutFlagsPatch(table, { transfersActive: false, payoutsActive: false, detailsSubmitted: false }),
+          })
           .eq('user_id', user.id)
           .eq('stripe_connect_account_id', deadId);
       }
@@ -186,7 +197,7 @@ serveWithErrorReporting('connect-onboarding-link', async (req: Request) => {
         // `.select()` returns the rows actually updated, so an empty array means a
         // concurrent call already claimed it.
         const { data: claimed, error: claimErr } = await db
-          .from('tutor_profiles')
+          .from(table)
           .update({ stripe_connect_account_id: created.id })
           .eq('user_id', user.id)
           .is('stripe_connect_account_id', null)
@@ -213,10 +224,13 @@ serveWithErrorReporting('connect-onboarding-link', async (req: Request) => {
             if (winner !== created.id) await stripe.accounts.del(created.id).catch(() => {});
             accountId = winner;
           } else {
-            // No row to update — this tutor has no profile yet. Insert one.
-            const { error: insErr } = await db
-              .from('tutor_profiles')
-              .upsert({ user_id: user.id, stripe_connect_account_id: created.id }, { onConflict: 'user_id' });
+            // No row to update — this tutor has no profile yet. Insert one. (An ambassador's
+            // row is created when they get the role; never invent one here.)
+            const { error: insErr } = table === 'tutor_profiles'
+              ? await db
+                .from('tutor_profiles')
+                .upsert({ user_id: user.id, stripe_connect_account_id: created.id }, { onConflict: 'user_id' })
+              : { error: { message: 'no ambassador_profiles row to hold the account' } };
             if (insErr) {
               console.error('connect-onboarding-link: profile insert failed', JSON.stringify(insErr));
               await stripe.accounts.del(created.id).catch(() => {});

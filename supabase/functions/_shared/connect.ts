@@ -187,3 +187,75 @@ export const isDeadAccountError = (e: unknown) =>
   (e.status === 403 ||
     e.status === 404 ||
     ['invalid_fields', 'resource_missing', 'account_invalid'].includes(e.code));
+
+// ---------- which profile row holds a person's payout account ----------
+//
+// Tutors keep their Connect account on tutor_profiles (with the booking gate
+// stripe_charges_enabled = transfers active). An ambassador who is not a tutor keeps the
+// same kind of account on ambassador_profiles (0088). Someone who is both uses the tutor
+// row, so one person never ends up with two accounts.
+
+type PayoutProfileDb = {
+  from(table: string): {
+    select(cols: string): {
+      eq(col: string, v: string): { maybeSingle(): Promise<{ data: Record<string, unknown> | null; error: unknown }> };
+    };
+  };
+};
+
+export type PayoutProfile = {
+  table: 'tutor_profiles' | 'ambassador_profiles';
+  /** True when the row exists (a missing tutor row is upserted by connect-onboarding-link). */
+  exists: boolean;
+  accountId: string | null;
+  transfersEnabled: boolean;
+  payoutsEnabled: boolean;
+};
+
+export async function resolvePayoutProfile(db: PayoutProfileDb, userId: string): Promise<PayoutProfile> {
+  const tutor = await db
+    .from('tutor_profiles')
+    .select('stripe_connect_account_id, stripe_charges_enabled, stripe_payouts_enabled')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (tutor.error) throw new Error(`tutor_profiles read failed: ${JSON.stringify(tutor.error)}`);
+  if (tutor.data) {
+    return {
+      table: 'tutor_profiles',
+      exists: true,
+      accountId: (tutor.data.stripe_connect_account_id as string | null) ?? null,
+      transfersEnabled: !!tutor.data.stripe_charges_enabled,
+      payoutsEnabled: !!tutor.data.stripe_payouts_enabled,
+    };
+  }
+  const amb = await db
+    .from('ambassador_profiles')
+    .select('stripe_connect_account_id, stripe_transfers_enabled, stripe_payouts_enabled')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (amb.error) throw new Error(`ambassador_profiles read failed: ${JSON.stringify(amb.error)}`);
+  if (amb.data) {
+    return {
+      table: 'ambassador_profiles',
+      exists: true,
+      accountId: (amb.data.stripe_connect_account_id as string | null) ?? null,
+      transfersEnabled: !!amb.data.stripe_transfers_enabled,
+      payoutsEnabled: !!amb.data.stripe_payouts_enabled,
+    };
+  }
+  // Neither row: the legacy path (a tutor whose profile row is created on first onboarding).
+  return { table: 'tutor_profiles', exists: false, accountId: null, transfersEnabled: false, payoutsEnabled: false };
+}
+
+/** Column patch caching a live Stripe status on whichever profile row holds the account. */
+export function payoutFlagsPatch(
+  table: PayoutProfile['table'],
+  flags: { transfersActive: boolean; payoutsActive: boolean; detailsSubmitted: boolean },
+): Record<string, unknown> {
+  const transfersCol = table === 'tutor_profiles' ? 'stripe_charges_enabled' : 'stripe_transfers_enabled';
+  return {
+    [transfersCol]: flags.transfersActive,
+    stripe_payouts_enabled: flags.payoutsActive,
+    stripe_onboarded_at: flags.detailsSubmitted ? new Date().toISOString() : null,
+  };
+}

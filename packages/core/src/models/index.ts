@@ -376,3 +376,50 @@ export interface PushToken {
   platform: 'ios' | 'android';
   createdAt: Timestamp;
 }
+
+// ---------- ambassador cash-outs (0040 / 0088) ----------
+export type CashoutStatus = 'pending' | 'paid' | 'rejected';
+
+/** One of the caller's own cash-out requests (credit_cashouts, RLS: own rows). */
+export interface Cashout {
+  id: string;
+  amountCents: number;
+  status: CashoutStatus;
+  createdAt: string;
+  paidAt: string | null;
+  rejectedAt: string | null;
+}
+
+/** An ambassador the team hasn't approved yet (admin_ambassador_queue). */
+export interface AdminAmbassadorApplicant {
+  userId: string;
+  name: string;
+  email: string;
+  invites: number;
+  completedInvites: number;
+  balanceCents: number;
+  payoutReady: boolean;
+  appliedAt: string;
+}
+
+/** A cash-out as the admin sees it (admin_list_cashouts). */
+export interface AdminCashout extends Cashout {
+  userId: string | null;
+  name: string;
+  email: string;
+  payingAt: string | null;
+  stripeTransferId: string | null;
+  lastError: string | null;
+  payoutReady: boolean;
+}
+
+/** A recent approval or settled cash-out (admin_ambassador_history). */
+export interface AdminAmbassadorEvent {
+  kind: 'approval' | 'cashout';
+  id: string;
+  userId: string | null;
+  name: string;
+  amountCents: number | null;
+  status: 'approved' | 'paid' | 'rejected';
+  at: string;
+}

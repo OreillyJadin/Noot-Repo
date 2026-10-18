@@ -41,6 +41,10 @@ import type {
   TutorSummary,
   TutoringLocation,
   User,
+  Cashout,
+  AdminAmbassadorApplicant,
+  AdminCashout,
+  AdminAmbassadorEvent,
 } from '../models';
 
 /** Someone the caller invited (my_invites, 0040). */
@@ -752,6 +756,16 @@ export interface SubmitRatingInput {
 // ---------------------------------------------------------------------------
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped Supabase row, like the mappers above */
+function mapCashout(row: Record<string, unknown>): Cashout {
+  return {
+    id: row.id as string,
+    amountCents: Number(row.amount_cents ?? 0),
+    status: row.status as Cashout['status'],
+    createdAt: row.created_at as string,
+    paidAt: (row.paid_at as string | null) ?? null,
+    rejectedAt: (row.rejected_at as string | null) ?? null,
+  };
+}
 function mapAmbassadorProfile(row: any): AmbassadorProfile {
   return {
     id: row.id,
@@ -1502,6 +1516,17 @@ export const api = {
       const { error } = await getSupabase().rpc('request_credit_cashout', { p_cents: cents });
       if (error) throw error;
     },
+
+    /** The caller's own cash-out requests, newest first (RLS: own rows only). */
+    async cashouts(): Promise<Cashout[]> {
+      const { data, error } = await getSupabase()
+        .from('credit_cashouts')
+        .select('id, amount_cents, status, created_at, paid_at, rejected_at')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map(mapCashout);
+    },
   },
 
   // --- admin (RLS is_admin() already permits these reads; writes go through Edge Functions) ---
@@ -1518,6 +1543,7 @@ export const api = {
         reviews,
         disputes,
         reports,
+        ambassadors,
       ] = await Promise.all([
         sb
           .from('tutor_profiles')
@@ -1552,6 +1578,7 @@ export const api = {
           .select('*', { count: 'exact', head: true })
           .eq('dispute_status', 'flagged'),
         api.admin.listReports(),
+        api.admin.ambassadorCounts(),
       ]);
       if (applications.error) throw applications.error;
       if (gradeChecks.error) throw gradeChecks.error;
@@ -1567,7 +1594,81 @@ export const api = {
         reviews: reviews.count ?? 0,
         complaints: reports.length,
         disputes: disputes.count ?? 0,
+        ambassadorApplications: ambassadors.applications,
+        cashouts: ambassadors.cashouts,
       };
+    },
+
+    // ---------- ambassador program (0088) ----------
+    /** Ambassadors waiting for approval and cash-outs waiting to be paid, for the hub pill. */
+    async ambassadorCounts(): Promise<{ applications: number; cashouts: number }> {
+      const { data, error } = await getSupabase().rpc('admin_ambassador_counts');
+      if (error) throw error;
+      const row = ((data ?? []) as Record<string, unknown>[])[0];
+      return { applications: Number(row?.applications ?? 0), cashouts: Number(row?.cashouts ?? 0) };
+    },
+
+    async listAmbassadorApplicants(): Promise<AdminAmbassadorApplicant[]> {
+      const { data, error } = await getSupabase().rpc('admin_ambassador_queue');
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+        userId: r.user_id as string,
+        name: (r.name as string) || 'Ambassador',
+        email: (r.email as string) ?? '',
+        invites: Number(r.invites ?? 0),
+        completedInvites: Number(r.completed_invites ?? 0),
+        balanceCents: Number(r.balance_cents ?? 0),
+        payoutReady: Boolean(r.payout_ready),
+        appliedAt: r.applied_at as string,
+      }));
+    },
+
+    /** Approve an ambassador (definer RPC: one admin_actions row). True if this call did it. */
+    async approveAmbassador(userId: string): Promise<boolean> {
+      const { data, error } = await getSupabase().rpc('admin_approve_ambassador', { p_user: userId });
+      if (error) throw error;
+      return Boolean(data);
+    },
+
+    async listCashouts(statuses: Cashout['status'][] | null = ['pending'], limit = 50): Promise<AdminCashout[]> {
+      const { data, error } = await getSupabase().rpc('admin_list_cashouts', { p_statuses: statuses, p_limit: limit });
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+        ...mapCashout(r),
+        userId: (r.user_id as string | null) ?? null,
+        name: (r.name as string) || 'Ambassador',
+        email: (r.email as string) ?? '',
+        payingAt: (r.paying_at as string | null) ?? null,
+        stripeTransferId: (r.stripe_transfer_id as string | null) ?? null,
+        lastError: (r.last_error as string | null) ?? null,
+        payoutReady: Boolean(r.payout_ready),
+      }));
+    },
+
+    /** Pay a pending cash-out by Stripe transfer (admin-pay-cashout Edge Function). */
+    async payCashout(cashoutId: string): Promise<{ transferId: string }> {
+      const res = await invokeFn<{ ok: boolean; transferId: string }>('admin-pay-cashout', { cashoutId });
+      return { transferId: res.transferId };
+    },
+
+    /** Reject a pending cash-out; the credit goes back on the ambassador's balance. */
+    async rejectCashout(cashoutId: string): Promise<void> {
+      const { error } = await getSupabase().rpc('admin_reject_cashout', { p_cashout: cashoutId });
+      if (error) throw error;
+    },
+
+    async ambassadorHistory(limit = 30): Promise<AdminAmbassadorEvent[]> {
+      const { data, error } = await getSupabase().rpc('admin_ambassador_history', { p_limit: limit });
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+        kind: r.kind as AdminAmbassadorEvent['kind'],
+        id: r.id as string,
+        userId: (r.user_id as string | null) ?? null,
+        name: (r.name as string) || 'Ambassador',
+        amountCents: r.amount_cents == null ? null : Number(r.amount_cents),
+        status: r.status as AdminAmbassadorEvent['status'],
+        at: r.at as string,
+      }));
     },
 
     /**
