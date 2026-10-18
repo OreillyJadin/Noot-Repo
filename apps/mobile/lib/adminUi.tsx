@@ -110,12 +110,13 @@ export function AdminRow({
     <>
       {leading ?? (icon ? <Ic name={icon} size={20} color={muted ? t.text3 : t.text2} strokeWidth={1.7} /> : null)}
       <View style={styles.rowText}>
-        <Text numberOfLines={large ? undefined : 1} style={[styles.rowTitle, { color: muted ? t.text2 : t.text }, titleStyle]}>{title}</Text>
+        <Text numberOfLines={large ? undefined : 1} maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.rowTitle, { color: muted ? t.text2 : t.text }, titleStyle]}>{title}</Text>
         {subtitle ? <Text numberOfLines={large ? undefined : subtitleLines || undefined} style={[styles.rowSubtitle, { color: t.text3 }]}>{subtitle}</Text> : null}
         {detail ? <View style={styles.rowDetail}>{detail}</View> : null}
+        {large && trailing ? <View style={styles.rowTrailingBelow}>{trailing}</View> : null}
       </View>
       {count && count > 0 ? <CountPill count={count} /> : null}
-      {trailing}
+      {large ? null : trailing}
       {chevron ? <Ic name="chevR" size={17} color={t.text3} strokeWidth={1.8} /> : null}
     </>
   );
@@ -264,6 +265,8 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 14.5, fontWeight: '600' },
   rowSubtitle: { fontSize: 12, marginTop: 2 },
   rowDetail: { marginTop: 2 },
+  // Large text: trailing content sits under the title so the text column keeps its width.
+  rowTrailingBelow: { flexDirection: 'row', marginTop: 4 },
   status: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusLabel: { fontSize: 11.5, fontWeight: '600' },

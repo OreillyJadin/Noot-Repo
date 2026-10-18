@@ -7,8 +7,8 @@
 // Ambassadors also see their goals (ambassador_milestones) and cash-out, both of which only
 // pay once the team has approved them; credit earned in the last 7 days can't be cashed out.
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, Share, Alert, StyleSheet } from 'react-native';
-import { Card, Badge, Avatar, Ic, Eyebrow, Skeleton, EmptyState, useTheme, type IconName } from '@noot/ui';
+import { View, Text, Pressable, Share, Alert, StyleSheet, useWindowDimensions } from 'react-native';
+import { Card, Badge, Avatar, Ic, Eyebrow, Skeleton, EmptyState, useTheme, useLargeText, TEXT_CAPS, type IconName } from '@noot/ui';
 import { api, type Invite, type Milestone } from '@noot/core';
 import { useMe } from './useMe';
 import { SITE_URL } from './legal';
@@ -20,6 +20,9 @@ export const dollars = (cents: number) => `$${(cents / 100).toFixed(2).replace(/
 
 export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
   const t = useTheme();
+  const large = useLargeText();
+  const { fontScale } = useWindowDimensions();
+  const [codeWidth, setCodeWidth] = useState(0);
   const { isAmbassador } = useMe();
   const [code, setCode] = useState<string | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
@@ -115,7 +118,19 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
             adjustsFontSizeToFit
             minimumFontScale={0.5}
             accessibilityLabel={`Your invite code, ${code.split('').join(' ')}`}
-            style={[styles.code, { color: t.accent }]}
+            // At the largest sizes Android's shrink-to-fit can draw nothing, so size it from the measured width.
+            allowFontScaling={!large}
+            onLayout={large ? (e) => setCodeWidth(e.nativeEvent.layout.width) : undefined}
+            style={[
+              styles.code,
+              { color: t.accent },
+              large && {
+                fontSize: Math.min(
+                  30 * Math.min(fontScale, TEXT_CAPS.label),
+                  codeWidth ? codeWidth / (code.length * 0.72) : 30,
+                ),
+              },
+            ]}
           >
             {code}
           </Text>
@@ -233,25 +248,32 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
         />
       ) : (
         <View style={{ gap: 10 }}>
-          {invites.map((i) => (
-            <Card key={i.referralId} style={styles.row}>
-              <Avatar size={42} label={i.name.charAt(0) || 'A'} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
-                <Text style={[styles.sub, { color: t.text3 }]}>
-                  {i.reversed
-                    ? 'Their session was refunded'
-                    : i.completed
-                      ? 'Completed a session'
-                      : 'Joined — your $5 comes after their first session'}
-                </Text>
-              </View>
+          {invites.map((i) => {
+            const badge = (
               <Badge
                 label={i.reversed ? 'Refunded' : i.completed ? `+${dollars(i.rewardCents)}` : 'Joined'}
                 tone={i.completed && !i.reversed ? 'good' : 'neutral'}
               />
-            </Card>
-          ))}
+            );
+            // At large text the badge drops under the name so the text column keeps its width.
+            return (
+              <Card key={i.referralId} style={styles.row}>
+                <Avatar size={42} label={i.name.charAt(0) || 'A'} />
+                <View style={{ flex: 1, minWidth: 0, gap: large ? 6 : 0 }}>
+                  <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
+                  <Text style={[styles.sub, { color: t.text3 }]}>
+                    {i.reversed
+                      ? 'Their session was refunded'
+                      : i.completed
+                        ? 'Completed a session'
+                        : 'Joined — your $5 comes after their first session'}
+                  </Text>
+                  {large ? <View style={{ flexDirection: 'row' }}>{badge}</View> : null}
+                </View>
+                {large ? null : badge}
+              </Card>
+            );
+          })}
         </View>
       )}
     </View>
@@ -264,8 +286,8 @@ const styles = StyleSheet.create({
   balanceValue: { fontSize: 40, fontWeight: '800', marginTop: 4 },
   balanceSub: { fontSize: 12.5, opacity: 0.9, marginTop: 2 },
   code: { fontSize: 30, fontWeight: '700', letterSpacing: 1, marginTop: 8, alignSelf: 'stretch', textAlign: 'center' },
-  shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16, height: 48, borderRadius: 14, alignSelf: 'stretch' },
-  shareLabel: { fontSize: 15, fontWeight: '700' },
+  shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16, minHeight: 48, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 14, alignSelf: 'stretch' },
+  shareLabel: { fontSize: 15, fontWeight: '700', flexShrink: 1, textAlign: 'center' },
   how: { marginTop: 12, padding: 16 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
   stepIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },

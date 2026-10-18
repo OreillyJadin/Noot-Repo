@@ -18,6 +18,8 @@ export const TEXT_CAPS = {
   screenTitle: 1.6,
   /** Section headings (H2). */
   heading: 2,
+  /** Row and segment labels that are often one long word ("Notifications", "Applications", "Upcoming"). */
+  label: 1.8,
   /** Labels inside fixed-width cells, e.g. the seven-day strip on the tutor calendar. */
   cell: 1.4,
 } as const;

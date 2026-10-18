@@ -125,14 +125,15 @@ export interface PreviewBannerProps {
  */
 export function PreviewBanner({ role, ctaLabel, onPress }: PreviewBannerProps) {
   const t = useTheme();
+  const large = useLargeText();
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={ctaLabel}
-      style={[styles.banner, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}
+      style={[styles.banner, large && styles.bannerStacked, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}
     >
-      <View style={{ flex: 1 }}>
+      <View style={large ? undefined : { flex: 1 }}>
         <Text style={[styles.bannerTitle, { color: t.text }]}>You&apos;re previewing {LABELS[role]} mode</Text>
         <Text style={[styles.bannerSub, { color: t.text2 }]}>
           This is what it looks like. Nothing here is live until you finish setting it up.
@@ -157,6 +158,8 @@ const styles = StyleSheet.create({
   pill: { alignSelf: 'flex-start', flexShrink: 1, maxWidth: '100%', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
   pillText: { fontSize: 11.5, fontWeight: '700' },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: 14, borderWidth: 1 },
+  // Large text: the action drops under the copy instead of squeezing it.
+  bannerStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   bannerTitle: { fontSize: 13.5, fontWeight: '700' },
   bannerSub: { fontSize: 12, lineHeight: 16.5, marginTop: 2 },
   bannerCta: { fontSize: 13, fontWeight: '700' },

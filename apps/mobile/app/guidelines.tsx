@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Button, Ic, useTheme } from '@noot/ui';
+import { Button, Ic, useTheme, TEXT_CAPS } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
@@ -69,7 +69,7 @@ export default function CommunityGuidelines() {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.h1, { color: t.text }]}>Community Guidelines</Text>
+        <Text maxFontSizeMultiplier={TEXT_CAPS.screenTitle} style={[styles.h1, { color: t.text }]}>Community Guidelines</Text>
         <Text style={[styles.sub, { color: t.text2 }]}>
           The promises every noot student makes. Read them, then agree to finish signing up.
         </Text>

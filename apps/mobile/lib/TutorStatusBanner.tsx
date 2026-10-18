@@ -13,7 +13,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, Linking, StyleSheet } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { Ic, useTheme, type IconName } from '@noot/ui';
+import { Ic, useTheme, useLargeText, type IconName } from '@noot/ui';
 import { api, type TutorInterview } from '@noot/core';
 import type { TutorStatus } from './useMe';
 import { interviewLabel } from './interviewSlots';
@@ -57,6 +57,7 @@ export function TutorStatusBanner({
   onApply: () => void;
 }) {
   const t = useTheme();
+  const large = useLargeText();
   const [interview, setInterview] = useState<TutorInterview | null>(null);
   // Re-read whenever the screen comes back into view: tab roots stay mounted, and the tutor
   // usually arrives here straight from the notification that the time was set or changed.
@@ -90,11 +91,14 @@ export function TutorStatusBanner({
   const link = /https?:\/\/\S+/.exec(where)?.[0];
 
   const body = (
-    <View style={styles.row}>
-      <View style={[styles.icon, { backgroundColor: t.accent }]}>
-        <Ic name={copy.icon} size={17} color={t.onAccent} strokeWidth={1.9} />
-      </View>
-      <View style={{ flex: 1 }}>
+    // Large text: no icon and the action drops under the copy, so the text keeps the full width.
+    <View style={[styles.row, large && styles.rowStacked]}>
+      {large ? null : (
+        <View style={[styles.icon, { backgroundColor: t.accent }]}>
+          <Ic name={copy.icon} size={17} color={t.onAccent} strokeWidth={1.9} />
+        </View>
+      )}
+      <View style={large ? undefined : { flex: 1 }}>
         <Text style={[styles.title, { color: t.text }]}>{copy.title}</Text>
         <Text style={[styles.body, { color: t.text2 }]}>{copy.body}</Text>
         {where ? (
@@ -128,6 +132,7 @@ export function TutorStatusBanner({
 const styles = StyleSheet.create({
   wrap: { padding: 13, borderRadius: 14, borderWidth: 1 },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+  rowStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   icon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 13.5, fontWeight: '700' },
   body: { fontSize: 12, lineHeight: 16.8, marginTop: 3 },

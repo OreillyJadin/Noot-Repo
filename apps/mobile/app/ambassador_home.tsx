@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, EmptyState, ViewingAs, PreviewBanner, useTheme } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, EmptyState, ViewingAs, PreviewBanner, useTheme, useLargeText } from '@noot/ui';
 import { api, type Invite, type Milestone } from '@noot/core';
 import { dollars } from '../lib/InviteView';
 import { useApp } from '../lib/store';
@@ -16,6 +16,7 @@ import { GeckoLogo } from '../lib/GeckoLogo';
 import { AdminShortcut } from '../lib/AdminShortcut';
 
 export default function AmbassadorHome() {
+  const large = useLargeText();
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
@@ -46,26 +47,32 @@ export default function AmbassadorHome() {
   const completed = invites.filter((i) => i.completed && !i.reversed).length;
   const nextGoal = milestones.find((m) => m.threshold > completed);
 
-  return (
-    <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Wordmark size={22} />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, flexShrink: 1 }}>
-            <ViewingAs role="ambassador" preview={previewing} />
-            <AdminShortcut />
-          </View>
-        </View>
-        <View style={styles.welcomeRow}>
-          <View>
-            <Text style={[styles.label, { color: t.text3 }]}>Ambassador</Text>
-            <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>
-          </View>
-          <GeckoLogo size={40} />
+  // At large text the header scrolls with the content instead of pinning half the screen.
+  const header = (
+    <View style={[styles.header, large && styles.headerInline]}>
+      <View style={styles.headerTop}>
+        <Wordmark size={22} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, flexShrink: 1 }}>
+          <ViewingAs role="ambassador" preview={previewing} />
+          <AdminShortcut />
         </View>
       </View>
+      <View style={styles.welcomeRow}>
+        <View>
+          <Text style={[styles.label, { color: t.text3 }]}>Ambassador</Text>
+          <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>
+        </View>
+        <GeckoLogo size={40} />
+      </View>
+    </View>
+  );
+
+  return (
+    <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
+      {large ? null : header}
 
       <Body ref={scrollRef} onRefresh={onRefresh} contentStyle={{ paddingTop: 8 }}>
+        {large ? header : null}
         {/* earnings summary */}
         <View style={[styles.summary, { backgroundColor: t.accent }]}>
           <GeckoLogo style={styles.geckoDeco} />
@@ -108,21 +115,27 @@ export default function AmbassadorHome() {
           />
         ) : (
           <View style={{ gap: 10 }}>
-            {invites.map((i) => (
-              <Card key={i.referralId} style={styles.row}>
-                <Avatar size={42} label={i.name.charAt(0) || 'A'} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
-                  <Text style={[styles.roleSub, { color: t.text3 }]}>
-                    {i.reversed ? 'Session refunded' : i.completed ? 'Completed a session' : 'Waiting for their first session'}
-                  </Text>
-                </View>
+            {invites.map((i) => {
+              const badge = (
                 <Badge
                   label={i.reversed ? 'Refunded' : i.completed ? `+${dollars(i.rewardCents)}` : 'Joined'}
                   tone={i.completed && !i.reversed ? 'good' : 'neutral'}
                 />
-              </Card>
-            ))}
+              );
+              return (
+                <Card key={i.referralId} style={styles.row}>
+                  <Avatar size={42} label={i.name.charAt(0) || 'A'} />
+                  <View style={{ flex: 1, minWidth: 0, gap: large ? 6 : 0 }}>
+                    <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
+                    <Text style={[styles.roleSub, { color: t.text3 }]}>
+                      {i.reversed ? 'Session refunded' : i.completed ? 'Completed a session' : 'Waiting for their first session'}
+                    </Text>
+                    {large ? <View style={{ flexDirection: 'row' }}>{badge}</View> : null}
+                  </View>
+                  {large ? null : badge}
+                </Card>
+              );
+            })}
           </View>
         )}
       </Body>
@@ -135,6 +148,7 @@ export default function AmbassadorHome() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
+  headerInline: { paddingHorizontal: 0, paddingTop: 0 },
   headerTop: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   label: { fontSize: 13 },

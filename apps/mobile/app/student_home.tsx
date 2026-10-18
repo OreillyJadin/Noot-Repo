@@ -9,7 +9,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Badge, Ic, H2, Muted, TabBar, Skeleton, EmptyState, useTheme, useLargeText } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Badge, Ic, H2, Muted, TabBar, Skeleton, EmptyState, useTheme, useLargeText, TEXT_CAPS } from '@noot/ui';
 import { api, type CatalogCourse } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -43,10 +43,11 @@ function matchCourse(tutor: Tutor, query: string): string {
 function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => void; course?: string }) {
   const t = useTheme();
   const badgeCourse = course ?? courseFor(tutor);
+  const large = useLargeText();
   return (
     <Card onPress={onPress} style={styles.rowCard}>
       <View style={styles.rowInner}>
-        <Avatar size={46} />
+        {large ? null : <Avatar size={46} />}
         <View style={styles.rowBody}>
           <View style={styles.rowTop}>
             <Text style={[styles.rowName, { color: t.text }]}>{tutor.name}</Text>
@@ -55,7 +56,7 @@ function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => voi
               <Text style={[styles.rowRateUnit, { color: t.text3 }]}>/hr</Text>
             </Text>
           </View>
-          <Text style={[styles.rowMeta, { color: t.text3 }]}>
+          <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.rowMeta, { color: t.text3 }]}>
             {tutor.year} · {tutor.major}
           </Text>
           <View style={styles.rowFoot}>
@@ -315,7 +316,7 @@ const styles = StyleSheet.create({
   tabItem: { paddingBottom: 10, borderBottomWidth: 2 },
   tabLabel: { fontSize: 15 },
   bodyContent: { paddingTop: 16 },
-  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 20, paddingBottom: 10 },
+  sectionHead: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, justifyContent: 'space-between', alignItems: 'baseline', paddingHorizontal: 20, paddingBottom: 10 },
   resultsHead: { paddingTop: 4 },
   resultsCount: { fontSize: 13 },
   sectionHeadSpaced: { paddingTop: 20 },

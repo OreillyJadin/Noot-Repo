@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Skeleton, ViewingAs, useTheme, AdaptiveRow, type IconName } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Skeleton, ViewingAs, useTheme, useLargeText, AdaptiveRow, TEXT_CAPS, type IconName } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -78,9 +78,10 @@ function TutorRow({
   onPress: () => void;
 }) {
   const t = useTheme();
+  const large = useLargeText();
   return (
     <Card onPress={onPress} style={styles.tutorRow}>
-      <Avatar size={46} />
+      {large ? null : <Avatar size={46} />}
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={styles.rowBetween}>
           <Text style={[styles.tutorName, { color: t.text }]}>{name}</Text>
@@ -89,7 +90,7 @@ function TutorRow({
             <Text style={{ fontSize: 11, color: t.text3, fontWeight: '500' }}>/hr</Text>
           </Text>
         </View>
-        <Text style={[styles.tutorMeta, { color: t.text3 }]}>{meta}</Text>
+        <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.tutorMeta, { color: t.text3 }]}>{meta}</Text>
         <View style={styles.tutorBadges}>
           {course ? <Badge label={course} tone="accentSoft" /> : null}
           <VerifiedBadge verified={verified} />
@@ -101,6 +102,7 @@ function TutorRow({
 }
 
 export default function Home() {
+  const large = useLargeText();
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
@@ -174,31 +176,37 @@ export default function Home() {
   // Search results for that course (an exact course query lists only its tutors).
   const findForCourse = (course: string) => router.push({ pathname: '/b1', params: { q: course } });
 
+  // At large text the header scrolls with the content instead of pinning half the screen.
+  const header = (
+    <View style={[styles.header, large && styles.headerInline]}>
+      <View style={styles.headerTop}>
+        <Wordmark size={22} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <AdminShortcut />
+          <NotificationBell />
+        </View>
+      </View>
+      <View style={styles.welcomeRow}>
+        <View>
+          <Text style={[styles.welcomeLabel, { color: t.text3 }]}>Welcome back</Text>
+          {loading ? <Skeleton width={150} height={26} /> : <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>}
+        </View>
+        <GeckoLogo size={40} />
+      </View>
+      {multiRole ? (
+        <View style={{ marginTop: 10 }}>
+          <ViewingAs role="student" />
+        </View>
+      ) : null}
+    </View>
+  );
+
   return (
     <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Wordmark size={22} />
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <AdminShortcut />
-            <NotificationBell />
-          </View>
-        </View>
-        <View style={styles.welcomeRow}>
-          <View>
-            <Text style={[styles.welcomeLabel, { color: t.text3 }]}>Welcome back</Text>
-            {loading ? <Skeleton width={150} height={26} /> : <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>}
-          </View>
-          <GeckoLogo size={40} />
-        </View>
-        {multiRole ? (
-          <View style={{ marginTop: 10 }}>
-            <ViewingAs role="student" />
-          </View>
-        ) : null}
-      </View>
+      {large ? null : header}
 
       <Body ref={scrollRef} onRefresh={onRefresh} contentStyle={{ paddingTop: 8 }}>
+        {large ? header : null}
         {/* Next session countdown — real upcoming booking, or a CTA when there's none */}
         {next ? (
           <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
@@ -313,6 +321,7 @@ export default function Home() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
+  headerInline: { paddingHorizontal: 0, paddingTop: 0 },
   headerTop: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   welcomeLabel: { fontSize: 13 },
@@ -335,7 +344,7 @@ const styles = StyleSheet.create({
   examBtn: { height: 36, paddingHorizontal: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   examBtnLabel: { fontSize: 12.5, fontWeight: '700' },
 
-  sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
+  sectionHead: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
   statsRow: { gap: 10 },
   statCard: { flex: 1, padding: 12, borderRadius: 16, borderWidth: 1 },
   statIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
@@ -353,6 +362,6 @@ const styles = StyleSheet.create({
   tutorName: { fontSize: 16, fontWeight: '600' },
   tutorRate: { fontSize: 15, fontWeight: '700' },
   tutorMeta: { fontSize: 13, marginTop: 2 },
-  tutorBadges: { flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 8 },
+  tutorBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 8 },
   tutorSessions: { fontSize: 12, marginLeft: 'auto' },
 });

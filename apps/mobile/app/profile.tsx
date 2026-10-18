@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, TEXT_CAPS, type IconName } from '@noot/ui';
+import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, useLargeText, TEXT_CAPS, type IconName } from '@noot/ui';
 import { api, auth, attentionTotal } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
@@ -43,14 +43,18 @@ function Row({
   control?: React.ReactNode;
 }) {
   const t = useTheme();
+  // The decorative icon gives its width back to the label at large text.
+  const large = useLargeText();
   const content = (
     <View style={[styles.row, !last && { borderBottomWidth: 1, borderBottomColor: t.border }]}>
-      <View style={[styles.rowIcon, { backgroundColor: danger ? t.accentWeak : t.surface2 }]}>
-        <Ic name={icon} size={17} color={danger ? t.accent : t.text2} strokeWidth={1.8} />
-      </View>
+      {large ? null : (
+        <View style={[styles.rowIcon, { backgroundColor: danger ? t.accentWeak : t.surface2 }]}>
+          <Ic name={icon} size={17} color={danger ? t.accent : t.text2} strokeWidth={1.8} />
+        </View>
+      )}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[styles.rowLabel, { color: danger ? t.accent : t.text }]}>{label}</Text>
-        {sub ? <Text style={[styles.rowSub, { color: t.text3 }]}>{sub}</Text> : null}
+        <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.rowLabel, { color: danger ? t.accent : t.text }]}>{label}</Text>
+        {sub ? <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.rowSub, { color: t.text3 }]}>{sub}</Text> : null}
       </View>
       {control}
       {value ? <Text style={[styles.rowValue, { color: t.text3 }]}>{value}</Text> : null}
@@ -64,6 +68,7 @@ function Row({
 }
 
 export default function Profile() {
+  const large = useLargeText();
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
@@ -202,7 +207,7 @@ export default function Profile() {
       <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 10 }}>
         {/* identity card */}
         <Card style={{ padding: 18 }}>
-          <View style={styles.identityRow}>
+          <View style={[styles.identityRow, large && styles.identityStacked]}>
             <View style={{ position: 'relative' }}>
               <Avatar size={64} label={displayFirst[0]} uri={avatarUrl} />
               <Pressable
@@ -294,7 +299,7 @@ export default function Profile() {
             onPress={() => (tutorStatus === 'pending' ? undefined : router.push('/t1'))}
             style={styles.switchCard}
           >
-            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
+            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }, large && styles.hidden]}>
               <Ic name="cap" size={21} color={t.accent} strokeWidth={1.7} />
             </View>
             <View style={{ flex: 1 }}>
@@ -322,7 +327,7 @@ export default function Profile() {
         ) : null}
         {!isAmbassador ? (
           <Card onPress={becomeAmbassador} style={styles.switchCard}>
-            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }]}>
+            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }, large && styles.hidden]}>
               <Ic name="gift" size={21} color={t.accent} strokeWidth={1.7} />
             </View>
             <View style={{ flex: 1 }}>
@@ -361,6 +366,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 28 },
   gearBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  identityStacked: { flexDirection: 'column', alignItems: 'flex-start' },
   editBadge: {
     position: 'absolute',
     bottom: -2,
@@ -392,6 +398,7 @@ const styles = StyleSheet.create({
   rowValue: { fontSize: 14 },
   switchCard: { marginTop: 22, flexDirection: 'row', alignItems: 'center', gap: 13, padding: 16 },
   switchIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  hidden: { display: 'none' },
   switchTitle: { fontSize: 15, fontWeight: '700' },
   switchSub: { fontSize: 12, marginTop: 1 },
   footer: { textAlign: 'center', fontSize: 12, marginTop: 18 },

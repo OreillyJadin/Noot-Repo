@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Button, Skeleton, ViewingAs, PreviewBanner, useTheme, useLargeText, AdaptiveRow, type IconName } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Button, Skeleton, ViewingAs, PreviewBanner, useTheme, useLargeText, AdaptiveRow, TEXT_CAPS, type IconName } from '@noot/ui';
 import { api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
@@ -134,34 +134,40 @@ export default function TutorHome() {
   const openEarnings = () =>
     Alert.alert('Earnings', stats ? `You've earned $${stats.earnedThisWeek.toFixed(2)} this week.` : 'Loading…');
 
+  // At large text the header scrolls with the content instead of pinning half the screen.
+  const header = (
+    <View style={[styles.header, large && styles.headerInline]}>
+      <View style={styles.headerTop}>
+        <Wordmark size={22} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {/* Verified = grades checked by an admin (T6), not merely approved. */}
+          {tutorStatus === 'approved' && gradesVerified ? <Badge label="✓ Verified" tone="good" /> : null}
+          {tutorStatus === 'pending' ? <Badge label="In review" tone="accentSoft" /> : null}
+          <AdminShortcut />
+          <NotificationBell />
+        </View>
+      </View>
+      <View style={styles.welcomeRow}>
+        <View>
+          <Text style={[styles.welcomeLabel, { color: t.text3 }]}>Tutor dashboard</Text>
+          {loading ? <Skeleton width={150} height={26} /> : <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>}
+        </View>
+        <GeckoLogo size={40} />
+      </View>
+      {multiRole || previewing ? (
+        <View style={{ marginTop: 10 }}>
+          <ViewingAs role="tutor" preview={previewing} />
+        </View>
+      ) : null}
+    </View>
+  );
+
   return (
     <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Wordmark size={22} />
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            {/* Verified = grades checked by an admin (T6), not merely approved. */}
-            {tutorStatus === 'approved' && gradesVerified ? <Badge label="✓ Verified" tone="good" /> : null}
-            {tutorStatus === 'pending' ? <Badge label="In review" tone="accentSoft" /> : null}
-            <AdminShortcut />
-            <NotificationBell />
-          </View>
-        </View>
-        <View style={styles.welcomeRow}>
-          <View>
-            <Text style={[styles.welcomeLabel, { color: t.text3 }]}>Tutor dashboard</Text>
-            {loading ? <Skeleton width={150} height={26} /> : <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>}
-          </View>
-          <GeckoLogo size={40} />
-        </View>
-        {multiRole || previewing ? (
-          <View style={{ marginTop: 10 }}>
-            <ViewingAs role="tutor" preview={previewing} />
-          </View>
-        ) : null}
-      </View>
+      {large ? null : header}
 
       <Body ref={scrollRef} onRefresh={onRefresh} contentStyle={{ paddingTop: 8 }}>
+        {large ? header : null}
         {previewing ? <TutorStatusBanner status={tutorStatus} onApply={() => router.push('/t1')} /> : null}
 
         {/* Next session + payout — real upcoming booking, or a CTA when there's none */}
@@ -227,10 +233,10 @@ export default function TutorHome() {
                   <Text style={{ color: t.accent, fontSize: 13, marginTop: 4 }}>
                     New request · respond by {formatSessionTime(request.acceptBy ?? request.scheduledAt)}
                   </Text>
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                  <AdaptiveRow style={{ gap: 8, marginTop: 12 }}>
                     <Button label={busyRequest === request.id ? 'Accepting…' : 'Accept'} kind="primary" size="sm" style={{ flex: 1 }} disabled={!!busyRequest} onPress={() => void acceptRequest(request)} />
                     <Button label="Decline" kind="secondary" size="sm" style={{ flex: 1 }} disabled={!!busyRequest} onPress={() => declineRequest(request)} />
-                  </View>
+                  </AdaptiveRow>
                 </Card>
               );
             })}
@@ -257,7 +263,7 @@ export default function TutorHome() {
               <View style={[styles.actionIcon, { backgroundColor: t.accentWeak }]}>
                 <Ic name={icon} size={17} color={t.accent} strokeWidth={1.8} />
               </View>
-              <Text style={[styles.actionLabel, { color: t.text }]}>{label}</Text>
+              <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.actionLabel, { color: t.text }]}>{label}</Text>
               <Ic name="chevR" size={17} color={t.text3} strokeWidth={2} />
             </Card>
           ))}
@@ -273,6 +279,7 @@ export default function TutorHome() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
+  headerInline: { paddingHorizontal: 0, paddingTop: 0 },
   headerTop: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
   welcomeLabel: { fontSize: 13 },
@@ -290,7 +297,7 @@ const styles = StyleSheet.create({
   nextBtn: { flex: 1, minHeight: 40, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
   nextBtnLabel: { fontSize: 14, fontWeight: '600' },
 
-  sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
+  sectionHead: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
   earningsLink: { fontSize: 12.5, fontWeight: '600' },
   statsRow: { gap: 10 },
   statCard: { flex: 1, padding: 12, borderRadius: 16, borderWidth: 1 },
