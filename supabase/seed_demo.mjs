@@ -133,7 +133,7 @@ async function ensureUser(email) {
       terms_accepted_at: new Date().toISOString(),
       terms_version: '2026-09-17',
       guidelines_accepted_at: new Date().toISOString(),
-      guidelines_version: '2026-10-13',
+      guidelines_version: '2026-10-17',
     })
     .eq('id', data.user.id);
   if (stamp.error) throw new Error(`password_set_at ${email}: ${stamp.error.message}`);

@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
+import { GUIDELINES_VERSION } from '../apps/mobile/lib/guidelines.ts';
 
 const URL = 'http://127.0.0.1:54321';
 const SERVICE =
@@ -35,7 +36,7 @@ const makeUser = async (email: string, first: string, last: string) => {
     id, email, first_name: first, last_name: last,
     password_set_at: new Date().toISOString(),
     terms_accepted_at: new Date().toISOString(), terms_version: '2026-09-17',
-    guidelines_accepted_at: new Date().toISOString(), guidelines_version: '2026-10-13',
+    guidelines_accepted_at: new Date().toISOString(), guidelines_version: GUIDELINES_VERSION,
   }, { onConflict: 'id' });
   return id;
 };
