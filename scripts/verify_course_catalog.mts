@@ -1,6 +1,7 @@
 // Throwaway integration check for the catalog-backed pickers: drives api.courses against the
 // live local stack, including the search patterns the UI actually issues.
 //   pnpm dlx tsx scripts/verify_course_catalog.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -22,7 +23,7 @@ initSupabase({ url: URL, anonKey: ANON });
 const anonHits = await api.courses.search('MATH', 5);
 check('anon can search the catalog', anonHits.length > 0, `${anonHits.length} hits`);
 
-const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+const signIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
 if (!signIn.ok) throw new Error(signIn.error);
 
 // The three ways a student might look for the same class.

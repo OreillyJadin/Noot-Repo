@@ -2,6 +2,7 @@
 // @noot/core chat API as two different admins plus a non-admin, so it covers both that the
 // group thread works and that it's actually closed to everyone else. Run with:
 //   pnpm dlx tsx scripts/verify_admin_chat.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth, getSupabase, type Message } from '../packages/core/src/index.ts';
 
@@ -26,7 +27,7 @@ const PNG = new Uint8Array([
 ]);
 
 async function signIn(email: string) {
-  const r = await auth.signInWithPassword(email, 'password123');
+  const r = await auth.signInWithPassword(email, DEV_PASSWORD);
   if (!r.ok) throw new Error(`${email}: ${r.error}`);
   return (await auth.getSessionUserId())!;
 }
@@ -128,7 +129,7 @@ await new Promise((r) => setTimeout(r, 2500)); // let the channel JOIN settle
 const bClient = createClient(URL, ANON);
 const { error: bErr } = await bClient.auth.signInWithPassword({
   email: 'admin2@crimson.ua.edu',
-  password: 'password123',
+  password: DEV_PASSWORD,
 });
 if (bErr) throw bErr;
 const livePath = `${room.id}/${Date.now()}-live.png`;

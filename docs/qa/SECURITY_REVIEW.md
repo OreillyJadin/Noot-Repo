@@ -49,7 +49,7 @@ Verbatim from Workstream D:
 
 ## 6. Verify-script baseline
 
-57/62 verify scripts failed in baseline; 5 passed. The failures were environmental, primarily because the strict password rule rejects `seed_demo.mjs` accounts using `password123` (`Invalid login credentials`, `AuthWeakPasswordError`, or seeded users not found). `verify_password_rule` passed 16/16 as expected. `verify_booking_cloud` was blocked by missing `apps/mobile/.env`; `verify_payments_webhook` was blocked by missing `whsec_test_` secrets. Full list: `baseline.md`.
+57/62 verify scripts failed in baseline; 5 passed. The failures were environmental, primarily because the strict password rule rejects `seed_demo.mjs` accounts using `password123` (`Invalid login credentials`, `AuthWeakPasswordError`, or seeded users not found). Fixed since by ERR-014: the seeds and verify scripts use `DEV_PASSWORD` from `scripts/_devPassword.mjs`, which meets the rule, and CI no longer relaxes it. `verify_password_rule` passed 16/16 as expected. `verify_booking_cloud` was blocked by missing `apps/mobile/.env`; `verify_payments_webhook` was blocked by missing `whsec_test_` secrets. Full list: `baseline.md`.
 
 ## 7. Merge notes
 
