@@ -210,7 +210,7 @@ export default function TutorProfile() {
                 <Ic name="edit" size={11} color={t.onAccent} strokeWidth={2.2} />
               </Pressable>
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={large ? styles.identityTextStacked : { flex: 1, minWidth: 0 }}>
               {loading ? <Skeleton width={160} height={22} /> : <H2 style={styles.name}>{meName}</H2>}
               <Text style={[styles.sub, { color: t.text3 }]}>
                 {meYearMajor}
@@ -356,6 +356,7 @@ const styles = StyleSheet.create({
   gearBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   identityStacked: { flexDirection: 'column', alignItems: 'flex-start' },
+  identityTextStacked: { alignSelf: 'stretch' },
   editBadge: {
     position: 'absolute',
     bottom: -2,
