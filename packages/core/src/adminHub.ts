@@ -6,8 +6,13 @@ export interface AdminHubCounts {
   reviews: number;
   complaints: number;
   disputes: number;
+  ambassadorApplications: number;
+  cashouts: number;
 }
 
 export function attentionTotal(counts: AdminHubCounts): number {
-  return counts.applications + counts.gradeChecks + counts.reviews + counts.complaints + counts.disputes;
+  return (
+    counts.applications + counts.gradeChecks + counts.reviews + counts.complaints + counts.disputes +
+    counts.ambassadorApplications + counts.cashouts
+  );
 }

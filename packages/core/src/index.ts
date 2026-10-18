@@ -31,6 +31,8 @@ export {
   MIN_CHARGE_CENTS,
   MIN_HOURLY_RATE,
   MAX_HOURLY_RATE,
+  bookingQuote,
+  type BookingQuote,
 } from './pricing';
 export { UA_MAJORS, searchMajors, type Major } from './data/uaMajors';
 export { attentionTotal, type AdminHubCounts } from './adminHub';

@@ -9,11 +9,17 @@
 // PaymentIntent is retrieved and checked against it (T5). Before that check existed, an
 // inflated `price` against a small hold became a real transfer in complete-session.
 //
+// An admin student (public.is_admin() on the caller's JWT) books for free: the row is
+// priced $0 with no PaymentIntent, no credit and no payout, and every later step
+// (accept, chat, cancel, complete, no-show) already treats a null PaymentIntent as
+// "nothing to move". Nobody else can reach that path — the price always comes from
+// resolveBooking and a non-admin without a real `pi_` hold is refused below.
+//
 // Self-contained: SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY
 // are auto-injected by the runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { requireActiveUser } from '../_shared/auth.ts';
-import { BookingError, isBlockedBetween, resolveBooking, SLOT_TAKEN_NOT_CHARGED, type ResolvedBooking } from '../_shared/booking.ts';
+import { isAdmin, requireActiveUser } from '../_shared/auth.ts';
+import { BookingError, freeBookingFor, isBlockedBetween, resolveBooking, SLOT_TAKEN_NOT_CHARGED, type ResolvedBooking } from '../_shared/booking.ts';
 import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
 import { acceptDeadline } from '../_shared/acceptance.ts';
 import { creditToApply, parseCreditCents } from '../_shared/credits.ts';
@@ -123,12 +129,16 @@ serveWithErrorReporting('confirm-booking', async (req) => {
     // Verify the held PaymentIntent really covers this booking. Without this the amount
     // Stripe authorized and the amount we pay the tutor are unrelated numbers.
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
-    let storedPaymentIntentId: string;
+    let storedPaymentIntentId: string | null;
     // Noot credit taken off this booking (0040), and how to let the card hold go if the
     // credit can't be spent after all.
     let creditCents = 0;
     let releaseHold: (() => Promise<unknown>) | null = null;
-    if (stripeKey) {
+    const adminFree = await isAdmin(userClient);
+    if (adminFree) {
+      resolved = freeBookingFor(resolved);
+      storedPaymentIntentId = null;
+    } else if (stripeKey) {
       if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
         return Response.json({ error: 'A completed payment is required' }, { status: 400, headers: cors });
       }
@@ -244,7 +254,7 @@ serveWithErrorReporting('confirm-booking', async (req) => {
         cancellation_deadline: cancellationDeadline,
         refund_status: 'not_applicable',
         stripe_payment_intent_id: storedPaymentIntentId,
-      })
+        })
       .select('id')
       .single();
 
@@ -325,6 +335,7 @@ serveWithErrorReporting('confirm-booking', async (req) => {
         price: resolved.price,
         studentFee: resolved.studentFee,
         acceptBy,
+        free: adminFree,
       },
       { headers: cors },
     );

@@ -10,9 +10,13 @@
 //
 // Noot credit (0040) comes off the total automatically: the hold is for chargeCents, and
 // metadata records the credit and student service fee so confirm-booking can validate it.
+//
+// An admin (public.is_admin() on the caller's JWT, never a client flag) books for free:
+// $0 total, no PaymentIntent, no Stripe Customer, no credit touched — `free: true` and a
+// null paymentIntentId tell the app to skip the PaymentSheet and confirm directly.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { requireActiveUser } from '../_shared/auth.ts';
-import { BookingError, resolveBooking } from '../_shared/booking.ts';
+import { isAdmin, requireActiveUser } from '../_shared/auth.ts';
+import { BookingError, freeBookingFor, resolveBooking } from '../_shared/booking.ts';
 import { creditToApply } from '../_shared/credits.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
@@ -40,13 +44,33 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
     if (inactiveResponse) return inactiveResponse;
 
     const body = await req.json().catch(() => ({}));
-    const resolved = await resolveBooking(db, {
+    let resolved = await resolveBooking(db, {
       studentId: user.id,
       tutorId: body?.tutorId,
       courseCode: body?.courseCode,
       durationMinutes: body?.durationMinutes,
       scheduledAt: body?.scheduledAt,
     });
+
+    if (await isAdmin(userClient)) {
+      resolved = freeBookingFor(resolved);
+      return Response.json(
+        {
+          paymentIntentClientSecret: null,
+          ephemeralKeySecret: null,
+          customerId: null,
+          paymentIntentId: null,
+          amountCents: 0,
+          studentFeeCents: 0,
+          creditCents: 0,
+          chargeCents: 0,
+          price: 0,
+          simulated: false,
+          free: true,
+        },
+        { headers: cors },
+      );
+    }
 
     // A failed balance read just means no credit this time, never a failed booking.
     const { data: bal } = await db.rpc('credit_balance_cents', { p_user: user.id });
@@ -70,6 +94,7 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
           chargeCents,
           price: resolved.price,
           simulated: true,
+          free: false,
         },
         { headers: cors },
       );
@@ -131,6 +156,7 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
         chargeCents,
         price: resolved.price,
         simulated: false,
+        free: false,
       },
       { headers: cors },
     );

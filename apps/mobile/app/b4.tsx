@@ -8,8 +8,9 @@ import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
 import { useStripe } from '@stripe/stripe-react-native';
 import Constants from 'expo-constants';
-import { api, creditToApply, studentFeeFor } from '@noot/core';
+import { api, bookingQuote } from '@noot/core';
 import { useApp } from '../lib/store';
+import { useMe } from '../lib/useMe';
 import { DAYS, MONTHS } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 
@@ -33,6 +34,8 @@ function B4Inner() {
   const t = useTheme();
   const router = useRouter();
   const { booking, patchBooking } = useApp();
+  // Admins book for free (TUT-4). Display only: the server decides again from is_admin().
+  const { isAdmin } = useMe();
 
   const tutor = booking.tutor!;
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1] ?? DAYS[0]!;
@@ -43,19 +46,18 @@ function B4Inner() {
   const course = booking.course ?? tutor.courses[0]![0];
   const rate = (tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!)[2];
   const dollars = (cents: number) => (cents / 100).toFixed(2).replace(/\.00$/, '');
-  const costCents = Math.round((rate * lengthMin * 100) / 60);
-  const cost = dollars(costCents);
-  const feeCents = Math.round(studentFeeFor(costCents / 100) * 100);
   // Noot credit comes off the session price plus service fee. Display only —
-  // create-payment-intent applies the same rule to the real balance.
+  // create-payment-intent applies the same rules to the real balance and the real role.
   const [balanceCents, setBalanceCents] = useState(0);
   useEffect(() => {
     let alive = true;
     api.credits.balance().then((b) => { if (alive) setBalanceCents(b); }).catch(() => {});
     return () => { alive = false; };
   }, []);
-  const creditCents = creditToApply(balanceCents, costCents + feeCents);
-  const due = dollars(costCents + feeCents - creditCents);
+  const quote = bookingQuote({ hourlyRate: rate, durationMinutes: lengthMin, creditBalanceCents: balanceCents, adminFree: isAdmin });
+  const { feeCents, creditCents, free } = quote;
+  const cost = dollars(quote.priceCents);
+  const due = dollars(quote.dueCents);
 
   const rows: [string, string][] = [
     ['Tutor', tutor.name],
@@ -110,7 +112,18 @@ function B4Inner() {
         scheduledAt,
       });
 
-      if (!pi.simulated) {
+      // The screen said $0 (admin role) but the server priced it: the admin session isn't
+      // MFA-verified, so is_admin() is false there. Never open a card sheet under a "$0" screen.
+      if (free && !pi.free) {
+        setStatus('idle');
+        Alert.alert(
+          'Verify your admin session first',
+          `Admin bookings are free only in a session verified with your authenticator. Right now this session would cost $${dollars(pi.amountCents - pi.creditCents)}. Open the Admin tab to verify, then come back.`,
+        );
+        return;
+      }
+      // A free (admin) booking has no PaymentIntent and nothing to present.
+      if (!pi.simulated && !pi.free) {
         // PaymentSheet needs the native SDK — absent in Expo Go. Guide the user to the dev build.
         if (Constants.appOwnership === 'expo') {
           setStatus('idle');
@@ -119,7 +132,7 @@ function B4Inner() {
         }
         const { error: initErr } = await initPaymentSheet({
           merchantDisplayName: 'Noot',
-          paymentIntentClientSecret: pi.paymentIntentClientSecret,
+          paymentIntentClientSecret: pi.paymentIntentClientSecret ?? '',
           customerId: pi.customerId ?? undefined,
           customerEphemeralKeySecret: pi.ephemeralKeySecret ?? undefined,
           applePay: { merchantCountryCode: 'US' },
@@ -148,13 +161,13 @@ function B4Inner() {
         location,
         meetingLink: undefined,
         message: booking.message,
-        paymentIntentId: pi.paymentIntentId,
+        paymentIntentId: pi.paymentIntentId ?? undefined,
       });
       patchBooking({ bookingId, acceptBy, scheduledAt });
       router.push('/b5');
     } catch (err) {
       setStatus('idle');
-      Alert.alert('Payment failed', err instanceof Error ? err.message : 'Something went wrong — please try again.');
+      Alert.alert(free ? 'Booking failed' : 'Payment failed', err instanceof Error ? err.message : 'Something went wrong — please try again.');
     }
   };
   const scheduledAtDate = new Date(computeScheduledAt());
@@ -163,7 +176,7 @@ function B4Inner() {
 
   return (
     <Screen>
-      <NavTop onBack={() => router.back()} title="Confirm & pay" />
+      <NavTop onBack={() => router.back()} title={free ? 'Confirm booking' : 'Confirm & pay'} />
       <Body pad={20}>
         <Card style={{ padding: 16 }}>
           <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>Session summary</Eyebrow>
@@ -207,28 +220,41 @@ function B4Inner() {
         ) : null}
 
         <Eyebrow style={{ color: t.text3, marginTop: 24, marginBottom: 12 }}>Payment</Eyebrow>
-        <Card style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Ic name="card" size={20} color={t.accent} strokeWidth={1.8} />
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ fontSize: 14.5, fontWeight: '600', color: t.text }}>Card, Apple Pay or Google Pay</Text>
-            <Text style={{ fontSize: 12.5, color: t.text3, marginTop: 2 }}>
-              You&apos;ll enter payment in a secure Stripe sheet when you confirm.
+        {free ? (
+          <View style={styles.heldRow}>
+            <View style={{ marginTop: 1 }}>
+              <Ic name="shield" size={18} color={t.good} strokeWidth={1.8} />
+            </View>
+            <Text style={{ flex: 1, fontSize: 13, color: t.text2, lineHeight: 19 }}>
+              Admin booking — nothing to pay. No card is needed and your tutor isn&apos;t paid for this session.
             </Text>
           </View>
-          <View style={styles.securedRow}>
-            <Ic name="lock" size={12} color={t.text3} strokeWidth={1.8} />
-            <Text style={{ fontSize: 11, color: t.text3 }}>Stripe</Text>
-          </View>
-        </Card>
+        ) : (
+          <>
+            <Card style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Ic name="card" size={20} color={t.accent} strokeWidth={1.8} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontSize: 14.5, fontWeight: '600', color: t.text }}>Card, Apple Pay or Google Pay</Text>
+                <Text style={{ fontSize: 12.5, color: t.text3, marginTop: 2 }}>
+                  You&apos;ll enter payment in a secure Stripe sheet when you confirm.
+                </Text>
+              </View>
+              <View style={styles.securedRow}>
+                <Ic name="lock" size={12} color={t.text3} strokeWidth={1.8} />
+                <Text style={{ fontSize: 11, color: t.text3 }}>Stripe</Text>
+              </View>
+            </Card>
 
-        <View style={styles.heldRow}>
-          <View style={{ marginTop: 1 }}>
-            <Ic name="lock" size={18} color={t.good} strokeWidth={1.8} />
-          </View>
-          <Text style={{ flex: 1, fontSize: 13, color: t.text2, lineHeight: 19 }}>
-            Payment held securely and released to your tutor after your session is complete.
-          </Text>
-        </View>
+            <View style={styles.heldRow}>
+              <View style={{ marginTop: 1 }}>
+                <Ic name="lock" size={18} color={t.good} strokeWidth={1.8} />
+              </View>
+              <Text style={{ flex: 1, fontSize: 13, color: t.text2, lineHeight: 19 }}>
+                Payment held securely and released to your tutor after your session is complete.
+              </Text>
+            </View>
+          </>
+        )}
 
         <Card flat style={{ ...styles.policyCard, backgroundColor: t.surfaceAlt }}>
           <Pressable onPress={() => setPolicyOpen((o) => !o)} style={styles.policyHead}>
@@ -258,7 +284,7 @@ function B4Inner() {
       </Body>
 
       <ActionBar>
-        <Button label={`Confirm & pay $${due}`} full onPress={pay} disabled={status === 'processing'} />
+        <Button label={free ? 'Confirm booking' : `Confirm & pay $${due}`} full onPress={pay} disabled={status === 'processing'} />
       </ActionBar>
 
       {/* Processing overlay — brief window while the sheet opens / booking is created. */}
@@ -266,7 +292,7 @@ function B4Inner() {
         <View style={[styles.processingOverlay, { backgroundColor: t.bg }]}>
           <ActivityIndicator size="large" color={t.accent} />
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 17, fontWeight: '600', color: t.text }}>Processing payment…</Text>
+            <Text style={{ fontSize: 17, fontWeight: '600', color: t.text }}>{free ? 'Booking your session…' : 'Processing payment…'}</Text>
             <Text style={{ fontSize: 13, color: t.text3, marginTop: 4 }}>Please don&apos;t close this screen.</Text>
           </View>
         </View>

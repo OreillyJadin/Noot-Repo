@@ -19,6 +19,8 @@ const EMPTY_COUNTS: AdminHubCounts = {
   reviews: 0,
   complaints: 0,
   disputes: 0,
+  ambassadorApplications: 0,
+  cashouts: 0,
 };
 
 function AdminHomeScreen() {
@@ -73,6 +75,8 @@ function AdminHomeScreen() {
   const knownCounts = counts ?? EMPTY_COUNTS;
   const needsLook = counts ? attentionTotal(counts) : null;
   const dateSubtitle = today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+
+  const ambassadorWork = (counts?.ambassadorApplications ?? 0) + (counts?.cashouts ?? 0);
 
   const tutorRows = [
     {
@@ -224,6 +228,27 @@ function AdminHomeScreen() {
             title="All bookings"
             subtitle="Every session on Noot"
             onPress={() => router.push('/admin_bookings?tab=all')}
+          />
+        </AdminSection>
+
+        <AdminSection label="Ambassadors">
+          <AdminRow
+            icon="gift"
+            title="Ambassadors"
+            subtitle={
+              counts
+                ? ambassadorWork
+                  ? [
+                    knownCounts.ambassadorApplications ? `${knownCounts.ambassadorApplications} to approve` : '',
+                    knownCounts.cashouts ? `${knownCounts.cashouts} cash-out${knownCounts.cashouts === 1 ? '' : 's'} to pay` : '',
+                  ].filter(Boolean).join(' · ')
+                  : 'All caught up'
+                : 'Loading'
+            }
+            subtitleLines={0}
+            count={ambassadorWork}
+            muted={!!counts && ambassadorWork === 0}
+            onPress={() => router.push('/admin_ambassadors' as never)}
           />
         </AdminSection>
 
