@@ -1,6 +1,7 @@
 // Verify Storage enforces bucket MIME and size limits, and that @noot/core rejects kindly.
 // Run after `supabase start`, `supabase db reset`, and `node supabase/seed_demo.mjs`:
 //   pnpm dlx tsx scripts/verify_storage_limits.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth, getSupabase, STORAGE_LIMITS, type UploadBucket } from '../packages/core/src/index.ts';
 
@@ -53,7 +54,7 @@ function isPolicyError(error: unknown): boolean {
 }
 
 try {
-  const signedIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  const signedIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   if (!signedIn.ok) throw new Error(signedIn.error);
   uid = (await auth.getSessionUserId())!;
   console.log(`signed in as student@crimson.ua.edu (${uid})`);
@@ -142,7 +143,7 @@ try {
       .eq('id', unverifiedTutor.user_id)
       .single();
     if (userError || !tutor?.email) throw userError ?? new Error('unverified tutor has no email');
-    const tutorSignIn = await auth.signInWithPassword(tutor.email, 'password123');
+    const tutorSignIn = await auth.signInWithPassword(tutor.email, DEV_PASSWORD);
     if (!tutorSignIn.ok) throw new Error(tutorSignIn.error);
     transcriptOwnerUid = (await auth.getSessionUserId())!;
     transcriptOwnerEmail = tutor.email;

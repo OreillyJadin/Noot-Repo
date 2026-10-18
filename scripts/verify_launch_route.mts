@@ -5,6 +5,7 @@
 // "no session" (the reads throw) — a network failure takes the same branch.
 //
 // Needs: supabase start && node supabase/seed_demo.mjs
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 import { accountStateFrom, decidePostAuthRoute, lookupWithRetry } from '../apps/mobile/lib/postAuthRoute.ts'
 import { GUIDELINES_VERSION } from '../apps/mobile/lib/guidelines.ts'
@@ -66,7 +67,7 @@ try {
 
   // 4) Another signed-in student can't stamp it for them (RLS: your own row only).
   {
-    const s = await other.auth.signInWithPassword({ email: 'student@crimson.ua.edu', password: 'password123' })
+    const s = await other.auth.signInWithPassword({ email: 'student@crimson.ua.edu', password: DEV_PASSWORD })
     await other.from('users').update({ password_set_at: new Date().toISOString() }).eq('id', newId!)
     const stamp = await stampOf(newId!)
     step(4, !s.error && stamp === null, `a different student writing this account's password_set_at → ${stamp === null ? 'no effect' : 'FORGED'}`)
@@ -107,7 +108,7 @@ try {
   {
     await admin.from('users').update({ terms_accepted_at: new Date().toISOString(), terms_version: 'seed' })
       .eq('email', 'student@crimson.ua.edu').is('terms_accepted_at', null)
-    const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
+    const signIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD)
     const r = await route()
     step(7, signIn.ok && r.kind === 'home' && r.route === '/home', `demo student after password sign-in → ${show(r)}`)
   }

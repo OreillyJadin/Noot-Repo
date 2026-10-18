@@ -70,16 +70,6 @@ jobs:
         with:
           version: 2.120.0
 
-      # seed_demo.mjs signs every demo account up with "password123", which the committed
-      # password rules reject. Relax them on the CI runner only; the repo file is unchanged.
-      - name: Relax local password rules for the seed
-        run: |
-          sed -i \
-            -e 's/^minimum_password_length = .*/minimum_password_length = 6/' \
-            -e 's/^password_requirements = .*/password_requirements = ""/' \
-            supabase/config.toml
-          grep -nE '^(minimum_password_length|password_requirements) =' supabase/config.toml
-
       - name: Start local Supabase
         run: supabase start -x studio,postgres-meta,imgproxy,edge-runtime,logflare,vector,supavisor
 
@@ -137,6 +127,7 @@ jobs:
             verify_s1_sync
             verify_session_reminders
             verify_sign_out
+            verify_forced_sign_out
             verify_student_walls
             verify_t1_onboarding
             verify_terms

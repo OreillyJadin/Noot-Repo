@@ -1,6 +1,7 @@
 // e2e_users — create (idempotent) an E2E student + bookable tutor on the local
 // stack for manual emulator testing. Mirrors verify_booking_chat.mts's setup but
 // keeps the accounts (no cleanup) so the app can sign in interactively.
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +11,7 @@ import { GUIDELINES_VERSION } from '../apps/mobile/lib/guidelines.ts';
 const URL = 'http://127.0.0.1:54321';
 const SERVICE =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'NootChat!Verify42';
+const PASSWORD = DEV_PASSWORD;
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 
 const makeUser = async (email: string, first: string, last: string) => {
@@ -24,7 +25,12 @@ const makeUser = async (email: string, first: string, last: string) => {
       console.log(`created ${email} (${data.user.id})`);
       return data.user.id;
     })());
-  if (existing) console.log(`exists  ${email} (${id})`);
+  if (existing) {
+    // Older runs used a different password; reset it so every E2E login is DEV_PASSWORD.
+    const { error } = await admin.auth.admin.updateUserById(id, { password: PASSWORD });
+    if (error) throw error;
+    console.log(`exists  ${email} (${id})`);
+  }
   // Stamp flags every run: a db reset can drop public.users while auth.users survives.
   await admin.from('users').upsert({
     id, email, first_name: first, last_name: last,

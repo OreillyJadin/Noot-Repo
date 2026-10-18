@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { resetToSignedOut } from '../lib/resetToSignedOut';
 import { Button, Ic, useTheme } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -56,7 +57,7 @@ export default function CommunityGuidelines() {
     setLeaving(true);
     await forgetThisDevice();
     try { await auth.signOut(); } catch { /* leave regardless */ }
-    router.replace('/');
+    resetToSignedOut(router);
   };
 
   const renderParagraph = (paragraph: string, sectionTitle: string, key: string) => {

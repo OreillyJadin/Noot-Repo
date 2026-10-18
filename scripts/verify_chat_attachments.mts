@@ -2,6 +2,7 @@
 // against the live local Supabase stack as two different users, and probes the RLS edges
 // with a third who isn't in the conversation. Run with:
 //   pnpm dlx tsx scripts/verify_chat_attachments.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { initSupabase, api, auth, getSupabase } from '../packages/core/src/index.ts';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -29,7 +30,7 @@ const PNG = new Uint8Array([
 const NOTES = new TextEncoder().encode('week 3 problem set — show your work\n');
 
 async function signIn(email: string) {
-  const r = await auth.signInWithPassword(email, 'password123');
+  const r = await auth.signInWithPassword(email, DEV_PASSWORD);
   if (!r.ok) throw new Error(`${email}: ${r.error}`);
   return (await auth.getSessionUserId())!;
 }

@@ -9,6 +9,7 @@
 // Local stack only (never reads EXPO_PUBLIC_SUPABASE_URL, which may point at production).
 // Needs `supabase functions serve` running.
 //   pnpm dlx tsx scripts/verify_t4_t6_application.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 
@@ -17,8 +18,8 @@ const ANON =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 const SERVICE =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'NootTest123!';
-const SEEDED_PASSWORD = 'password123';
+const PASSWORD = DEV_PASSWORD;
+const SEEDED_PASSWORD = DEV_PASSWORD;
 
 let pass = 0;
 let fail = 0;
