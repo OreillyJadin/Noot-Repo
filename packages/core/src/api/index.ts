@@ -364,6 +364,7 @@ function mapUser(row: any): User {
     passwordSetAt: row.password_set_at ?? null,
     termsAcceptedAt: row.terms_accepted_at ?? null,
     guidelinesAcceptedAt: row.guidelines_accepted_at ?? null,
+    guidelinesVersion: row.guidelines_version ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -829,17 +830,43 @@ export const api = {
       notifyUserChanged();
     },
 
-    /** Record that the user accepted the Community Guidelines during student onboarding. */
+    /** Record that the user accepted the Community Guidelines (once per account, every role). */
     async acceptGuidelines(version: string): Promise<void> {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(version)) throw new Error(`Invalid guidelines version ${version}`);
       const uid = await requireUid();
-      const { error } = await getSupabase()
-        .from('users')
-        .update({ guidelines_accepted_at: new Date().toISOString(), guidelines_version: version })
-        .eq('id', uid)
-        .select('id')
-        .single();
-      if (error) throw error;
-      notifyUserChanged();
+      const sb = getSupabase();
+      // Never downgrade: an older app build agreeing must not overwrite a newer acceptance,
+      // or the newer build would ask again. Anything else (stale, missing, malformed) is replaced.
+      // The write only lands if the version is still the one read, so a newer acceptance
+      // recorded in between (another device) is re-read instead of overwritten.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data: current, error: readError } = await sb
+          .from('users')
+          .select('guidelines_accepted_at, guidelines_version')
+          .eq('id', uid)
+          .single();
+        if (readError) throw readError;
+        const kept = current.guidelines_version as string | null;
+        if (current.guidelines_accepted_at != null && kept != null
+            && /^\d{4}-\d{2}-\d{2}$/.test(kept) && kept > version) {
+          notifyUserChanged();
+          return;
+        }
+        const write = sb
+          .from('users')
+          .update({ guidelines_accepted_at: new Date().toISOString(), guidelines_version: version })
+          .eq('id', uid);
+        const { data: written, error } = await (kept == null
+          ? write.is('guidelines_version', null)
+          : write.eq('guidelines_version', kept)
+        ).select('id');
+        if (error) throw error;
+        if (written.length > 0) {
+          notifyUserChanged();
+          return;
+        }
+      }
+      throw new Error('Could not record Community Guidelines acceptance; please try again.');
     },
 
     /** Set the student's enrolled course codes (edit_courses). */
