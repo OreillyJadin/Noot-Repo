@@ -55,7 +55,7 @@ Evidence references are screenshot basenames only; screenshots are not committed
 
 ## Verify-script baseline
 
-57/62 verify scripts failed for environment reasons (the strict password rule rejects `seed_demo.mjs` accounts using `password123`); 5 passed. Workstreams A and D agree on these counts.
+57/62 verify scripts failed for environment reasons (the strict password rule rejects `seed_demo.mjs` accounts using `password123`); 5 passed. Workstreams A and D agree on these counts. Fixed since by ERR-014: the seeds and verify scripts use `DEV_PASSWORD` from `scripts/_devPassword.mjs`, which meets the rule, and CI no longer relaxes it.
 
 ## Coverage gaps
 

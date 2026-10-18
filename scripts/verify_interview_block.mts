@@ -11,6 +11,7 @@
 // Needs: supabase start && node supabase/seed_demo.mjs && supabase functions serve
 //        --env-file <file with STRIPE_SECRET_KEY=sk_test_…>, and the same key in this shell.
 //   pnpm dlx tsx scripts/verify_interview_block.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { createClient } from '@supabase/supabase-js'
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 import { authorizeHold, cancelHold, stripeTestMode } from './_stripe_test.mts'
@@ -36,7 +37,7 @@ const step = (ok: boolean, msg: string) => {
 initSupabase({ url: URL, anonKey: ANON })
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false } })
 const signIn = async (email: string) => {
-  const r = await auth.signInWithPassword(email, 'password123')
+  const r = await auth.signInWithPassword(email, DEV_PASSWORD)
   if (!r.ok) throw new Error(`sign in as ${email}: ${r.error}`)
 }
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e))

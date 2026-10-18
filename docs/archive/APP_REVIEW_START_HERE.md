@@ -4,7 +4,7 @@
 the rules here are added on top of it. Everything in `CLAUDE.md` still applies, including the golden
 rule, the `@noot/core` boundary, `check:preview`, and committing only when asked.
 
-## The App Review files (all at the repo root)
+## The App Review files (all in `docs/archive/`)
 
 | File | What it is |
 |---|---|

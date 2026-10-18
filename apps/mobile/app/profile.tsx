@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { resetToSignedOut } from '../lib/resetToSignedOut';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, useLargeText, TEXT_CAPS, type IconName } from '@noot/ui';
 import { api, auth, attentionTotal } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -135,7 +136,7 @@ export default function Profile() {
     await forgetThisDevice();
     try { await auth.signOut(); } catch { /* clear the UI regardless */ }
 
-    router.replace('/');
+    resetToSignedOut(router);
 
   };
 
@@ -176,7 +177,7 @@ export default function Profile() {
 
               try { await auth.signOut(); } catch { /* already invalid */ }
 
-              router.replace('/');
+              resetToSignedOut(router);
 
             } catch (e) {
 

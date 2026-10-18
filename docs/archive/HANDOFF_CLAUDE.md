@@ -93,7 +93,7 @@ pnpm + Turborepo monorepo. Peer-to-peer campus tutoring, launching University of
   - `0004_profile_extensions.sql` — profile column extensions.
   - `0005_grants.sql` — role grants.
 - **Seed data** via `supabase/seed_demo.mjs` (idempotent, service-role admin API): 5 approved
-  demo tutors + a dev student. Dev password for all accounts: `password123`.
+  demo tutors + a dev student. Dev password for all accounts: `DEV_PASSWORD` in `scripts/_devPassword.mjs`.
   Run: `SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node supabase/seed_demo.mjs`
   (defaults target the local stack). Dev login: `student@crimson.ua.edu` / tutor
   `sara@crimson.ua.edu`.
@@ -354,7 +354,8 @@ so nothing renders empty. Every screen now reads live `@noot/core` data.
 - **Cloud** (`nepnxbvseuzuayhxaigo`) seeded via the service role; `resolve-participants` **deployed**
   to cloud (it was missing from the deployed set — the 6 booking/payment fns were there, it wasn't).
 - `.env` still points at cloud; it's now fully populated. Test accounts are pre-confirmed (admin
-  API), so they sign in with `password123` without SMTP.
+  API), so they sign in without SMTP (with `password123` at the time; local seeds now use
+  `DEV_PASSWORD` from `scripts/_devPassword.mjs`).
 
 **Verification:** `scripts/verify_realdata.mts` (availability→slots, tutorStats, studentStats,
 resolve shape) — **8/8 vs local AND cloud**. `verify_backend.mts` still 14/14. `pnpm -r typecheck`
