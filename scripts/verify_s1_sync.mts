@@ -9,6 +9,7 @@
 // Run: pnpm dlx tsx scripts/verify_s1_sync.mts
 //
 // Local only, on purpose — never reads EXPO_PUBLIC_SUPABASE_URL, which may point at production.
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { initSupabase, api, auth, onUserChanged } from '../packages/core/src/index.ts';
 
 const URL = 'http://127.0.0.1:54321';
@@ -40,7 +41,7 @@ const authEvents: string[] = [];
 auth.onAuthChange((c) => authEvents.push(c));
 
 await check('sign-in surfaces as an auth change', async () => {
-  const r = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  const r = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   assert(r.ok, r.error ?? 'sign-in failed');
   await tick();
   assert(authEvents.includes('signed_in'), `events: ${authEvents.join(',')}`);

@@ -4,6 +4,7 @@
 //
 // Needs: supabase start (migrations applied) and the demo seed (node supabase/seed_demo.mjs)
 //   pnpm dlx tsx scripts/verify_admin_user_search.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { createClient } from '@supabase/supabase-js'
 import { initSupabase, auth, api } from '../packages/core/src/index.ts'
 
@@ -22,14 +23,14 @@ const svc = createClient(URL, SERVICE, { auth: { persistSession: false } })
 const tag = `find${Date.now()}`
 const made_ids: string[] = []
 const signIn = async (email: string) => {
-  const r = await auth.signInWithPassword(email, 'password123')
+  const r = await auth.signInWithPassword(email, DEV_PASSWORD)
   if (!r.ok) throw new Error(`sign in as ${email}: ${r.error}`)
 }
 // A throwaway account with a name only this run uses, so searches for it are exact.
 const make = async (name: string, first: string, last: string) => {
   const email = `${tag}_${name}@crimson.ua.edu`
   const made = await svc.auth.admin.createUser({
-    email, password: 'password123', email_confirm: true, user_metadata: { first_name: first, last_name: last },
+    email, password: DEV_PASSWORD, email_confirm: true, user_metadata: { first_name: first, last_name: last },
   })
   if (made.error) throw made.error
   made_ids.push(made.data.user!.id)

@@ -4,7 +4,7 @@
 //
 //   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node supabase/seed_test_accounts.mjs
 //
-// Defaults target the local stack. Password for every account: "password123".
+// Defaults target the local stack. Password for every account: DEV_PASSWORD (scripts/_devPassword.mjs).
 //
 // Notes:
 //  • admin.createUser fires the .edu gate (0003) — all emails are @crimson.ua.edu — and
@@ -14,6 +14,7 @@
 //  • Granting 'admin' in user_roles is blocked by RLS for normal users (0002: role<>'admin')
 //    but the service-role key bypasses RLS — which is why this must run as admin.
 import { createClient } from '@supabase/supabase-js';
+import { DEV_PASSWORD } from '../scripts/_devPassword.mjs';
 
 const URL = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const SERVICE =
@@ -22,7 +23,8 @@ const SERVICE =
 const ANON =
   process.env.SUPABASE_ANON_KEY ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
-const PASSWORD = 'password123';
+const PASSWORD = DEV_PASSWORD;
+const IS_LOCAL = ['127.0.0.1', 'localhost'].includes(new globalThis.URL(URL).hostname);
 
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 
@@ -48,7 +50,15 @@ async function existingIdByEmail() {
 
 async function ensureUser(email) {
   const existing = await existingIdByEmail();
-  if (existing.has(email)) return existing.get(email);
+  if (existing.has(email)) {
+    // Older local seeds used another password; bring it to DEV_PASSWORD so the verify scripts
+    // can sign in. Local stack only: never reset an account on a hosted project.
+    if (IS_LOCAL) {
+      const { error } = await admin.auth.admin.updateUserById(existing.get(email), { password: PASSWORD });
+      if (error) throw new Error(`reset password ${email}: ${error.message}`);
+    }
+    return existing.get(email);
+  }
   const { data, error } = await admin.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
   if (error) throw new Error(`createUser ${email}: ${error.message}`);
   // Created WITH its password, so the "password changed" trigger (0041) never fires for it.

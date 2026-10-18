@@ -7,6 +7,7 @@
 //
 // Needs: supabase start (migrations applied)
 //   pnpm dlx tsx scripts/verify_push_tokens.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { createClient } from '@supabase/supabase-js'
 import { initSupabase, auth, api } from '../packages/core/src/index.ts'
 
@@ -28,10 +29,10 @@ const tokensOf = async (uid: string) =>
 
 const signedIn = async (name: string) => {
   const email = `${tag}_${name}@crimson.ua.edu`
-  const made = await svc.auth.admin.createUser({ email, password: 'password123', email_confirm: true })
+  const made = await svc.auth.admin.createUser({ email, password: DEV_PASSWORD, email_confirm: true })
   if (made.error) throw made.error
   const client = createClient(URL, ANON, { auth: { persistSession: false } })
-  const { error } = await client.auth.signInWithPassword({ email, password: 'password123' })
+  const { error } = await client.auth.signInWithPassword({ email, password: DEV_PASSWORD })
   if (error) throw error
   return { id: made.data.user!.id, email, client }
 }
@@ -42,7 +43,7 @@ try {
 
   // ---- the app's own path (@noot/core) ----
   initSupabase({ url: URL, anonKey: ANON })
-  const inAs = await auth.signInWithPassword(ana.email, 'password123')
+  const inAs = await auth.signInWithPassword(ana.email, DEV_PASSWORD)
   if (!inAs.ok) throw new Error(inAs.error)
   await api.notifications.registerPushToken(phone, 'ios')
   await api.notifications.registerPushToken(phone, 'ios')

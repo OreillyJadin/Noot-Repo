@@ -1,6 +1,7 @@
 // Verify the confirm-booking Edge Function end-to-end against the LOCAL stack,
 // driving the real @noot/core path (createPaymentIntent -> bookings.confirm ->
 // listUpcoming) exactly as apps/mobile/app/b4.tsx does. Safe to delete after.
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 import { createClient } from '@supabase/supabase-js'
 import { authorizeHold, cancelHold } from './_stripe_test.mts'
@@ -17,7 +18,7 @@ initSupabase({ url: URL, anonKey: ANON })
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } })
 
 // 1) Sign in as the seeded demo student.
-const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
+const signIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD)
 step(1, signIn.ok, signIn.ok ? 'signed in as demo student' : `sign-in failed: ${signIn.error}`)
 
 // 2) Pick a real seeded tutor (NOTE: TutorSummary.userId, not .id).
@@ -83,10 +84,10 @@ step(5, !!found && found.status === 'pending' && found.studentFee > 0,
 
 if (bookingId) {
   const { data: tutorUser } = await admin.from('users').select('email').eq('id', tutor.userId).single()
-  await auth.signInWithPassword(tutorUser!.email as string, 'password123')
+  await auth.signInWithPassword(tutorUser!.email as string, DEV_PASSWORD)
   const accepted = await api.bookings.respond({ bookingId, action: 'accept' })
   step('5b', accepted.status === 'confirmed', 'tutor accepts the request')
-  await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
+  await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD)
 }
 
 // cleanup

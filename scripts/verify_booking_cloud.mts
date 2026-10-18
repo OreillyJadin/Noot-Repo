@@ -3,6 +3,7 @@
 // prints them). Uses only the public anon key + the seeded demo student; cleans up
 // by cancelling through the student-authorized cancel-booking function (no
 // service_role needed). Safe to delete after.
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { readFileSync } from 'node:fs'
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 
@@ -18,7 +19,7 @@ const step = (n: number, ok: boolean, msg: string) =>
 console.log(`Target: ${SB_URL.includes('127.0.0.1') ? 'LOCAL' : 'CLOUD'} (${SB_URL})`)
 initSupabase({ url: SB_URL, anonKey: ANON })
 
-const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
+const signIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD)
 step(1, signIn.ok, signIn.ok ? 'signed in as demo student on cloud' : `sign-in failed: ${signIn.error}`)
 
 const tutors = await api.tutors.search()

@@ -1,7 +1,8 @@
 // Run: pnpm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decidePostAuthRoute, lookupWithRetry, type AccountState } from '../lib/postAuthRoute.ts';
+import { accountStateFrom, decidePostAuthRoute, lookupWithRetry, type AccountState } from '../lib/postAuthRoute.ts';
+import { GUIDELINES_VERSION } from '../lib/guidelines.ts';
 
 const setUp: AccountState = {
   hasPassword: true,
@@ -98,17 +99,53 @@ test('without a password the Terms are accepted in onboarding, with the password
   })), { kind: 'onboarding' });
 });
 
-test('a student without accepted guidelines must read them before home', () => {
-  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, acceptedGuidelines: false })), { kind: 'guidelines' });
+test('every mode without accepted guidelines reads them before any home', () => {
+  for (const activeRole of ['student', 'tutor', 'ambassador', 'admin']) {
+    assert.deepEqual(decidePostAuthRoute(found({ ...setUp, acceptedGuidelines: false, activeRole })), { kind: 'guidelines' }, activeRole);
+  }
 });
 
-test('tutors and ambassadors without accepted guidelines go to their home', () => {
-  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, acceptedGuidelines: false, activeRole: 'tutor' })), {
-    kind: 'home', role: 'tutor', route: '/tutor_home',
-  });
-  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, acceptedGuidelines: false, activeRole: 'ambassador' })), {
-    kind: 'home', role: 'ambassador', route: '/ambassador_home',
-  });
+test('one acceptance covers every mode: switching modes never asks again', () => {
+  for (const activeRole of ['student', 'tutor', 'ambassador']) {
+    assert.equal(decidePostAuthRoute(found({ ...setUp, activeRole })).kind, 'home', activeRole);
+  }
+});
+
+const row = {
+  passwordSetAt: '2026-10-01T00:00:00Z',
+  termsAcceptedAt: '2026-10-01T00:00:00Z',
+  guidelinesAcceptedAt: '2026-10-01T00:00:00Z',
+  guidelinesVersion: GUIDELINES_VERSION,
+  activeRole: 'tutor' as const,
+};
+
+test('the current guidelines version counts as accepted, in any mode', () => {
+  assert.equal(accountStateFrom(row).acceptedGuidelines, true);
+  assert.equal(accountStateFrom({ ...row, activeRole: 'ambassador' }).acceptedGuidelines, true);
+});
+
+test('an older guidelines version asks again once (GUIDELINES_VERSION bump)', () => {
+  const stale = accountStateFrom({ ...row, guidelinesVersion: '2026-10-13' });
+  assert.equal(stale.acceptedGuidelines, false);
+  assert.deepEqual(decidePostAuthRoute(found(stale)), { kind: 'guidelines' });
+});
+
+test('a newer version (recorded by a newer build) still counts', () => {
+  assert.equal(accountStateFrom({ ...row, guidelinesVersion: '2999-01-01' }).acceptedGuidelines, true);
+});
+
+test('no acceptance, or a timestamp with no version, is not accepted', () => {
+  assert.equal(accountStateFrom({ ...row, guidelinesAcceptedAt: null }).acceptedGuidelines, false);
+  assert.equal(accountStateFrom({ ...row, guidelinesVersion: null }).acceptedGuidelines, false);
+});
+
+test('a version that is not a date is not accepted', () => {
+  assert.equal(accountStateFrom({ ...row, guidelinesVersion: 'zzz' }).acceptedGuidelines, false);
+});
+
+test('a password typed this launch counts even with nothing stamped', () => {
+  assert.equal(accountStateFrom({ ...row, passwordSetAt: null }).hasPassword, false);
+  assert.equal(accountStateFrom({ ...row, passwordSetAt: null }, true).hasPassword, true);
 });
 
 test('the Terms gate comes before the Community Guidelines gate', () => {

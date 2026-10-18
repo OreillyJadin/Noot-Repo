@@ -3,6 +3,7 @@
 // then attacks it directly over HTTP the way a tampered client would.
 //
 // Needs: supabase start && node supabase/seed_demo.mjs && supabase functions serve
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { initSupabase, api, auth, studentFeeFor } from '../packages/core/src/index.ts'
 import { createClient } from '@supabase/supabase-js'
 import { authorizeHold, cancelHold, getPaymentIntent, setPaymentIntentMetadata, stripeTestMode } from './_stripe_test.mts'
@@ -23,14 +24,14 @@ initSupabase({ url: URL, anonKey: ANON })
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } })
 
 // --- setup -----------------------------------------------------------------
-const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
+const signIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD)
 step(1, signIn.ok, signIn.ok ? 'signed in as the demo student' : `sign-in failed: ${signIn.error}`)
 
 // A second, plain client purely to get a raw access token for the direct-HTTP attacks
 // below, which deliberately bypass @noot/core to send fields the typed API no longer has.
 const raw = createClient(URL, ANON, { auth: { persistSession: false } })
 const { data: rawSess } = await raw.auth.signInWithPassword({
-  email: 'student@crimson.ua.edu', password: 'password123',
+  email: 'student@crimson.ua.edu', password: DEV_PASSWORD,
 })
 const accessToken = rawSess.session?.access_token ?? ''
 const studentId = rawSess.user?.id ?? ''
