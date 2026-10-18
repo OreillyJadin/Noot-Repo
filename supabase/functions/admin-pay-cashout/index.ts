@@ -14,7 +14,8 @@
 //     DB write failed) is recorded as pay_unknown_at: the row stays pending and Reject refuses
 //     it (admin_reject_cashout). The next Pay first lists transfers in the cash-out's
 //     transfer_group (works even if the payout account has since died): found → paid; none
-//     after 15 min → that key is retired and a fresh attempt proceeds; sooner → same key again.
+//     after Stripe's 24h key lifetime → that key is retired and a fresh attempt proceeds;
+//     sooner → the same key is replayed (and the row stays unrejectable).
 //   • Marked paid only after Stripe returned the transfer; on failure the row stays pending
 //     with last_error set so the admin sees why.
 // The credit itself was already taken off the ambassador's balance when they requested
@@ -34,8 +35,10 @@ const cors = {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CLAIM_STALE_MS = 10 * 60 * 1000;
 // How long after an unanswered Stripe attempt an empty transfer listing counts as proof that
-// nothing was created (Stripe finishes a request in seconds; this is generous).
-const UNKNOWN_SETTLE_MS = 15 * 60 * 1000;
+// nothing was created. Stripe keeps an idempotency key's result for 24h; once that has
+// passed, the original request can neither be replayed nor still be in flight, so a
+// transfer it created would have to be in the listing by now.
+const UNKNOWN_SETTLE_MS = 25 * 60 * 60 * 1000;
 
 type StripeErr = { type?: string; code?: string; message?: string; statusCode?: number };
 
@@ -114,6 +117,9 @@ serveWithErrorReporting('admin-pay-cashout', async (req: Request) => {
 
     // Release the claim, leave the row pending, and tell the admin plainly why.
     const fail = async (message: string, httpStatus: number, bumpAttempt = false) => {
+      if (cashout.pay_unknown_at && !bumpAttempt) {
+        message += ' An earlier attempt is still unresolved with Stripe, so Reject stays off until it settles (up to a day).';
+      }
       const patch: Record<string, unknown> = { paying_at: null, last_error: message.slice(0, 300) };
       // A definitive refusal under this key means no transfer exists for it: the outcome is known.
       if (bumpAttempt) Object.assign(patch, { pay_attempts: cashout.pay_attempts + 1, pay_unknown_at: null });
@@ -147,8 +153,8 @@ serveWithErrorReporting('admin-pay-cashout', async (req: Request) => {
         return unresolved('Stripe didn’t answer. Try again in a few minutes — it won’t be sent twice.', 502);
       }
       if (!transferId && Date.now() - Date.parse(cashout.pay_unknown_at) >= UNKNOWN_SETTLE_MS) {
-        // Long enough: nothing was created under that key. Retire it so a cached error
-        // can't be replayed forever, and carry on as a fresh attempt (which may still fail
+        // The old key has expired at Stripe and nothing ever appeared: that attempt created
+        // nothing. Retire the key and carry on as a fresh attempt (which may still fail
         // cleanly and release the row to Reject).
         cashout.pay_attempts += 1;
         cashout.pay_unknown_at = null;
