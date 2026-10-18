@@ -1,23 +1,26 @@
 # Noot — project context for Claude
 
 Peer-to-peer campus tutoring app. pnpm + Turborepo monorepo. Launching University of
-Alabama, Fall 2026. Read `ARCHITECTURE.md` (authoritative) and `HANDOFF_CLAUDE.md`
+Alabama, Fall 2026. Read `ARCHITECTURE.md` (authoritative) and `docs/archive/HANDOFF_CLAUDE.md`
 (current state) before starting work.
 
-**Current priority: `APP_REVIEW_START_HERE.md`** — Apple returned **Guideline 2.1 Information
+**Open work: `docs/OPEN_ITEMS.md`** — everything still open from the archived handoffs in
+`docs/archive/`, checked against `main`. The archived files are history; read them for context only.
+
+**Current priority: `docs/archive/APP_REVIEW_START_HERE.md`** — Apple returned **Guideline 2.1 Information
 Needed** on the first submission. That file has the rules for this push, Apple's message verbatim,
-and the verification loop; `APP_REVIEW_TICKETS.md` is the work list, `APP_REVIEW_REPLY_DRAFT.md`
-the reply whose every claim must be true in code, and `APP_REVIEW_AUDITOR.md` the adversarial
+and the verification loop; `docs/archive/APP_REVIEW_TICKETS.md` is the work list, `docs/archive/APP_REVIEW_REPLY_DRAFT.md`
+the reply whose every claim must be true in code, and `docs/archive/APP_REVIEW_AUDITOR.md` the adversarial
 audit prompt to run before calling a ticket done. **Read it before doing App Review work.**
 
-**Newest handoff: `HANDOFF_2026-09-21.md`** — trynoot.com migration, Supabase auth email as
+**Newest handoff: `docs/archive/HANDOFF_2026-09-21.md`** — trynoot.com migration, Supabase auth email as
 code, the Stripe sandbox→live cutover, and exactly what still blocks the App Review
 resubmission. Read it first.
 
-**Newest state: `PICKUP_HERE.md`** — the Expo **SDK 54→57** upgrade (done, on `main`,
+**Newest state: `docs/archive/PICKUP_HERE.md`** — the Expo **SDK 54→57** upgrade (done, on `main`,
 device-verified in Expo Go): what changed, the gotchas, and what still needs a new EAS build.
 
-**Latest handoff: `HANDOFF_2026-08-11.md`** — App Store readiness state, what's blocking
+**Latest handoff: `docs/archive/HANDOFF_2026-08-11.md`** — App Store readiness state, what's blocking
 submission, and the split between what Jadin must do (§3, needs credentials/domain/device)
 and what a session can pick up unaided (§3.5). Read it before planning work.
 
@@ -29,7 +32,7 @@ That means both:
 - **`apps/web`** (the Next.js marketing site) — don't touch it, don't feature-work it.
 - **The mobile app's own web target** (`platform=web` / react-native-web at :8081) — not a
   supported surface right now. **Its Metro bundle is currently broken on SDK 57** (see
-  `PICKUP_HERE.md`). Do not spend time fixing it unless asked; do not treat a web bundle
+  `docs/archive/PICKUP_HERE.md`). Do not spend time fixing it unless asked; do not treat a web bundle
   failure as a blocker for mobile work.
 
 iOS and Android are the only targets that must build and run.

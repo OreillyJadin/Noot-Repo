@@ -4,7 +4,7 @@ Backend for noot — Phase 1 (ARCHITECTURE.md §3–§6).
 
 - `config.toml` — local stack config for the Supabase CLI.
 - `migrations/` — SQL schema, RLS, and the `.edu` auth gate:
-  - `0001_init.sql` — tables + enums (ARCHITECTURE.md §4 / prd-data-models.md).
+  - `0001_init.sql` — tables + enums (ARCHITECTURE.md §4 / docs/archive/prd-data-models.md).
   - `0002_rls.sql` — Row Level Security. Client (anon key) touches only its own rows +
     public-by-design data; all trust-sensitive writes go through Edge Functions (service role).
   - `0003_auth_and_campus_gate.sql` — `campuses` allowlist + a trigger on `auth.users` that
@@ -18,7 +18,7 @@ Backend for noot — Phase 1 (ARCHITECTURE.md §3–§6).
 ## Schema decisions (read before touching migrations)
 
 - **Authoritative model is ARCHITECTURE.md §4** (resolved decisions), which supersedes
-  `prd-data-models.md`: multiple roles per account (`user_roles` + `users.active_role`),
+  `docs/archive/prd-data-models.md`: multiple roles per account (`user_roles` + `users.active_role`),
   admin-moderated reviews (`subject_user_id` + `approval_status`), weekly availability +
   one-off overrides, flat $5 one-time ambassador bonus.
 - **Every person reference points to `public.users(id)` (= `auth.uid()`)** so every RLS
