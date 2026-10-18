@@ -28,9 +28,11 @@ function sessionFacts(booking: BookingDraft, tutor: Tutor, gradesVerified: boole
   const courseMatch = tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!;
   const feeRate = feeRateFor(gradesVerified && !courseMatch[4]);
   const rate = courseMatch[2];
-  const gross = rate * lengthHours;
-  const fee = gross * feeRate;
-  const payout = gross - fee;
+  // A real booking carries its own price and payout (a $0 admin booking, a rate changed
+  // since it was booked); the course rate is only the preview before one exists.
+  const gross = booking.price ?? rate * lengthHours;
+  const payout = booking.tutorPayoutAmount ?? gross - gross * feeRate;
+  const fee = gross - payout;
   const online = location.startsWith('Online');
   return { dayObj, lengthHours, lenLabel, slot, location, course, rate, feeRate, gross, fee, payout, online };
 }
@@ -161,7 +163,7 @@ export default function TB2() {
         <Card style={{ marginTop: 12, padding: 16 }}>
           <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>Earnings preview</Eyebrow>
           <View style={styles.earnRow}>
-            <Text style={{ fontSize: 14, color: t.text2 }}>{f.lenLabel} × ${f.rate}/hr</Text>
+            <Text style={{ fontSize: 14, color: t.text2 }}>{f.gross === 0 ? `${f.lenLabel} · admin booking` : `${f.lenLabel} × $${f.rate}/hr`}</Text>
             <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>${f.gross.toFixed(2)}</Text>
           </View>
           <View style={[styles.earnRow, { marginTop: 10 }]}>
@@ -175,7 +177,9 @@ export default function TB2() {
           </View>
           <View style={styles.lockRow}>
             <Ic name="lock" size={13} color={t.text3} strokeWidth={1.8} />
-            <Text style={{ fontSize: 12, color: t.text3 }}>Paid out to your Stripe account after the session.</Text>
+            <Text style={{ fontSize: 12, color: t.text3 }}>
+              {f.gross === 0 ? 'Admin booking — nothing is charged and there is no payout for this session.' : 'Paid out to your Stripe account after the session.'}
+            </Text>
           </View>
         </Card>
 

@@ -25,9 +25,11 @@ function sessionFacts(booking: BookingDraft, tutor: Tutor | undefined, gradesVer
   const courseMatch = tutor?.courses.find((c) => c[0] === course) ?? tutor?.courses[0];
   const feeRate = feeRateFor(gradesVerified && !courseMatch?.[4]);
   const rate = courseMatch?.[2] ?? 0;
-  const gross = rate * lengthHours;
-  const fee = gross * feeRate;
-  const payout = gross - fee;
+  // A real booking carries its own price and payout (a $0 admin booking, a rate changed
+  // since it was booked); the course rate is only the preview before one exists.
+  const gross = booking.price ?? rate * lengthHours;
+  const payout = booking.tutorPayoutAmount ?? gross - gross * feeRate;
+  const fee = gross - payout;
   const online = location.startsWith('Online');
   return { dayObj, lengthHours, lenLabel, slot, location, course, rate, gross, fee, payout, online };
 }
