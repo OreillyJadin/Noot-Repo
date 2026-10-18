@@ -112,6 +112,16 @@ function B4Inner() {
         scheduledAt,
       });
 
+      // The screen said $0 (admin role) but the server priced it: the admin session isn't
+      // MFA-verified, so is_admin() is false there. Never open a card sheet under a "$0" screen.
+      if (free && !pi.free) {
+        setStatus('idle');
+        Alert.alert(
+          'Verify your admin session first',
+          `Admin bookings are free only in a session verified with your authenticator. Right now this session would cost $${dollars(pi.amountCents - pi.creditCents)}. Open the Admin tab to verify, then come back.`,
+        );
+        return;
+      }
       // A free (admin) booking has no PaymentIntent and nothing to present.
       if (!pi.simulated && !pi.free) {
         // PaymentSheet needs the native SDK — absent in Expo Go. Guide the user to the dev build.

@@ -154,6 +154,8 @@ try {
     done.status === 200 && done.body.captured === false && done.body.transferId === null && doneRow.status === 'completed' &&
       doneRow.stripe_charge_id === null && doneRow.stripe_transfer_id === null && doneRow.payout_failed_at === null,
     `${done.status} ${JSON.stringify(done.body)}`);
+  const { data: rewards } = await svc.from('credit_ledger').select('id').eq('booking_id', bookingId).eq('kind', 'invite_reward');
+  check('…and a free session earns nobody an invite reward', (rewards?.length ?? 0) === 0, String(rewards?.length));
 
   const c = await adminBooking(10, 6, 3);
   await call('respond-booking-request', { bookingId: c.bookingId, action: 'accept' }, tutor.token);
