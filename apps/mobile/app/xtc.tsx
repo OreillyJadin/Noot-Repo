@@ -23,7 +23,7 @@ function sessionFacts(booking: BookingDraft, tutor: Tutor) {
   const course = booking.course ?? tutor.courses[0]![0];
   const courseRow = tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!;
   const lengthMin = booking.lengthMin ?? 60;
-  const gross = courseRow[2] * (lengthMin / 60);
+  const gross = booking.price ?? courseRow[2] * (lengthMin / 60);
   return { dayObj, slot, course, gross };
 }
 

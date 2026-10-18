@@ -11,7 +11,7 @@ import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, H2, ProgressDots, H1, Sub, Ic, Skeleton, useTheme } from '@noot/ui';
-import { api, UNVERIFIED_FEE_RATE, type CatalogCourse } from '@noot/core';
+import { api, UNVERIFIED_FEE_RATE, type CatalogCourse, MIN_HOURLY_RATE } from '@noot/core';
 import { CoursePicker } from '../lib/CoursePicker';
 import { useStepBack } from '../lib/useStepBack';
 import { errText } from '../lib/errText';
@@ -119,7 +119,7 @@ export default function T3() {
               grade: '',
               currentlyTaking: gradesVerified,
               existing: false,
-              hourlyRate: 0,
+              hourlyRate: MIN_HOURLY_RATE,
               sessions: 0,
               title: picked.courseTitle,
             },
@@ -148,7 +148,7 @@ export default function T3() {
           .map((c) => ({
             courseCode: c.courseCode,
             grade: c.grade || null,
-            hourlyRate: c.hourlyRate,
+            hourlyRate: c.hourlyRate || MIN_HOURLY_RATE,
             currentlyTaking: c.currentlyTaking,
           })),
       );

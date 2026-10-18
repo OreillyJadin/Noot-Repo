@@ -52,14 +52,17 @@ serveWithErrorReporting('complete-session', async (req: Request) => {
 
     const { data: booking } = await db
       .from('bookings')
-      .select('id, tutor_id, status, scheduled_at, duration_minutes, stripe_payment_intent_id, tutor_payout_amount')
+      .select('id, tutor_id, status, scheduled_at, duration_minutes, stripe_payment_intent_id, tutor_payout_amount, price')
       .eq('id', bookingId)
       .maybeSingle();
     if (!booking) return Response.json({ error: 'booking not found' }, { status: 404, headers: cors });
     if (booking.tutor_id !== user.id) return Response.json({ error: 'forbidden' }, { status: 403, headers: cors });
+    // A $0 booking (an admin's, TUT-4) is a real session but not a paid one, so it earns
+    // nobody an invite reward.
+    const paidSession = Number(booking.price) > 0;
     if (booking.status === 'completed') {
       // A retry, e.g. after the payout failed below: the reward may not have fired yet.
-      await awardInvites(url, bookingId);
+      if (paidSession) await awardInvites(url, bookingId);
       return Response.json({ status: 'completed', captured: false, alreadyComplete: true }, { headers: cors });
     }
     if (booking.status !== 'confirmed') {
@@ -129,7 +132,7 @@ serveWithErrorReporting('complete-session', async (req: Request) => {
         }
         console.error('complete-session: captured but transfer failed', bookingId, `owed ${payout.shortfallCents}c`, String(payout.error));
         // The session did happen and was paid for, so the invite reward still applies.
-        await awardInvites(url, bookingId);
+        if (paidSession) await awardInvites(url, bookingId);
         return Response.json(
           {
             error: 'The payment was taken but the payout to the tutor failed. Our team has been notified and will complete it.',
@@ -155,7 +158,7 @@ serveWithErrorReporting('complete-session', async (req: Request) => {
       return Response.json({ error: 'This session was cancelled or reported as a no-show.' }, { status: 409, headers: cors });
     }
 
-    await awardInvites(url, bookingId);
+    if (paidSession) await awardInvites(url, bookingId);
 
     return Response.json({ status: 'completed', captured, transferId }, { headers: cors });
   } catch (err) {
