@@ -11,9 +11,10 @@
 //     one. pay_attempts only moves when Stripe definitively refused (4xx — e.g. the platform
 //     balance was short), which created nothing; Stripe otherwise replays that refusal under
 //     the old key for 24h. An ambiguous failure (network, 5xx, or Stripe answered but our
-//     DB write failed) is recorded as pay_unknown_at: the row stays pending, Reject refuses
-//     it (admin_reject_cashout) until a later Pay replays the same key and gets a definite
-//     answer — the same transfer back (→ paid) or a refusal (→ nothing was created).
+//     DB write failed) is recorded as pay_unknown_at: the row stays pending and Reject refuses
+//     it (admin_reject_cashout). The next Pay first lists transfers in the cash-out's
+//     transfer_group (works even if the payout account has since died): found → paid; none
+//     after 15 min → that key is retired and a fresh attempt proceeds; sooner → same key again.
 //   • Marked paid only after Stripe returned the transfer; on failure the row stays pending
 //     with last_error set so the admin sees why.
 // The credit itself was already taken off the ambassador's balance when they requested
@@ -32,6 +33,9 @@ const cors = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CLAIM_STALE_MS = 10 * 60 * 1000;
+// How long after an unanswered Stripe attempt an empty transfer listing counts as proof that
+// nothing was created (Stripe finishes a request in seconds; this is generous).
+const UNKNOWN_SETTLE_MS = 15 * 60 * 1000;
 
 type StripeErr = { type?: string; code?: string; message?: string; statusCode?: number };
 
@@ -87,10 +91,10 @@ serveWithErrorReporting('admin-pay-cashout', async (req: Request) => {
       .eq('id', cashoutId)
       .eq('status', 'pending')
       .or(`paying_at.is.null,paying_at.lt.${staleBefore}`)
-      .select('id, user_id, amount_cents, pay_attempts');
+      .select('id, user_id, amount_cents, pay_attempts, pay_unknown_at');
     if (claimErr) throw new Error(`claim failed: ${JSON.stringify(claimErr)}`);
     const cashout = (claimed ?? [])[0] as
-      | { id: string; user_id: string | null; amount_cents: number; pay_attempts: number }
+      | { id: string; user_id: string | null; amount_cents: number; pay_attempts: number; pay_unknown_at: string | null }
       | undefined;
 
     if (!cashout) {
@@ -117,61 +121,96 @@ serveWithErrorReporting('admin-pay-cashout', async (req: Request) => {
       return Response.json({ error: message }, { status: httpStatus, headers: cors });
     };
 
-    if (!cashout.user_id) {
-      return fail('This ambassador’s account was deleted. Reject the cash-out instead.', 409);
-    }
-
-    // 2. Where the money goes: the tutor's Connect account, or the ambassador-only one.
-    const profile = await resolvePayoutProfile(db, cashout.user_id);
-    if (!profile.accountId) {
-      return fail('The ambassador hasn’t set up a payout account yet.', 409);
-    }
-    let ready = false;
-    try {
-      const status = await getPayoutStatus(stripeKey, profile.accountId);
-      ready = !status.closed && status.transfersActive;
-    } catch (err) {
-      if (!isDeadAccountError(err)) throw err;
-    }
-    if (!ready) {
-      return fail('The ambassador’s payout account isn’t ready to receive transfers yet. Ask them to finish payout setup.', 409);
-    }
-
+    // Stripe may have moved the money; keep the row pending and unrejectable until we know.
+    // The original unknown timestamp is kept so the settle window below can elapse.
     const unresolved = async (message: string, httpStatus: number) => {
       await db.from('credit_cashouts')
-        .update({ paying_at: null, pay_unknown_at: new Date().toISOString(), last_error: message })
+        .update({ paying_at: null, pay_unknown_at: cashout.pay_unknown_at ?? new Date().toISOString(), last_error: message })
         .eq('id', cashoutId).eq('status', 'pending');
-      return Response.json({ error: message }, { status: httpStatus, headers: cors });
+      return Response.json({ error: message, unresolved: true }, { status: httpStatus, headers: cors });
     };
 
-    // 3. The transfer. Same key for the same attempt, so a replay returns the same transfer.
     const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
     const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
-    let transferId: string;
-    try {
-      const transfer = await stripe.transfers.create(
-        {
-          amount: cashout.amount_cents,
-          currency: 'usd',
-          destination: profile.accountId,
-          transfer_group: `cashout_${cashoutId}`,
-          description: 'noot ambassador credit cash-out',
-          metadata: { cashout_id: cashoutId, user_id: cashout.user_id },
-        },
-        { idempotencyKey: `cashout_transfer_${cashoutId}_${cashout.pay_attempts}` },
-      );
-      transferId = transfer.id;
-    } catch (err) {
-      console.error('admin-pay-cashout: transfer failed', cashoutId, String(err));
-      if (stripeRefused(err)) return fail(stripeMessage(err), 502, true);
-      // Ambiguous (network / 5xx): Stripe may or may not have created the transfer, and a
-      // listing right now would only be a snapshot. Record the unknown, release the claim so
-      // the admin can tap Pay again straight away (same idempotency key ⇒ same answer), and
-      // keep Reject off the row until that answer arrives.
-      return unresolved('Stripe didn’t answer. Tap Pay again — it won’t be sent twice.', 502);
+    const group = `cashout_${cashoutId}`;
+    const findExisting = async () => (await stripe.transfers.list({ transfer_group: group, limit: 1 })).data[0]?.id ?? null;
+    let transferId: string | null = null;
+
+    // 2. An earlier attempt Stripe never answered? Ask Stripe what happened before anything
+    //    else — this has to work even if the payout account has since died, and it's how a
+    //    cached 5xx (transfer created, error stored under the key) gets recorded as paid.
+    if (cashout.pay_unknown_at) {
+      try {
+        transferId = await findExisting();
+      } catch (err) {
+        console.error('admin-pay-cashout: reconcile failed', cashoutId, String(err));
+        return unresolved('Stripe didn’t answer. Try again in a few minutes — it won’t be sent twice.', 502);
+      }
+      if (!transferId && Date.now() - Date.parse(cashout.pay_unknown_at) >= UNKNOWN_SETTLE_MS) {
+        // Long enough: nothing was created under that key. Retire it so a cached error
+        // can't be replayed forever, and carry on as a fresh attempt (which may still fail
+        // cleanly and release the row to Reject).
+        cashout.pay_attempts += 1;
+        cashout.pay_unknown_at = null;
+        const { error } = await db.from('credit_cashouts')
+          .update({ pay_unknown_at: null, pay_attempts: cashout.pay_attempts })
+          .eq('id', cashoutId).eq('status', 'pending');
+        if (error) throw new Error(`settle failed: ${JSON.stringify(error)}`);
+      }
+      // Otherwise (too soon to be sure) fall through and replay the same key.
     }
 
-    // 4. Record it. Only now does the row say paid.
+    if (!transferId) {
+      if (!cashout.user_id) {
+        return fail('This ambassador’s account was deleted. Reject the cash-out instead.', 409);
+      }
+
+      // 3. Where the money goes: the tutor's Connect account, or the ambassador-only one.
+      const profile = await resolvePayoutProfile(db, cashout.user_id);
+      if (!profile.accountId) {
+        return fail('The ambassador hasn’t set up a payout account yet.', 409);
+      }
+      let ready = false;
+      try {
+        const status = await getPayoutStatus(stripeKey, profile.accountId);
+        ready = !status.closed && status.transfersActive;
+      } catch (err) {
+        if (!isDeadAccountError(err)) throw err;
+      }
+      if (!ready) {
+        return fail('The ambassador’s payout account isn’t ready to receive transfers yet. Ask them to finish payout setup.', 409);
+      }
+
+      // 4. The transfer. Same key for the same attempt, so a replay returns the same transfer.
+      try {
+        const transfer = await stripe.transfers.create(
+          {
+            amount: cashout.amount_cents,
+            currency: 'usd',
+            destination: profile.accountId,
+            transfer_group: group,
+            description: 'noot ambassador credit cash-out',
+            metadata: { cashout_id: cashoutId, user_id: cashout.user_id },
+          },
+          { idempotencyKey: `cashout_transfer_${cashoutId}_${cashout.pay_attempts}` },
+        );
+        transferId = transfer.id;
+      } catch (err) {
+        console.error('admin-pay-cashout: transfer failed', cashoutId, String(err));
+        if (stripeRefused(err)) return fail(stripeMessage(err), 502, true);
+        // Ambiguous (network / 5xx): Stripe may or may not have created the transfer. A quick
+        // look recovers the common case; an empty listing this soon proves nothing, so the
+        // row is then marked unknown (Reject refuses it) until a later Pay settles it.
+        try {
+          transferId = await findExisting();
+        } catch (listErr) {
+          console.error('admin-pay-cashout: reconcile failed', cashoutId, String(listErr));
+        }
+        if (!transferId) return unresolved('Stripe didn’t answer. Tap Pay again in a few minutes — it won’t be sent twice.', 502);
+      }
+    }
+
+    // 5. Record it. Only now does the row say paid.
     const { data: paidRows, error: paidErr } = await db
       .from('credit_cashouts')
       .update({
