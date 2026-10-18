@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Button, Skeleton, ViewingAs, PreviewBanner, useTheme, AdaptiveRow, type IconName } from '@noot/ui';
+import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Button, Skeleton, ViewingAs, PreviewBanner, useTheme, useLargeText, AdaptiveRow, type IconName } from '@noot/ui';
 import { api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
@@ -53,6 +53,7 @@ const ACTIONS: [IconName, string, string][] = [
 export default function TutorHome() {
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
+  const large = useLargeText();
   const router = useRouter();
   const { role, patchBooking } = useApp();
   const { me, loading, tutorStatus, gradesVerified } = useMe();
@@ -179,7 +180,7 @@ export default function TutorHome() {
                   {sessionMeta(next.scheduledAt, next.location)}
                 </Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
+              <View style={{ alignItems: large ? 'flex-start' : 'flex-end' }}>
                 <Text style={[styles.payout, { color: t.onAccent }]}>${next.tutorPayoutAmount.toFixed(2)}</Text>
                 <Text style={[styles.payoutLabel, { color: t.onAccent }]}>payout</Text>
               </View>
