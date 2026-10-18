@@ -245,7 +245,7 @@ function AdminHomeScreen() {
                   : 'All caught up'
                 : 'Loading'
             }
-            subtitleLines={2}
+            subtitleLines={0}
             count={ambassadorWork}
             muted={!!counts && ambassadorWork === 0}
             onPress={() => router.push('/admin_ambassadors' as never)}

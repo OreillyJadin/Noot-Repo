@@ -142,7 +142,7 @@ function AdminAmbassadorsScreen() {
                   key={a.userId}
                   icon="user"
                   title={a.name}
-                  subtitle={`${a.completedInvites} of ${a.invites} invite${a.invites === 1 ? '' : 's'} completed · ${dollars(a.balanceCents)} credit\nAmbassador since ${when(a.appliedAt)}`}
+                  subtitle={`${a.completedInvites} of ${a.invites} invite${a.invites === 1 ? '' : 's'} completed · ${dollars(a.balanceCents)} credit\nApplied ${when(a.appliedAt)}`}
                   subtitleLines={0}
                   trailing={<Text style={[styles.action, { color: busy === a.userId ? t.text3 : t.accent }]}>{busy === a.userId ? 'Approving…' : 'Approve'}</Text>}
                   chevron={false}
@@ -163,6 +163,7 @@ function AdminAmbassadorsScreen() {
                   key={c.id}
                   icon="wallet"
                   title={`${dollars(c.amountCents)} · ${c.name}`}
+                  titleLines={2}
                   subtitle={`Requested ${when(c.createdAt)}${c.payoutReady ? '' : '\nPayout account not ready'}`}
                   subtitleLines={0}
                   detail={c.lastError ? <Text style={[styles.detail, { color: WARNING_AMBER }]}>Last try: {c.lastError}</Text> : undefined}
@@ -191,6 +192,7 @@ function AdminAmbassadorsScreen() {
                   key={`${h.kind}-${h.id}`}
                   icon={h.kind === 'approval' ? 'check' : 'wallet'}
                   title={h.kind === 'approval' ? `${h.name} approved` : `${dollars(h.amountCents ?? 0)} · ${h.name}`}
+                  titleLines={2}
                   subtitle={when(h.at)}
                   trailing={
                     h.kind === 'cashout'
