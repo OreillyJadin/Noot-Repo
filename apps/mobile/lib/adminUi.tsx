@@ -113,9 +113,19 @@ export function AdminRow({
   const stacked = useWindowDimensions().fontScale >= STACK_FONT_SCALE;
   const pill = count && count > 0 ? <CountPill count={count} /> : null;
   const chev = chevron ? <Ic name="chevR" size={17} color={t.text3} strokeWidth={1.8} /> : null;
+  // Stacked: multi-word titles wrap freely; a single word can't wrap, so it shrinks instead
+  // of breaking mid-word ("Ambassad/ors").
+  const oneWord = !/\s/.test(title.trim());
   const text = (
     <View style={styles.rowText}>
-      <Text numberOfLines={(stacked ? Math.max(titleLines, 3) : titleLines) || undefined} style={[styles.rowTitle, { color: muted ? t.text2 : t.text }, titleStyle]}>{title}</Text>
+      <Text
+        numberOfLines={stacked ? (oneWord ? 1 : undefined) : titleLines || undefined}
+        adjustsFontSizeToFit={stacked && oneWord}
+        minimumFontScale={0.6}
+        style={[styles.rowTitle, { color: muted ? t.text2 : t.text }, titleStyle]}
+      >
+        {title}
+      </Text>
       {subtitle ? <Text numberOfLines={(stacked ? 0 : subtitleLines) || undefined} style={[styles.rowSubtitle, { color: t.text3 }]}>{subtitle}</Text> : null}
       {detail ? <View style={styles.rowDetail}>{detail}</View> : null}
     </View>
@@ -161,9 +171,11 @@ export function AdminRow({
 }
 
 export function StatusDot({ label, color }: { label: string; color: string }) {
+  // The dot and its gap grow with the text, so large type doesn't read as "·Paid".
+  const scale = Math.min(useWindowDimensions().fontScale, 2.5);
   return (
-    <View style={styles.status}>
-      <View style={[styles.statusDot, { backgroundColor: color }]} />
+    <View style={[styles.status, { gap: Math.round(5 * scale) }]}>
+      <View style={[styles.statusDot, { backgroundColor: color, width: 6 * scale, height: 6 * scale, borderRadius: 3 * scale }]} />
       <Text style={[styles.statusLabel, { color }]}>{label}</Text>
     </View>
   );
