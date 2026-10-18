@@ -10,6 +10,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 import { emptyGrid, windowsFromGrid, gridFromWindows } from '../apps/mobile/lib/weekGrid.ts';
+import { DEV_PASSWORD } from './_devPassword.mjs';
 
 const URL = 'http://127.0.0.1:54321';
 const ANON =
@@ -25,7 +26,7 @@ function check(name: string, ok: boolean, detail = '') {
 }
 
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false } });
-const PASSWORD = 'NootTest123!';
+const PASSWORD = DEV_PASSWORD;
 async function makeUser(tag: string) {
   const email = `${tag}+${Date.now()}@crimson.ua.edu`;
   const { data, error } = await svc.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });

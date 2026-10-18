@@ -11,6 +11,7 @@
 //
 // Needs: supabase start && node supabase/seed_demo.mjs && supabase functions serve
 //        (with STRIPE_SECRET_KEY=sk_test_... for the capture paths)
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 import { createClient } from '@supabase/supabase-js'
 import { authorizeHold, cancelHold, getPaymentIntent, stripeTestMode } from './_stripe_test.mts'
@@ -31,12 +32,12 @@ const admin = createClient(URL, SERVICE, { auth: { persistSession: false } })
 
 // --- setup: a real confirmed booking with an authorized hold ---------------
 const raw = createClient(URL, ANON, { auth: { persistSession: false } })
-const asStudent = await raw.auth.signInWithPassword({ email: 'student@crimson.ua.edu', password: 'password123' })
+const asStudent = await raw.auth.signInWithPassword({ email: 'student@crimson.ua.edu', password: DEV_PASSWORD })
 const studentId = asStudent.data.user!.id
 const studentToken = asStudent.data.session!.access_token
 step(1, !!studentToken, 'signed in as the demo student')
 
-await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
+await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD)
 const tutors = await api.tutors.search()
 const tutor = tutors[0]!
 await admin.from('tutor_profiles').update({ stripe_charges_enabled: true }).eq('user_id', tutor.userId)
@@ -45,7 +46,7 @@ const courseCode = tc!.course_code as string
 
 // A tutor token, for the calls only a tutor may make.
 const { data: tutorUser } = await admin.from('users').select('email').eq('id', tutor.userId).single()
-const asTutor = await raw.auth.signInWithPassword({ email: tutorUser!.email as string, password: 'password123' })
+const asTutor = await raw.auth.signInWithPassword({ email: tutorUser!.email as string, password: DEV_PASSWORD })
 const tutorToken = asTutor.data.session?.access_token ?? ''
 step(2, !!tutorToken, `signed in as the tutor (${tutorUser!.email})`)
 

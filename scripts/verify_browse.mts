@@ -5,6 +5,7 @@
 //
 // Needs: supabase start && node supabase/seed_demo.mjs
 //   pnpm dlx tsx scripts/verify_browse.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 import { toTutor } from '../apps/mobile/lib/data.ts'
 import { CATEGORIES, byPopularity, forYou, nudgeCourse, populatedCategories, searchTutors, subjectOf, tutorsIn } from '../apps/mobile/lib/browse.ts'
@@ -19,7 +20,7 @@ const step = (n: number, ok: boolean, msg: string) => {
 }
 
 initSupabase({ url: URL, anonKey: ANON })
-const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
+const signIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD)
 step(1, signIn.ok, signIn.ok ? 'signed in as the demo student' : `sign-in failed: ${signIn.error}`)
 
 const me = await api.getMe()

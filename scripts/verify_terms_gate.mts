@@ -4,6 +4,7 @@
 //
 // Needs: supabase start (migrations applied) && node supabase/seed_demo.mjs
 //   pnpm dlx tsx scripts/verify_terms_gate.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { createClient } from '@supabase/supabase-js'
 import { initSupabase, auth, api } from '../packages/core/src/index.ts'
 import { decidePostAuthRoute, lookupWithRetry } from '../apps/mobile/lib/postAuthRoute.ts'
@@ -115,11 +116,11 @@ try {
 
   // ---- a second new account, to try getting round the rule ----
   const oldEmail = `${tag}_old@crimson.ua.edu`
-  const old = await svc.auth.admin.createUser({ email: oldEmail, password: 'password123', email_confirm: true })
+  const old = await svc.auth.admin.createUser({ email: oldEmail, password: DEV_PASSWORD, email_confirm: true })
   if (old.error) throw old.error
   made.push(old.data.user!.id)
   const oldClient = createClient(URL, ANON, { auth: { persistSession: false } })
-  await oldClient.auth.signInWithPassword({ email: oldEmail, password: 'password123' })
+  await oldClient.auth.signInWithPassword({ email: oldEmail, password: DEV_PASSWORD })
   const oldConversation = await conversationFor(old.data.user!.id)
   // A new account cannot make itself "old": created_at on its own row is not what is read.
   await oldClient.from('users').update({ created_at: '2020-01-01T00:00:00Z' }).eq('id', old.data.user!.id)

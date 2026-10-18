@@ -5,6 +5,7 @@
 //
 // Needs: supabase start (migrations applied)
 //   pnpm dlx tsx scripts/verify_email_code.mts
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { createClient } from '@supabase/supabase-js'
 import { initSupabase, auth, api } from '../packages/core/src/index.ts'
 
@@ -62,7 +63,7 @@ try {
 
   // Someone else's address with this code: the code only works for the address it was sent to.
   const other = `${tag}_other@crimson.ua.edu`
-  const otherMade = await svc.auth.admin.createUser({ email: other, password: 'password123', email_confirm: true })
+  const otherMade = await svc.auth.admin.createUser({ email: other, password: DEV_PASSWORD, email_confirm: true })
   if (otherMade.error) throw otherMade.error
   const stolen = await auth.verifyEmailCode(other, code, 'signup')
   step(!stolen.ok && !(await auth.getSessionUserId()), 'the code does not sign in a different address')
@@ -80,7 +81,7 @@ try {
   step(!again.ok && !(await auth.getSessionUserId()), 'a code that was used cannot be used again')
 
   // ---- password reset ----
-  const made = await svc.auth.admin.createUser({ email: `${tag}_reset@crimson.ua.edu`, password: 'password123', email_confirm: true })
+  const made = await svc.auth.admin.createUser({ email: `${tag}_reset@crimson.ua.edu`, password: DEV_PASSWORD, email_confirm: true })
   if (made.error) throw made.error
   const resetEmail = made.data.user!.email!
   since = Date.now()
@@ -98,7 +99,7 @@ try {
   step(pw.ok && back.ok, 'the new password is saved and signs in')
 
   // A suspended account's code does not get it in, and it is told why rather than "wrong code".
-  const benched = await svc.auth.admin.createUser({ email: `${tag}_benched@crimson.ua.edu`, password: 'password123', email_confirm: true })
+  const benched = await svc.auth.admin.createUser({ email: `${tag}_benched@crimson.ua.edu`, password: DEV_PASSWORD, email_confirm: true })
   if (benched.error) throw benched.error
   await auth.signOut()
   since = Date.now()

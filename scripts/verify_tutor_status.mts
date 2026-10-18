@@ -4,6 +4,7 @@
 // Runs a real user through @noot/core against the live local stack. Uses a throwaway account
 // so it can't disturb the seeded ones, and deletes it at the end.
 //   pnpm dlx tsx scripts/verify_tutor_status.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { initSupabase, api, auth, getSupabase } from '../packages/core/src/index.ts';
 
@@ -24,7 +25,7 @@ function check(name: string, ok: boolean, detail = '') {
 
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const EMAIL = `applicant+${Date.now()}@crimson.ua.edu`;
-const PASSWORD = 'NootTest123!';
+const PASSWORD = DEV_PASSWORD;
 
 // --- a brand-new user, exactly as signup leaves them ---------------------------------------
 const { data: created, error: cErr } = await svc.auth.admin.createUser({
@@ -101,7 +102,7 @@ check('approved tutor can now persist tutor mode', (await api.getMe())?.activeRo
 // Checked from ANOTHER user's session: search() now excludes the signed-in user, so asking
 // the applicant whether they can see their own card tests the wrong thing (and would fail by
 // design). Sign back in afterwards — the rejection section below acts as the applicant.
-const asOther = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+const asOther = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
 if (!asOther.ok) throw new Error(asOther.error);
 const afterApproval = await api.tutors.search({});
 check('approved tutor appears in search FOR A STUDENT', afterApproval.some((t) => t.userId === uid));
@@ -122,7 +123,7 @@ const meRejected = await api.getMe();
 check('rejection WITHDRAWS the tutor role', !meRejected?.roles.includes('tutor'), meRejected?.roles.join(','));
 check('rejection resets them out of tutor mode', meRejected?.activeRole === 'student', String(meRejected?.activeRole));
 // Again from another user's session, for the same reason.
-const asOther2 = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+const asOther2 = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
 if (!asOther2.ok) throw new Error(asOther2.error);
 check('rejected tutor disappears from student search',
   !(await api.tutors.search({})).some((t) => t.userId === uid));

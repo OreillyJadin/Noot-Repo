@@ -1,3 +1,4 @@
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { api, auth, initSupabase, studentFeeFor } from '../packages/core/src/index.ts';
 import { authorizeHold, cancelHold } from './_stripe_test.mts';
@@ -12,7 +13,7 @@ const ANON =
 const SERVICE =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
-const PASSWORD = 'NootVerify!39_Request';
+const PASSWORD = DEV_PASSWORD;
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const emailTag = Date.now();
 const studentEmail = `err039-student-${emailTag}@crimson.ua.edu`;
@@ -82,7 +83,7 @@ try {
   stage = 'sign in verification users';
   ({ token: studentToken } = await login(studentEmail));
   ({ token: otherToken } = await login(otherEmail));
-  ({ token: tutorToken } = await login(tutor.email as string, 'password123'));
+  ({ token: tutorToken } = await login(tutor.email as string, DEV_PASSWORD));
   stage = 'sign in core student client';
   const studentSignIn = await auth.signInWithPassword(studentEmail, PASSWORD);
   if (!studentSignIn.ok) throw new Error(studentSignIn.error);
@@ -141,7 +142,7 @@ try {
 
   // The surfaces the tutor lands on after accepting: the session must show in their
   // upcoming list, and the conversation must already hold the student's booking message.
-  await auth.signInWithPassword(tutor.email as string, 'password123');
+  await auth.signInWithPassword(tutor.email as string, DEV_PASSWORD);
   const tutorUpcoming = await api.listUpcoming('tutor');
   step('accepted session shows in the tutor upcoming list',
     tutorUpcoming.some((b) => b.id === bookingId && b.status === 'confirmed'));
@@ -162,7 +163,7 @@ try {
   });
   bookings.push(declineBooking.bookingId);
   const beforeDecline = await api.credits.balance();
-  await auth.signInWithPassword(tutor.email as string, 'password123');
+  await auth.signInWithPassword(tutor.email as string, DEV_PASSWORD);
   const cancelledBeforeDecline = (await api.tutorStats()).cancelledCount;
   await auth.signInWithPassword(studentEmail, PASSWORD);
   const longNote = await call('respond-booking-request', { bookingId: declineBooking.bookingId, action: 'decline', note: 'x'.repeat(301) }, tutorToken);
@@ -189,7 +190,7 @@ try {
   step('decline notifies student and returns credit', await notification(studentId, declineBooking.bookingId, 'Session request declined') && await api.credits.balance() >= beforeDecline);
   const pastRequests = await api.listPast();
   step('declined request appears in past sessions', pastRequests.some((booking) => booking.id === declineBooking.bookingId && booking.cancelReason === 'tutor_declined'));
-  await auth.signInWithPassword(tutor.email as string, 'password123');
+  await auth.signInWithPassword(tutor.email as string, DEV_PASSWORD);
   const cancelledAfterDecline = (await api.tutorStats()).cancelledCount;
   await auth.signInWithPassword(studentEmail, PASSWORD);
   step('declined request does not count as a tutor cancellation', cancelledAfterDecline === cancelledBeforeDecline);
@@ -248,7 +249,7 @@ try {
   if (cancelPi.paymentIntentId.startsWith('pi_')) await authorizeHold(cancelPi.paymentIntentId);
   const cancelBooking = await api.bookings.confirm({ tutorId, courseCode, scheduledAt: cancelAt, durationMinutes: 60, sessionType: 'in_person', paymentIntentId: cancelPi.paymentIntentId });
   bookings.push(cancelBooking.bookingId);
-  await auth.signInWithPassword(tutor.email as string, 'password123');
+  await auth.signInWithPassword(tutor.email as string, DEV_PASSWORD);
   const cancelledBeforePendingCancel = (await api.tutorStats()).cancelledCount;
   await auth.signInWithPassword(studentEmail, PASSWORD);
   const userClient = (await login(studentEmail)).client;
@@ -262,7 +263,7 @@ try {
   step('pending student cancellation records its attribution', cancelledPending?.cancelled_by_role === 'student' &&
     cancelledPending.cancelled_from_status === 'pending');
   step('pending cancellation notifies tutor', await notification(tutorId, cancelBooking.bookingId, 'Session request cancelled'));
-  await auth.signInWithPassword(tutor.email as string, 'password123');
+  await auth.signInWithPassword(tutor.email as string, DEV_PASSWORD);
   const cancelledAfterPendingCancel = (await api.tutorStats()).cancelledCount;
   await auth.signInWithPassword(studentEmail, PASSWORD);
   step('pending cancellation does not count as a tutor cancellation', cancelledAfterPendingCancel === cancelledBeforePendingCancel);

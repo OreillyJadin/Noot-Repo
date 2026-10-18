@@ -149,8 +149,10 @@ production Supabase project, so migrations are meant to reach production through
   `export PATH="$HOME/.local/node-v22.23.1-linux-x64/bin:$PATH"`
 - Supabase local stack: `supabase start` / `supabase status`. API :54321, Studio :54323,
   Mailpit :54324, DB :54322. Migrations 0001–0005 apply on `supabase db reset`.
-- Dev sign-in (local only): `student@crimson.ua.edu` / tutor `sara@crimson.ua.edu`,
-  password `password123`. Re-seed with `node supabase/seed_demo.mjs`.
+- Dev sign-in (local only): `student@crimson.ua.edu` / tutor `sara@crimson.ua.edu` / admin
+  `admin@crimson.ua.edu`, password `Noot-dev-2026` (`DEV_PASSWORD` in `scripts/_devPassword.mjs`,
+  shared by the seeds, `scripts/verify_*.mts` and the e2e helpers; it meets the password rules in
+  `supabase/config.toml`, so don't relax them). Re-seed with `node supabase/seed_demo.mjs`.
 - `apps/mobile/.env` points at the local stack (`EXPO_PUBLIC_SUPABASE_*`).
 - **Don't remove the explicit `react-native-worklets` (0.10.1) and `react-native-reanimated`
   (4.5.1) pins in `apps/mobile/package.json`.** They aren't imported by our code — they're

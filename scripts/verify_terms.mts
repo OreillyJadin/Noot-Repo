@@ -3,6 +3,7 @@
 // covers the column, the write path through @noot/core, and that it is self-only.
 //
 // Needs: supabase start && node supabase/seed_demo.mjs
+import { DEV_PASSWORD } from './_devPassword.mjs'
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 import { createClient } from '@supabase/supabase-js'
 
@@ -21,7 +22,7 @@ const step = (n: number | string, ok: boolean, msg: string) => {
 initSupabase({ url: URL, anonKey: ANON })
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } })
 
-const signIn = await auth.signInWithPassword('student@crimson.ua.edu', 'password123')
+const signIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD)
 step(1, signIn.ok, signIn.ok ? 'signed in as the demo student' : `sign-in failed: ${signIn.error}`)
 
 const { data: me } = await admin.from('users').select('id').eq('email', 'student@crimson.ua.edu').single()
@@ -75,7 +76,7 @@ try {
 // 6) A user can't stamp acceptance on someone ELSE's row (RLS is self-only).
 {
   const sb = createClient(URL, ANON, { auth: { persistSession: false } })
-  await sb.auth.signInWithPassword({ email: 'student@crimson.ua.edu', password: 'password123' })
+  await sb.auth.signInWithPassword({ email: 'student@crimson.ua.edu', password: DEV_PASSWORD })
   const { data: other } = await admin.from('users').select('id').neq('id', myId).limit(1).single()
   await admin.from('users').update({ terms_accepted_at: null, terms_version: null }).eq('id', other!.id)
   await sb.from('users')

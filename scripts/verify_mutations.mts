@@ -2,6 +2,7 @@
 // (which invoke the Edge Functions) against a running local stack + `supabase functions serve`.
 //   node --experimental-strip-types is not enough (dir imports) — run via tsx:
 //   EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 pnpm dlx tsx scripts/verify_mutations.mts
+import { DEV_PASSWORD } from './_devPassword.mjs';
 import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 import { createClient } from '@supabase/supabase-js';
 import { authorizeHold } from './_stripe_test.mts';
@@ -58,7 +59,7 @@ if (studentErr || !studentRow) throw studentErr ?? new Error('seeded student not
 const studentId = studentRow.id as string;
 
 await check('auth.signInWithPassword(student)', async () => {
-  const r = await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  const r = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   if (!r.ok) throw new Error(r.error);
   return r;
 });
@@ -70,9 +71,9 @@ const { data: tutorUser } = await admin.from('users').select('email').eq('id', t
 const tutorEmail = tutorUser!.email as string;
 const acceptAsTutor = async (bookingId: string | undefined) => {
   if (!bookingId) throw new Error('booking was not created');
-  await auth.signInWithPassword(tutorEmail, 'password123');
+  await auth.signInWithPassword(tutorEmail, DEV_PASSWORD);
   const result = await api.bookings.respond({ bookingId, action: 'accept' });
-  await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   return result;
 };
 
@@ -141,25 +142,25 @@ await check('reschedule proposal notifies the tutor', () =>
 );
 {
   const { data: tutorRow } = await admin.from('users').select('email').eq('id', tutorId!).single();
-  await auth.signInWithPassword(tutorRow!.email as string, 'password123');
+  await auth.signInWithPassword(tutorRow!.email as string, DEV_PASSWORD);
   await check('bookings.reschedule(accept, as the tutor)', () =>
     api.bookings.reschedule({ bookingId: b1?.bookingId, action: 'accept' }),
   );
   await check('reschedule acceptance notifies the student', () =>
     assertBookingNotification(studentId, b1?.bookingId, 'Session moved'),
   );
-  await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   await check('bookings.reschedule(propose before decline)', () =>
     api.bookings.reschedule({ bookingId: b1?.bookingId, action: 'propose', newScheduledAt: future(4) }),
   );
-  await auth.signInWithPassword(tutorRow!.email as string, 'password123');
+  await auth.signInWithPassword(tutorRow!.email as string, DEV_PASSWORD);
   await check('bookings.reschedule(decline, as the tutor)', () =>
     api.bookings.reschedule({ bookingId: b1?.bookingId, action: 'decline' }),
   );
   await check('reschedule decline notifies the student', () =>
     assertBookingNotification(studentId, b1?.bookingId, 'New time declined'),
   );
-  await auth.signInWithPassword('student@crimson.ua.edu', 'password123');
+  await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
 }
 
 // second booking → cancel (student, >24h → 100% refund)

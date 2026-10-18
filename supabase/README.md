@@ -41,7 +41,13 @@ supabase start            # boots Postgres + Auth + Studio + Inbucket (Docker)
 supabase db reset         # applies migrations/ then seed.sql
 supabase status           # prints API URL + anon key for apps/mobile/.env
 supabase functions serve  # run Edge Functions locally
+node supabase/seed_demo.mjs  # demo tutors, dev student, admins
 ```
+
+The seeded accounts (`student@crimson.ua.edu`, tutor `sara@crimson.ua.edu`, admin
+`admin@crimson.ua.edu`, …) all use the dev password `Noot-dev-2026`, exported as `DEV_PASSWORD`
+from `scripts/_devPassword.mjs` and shared by every seed, `scripts/verify_*.mts` and e2e helper.
+It meets the password rules in `config.toml`; keep those rules strict locally.
 
 Then wire the app:
 
