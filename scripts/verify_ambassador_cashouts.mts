@@ -107,6 +107,9 @@ try {
   check('payout_account_ready now true', (await admin.c.rpc('payout_account_ready', { p_user: amb.uid })).data === true);
   blocked(await amb.c.rpc('request_credit_cashout', { p_cents: 999 }), 'under $10 refused');
   blocked(await amb.c.rpc('request_credit_cashout', { p_cents: 4001 }), 'more than the balance refused');
+  await svc.from('users').update({ status: 'suspended' }).eq('id', amb.uid);
+  blocked(await amb.c.rpc('request_credit_cashout', { p_cents: 1500 }), 'suspended ambassador refused (is_active_user)');
+  await svc.from('users').update({ status: 'active' }).eq('id', amb.uid);
   const r1 = await amb.c.rpc('request_credit_cashout', { p_cents: 1500 });
   allowed(r1, 'requests $15');
   const cid1 = r1.data as string;

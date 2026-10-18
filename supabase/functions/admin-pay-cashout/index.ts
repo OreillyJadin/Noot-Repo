@@ -10,7 +10,9 @@
 //     attempt replays the SAME key, so Stripe hands back the same transfer instead of a new
 //     one. pay_attempts only moves when Stripe definitively refused (4xx — e.g. the platform
 //     balance was short), which created nothing; Stripe otherwise replays that refusal under
-//     the old key for 24h.
+//     the old key for 24h. An ambiguous failure (network, 5xx) is reconciled by listing
+//     transfers in the cash-out's transfer_group; if even that fails the claim is kept so
+//     nobody can Reject (return the credit) while a transfer may exist.
 //   • Marked paid only after Stripe returned the transfer; on failure the row stays pending
 //     with last_error set so the admin sees why.
 // The credit itself was already taken off the ambassador's balance when they requested
@@ -152,7 +154,25 @@ serveWithErrorReporting('admin-pay-cashout', async (req: Request) => {
       transferId = transfer.id;
     } catch (err) {
       console.error('admin-pay-cashout: transfer failed', cashoutId, String(err));
-      return fail(stripeMessage(err), 502, stripeRefused(err));
+      if (stripeRefused(err)) return fail(stripeMessage(err), 502, true);
+      // Ambiguous (network / 5xx): Stripe may or may not have created the transfer. Ask
+      // before letting go of the claim, so Reject can't return credit that already moved.
+      try {
+        const found = await stripe.transfers.list({ transfer_group: `cashout_${cashoutId}`, limit: 1 });
+        if (!found.data[0]) return fail(stripeMessage(err), 502);
+        transferId = found.data[0].id;
+      } catch (listErr) {
+        // Still unknown: keep the claim (Reject and other Pay taps are blocked for 10 min),
+        // record why, and let a retry replay the same idempotency key.
+        console.error('admin-pay-cashout: reconcile failed', cashoutId, String(listErr));
+        await db.from('credit_cashouts')
+          .update({ last_error: 'Stripe didn’t answer. Try again in a few minutes — it won’t be sent twice.' })
+          .eq('id', cashoutId).eq('status', 'pending');
+        return Response.json(
+          { error: 'Stripe didn’t answer. Try again in a few minutes — it won’t be sent twice.' },
+          { status: 502, headers: cors },
+        );
+      }
     }
 
     // 4. Record it. Only now does the row say paid.

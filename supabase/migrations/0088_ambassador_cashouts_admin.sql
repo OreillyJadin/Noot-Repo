@@ -61,13 +61,16 @@ $$;
 revoke execute on function public.payout_account_ready(uuid) from public, anon;
 grant execute on function public.payout_account_ready(uuid) to authenticated, service_role;
 
--- Same as 0040, plus the payout-account requirement.
+-- Same as 0051 (active user, min, hold, balance), plus the payout-account requirement.
 create or replace function public.request_credit_cashout(p_cents int)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare
   uid uuid := auth.uid();
   cid uuid;
 begin
+  if not public.is_active_user() then
+    raise exception 'account is not active' using errcode = '42501';
+  end if;
   if uid is null then
     raise exception 'not authenticated' using errcode = 'insufficient_privilege';
   end if;
