@@ -178,7 +178,7 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
           <Card style={{ padding: 16 }}>
             {nextGoal ? (
               <>
-                <Text style={[styles.goalTitle, { color: t.text }]}>
+                <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.goalTitle, { color: t.text }]}>
                   Next: {nextGoal.threshold} completed invites → {dollars(nextGoal.bonusCents)} bonus
                 </Text>
                 <View style={[styles.track, { backgroundColor: t.surface2 }]}>
@@ -199,11 +199,11 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
                 const hit = paidGoals.has(m.threshold);
                 return (
                   <View key={m.threshold} style={styles.goalRow}>
-                    <Ic name={hit ? 'check' : 'target'} size={16} color={hit ? t.good : t.text3} strokeWidth={2} />
-                    <Text style={[styles.goalRowText, { color: hit ? t.text : t.text2 }]}>
+                    {large ? null : <Ic name={hit ? 'check' : 'target'} size={16} color={hit ? t.good : t.text3} strokeWidth={2} />}
+                    <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.goalRowText, { color: hit ? t.text : t.text2 }]}>
                       {m.threshold} completed invites
                     </Text>
-                    <Text style={[styles.goalRowAmt, { color: hit ? t.good : t.text2 }]}>{dollars(m.bonusCents)}</Text>
+                    <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.goalRowAmt, { color: hit ? t.good : t.text2 }]}>{dollars(m.bonusCents)}</Text>
                   </View>
                 );
               })}

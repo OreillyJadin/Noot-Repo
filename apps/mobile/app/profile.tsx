@@ -303,7 +303,7 @@ export default function Profile() {
               <Ic name="cap" size={21} color={t.accent} strokeWidth={1.7} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.switchTitle, { color: t.text }]}>
+              <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.switchTitle, { color: t.text }]}>
                 {tutorStatus === 'pending'
                   ? 'Tutor application in review'
                   : tutorStatus === 'draft'
@@ -322,7 +322,7 @@ export default function Profile() {
                       : 'Earn money helping classmates in courses you aced'}
               </Text>
             </View>
-            <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
+            {large ? null : <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />}
           </Card>
         ) : null}
         {!isAmbassador ? (
@@ -331,10 +331,10 @@ export default function Profile() {
               <Ic name="gift" size={21} color={t.accent} strokeWidth={1.7} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.switchTitle, { color: t.text }]}>Become an ambassador</Text>
+              <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.switchTitle, { color: t.text }]}>Become an ambassador</Text>
               <Text style={[styles.switchSub, { color: t.text3 }]}>Earn bonuses for invite goals and cash out your Noot credit</Text>
             </View>
-            <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />
+            {large ? null : <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />}
           </Card>
         ) : null}
 
