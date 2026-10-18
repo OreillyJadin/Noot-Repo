@@ -109,7 +109,18 @@ export interface AdaptiveRowProps {
  */
 export function AdaptiveRow({ children, style }: AdaptiveRowProps) {
   const large = useLargeText();
-  return <View style={[styles.adaptiveRow, style, large && styles.adaptiveStacked]}>{children}</View>;
+  if (!large) return <View style={[styles.adaptiveRow, style]}>{children}</View>;
+  // Each child gets its own row so a child's `flex: 1` keeps stretching it across the width
+  // instead of acting vertically (where it would drop the child's natural height).
+  return (
+    <View style={[styles.adaptiveRow, style, styles.adaptiveStacked]}>
+      {React.Children.toArray(children).map((child, i) => (
+        <View key={React.isValidElement(child) && child.key != null ? child.key : i} style={styles.adaptiveCell}>
+          {child}
+        </View>
+      ))}
+    </View>
+  );
 }
 
 export function ActionBar({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
@@ -138,5 +149,6 @@ const styles = StyleSheet.create({
   bodyScroll: { flex: 1 },
   adaptiveRow: { flexDirection: 'row' },
   adaptiveStacked: { flexDirection: 'column', alignItems: 'stretch' },
+  adaptiveCell: { flexDirection: 'row' },
   actionBar: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, flexDirection: 'row', gap: 10, alignItems: 'center' },
 });
