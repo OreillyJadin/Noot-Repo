@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { resetToSignedOut } from '../lib/resetToSignedOut';
 import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api, auth, attentionTotal } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -105,7 +106,7 @@ export default function Profile() {
   const becomeAmbassador = async () => {
     try {
       await api.profile.addRole('ambassador');
-      await switchTo('ambassador');
+      if (!(await switchTo('ambassador', ['ambassador']))) throw new Error('mode not saved');
     } catch {
       Alert.alert('Could not join the ambassador program', 'Please try again in a moment.');
     }
@@ -130,7 +131,7 @@ export default function Profile() {
     await forgetThisDevice();
     try { await auth.signOut(); } catch { /* clear the UI regardless */ }
 
-    router.replace('/');
+    resetToSignedOut(router);
 
   };
 
@@ -171,7 +172,7 @@ export default function Profile() {
 
               try { await auth.signOut(); } catch { /* already invalid */ }
 
-              router.replace('/');
+              resetToSignedOut(router);
 
             } catch (e) {
 

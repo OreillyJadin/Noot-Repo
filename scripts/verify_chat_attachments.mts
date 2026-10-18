@@ -2,6 +2,7 @@
 // against the live local Supabase stack as two different users, and probes the RLS edges
 // with a third who isn't in the conversation. Run with:
 //   pnpm dlx tsx scripts/verify_chat_attachments.mts
+import { createClient } from '@supabase/supabase-js';
 import { DEV_PASSWORD } from './_devPassword.mjs';
 import { initSupabase, api, auth, getSupabase } from '../packages/core/src/index.ts';
 
@@ -9,6 +10,12 @@ const URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ANON =
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
+
+// Local dev constant. Only for looking up other users' ids/emails: since 0086 a signed-in
+// student can read nobody's users row but their own.
+const SERVICE =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
+const svc = createClient(URL, SERVICE, { auth: { persistSession: false } });
 
 let pass = 0;
 let fail = 0;
@@ -37,7 +44,7 @@ async function signIn(email: string) {
 
 // --- student sends an image + a file with text ------------------------------------------
 const studentId = await signIn('student@crimson.ua.edu');
-const { data: tutorRow } = await sb.from('users').select('id').eq('email', 'sara@crimson.ua.edu').single();
+const { data: tutorRow } = await svc.from('users').select('id').eq('email', 'sara@crimson.ua.edu').single();
 const tutorId = tutorRow!.id as string;
 const conv = await api.chat.getOrCreateConversation(tutorId);
 console.log(`conversation ${conv.id}\n  student ${studentId}\n  tutor   ${tutorId}\n`);
@@ -82,7 +89,7 @@ check('bucket is NOT publicly readable', !pub.ok, `HTTP ${pub.status}`);
 
 // --- an outsider must see nothing --------------------------------------------------------
 // A third seeded user who is not a participant in this conversation.
-const { data: others } = await sb.from('users').select('id, email').not('id', 'in', `(${studentId},${tutorId})`).limit(1);
+const { data: others } = await svc.from('users').select('id, email').in('email', ['devon@crimson.ua.edu', 'maya@crimson.ua.edu']).not('id', 'in', `(${studentId},${tutorId})`).limit(1);
 const outsider = others?.[0];
 if (!outsider) {
   console.log('⚠️  no third seeded user — skipping the outsider checks');

@@ -365,6 +365,7 @@ function mapUser(row: any): User {
     passwordSetAt: row.password_set_at ?? null,
     termsAcceptedAt: row.terms_accepted_at ?? null,
     guidelinesAcceptedAt: row.guidelines_accepted_at ?? null,
+    guidelinesVersion: row.guidelines_version ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -398,23 +399,22 @@ function mapTutorAvailability(row: any): TutorAvailability {
   };
 }
 
-/** Row = a `users` row with tutor_profiles (1:1) and tutor_courses (1:many) embedded. */
+/** Row = a `tutor_public_profiles` row (users + tutor_profiles display fields) with tutor_courses embedded. */
 function mapTutorSummary(row: any): TutorSummary {
-  const tp = row.tutor_profiles ?? {};
   return {
     userId: row.id,
     firstName: row.first_name ?? '',
     lastName: row.last_name ?? '',
     year: row.year ?? null,
     major: row.major ?? null,
-    gender: row.gender ?? null,
-    bio: tp.bio ?? '',
-    subjects: tp.subjects ?? [],
-    hourlyRate: num(tp.hourly_rate),
-    ratingAvg: numOrNull(tp.rating_avg),
-    totalSessions: tp.total_sessions ?? 0,
-    verifiedGrade: tp.verified_grade ?? null,
-    verified: tp.grades_verified_at != null,
+    avatarUrl: row.avatar_url ?? null,
+    bio: row.bio ?? '',
+    subjects: row.subjects ?? [],
+    hourlyRate: num(row.hourly_rate),
+    ratingAvg: numOrNull(row.rating_avg),
+    totalSessions: row.total_sessions ?? 0,
+    verifiedGrade: row.verified_grade ?? null,
+    verified: row.grades_verified === true,
     courses: (row.tutor_courses ?? []).map(mapTutorCourse),
   };
 }
@@ -649,12 +649,15 @@ function mapMessage(row: any): Message {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-// The users+profile+courses select used by every tutor read.
-// tutor_profiles has TWO FKs to users (user_id, reviewed_by), so the embed must hint
-// the user_id FK explicitly or PostgREST errors on the ambiguity.
+// The select used by every read of ANOTHER user's tutor card. It reads the
+// tutor_public_profiles view (0086, SEC-006), which is the only route a signed-in user has to
+// another tutor's users/tutor_profiles rows: it carries display fields only (never email,
+// Stripe ids, transcript path or the signed agreement) and already filters to approved,
+// non-deleted tutors plus the caller's own row. tutor_courses embeds through the view's
+// users.id lineage.
 const TUTOR_SELECT = `
-  id, first_name, last_name, year, major, gender,
-  tutor_profiles!user_id!inner ( bio, subjects, hourly_rate, rating_avg, total_sessions, verified_grade, approval_status, grades_verified_at ),
+  id, first_name, last_name, year, major, avatar_url,
+  bio, subjects, hourly_rate, rating_avg, total_sessions, verified_grade, grades_verified, approval_status,
   tutor_courses ( id, tutor_id, course_code, grade, currently_taking, hourly_rate, sessions, created_at )
 `;
 
@@ -831,17 +834,43 @@ export const api = {
       notifyUserChanged();
     },
 
-    /** Record that the user accepted the Community Guidelines during student onboarding. */
+    /** Record that the user accepted the Community Guidelines (once per account, every role). */
     async acceptGuidelines(version: string): Promise<void> {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(version)) throw new Error(`Invalid guidelines version ${version}`);
       const uid = await requireUid();
-      const { error } = await getSupabase()
-        .from('users')
-        .update({ guidelines_accepted_at: new Date().toISOString(), guidelines_version: version })
-        .eq('id', uid)
-        .select('id')
-        .single();
-      if (error) throw error;
-      notifyUserChanged();
+      const sb = getSupabase();
+      // Never downgrade: an older app build agreeing must not overwrite a newer acceptance,
+      // or the newer build would ask again. Anything else (stale, missing, malformed) is replaced.
+      // The write only lands if the version is still the one read, so a newer acceptance
+      // recorded in between (another device) is re-read instead of overwritten.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data: current, error: readError } = await sb
+          .from('users')
+          .select('guidelines_accepted_at, guidelines_version')
+          .eq('id', uid)
+          .single();
+        if (readError) throw readError;
+        const kept = current.guidelines_version as string | null;
+        if (current.guidelines_accepted_at != null && kept != null
+            && /^\d{4}-\d{2}-\d{2}$/.test(kept) && kept > version) {
+          notifyUserChanged();
+          return;
+        }
+        const write = sb
+          .from('users')
+          .update({ guidelines_accepted_at: new Date().toISOString(), guidelines_version: version })
+          .eq('id', uid);
+        const { data: written, error } = await (kept == null
+          ? write.is('guidelines_version', null)
+          : write.eq('guidelines_version', kept)
+        ).select('id');
+        if (error) throw error;
+        if (written.length > 0) {
+          notifyUserChanged();
+          return;
+        }
+      }
+      throw new Error('Could not record Community Guidelines acceptance; please try again.');
     },
 
     /** Set the student's enrolled course codes (edit_courses). */
@@ -1166,14 +1195,13 @@ export const api = {
         ids = [...new Set((data ?? []).map((r: { tutor_id: string }) => r.tutor_id))];
         if (ids.length === 0) return [];
       }
-      // deleted_at: a tutor who deletes their account keeps an approved tutor_profiles row
-      // (0026 retains the de-identified user for the financial history), so filtering on
-      // approval alone would keep listing them as "Deleted account" — bookable and unreachable.
+      // The view already drops deleted accounts (0026 keeps their approved tutor_profiles row
+      // for the financial history) and shows the caller's own row whatever its state, so the
+      // approval filter here keeps a pending applicant's own card out of their search.
       let q = sb
-        .from('users')
+        .from('tutor_public_profiles')
         .select(TUTOR_SELECT)
-        .eq('tutor_profiles.approval_status', 'approved')
-        .is('deleted_at', null);
+        .eq('approval_status', 'approved');
       if (ids) q = q.in('id', ids);
       // Never list the signed-in user to themselves. A user can hold both roles, so an
       // approved tutor browsing as a student would otherwise find their own card, open it,
@@ -1208,10 +1236,13 @@ export const api = {
       return (data ?? []).map(mapTutorAvailability);
     },
 
-    /** Full tutor detail by user id (tutor profile page). */
+    /**
+     * Full tutor detail by user id (tutor profile page). Null for anyone who is not an
+     * approved tutor — except the caller, who always sees their own card (edit_tutor).
+     */
     async getById(userId: string): Promise<TutorSummary | null> {
       const { data, error } = await getSupabase()
-        .from('users')
+        .from('tutor_public_profiles')
         .select(TUTOR_SELECT)
         .eq('id', userId)
         .maybeSingle();
@@ -1227,7 +1258,11 @@ export const api = {
       if (error) throw error;
       const ids = (data ?? []).map((r: { tutor_id: string }) => r.tutor_id);
       if (ids.length === 0) return [];
-      const { data: tutors, error: tErr } = await sb.from('users').select(TUTOR_SELECT).in('id', ids);
+      const { data: tutors, error: tErr } = await sb
+        .from('tutor_public_profiles')
+        .select(TUTOR_SELECT)
+        .eq('approval_status', 'approved')
+        .in('id', ids);
       if (tErr) throw tErr;
       return (tutors ?? []).map(mapTutorSummary);
     },
@@ -2124,19 +2159,23 @@ export const api = {
 
     /**
      * Sender name + avatar for a group thread, where the header can't imply who's talking.
-     * Reads `users` directly: the users_select policy (0002) already lets an admin see any
-     * row, so this returns nothing useful to a non-admin rather than leaking.
+     * Approved tutors (and the caller) come from tutor_public_profiles — the only users
+     * another signed-in user can read (0086); `users` adds whatever the caller may read
+     * directly (their own row; every row for an admin, which is what admin_chat needs).
+     * Other students resolve only through resolve-participants, as before.
      */
     async listParticipants(userIds: string[]): Promise<Record<string, ChatParticipant>> {
       const ids = [...new Set(userIds)].filter(Boolean);
       if (!ids.length) return {};
-      const { data, error } = await getSupabase()
-        .from('users')
-        .select('id, first_name, last_name, avatar_url')
-        .in('id', ids);
-      if (error) throw error;
+      const sb = getSupabase();
+      const [pub, direct] = await Promise.all([
+        sb.from('tutor_public_profiles').select('id, first_name, last_name, avatar_url').in('id', ids),
+        sb.from('users').select('id, first_name, last_name, avatar_url').in('id', ids),
+      ]);
+      if (pub.error) throw pub.error;
+      if (direct.error) throw direct.error;
       const out: Record<string, ChatParticipant> = {};
-      for (const row of data ?? []) out[row.id] = mapParticipant(row);
+      for (const row of [...(pub.data ?? []), ...(direct.data ?? [])]) out[row.id] = mapParticipant(row);
       return out;
     },
 
@@ -2287,15 +2326,16 @@ export const api = {
       const rows = convos ?? [];
       if (rows.length === 0) return [];
 
-      // Counterpart names. users_select RLS hides STUDENT rows from a tutor, so
+      // Counterpart names. users_select RLS (0086) hides every other user's row, so
       // resolve-participants (service role, booking + conversation counterparties only)
-      // is the primary source; the direct users read below fills in whatever it can see.
+      // is the primary source; the tutor_public_profiles read below fills in the tutor side
+      // when the function is unreachable.
       const otherIds = [...new Set(rows.map((c) => (c.student_id === uid ? c.tutor_id : c.student_id)))];
       const resolved = await invokeFn<
         Record<string, { firstName?: string; lastName?: string }>
       >('resolve-participants').catch(() => ({}) as Record<string, { firstName?: string; lastName?: string }>);
       const { data: users, error: uErr } = await sb
-        .from('users')
+        .from('tutor_public_profiles')
         .select('id, first_name, last_name')
         .in('id', otherIds);
       if (uErr) throw uErr;
