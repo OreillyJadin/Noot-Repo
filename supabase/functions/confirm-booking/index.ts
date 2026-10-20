@@ -1,7 +1,6 @@
 // Edge Function: confirm-booking.
-// The caller (user.id) is the STUDENT. Creates a pending booking request, ensures a
-// conversation exists between student and tutor, and optionally posts an opening
-// message.
+// The caller (user.id) is the STUDENT. Creates a pending booking request with an
+// optional request note; the conversation is created only when the tutor accepts.
 //
 // Body: { tutorId, courseCode, scheduledAt, durationMinutes, sessionType, location,
 //         meetingLink, message, paymentIntentId }. The price is NOT accepted from the
@@ -19,7 +18,7 @@
 // are auto-injected by the runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { isAdmin, requireActiveUser } from '../_shared/auth.ts';
-import { BookingError, freeBookingFor, isBlockedBetween, resolveBooking, SLOT_TAKEN_NOT_CHARGED, type ResolvedBooking } from '../_shared/booking.ts';
+import { BookingError, freeBookingFor, resolveBooking, SLOT_TAKEN_NOT_CHARGED, type ResolvedBooking } from '../_shared/booking.ts';
 import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
 import { acceptDeadline } from '../_shared/acceptance.ts';
 import { creditToApply, parseCreditCents } from '../_shared/credits.ts';
@@ -53,16 +52,25 @@ serveWithErrorReporting('confirm-booking', async (req) => {
       sessionType,
       location,
       meetingLink,
-      message,
       paymentIntentId,
     } = body as {
       courseCode?: string;
       sessionType?: string;
       location?: string;
       meetingLink?: string;
-      message?: string;
       paymentIntentId?: string;
     };
+    const message = body?.message;
+    if (message !== undefined && typeof message !== 'string') {
+      return Response.json({ error: 'Your note must be text.' }, { status: 400, headers: cors });
+    }
+    const requestNote = typeof message === 'string' ? message.trim() || null : null;
+    if (requestNote && Array.from(requestNote).length > 1000) {
+      return Response.json(
+        { error: 'Your note must be 1,000 characters or fewer.' },
+        { status: 400, headers: cors },
+      );
+    }
 
     // Only in-person sessions are sold at launch: noot has no video provider, so a video
     // booking would leave the student with no way to attend (T14). Existing 'video' rows
@@ -249,6 +257,7 @@ serveWithErrorReporting('confirm-booking', async (req) => {
         session_type: sessionType,
         meeting_link: meetingLink ?? null,
         location: location ?? null,
+        request_note: requestNote,
         status: 'pending',
         accept_by: acceptBy,
         cancellation_deadline: cancellationDeadline,
@@ -285,6 +294,12 @@ serveWithErrorReporting('confirm-booking', async (req) => {
       if (bookingError.code === '23P01' || bookingError.code === '40P01') {
         return Response.json({ error: SLOT_TAKEN_NOT_CHARGED }, { status: 409, headers: cors });
       }
+      if (
+        bookingError.code === '23514' &&
+        bookingError.message.includes('That wording breaks our community rules')
+      ) {
+        return Response.json({ error: bookingError.message }, { status: 400, headers: cors });
+      }
       throw bookingError;
     }
     if (creditCents > 0) {
@@ -298,40 +313,9 @@ serveWithErrorReporting('confirm-booking', async (req) => {
       if (linkErr) console.error('confirm-booking: could not link credit spend', booking.id, linkErr.message);
     }
 
-    const { data: conversation, error: conversationError } = await db
-      .from('conversations')
-      .upsert(
-        { student_id: studentId, tutor_id: resolved.tutorId },
-        { onConflict: 'student_id,tutor_id' },
-      )
-      .select('id')
-      .single();
-
-    if (conversationError) throw conversationError;
-
-    // The tutor's thread always opens with a message from the student: their own
-    // words when they wrote one, otherwise a booking note so a message-less request
-    // never leaves the tutor staring at an empty chat. Skipped if a block landed
-    // between validation and now — service role bypasses messages_insert's check.
-    const blocked = await isBlockedBetween(db, studentId, resolved.tutorId).catch((e) => {
-      console.error('confirm-booking: block check failed', booking.id, e?.message ?? e);
-      return true; // can't prove the pair is unblocked → don't post
-    });
-    if (!blocked) {
-      const opening = (typeof message === 'string' ? message.trim() : '') ||
-        `Hi! I just booked a ${resolved.courseCode} session with you — looking forward to it.`;
-      const { error: messageError } = await db.from('messages').insert({
-        conversation_id: conversation.id,
-        sender_id: studentId,
-        content: opening,
-      });
-      if (messageError) throw messageError;
-    }
-
     return Response.json(
       {
         bookingId: booking.id,
-        conversationId: conversation.id,
         price: resolved.price,
         studentFee: resolved.studentFee,
         acceptBy,

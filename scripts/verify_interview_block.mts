@@ -5,8 +5,8 @@
 // never does (it only schedules applicants, who can't be booked) but the database allows.
 //
 // Leaves behind on the LOCAL stack: sara's interview notifications, the conversation and
-// message confirm-booking creates, and stripe_charges_enabled = true on sara. A live
-// interview sara already had is replaced, then removed.
+// acceptance message created after the tutor accepts, and stripe_charges_enabled = true
+// on sara. A live interview sara already had is replaced, then removed.
 //
 // Needs: supabase start && node supabase/seed_demo.mjs && supabase functions serve
 //        --env-file <file with STRIPE_SECRET_KEY=sk_test_…>, and the same key in this shell.

@@ -88,13 +88,6 @@ export default function TutorSessions() {
     router.push('/tb2');
   };
 
-  // A pending request opens its chat — the student's intro message is already
-  // there (confirm-booking created it), so the tutor can read it before deciding.
-  const openChat = (r: SessionRow) => {
-    patchBooking(draftFromBooking(r.booking));
-    router.push('/chat_tutor');
-  };
-
   const acceptRequest = async (id: string) => {
     if (busyId) return;
     setBusyId(id);
@@ -105,7 +98,7 @@ export default function TutorSessions() {
       setUpcoming((rows) => rows.map((r) => r.id === id
         ? { ...r, status: 'confirmed', booking: { ...r.booking, status: 'confirmed', acceptedAt } }
         : r));
-      // Accept → straight into the conversation confirm-booking created at booking time.
+      // Accept creates the conversation, so the tutor can message the student now.
       if (row) {
         patchBooking(draftFromBooking({ ...row.booking, status: 'confirmed', acceptedAt }));
         router.push('/chat_tutor');
@@ -179,7 +172,7 @@ export default function TutorSessions() {
           ) : (
             <View style={{ gap: 10 }}>
               {upcoming.map((r) => (
-                <Card key={r.id} onPress={() => (r.status === 'pending' ? openChat(r) : openDetail(r))} style={{ padding: 14 }}>
+                <Card key={r.id} onPress={r.status === 'confirmed' ? () => openDetail(r) : undefined} style={{ padding: 14 }}>
                   <View style={styles.upcomingRow}>
                     <Avatar size={44} label={r.av} />
                     <View style={{ flex: 1, minWidth: 0 }}>
@@ -191,9 +184,16 @@ export default function TutorSessions() {
                         {r.course} · {r.when}
                       </Text>
                       {r.status === 'pending' ? (
-                        <Text style={[styles.meta, { color: t.accent, fontWeight: '600' }]}>
-                          New request · respond by {formatWhen(r.booking.acceptBy ?? r.booking.scheduledAt)}
-                        </Text>
+                        <>
+                          <Text style={[styles.meta, { color: t.accent, fontWeight: '600' }]}>
+                            New request · respond by {formatWhen(r.booking.acceptBy ?? r.booking.scheduledAt)}
+                          </Text>
+                          {r.booking.requestNote ? (
+                            <Text numberOfLines={3} style={[styles.meta, { color: t.text2, marginTop: 4 }]}>
+                              “{r.booking.requestNote}”
+                            </Text>
+                          ) : null}
+                        </>
                       ) : null}
                       <View style={styles.whereRow}>
                         <Ic name={r.where.startsWith('Online') ? 'video' : 'pin'} size={13} color={t.accent} strokeWidth={1.8} />

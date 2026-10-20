@@ -70,8 +70,8 @@ const studentId = sess.user!.id
   step(5, !!error && /community rules/i.test(error.message), `direct client insert rejected: "${error?.message ?? 'ACCEPTED'}"`)
 }
 
-// 6) Nor by a SERVICE-ROLE insert, which bypasses RLS entirely. confirm-booking posts its
-//    opening message this way, so an RLS-only filter would have left that path open.
+// 6) Nor by a SERVICE-ROLE insert, which bypasses RLS entirely. Tutor acceptance posts
+//    the request note this way, so an RLS-only filter would leave that path open.
 {
   const { error } = await admin.from('messages').insert({
     conversation_id: convo!.id, sender_id: studentId, content: OFFENSIVE,

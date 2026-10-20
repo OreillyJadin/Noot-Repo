@@ -1,6 +1,7 @@
 // Verify the confirm-booking Edge Function end-to-end against the LOCAL stack,
 // driving the real @noot/core path (createPaymentIntent -> bookings.confirm ->
-// listUpcoming) exactly as apps/mobile/app/b4.tsx does. Safe to delete after.
+// listUpcoming) exactly as apps/mobile/app/b4.tsx does. Pending requests remain
+// chat-free until the tutor accepts. Safe to delete after.
 import { DEV_PASSWORD } from './_devPassword.mjs'
 import { initSupabase, api, auth } from '../packages/core/src/index.ts'
 import { createClient } from '@supabase/supabase-js'
@@ -23,8 +24,9 @@ step(1, signIn.ok, signIn.ok ? 'signed in as demo student' : `sign-in failed: ${
 
 // 2) Pick a real seeded tutor (NOTE: TutorSummary.userId, not .id).
 const tutors = await api.tutors.search()
-const tutor = tutors[0]
-step(2, !!tutor?.userId, tutor ? `found tutor ${tutor.name} (userId ${tutor.userId})` : 'no tutors found')
+const tutor = tutors.find((candidate) =>
+  candidate.firstName === 'Sara' && candidate.lastName === 'Williams')
+step(2, !!tutor?.userId, tutor ? `found tutor ${tutor.firstName} ${tutor.lastName} (userId ${tutor.userId})` : 'no tutors found')
 
 // The tutor must be able to take charges, and we need a course they actually teach —
 // the server now derives the price from tutor_courses.hourly_rate (T5).
@@ -33,11 +35,69 @@ const { data: tc } = await admin
   .from('tutor_courses').select('course_code').eq('tutor_id', tutor.userId).limit(1).single()
 const courseCode = tc!.course_code as string
 
+const { data: availability } = await admin.from('tutor_availability')
+  .select('day_of_week,start_time,end_time').eq('tutor_id', tutor.userId)
+const { data: existingBookings } = await admin.from('bookings')
+  .select('scheduled_at,duration_minutes').eq('tutor_id', tutor.userId)
+  .in('status', ['pending', 'confirmed'])
+const formatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+})
+const partsAt = (date: Date) => Object.fromEntries(formatter.formatToParts(date)
+  .map((part) => [part.type, part.value]))
+const chicagoSlot = (days: number, minutes: number) => {
+  const local = partsAt(new Date())
+  const date = new Date(Date.UTC(Number(local.year), Number(local.month) - 1, Number(local.day) + days))
+  const target = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(),
+    Math.floor(minutes / 60), minutes % 60)
+  let instant = target
+  for (let i = 0; i < 4; i++) {
+    const parts = partsAt(new Date(instant))
+    const represented = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+      Number(parts.hour), Number(parts.minute), Number(parts.second))
+    const adjusted = instant + target - represented
+    if (adjusted === instant) break
+    instant = adjusted
+  }
+  return new Date(instant).toISOString()
+}
+const weekdayAt = (days: number) => {
+  const local = partsAt(new Date())
+  return new Date(Date.UTC(Number(local.year), Number(local.month) - 1,
+    Number(local.day) + days)).getUTCDay()
+}
+const minuteOf = (time: string) => {
+  const [hour, minute] = time.slice(0, 5).split(':').map(Number)
+  return hour * 60 + minute
+}
+let scheduledAt = ''
+for (let days = 1; days <= 6 && !scheduledAt; days++) {
+  for (const window of availability ?? []) {
+    if (Number(window.day_of_week) !== weekdayAt(days)) continue
+    for (let minute = minuteOf(window.start_time as string);
+      minute + 60 <= minuteOf(window.end_time as string); minute += 60) {
+      const candidate = chicagoSlot(days, minute)
+      const start = new Date(candidate).getTime()
+      const end = start + 60 * 60_000
+      const overlaps = (existingBookings ?? []).some((booking) => {
+        const bookingStart = new Date(booking.scheduled_at as string).getTime()
+        return bookingStart < end && start < bookingStart + Number(booking.duration_minutes) * 60_000
+      })
+      if (start > Date.now() + 2 * 60 * 60_000 && start < Date.now() + 6 * 86_400_000 && !overlaps) {
+        scheduledAt = candidate
+        break
+      }
+    }
+    if (scheduledAt) break
+  }
+}
+if (!scheduledAt) throw new Error('No free hour inside the tutor availability and six-day horizon')
+
 // 3) Hold a (simulated) PaymentIntent — the create-payment-intent Edge Function.
 //    Note: no amount is sent. See scripts/verify_pricing.mts for the pricing checks.
 let paymentIntentId = ''
 let expectedStudentFeeCents = 0
-const scheduledAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString() // +3 days
 try {
   const pi = await api.createPaymentIntent({ tutorId: tutor.userId, courseCode, durationMinutes: 60, scheduledAt })
   paymentIntentId = pi.paymentIntentId
@@ -69,9 +129,9 @@ try {
     paymentIntentId,
   })
   bookingId = res.bookingId
-  step(4, !!bookingId && !!res.conversationId && !!res.acceptBy &&
+  step(4, !!bookingId && !('conversationId' in res) && !!res.acceptBy &&
     Math.round(res.studentFee * 100) === expectedStudentFeeCents,
-    `confirm-booking → pending request ${bookingId} with service fee $${res.studentFee}, accept by ${res.acceptBy}`)
+    `confirm-booking → pending request ${bookingId} without a conversation id, service fee $${res.studentFee}, accept by ${res.acceptBy}`)
 } catch (e) {
   step(4, false, `confirm-booking threw: ${String(e)}`)
 }

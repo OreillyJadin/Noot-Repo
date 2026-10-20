@@ -1,8 +1,5 @@
-// Chats — the conversation list for both roles. Every booking opens a 1:1 thread at
-// booking time (confirm-booking), so a brand-new pending request already sits here:
-// the student sees it as "Awaiting response" until the tutor accepts or declines, and
-// the tutor sees the student's opening message as a "New request". Tapping a row opens
-// the thread on whichever side of that conversation the user is on.
+// Chats — the conversation list for both roles. A 1:1 thread is created when the tutor
+// accepts a request. Tapping an existing row opens the thread for either participant.
 import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -168,8 +165,8 @@ export default function Chats() {
             title="No chats yet"
             subtitle={
               role === 'tutor'
-                ? 'When a student books you, your conversation shows up here.'
-                : 'Book a tutor and your conversation shows up here — even while it\'s waiting on their response.'
+                ? 'When you accept a student request, your conversation shows up here.'
+                : 'Your conversation shows up here after a tutor accepts your request.'
             }
             actionLabel={role === 'tutor' ? undefined : 'Find a tutor'}
             onAction={role === 'tutor' ? undefined : () => router.replace('/student_home')}

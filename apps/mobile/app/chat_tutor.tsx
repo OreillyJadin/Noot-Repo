@@ -1,9 +1,8 @@
 // M2 Chat (Tutor view) — ported from screens-chat.jsx (ChatTutor = Chat with
 // perspective="tutor"). Same thread as chat.tsx (M1), rendered from the tutor's
 // side: bubbles flipped, header shows the student.
-// Wired to @noot/core messaging: the conversation with the session's student
-// (booking.studentId — confirm-booking created it) is loaded on mount,
-// messages are fetched + streamed live, and the
+// Wired to @noot/core messaging: the conversation created when the session is
+// accepted is loaded on mount, messages are fetched + streamed live, and the
 // composer sends text and/or attachments through the API.
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -145,8 +144,7 @@ function ChatTutorInner() {
     (async () => {
       try {
         const me = await auth.getSessionUserId();
-        // The conversation confirm-booking created with this student. (getOrCreateConversation
-        // is the student-side call and matched the tutor as the student — B2.)
+        // The conversation is created when the student request is accepted.
         const conv = await api.chat.getConversationWithStudent(studentId!);
         if (!active) return;
         setUid(me);

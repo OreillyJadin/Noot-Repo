@@ -96,12 +96,6 @@ export default function TutorHome() {
     if (next) patchBooking(draftFromBooking(next));
     router.push('/chat_tutor');
   };
-  // A request's card opens its chat — the conversation (and the student's first
-  // message) exists from booking, so the tutor can read it before deciding.
-  const openRequestChat = (request: Booking) => {
-    patchBooking(draftFromBooking(request));
-    router.push('/chat_tutor');
-  };
   const openNextDetail = () => {
     if (next) patchBooking(draftFromBooking(next));
     router.push('/tb2');
@@ -118,7 +112,7 @@ export default function TutorHome() {
           ? accepted
           : current,
       );
-      // Accept → straight into the conversation confirm-booking created at booking time.
+      // Accept creates the conversation, so the tutor can message the student now.
       patchBooking(draftFromBooking(accepted));
       router.push('/chat_tutor');
     } catch (e) {
@@ -228,7 +222,7 @@ export default function TutorHome() {
               const name = names[request.studentId];
               const requestName = name ? `${name.firstName} ${name.lastName}`.trim() : 'Student';
               return (
-                <Card key={request.id} onPress={() => openRequestChat(request)} style={{ padding: 14 }}>
+                <Card key={request.id} style={{ padding: 14 }}>
                   <Text style={{ color: t.text, fontSize: 15, fontWeight: '700' }}>{requestName} · {request.subject}</Text>
                   <Text style={{ color: t.accent, fontSize: 13, marginTop: 4 }}>
                     New request · respond by {formatSessionTime(request.acceptBy ?? request.scheduledAt)}

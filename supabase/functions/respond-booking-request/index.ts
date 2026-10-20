@@ -48,7 +48,7 @@ serveWithErrorReporting('respond-booking-request', async (req: Request) => {
 
     const { data: booking, error: loadError } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, subject, status, accept_by, scheduled_at, stripe_payment_intent_id')
+      .select('id, student_id, tutor_id, subject, request_note, status, accept_by, scheduled_at, stripe_payment_intent_id')
       .eq('id', bookingId)
       .maybeSingle();
     if (loadError) throw loadError;
@@ -78,10 +78,8 @@ serveWithErrorReporting('respond-booking-request', async (req: Request) => {
         return Response.json({ error: 'This request has expired or is no longer pending' }, { status: 409, headers: cors });
       }
 
-      // The chat is part of the session: confirm-booking normally creates it, but
-      // upsert here so an accepted session can never end up without a thread, then
-      // post the acceptance as a tutor message so the student sees it in the chat
-      // (trg_notify_on_message notifies them too). Skipped when either party has
+      // Create the conversation when the tutor accepts, then post the student's
+      // request note before the tutor's acceptance message. Skipped when either party has
       // blocked the other — service role bypasses messages_insert's block check.
       const blocked = await isBlockedBetween(db, booking.student_id, booking.tutor_id).catch((e) => {
         console.error('respond-booking-request: block check failed', bookingId, e?.message ?? e);
@@ -101,6 +99,17 @@ serveWithErrorReporting('respond-booking-request', async (req: Request) => {
         if (conversationError) {
           console.error('respond-booking-request: conversation upsert failed', bookingId, conversationError.message);
         } else {
+          const requestNote = typeof booking.request_note === 'string' ? booking.request_note.trim() : '';
+          if (requestNote) {
+            const { error: requestNoteError } = await db.from('messages').insert({
+              conversation_id: conversation.id,
+              sender_id: booking.student_id,
+              content: requestNote,
+            });
+            if (requestNoteError) {
+              console.error('respond-booking-request: request note insert failed', bookingId, requestNoteError.message);
+            }
+          }
           const when = new Date(booking.scheduled_at).toLocaleString('en-US', {
             weekday: 'long', month: 'long', day: 'numeric',
             hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago',

@@ -3,9 +3,11 @@ import { api, auth, type Booking, type Conversation, type NotificationType } fro
 import { toTutor } from './data';
 import { BOOKING_CHAT_NOTIFICATION_TITLES, targetFor } from './notificationTarget';
 import { HOME } from './useRoleSwitch';
+import { markBookingConfirmedSeen } from './BookingConfirmedHost';
 import type { BookingDraft, Role } from './store';
 
 interface OpenableNotification {
+  id?: string;
   type: string;
   title: string;
   data: Record<string, unknown>;
@@ -30,6 +32,9 @@ export async function openNotification(
     return;
   }
   if (!uid) return;
+  if (n.type === 'booking' && n.title === 'Session confirmed' && typeof n.data.bookingId === 'string') {
+    await markBookingConfirmedSeen(uid, n.id, n.data.bookingId);
+  }
 
   let conversation: Conversation | null = null;
   let booking: Booking | null = null;

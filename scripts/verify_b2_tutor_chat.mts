@@ -1,9 +1,7 @@
 // Tracker B2 — a tutor can open the chat with their booked student, so the suggested
 // "confirm meeting spot" message has somewhere to go.
 //
-// The tutor chat used api.chat.getOrCreateConversation, which is the STUDENT's call: it
-// matches student_id = me, so from a tutor it never found the conversation confirm-booking
-// created. This checks the tutor-side lookup against the seeded local conversation
+// The tutor chat uses the tutor-side lookup against a student-created local conversation
 // (student@ ↔ sara@), plus the deny cases.
 // Local stack only (never reads EXPO_PUBLIC_SUPABASE_URL, which may point at production).
 //   pnpm dlx tsx scripts/verify_b2_tutor_chat.mts
@@ -32,7 +30,8 @@ const as = async (email: string) => {
 initSupabase({ url: URL, anonKey: ANON });
 
 const studentId = await as('student@crimson.ua.edu');
-const sara = (await api.tutors.search({})).find((t) => t.firstName === 'Sara');
+const sara = (await api.tutors.search({}))
+  .find((t) => t.firstName === 'Sara' && t.lastName === 'Williams');
 if (!sara) throw new Error('seeded tutor Sara not found — run node supabase/seed_demo.mjs');
 const studentView = await api.chat.getOrCreateConversation(sara.userId);
 

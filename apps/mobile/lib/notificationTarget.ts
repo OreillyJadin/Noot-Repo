@@ -8,7 +8,6 @@ import type { BookingDraft, Role } from './store';
 // the sessions surface, so its notice lands on /tutor_sessions — the chat has no accept UI.
 export const BOOKING_CHAT_NOTIFICATION_TITLES = new Set([
   'New session booked',
-  'Session confirmed',
 ]);
 
 export interface NotificationTarget {
@@ -54,6 +53,20 @@ export function targetFor(
 
     const role: Role = booking.tutorId === ctx.uid ? 'tutor' : 'student';
     const isFuture = new Date(booking.scheduledAt).getTime() > (ctx.now ?? Date.now());
+
+    if (
+      n.title === 'Session confirmed' &&
+      role === 'student' &&
+      booking.studentId === ctx.uid &&
+      booking.status === 'confirmed' &&
+      isFuture &&
+      n.data.bookingId === booking.id
+    ) {
+      return {
+        role,
+        route: { pathname: '/b5', params: { bookingId: booking.id } },
+      };
+    }
 
     // Notification row data only contains bookingId, so the server's notification title
     // identifies which booking events should open their conversation.
