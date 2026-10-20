@@ -2,9 +2,9 @@
 // Course, day/time, length, a required focus tag, an auto-drafted intro message,
 // meeting spot. Saves the draft into useApp().booking
 // and continues to payment.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, TextInput, Pressable, Modal, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
   Screen,
   NavTop,
@@ -19,11 +19,11 @@ import {
   useTheme,
   type IconName,
 } from '@noot/ui';
-import { api, type TutorAvailability, type TutoringLocation } from '@noot/core';
+import { api, type BusyTime, type TutorAvailability, type TutoringLocation } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
-import { BOOKABLE_DAYS } from '../lib/data';
-import { slotsFromWindows } from '../lib/availability';
+import { BOOKABLE_DAYS, MONTHS } from '../lib/data';
+import { bookedSlots, slotsFromWindows } from '../lib/availability';
 import { defaultMeetingSpot, meetingSpotSections, OTHER_SPOT } from '../lib/meetingSpots';
 import { NoSession } from '../lib/NoSession';
 import { VerifiedBadge } from '../lib/VerifiedBadge';
@@ -77,12 +77,18 @@ function B3Inner() {
   // calendar (lib/availability). Empty until loaded / if the tutor has set none.
   const [windows, setWindows] = useState<TutorAvailability[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(true);
+  const [busy, setBusy] = useState<BusyTime[]>([]);
+  const [busyLoading, setBusyLoading] = useState(true);
 
   const [day, setDay] = useState<number>(booking.dayIndex ?? 0);
   const [slot, setSlot] = useState<string | null>(booking.slot ?? null);
   const [length, setLength] = useState<number>(booking.lengthMin ?? 60);
   const slots = useMemo(() => slotsFromWindows(windows, length), [windows, length]);
-  const availableDays = BOOKABLE_DAYS.filter((d) => slots[d.i] && slots[d.i]!.length);
+  const booked = useMemo(() => bookedSlots(slots, busy, length), [slots, busy, length]);
+  const availableDays = BOOKABLE_DAYS.filter((d) =>
+    (slots[d.i] ?? []).some((s) => !booked[d.i]?.has(s)),
+  );
+  const didInitialSnap = useRef(false);
   const [course, setCourse] = useState<string>(booking.course ?? tutor.courses[0]![0]);
   const [courseOpen, setCourseOpen] = useState(false);
   const [spotOpen, setSpotOpen] = useState(false);
@@ -97,8 +103,16 @@ function B3Inner() {
   const [spot, setSpot] = useState<string | null>(
     booking.location?.startsWith('Online') ? null : booking.location ?? null,
   );
-  // Load the tutor's real weekly availability and, once it arrives, snap the picker to
-  // the first day that actually has open slots (unless the student already chose one).
+  const busyRange = useMemo(() => {
+    const first = BOOKABLE_DAYS[0]!;
+    const last = BOOKABLE_DAYS[BOOKABLE_DAYS.length - 1]!;
+    return {
+      from: new Date(first.year, MONTHS.indexOf(first.month), first.dom),
+      to: new Date(last.year, MONTHS.indexOf(last.month), last.dom + 1),
+    };
+  }, []);
+
+  // Load the tutor's real weekly availability.
   useEffect(() => {
     let active = true;
     setSlotsLoading(true);
@@ -107,17 +121,32 @@ function B3Inner() {
       .then((fetchedWindows) => {
         if (!active) return;
         setWindows(fetchedWindows);
-        const next = slotsFromWindows(fetchedWindows, length);
-        if (booking.dayIndex == null) {
-          const first = BOOKABLE_DAYS.find((d) => (next[d.i]?.length ?? 0) > 0);
-          if (first) setDay(first.i);
-        }
       })
       .catch(() => { if (active) setWindows([]); })
       .finally(() => { if (active) setSlotsLoading(false); });
     return () => { active = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tutor.id]);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setBusyLoading(true);
+    api.tutors
+      .getBusyTimes(tutor.id, busyRange.from, busyRange.to)
+      .then((ranges) => { if (active) setBusy(ranges); })
+      .catch(() => { if (active) setBusy([]); })
+      .finally(() => { if (active) setBusyLoading(false); });
+    return () => { active = false; };
+  }, [tutor.id, busyRange]));
+
+  useEffect(() => {
+    if (slotsLoading || busyLoading || didInitialSnap.current) return;
+    didInitialSnap.current = true;
+    if (booking.dayIndex != null) return;
+    const first = BOOKABLE_DAYS.find((d) =>
+      (slots[d.i] ?? []).some((s) => !booked[d.i]?.has(s)),
+    );
+    if (first) setDay(first.i);
+  }, [booking.dayIndex, booked, busyLoading, slots, slotsLoading]);
 
   useEffect(() => {
     let active = true;
@@ -138,8 +167,9 @@ function B3Inner() {
   }, []);
 
   useEffect(() => {
-    if (!slotsLoading && slot && !slots[day]?.includes(slot)) setSlot(null);
-  }, [day, slot, slots, slotsLoading]);
+    if (slotsLoading || busyLoading || !slot) return;
+    if (!slots[day]?.includes(slot) || booked[day]?.has(slot)) setSlot(null);
+  }, [booked, busyLoading, day, slot, slots, slotsLoading]);
 
   // Pick a focus -> auto-fill the intro message (unless the student already typed their own).
   const pickTag = (newTag: string) => {
@@ -159,6 +189,8 @@ function B3Inner() {
   const rate = courseEntry[2];
   const cost = ((rate * length) / 60).toFixed(2).replace(/\.00$/, '');
   const daySlots = slots[day] ?? [];
+  const dayBooked = booked[day] ?? new Set<string>();
+  const fullyBooked = daySlots.length > 0 && daySlots.every((s) => dayBooked.has(s));
   const ready = !!slot && !!tag && !!spot && msg.trim().length > 0;
   const dayObj = BOOKABLE_DAYS.find((d) => d.i === day) ?? BOOKABLE_DAYS[0]!;
 
@@ -236,9 +268,10 @@ function B3Inner() {
 
         <FieldBlock label="Pick a day">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRow}>
-            {BOOKABLE_DAYS.map((d) => {
-              const has = !!(slots[d.i] && slots[d.i]!.length);
-              const on = day === d.i;
+          {BOOKABLE_DAYS.map((d) => {
+            const has = !!(slots[d.i] && slots[d.i]!.length);
+            const allBooked = has && slots[d.i]!.every((s) => booked[d.i]?.has(s));
+            const on = day === d.i;
               return (
                 <Pressable
                   key={d.i}
@@ -264,8 +297,8 @@ function B3Inner() {
                   </Text>
                   <View
                     style={[
-                      styles.dayDot,
-                      { backgroundColor: has ? (on ? t.onAccent : t.good) : 'transparent' },
+                    styles.dayDot,
+                      { backgroundColor: has ? (allBooked ? t.text3 : on ? t.onAccent : t.good) : 'transparent' },
                     ]}
                   />
                 </Pressable>
@@ -277,24 +310,43 @@ function B3Inner() {
         <FieldBlock label={`Available times · ${dayObj.label}`}>
           <View style={styles.slotGrid}>
             {daySlots.map((s) => {
-              const on = slot === s;
+              const isBooked = dayBooked.has(s);
+              const on = slot === s && !isBooked;
               return (
                 <Pressable
                   key={s}
+                  disabled={isBooked}
+                  accessibilityLabel={isBooked ? `${s}, booked` : s}
+                  accessibilityState={{ disabled: isBooked }}
                   onPress={() => setSlot(s)}
                   style={[
                     styles.slotCell,
-                    { backgroundColor: on ? t.accent : t.surface, borderColor: on ? t.accent : t.borderStrong },
+                    {
+                      backgroundColor: isBooked ? t.surface2 : on ? t.accent : t.surface,
+                      borderColor: isBooked ? t.border : on ? t.accent : t.borderStrong,
+                    },
                   ]}
                 >
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: on ? t.onAccent : t.text }}>{s}</Text>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontWeight: '600',
+                      color: isBooked ? t.text3 : on ? t.onAccent : t.text,
+                      textDecorationLine: isBooked ? 'line-through' : 'none',
+                    }}
+                  >
+                    {s}
+                  </Text>
+                  {isBooked ? <Text style={{ fontSize: 10.5, color: t.text3 }}>Booked</Text> : null}
                 </Pressable>
               );
             })}
           </View>
-          {daySlots.length === 0 ? (
+          {daySlots.length === 0 || fullyBooked ? (
             <Text style={{ fontSize: 13, color: t.text3, paddingVertical: 4 }}>
-              {slotsLoading
+              {fullyBooked
+                ? 'Fully booked this day — try another.'
+                : slotsLoading || busyLoading
                 ? 'Loading availability…'
                 : availableDays.length === 0
                   ? `${tutorFirst} hasn’t opened any times yet.`
@@ -592,7 +644,7 @@ const styles = StyleSheet.create({
   dayCell: { width: 58, paddingVertical: 10, borderRadius: 14, alignItems: 'center', borderWidth: 1.5 },
   dayDot: { width: 4, height: 4, borderRadius: 2, marginTop: 5 },
   slotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  slotCell: { width: '31%', paddingVertical: 11, alignItems: 'center', borderRadius: 13, borderWidth: 1.5 },
+  slotCell: { width: '31%', minHeight: 58, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', gap: 1, borderRadius: 13, borderWidth: 1.5 },
   segment: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 13 },
   segmentItem: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 11 },
   segmentItemRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 11 },

@@ -1,15 +1,15 @@
 // X3 Propose Reschedule — ported from screens-changes.jsx (XReschedulePropose).
 // Day/time picker mirrors B3's day-scroller + slot-grid pattern. Sending a request
 // keeps payment unchanged and hands off to the other party's Accept/Decline view (X4).
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Ic, H1, Sub, Label, HeroIcon, useTheme } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, type BusyTime } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
-import { BOOKABLE_DAYS, DAYS } from '../lib/data';
-import { slotsFromWindows } from '../lib/availability';
+import { BOOKABLE_DAYS, DAYS, MONTHS } from '../lib/data';
+import { bookedSlots, slotsFromWindows } from '../lib/availability';
 import { useMe } from '../lib/useMe';
 import { useCounterpart } from '../lib/useCounterpart';
 import { errText } from '../lib/errText';
@@ -46,28 +46,75 @@ export default function XReschedulePropose() {
   const otherFirst = role === 'tutor' ? student.first : booking.tutor?.name.split(' ')[0] ?? 'your tutor';
   const availabilityTutorId = role === 'tutor' ? me?.id : booking.tutorId ?? booking.tutor?.id;
   const [slots, setSlots] = useState<Record<number, string[]>>({});
+  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [busy, setBusy] = useState<BusyTime[]>([]);
+  const [busyLoading, setBusyLoading] = useState(true);
   const [day, setDay] = useState<number>(0);
   const [slot, setSlot] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const length = booking.lengthMin ?? 60;
+  const booked = useMemo(() => bookedSlots(slots, busy, length), [slots, busy, length]);
+  const didInitialSnap = useRef(false);
+  const busyRange = useMemo(() => {
+    const first = BOOKABLE_DAYS[0]!;
+    const last = BOOKABLE_DAYS[BOOKABLE_DAYS.length - 1]!;
+    return {
+      from: new Date(first.year, MONTHS.indexOf(first.month), first.dom),
+      to: new Date(last.year, MONTHS.indexOf(last.month), last.dom + 1),
+    };
+  }, []);
 
   useEffect(() => {
-    if (!availabilityTutorId) return;
+    if (!availabilityTutorId) {
+      setSlotsLoading(false);
+      return;
+    }
     let active = true;
+    setSlotsLoading(true);
     api.tutors
       .getAvailability(availabilityTutorId)
       .then((windows) => {
         if (!active) return;
-        const next = slotsFromWindows(windows, booking.lengthMin ?? 60);
-        setSlots(next);
-        const first = BOOKABLE_DAYS.find((d) => (next[d.i]?.length ?? 0) > 0);
-        if (first) setDay(first.i);
+        setSlots(slotsFromWindows(windows, length));
       })
-      .catch(() => {});
+      .catch(() => { if (active) setSlots({}); })
+      .finally(() => { if (active) setSlotsLoading(false); });
     return () => { active = false; };
-  }, [availabilityTutorId]);
+  }, [availabilityTutorId, length]);
+
+  useFocusEffect(useCallback(() => {
+    if (!availabilityTutorId) {
+      setBusy([]);
+      setBusyLoading(false);
+      return;
+    }
+    let active = true;
+    setBusyLoading(true);
+    api.tutors
+      .getBusyTimes(availabilityTutorId, busyRange.from, busyRange.to, booking.bookingId)
+      .then((ranges) => { if (active) setBusy(ranges); })
+      .catch(() => { if (active) setBusy([]); })
+      .finally(() => { if (active) setBusyLoading(false); });
+    return () => { active = false; };
+  }, [availabilityTutorId, booking.bookingId, busyRange]));
+
+  useEffect(() => {
+    if (!availabilityTutorId || slotsLoading || busyLoading || didInitialSnap.current) return;
+    didInitialSnap.current = true;
+    const first = BOOKABLE_DAYS.find((d) =>
+      (slots[d.i] ?? []).some((s) => !booked[d.i]?.has(s)),
+    );
+    if (first) setDay(first.i);
+  }, [availabilityTutorId, booked, busyLoading, slots, slotsLoading]);
+
+  useEffect(() => {
+    if (slotsLoading || busyLoading || !slot) return;
+    if (!slots[day]?.includes(slot) || booked[day]?.has(slot)) setSlot(null);
+  }, [booked, busyLoading, day, slot, slots, slotsLoading]);
 
   const f = sessionFacts(booking);
   const daySlots = slots[day] ?? [];
+  const dayBooked = booked[day] ?? new Set<string>();
   const dayObj = BOOKABLE_DAYS.find((d) => d.i === day) ?? BOOKABLE_DAYS[0]!;
 
   const send = async () => {
@@ -170,18 +217,43 @@ export default function XReschedulePropose() {
         <Label style={{ fontSize: 13, marginTop: 18, marginBottom: 10 }}>Available times · {dayObj.label}</Label>
         <View style={styles.slotGrid}>
           {daySlots.map((s) => {
-            const on = slot === s;
+            const isBooked = dayBooked.has(s);
+            const on = slot === s && !isBooked;
             return (
               <Pressable
                 key={s}
+                disabled={isBooked}
+                accessibilityLabel={isBooked ? `${s}, booked` : s}
+                accessibilityState={{ disabled: isBooked }}
                 onPress={() => setSlot(s)}
-                style={[styles.slotCell, { backgroundColor: on ? t.accent : t.surface, borderColor: on ? t.accent : t.borderStrong }]}
+                style={[
+                  styles.slotCell,
+                  {
+                    backgroundColor: isBooked ? t.surface2 : on ? t.accent : t.surface,
+                    borderColor: isBooked ? t.border : on ? t.accent : t.borderStrong,
+                  },
+                ]}
               >
-                <Text style={{ fontSize: 14, fontWeight: '600', color: on ? t.onAccent : t.text }}>{s}</Text>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: '600',
+                    color: isBooked ? t.text3 : on ? t.onAccent : t.text,
+                    textDecorationLine: isBooked ? 'line-through' : 'none',
+                  }}
+                >
+                  {s}
+                </Text>
+                {isBooked ? <Text style={{ fontSize: 10.5, color: t.text3 }}>Booked</Text> : null}
               </Pressable>
             );
           })}
         </View>
+        {daySlots.length === 0 ? (
+          <Text style={{ fontSize: 13, color: t.text3, paddingVertical: 4 }}>
+            {slotsLoading || busyLoading ? 'Loading availability…' : 'No open times this day — try another.'}
+          </Text>
+        ) : null}
       </Body>
       <ActionBar>
         <Button
@@ -204,5 +276,5 @@ const styles = StyleSheet.create({
   dayRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
   dayCell: { width: 58, paddingVertical: 10, borderRadius: 14, alignItems: 'center', borderWidth: 1.5 },
   slotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  slotCell: { width: '31%', paddingVertical: 11, alignItems: 'center', borderRadius: 13, borderWidth: 1.5 },
+  slotCell: { width: '31%', minHeight: 58, paddingVertical: 8, alignItems: 'center', justifyContent: 'center', gap: 1, borderRadius: 13, borderWidth: 1.5 },
 });
