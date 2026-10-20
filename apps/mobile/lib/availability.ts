@@ -1,8 +1,8 @@
 // Turns a tutor's recurring weekly availability windows (api.tutors.getAvailability)
 // into the concrete per-day slot maps the booking + calendar screens render. This is
 // the real replacement for the old client-side slotsFor() mock generator.
-import { mergeAvailabilityWindows, type TutorAvailability } from '@noot/core';
-import { DAYS } from './data';
+import { mergeAvailabilityWindows, type BusyTime, type TutorAvailability } from '@noot/core';
+import { DAYS, MONTHS } from './data';
 
 /** "14:00" / "14:30" → minutes since midnight. */
 function parseHM(s: string): number {
@@ -59,15 +59,59 @@ export function nextFromWindows(windows: TutorAvailability[]): { dayIndex: numbe
   return { dayIndex: day.i, label: `${dayLabel} ${time}` };
 }
 
-/** Does a rendered clock label (e.g. "3:00 PM") fall inside a window for that weekday? */
-export function isTimeOpen(windows: TutorAvailability[], dowNum: number, label: string): boolean {
+/** Parse a rendered clock label into minutes since midnight. */
+function parseSlotLabel(label: string): number | null {
   const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(label.trim());
-  if (!m) return false;
+  if (!m) return null;
   let hh = Number(m[1]);
   const mm = Number(m[2]);
+  if (hh < 1 || hh > 12 || mm > 59) return null;
   const pm = m[3]!.toUpperCase() === 'PM';
   if (pm && hh !== 12) hh += 12;
   if (!pm && hh === 12) hh = 0;
-  const t = hh * 60 + mm;
-  return windows.some((w) => w.dayOfWeek === dowNum && parseHM(w.startTime) <= t && t < parseHM(w.endTime));
+  return hh * 60 + mm;
+}
+
+/** Which slots overlap busy ranges: { dayIndex -> Set<label> }. */
+export function bookedSlots(
+  slots: Record<number, string[]>,
+  busy: BusyTime[],
+  lengthMin = 60,
+): Record<number, Set<string>> {
+  const ranges = busy
+    .map(({ startsAt, endsAt }) => [Date.parse(startsAt), Date.parse(endsAt)] as const)
+    .filter(([start, end]) => Number.isFinite(start) && Number.isFinite(end) && start < end);
+  const result: Record<number, Set<string>> = {};
+
+  for (const [dayKey, labels] of Object.entries(slots)) {
+    const day = DAYS[Number(dayKey)];
+    if (!day) continue;
+    const month = MONTHS.indexOf(day.month);
+    const booked = new Set<string>();
+    for (const label of labels) {
+      const minutes = parseSlotLabel(label);
+      if (minutes == null) continue;
+      const start = new Date(
+        day.year,
+        month,
+        day.dom,
+        Math.floor(minutes / 60),
+        minutes % 60,
+      ).getTime();
+      const end = start + lengthMin * 60_000;
+      if (ranges.some(([busyStart, busyEnd]) => start < busyEnd && busyStart < end)) {
+        booked.add(label);
+      }
+    }
+    if (booked.size > 0) result[Number(dayKey)] = booked;
+  }
+  return result;
+}
+
+/** Does a rendered clock label (e.g. "3:00 PM") fall inside a window for that weekday? */
+export function isTimeOpen(windows: TutorAvailability[], dowNum: number, label: string): boolean {
+  const minutes = parseSlotLabel(label);
+  return minutes != null && windows.some(
+    (w) => w.dayOfWeek === dowNum && parseHM(w.startTime) <= minutes && minutes < parseHM(w.endTime),
+  );
 }

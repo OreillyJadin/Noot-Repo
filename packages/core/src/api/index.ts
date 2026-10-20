@@ -23,6 +23,7 @@ export type { AdminHubCounts } from '../adminHub';
 import type {
   AmbassadorProfile,
   Booking,
+  BusyTime,
   CatalogCourse,
   ContentReport,
   ReportReason,
@@ -1248,6 +1249,26 @@ export const api = {
         .order('start_time', { ascending: true });
       if (error) throw error;
       return (data ?? []).map(mapTutorAvailability);
+    },
+
+    /** Busy ranges for a tutor, without booking or student details. */
+    async getBusyTimes(
+      tutorId: string,
+      from: Date,
+      to: Date,
+      excludeBookingId?: string,
+    ): Promise<BusyTime[]> {
+      const { data, error } = await getSupabase().rpc('tutor_busy_times', {
+        p_tutor: tutorId,
+        p_from: from.toISOString(),
+        p_to: to.toISOString(),
+        p_exclude_booking: excludeBookingId ?? null,
+      });
+      if (error) throw error;
+      return (data ?? []).map((row: { starts_at: string; ends_at: string }) => ({
+        startsAt: row.starts_at,
+        endsAt: row.ends_at,
+      }));
     },
 
     /**

@@ -352,6 +352,12 @@ export interface TutorAvailability {
   createdAt: Timestamp;
 }
 
+/** A tutor's occupied time range, without booking or student details. */
+export interface BusyTime {
+  startsAt: Timestamp;
+  endsAt: Timestamp;
+}
+
 /** A verification interview the noot team has set with a tutor applicant (0042). */
 export interface TutorInterview {
   id: UUID;
