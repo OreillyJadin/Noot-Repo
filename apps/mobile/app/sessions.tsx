@@ -137,6 +137,7 @@ export default function Sessions() {
         bookingId: b.id,
         tutorId: b.tutorId,
         scheduledAt: b.scheduledAt,
+        lengthMin: b.durationMinutes,
         rescheduleProposedAt: b.rescheduleProposedAt,
         rescheduleProposedBy: b.rescheduleProposedBy,
       });

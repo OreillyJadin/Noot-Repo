@@ -167,7 +167,14 @@ function B4Inner() {
       router.push('/b5');
     } catch (err) {
       setStatus('idle');
-      Alert.alert(free ? 'Booking failed' : 'Payment failed', err instanceof Error ? err.message : 'Something went wrong — please try again.');
+      const message = err instanceof Error ? err.message : 'Something went wrong — please try again.';
+      if (/just booked/i.test(message)) {
+        Alert.alert('That time was just booked', message, [
+          { text: 'Pick another time', onPress: () => router.back() },
+        ]);
+      } else {
+        Alert.alert(free ? 'Booking failed' : 'Payment failed', message);
+      }
     }
   };
   const scheduledAtDate = new Date(computeScheduledAt());
