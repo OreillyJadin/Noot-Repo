@@ -222,6 +222,7 @@ export interface Booking {
   cancelledByRole: 'student' | 'tutor' | null;
   cancelReason: 'tutor_declined' | 'tutor_no_response' | null;
   declineNote: string | null;
+  requestNote: string | null;
   cancellationDeadline: Timestamp; // scheduledAt − 12h
   cancelledAt: Timestamp | null;
   refundStatus: RefundStatus;

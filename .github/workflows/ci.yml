@@ -110,6 +110,8 @@ jobs:
             verify_bad_language
             verify_become_ambassador
             verify_booking
+            verify_booking_process_ui
+            verify_booking_request_note_db
             verify_browse
             verify_campus_gate
             verify_chat_attachments

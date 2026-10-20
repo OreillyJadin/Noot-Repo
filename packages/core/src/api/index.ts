@@ -450,6 +450,7 @@ function mapBooking(row: any): Booking {
         : null,
     cancelReason: row.cancel_reason ?? null,
     declineNote: row.decline_note ?? null,
+    requestNote: row.request_note ?? null,
     cancellationDeadline: row.cancellation_deadline,
     cancelledAt: row.cancelled_at ?? null,
     refundStatus: row.refund_status,
@@ -2120,10 +2121,10 @@ export const api = {
       return count ?? 0;
     },
 
-    /** Create the booking + conversation with the held PaymentIntent (confirm-booking). */
+    /** Create a pending booking request with the held PaymentIntent (confirm-booking). */
     confirm(
       input: ConfirmBookingInput,
-    ): Promise<{ bookingId: string; conversationId: string; price: number; studentFee: number; acceptBy: string }> {
+    ): Promise<{ bookingId: string; price: number; studentFee: number; acceptBy: string; free?: boolean }> {
       return invokeFn('confirm-booking', input as unknown as Record<string, unknown>);
     },
 

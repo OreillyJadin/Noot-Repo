@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Booking, Conversation } from '@noot/core';
 import type { Tutor } from '../lib/data.ts';
-import { targetFor } from '../lib/notificationTarget.ts';
+import { BOOKING_CHAT_NOTIFICATION_TITLES, targetFor } from '../lib/notificationTarget.ts';
 
 const now = Date.parse('2026-10-16T12:00:00.000Z');
 
@@ -28,6 +28,7 @@ function booking(overrides: Partial<Booking> = {}): Booking {
     acceptedAt: null,
     cancelReason: null,
     declineNote: null,
+    requestNote: null,
     cancellationDeadline: new Date(now).toISOString(),
     cancelledAt: null,
     refundStatus: 'not_applicable',
@@ -124,7 +125,8 @@ test('a tutor request notice opens the sessions list where it can be accepted', 
   assert.equal(target.route, '/tutor_sessions');
 });
 
-test('a confirmed booking notice opens the student chat when its tutor is available', () => {
+test('a future confirmed booking notice opens the student handshake screen', () => {
+  assert.equal(BOOKING_CHAT_NOTIFICATION_TITLES.has('Session confirmed'), false);
   const target = targetFor(notice('booking', { bookingId: 'booking-1' }, 'Session confirmed'), {
     uid: 'student-1',
     currentRole: 'tutor',
@@ -133,18 +135,38 @@ test('a confirmed booking notice opens the student chat when its tutor is availa
     now,
   });
   assert.equal(target.role, 'student');
-  assert.equal(target.route, '/chat');
-  assert.deepEqual(target.draft, { tutor, bookingId: 'booking-1' });
+  assert.deepEqual(target.route, { pathname: '/b5', params: { bookingId: 'booking-1' } });
+  assert.equal(target.draft, undefined);
 });
 
-test('a confirmed booking notice without a tutor summary falls back to student sessions', () => {
+test('a confirmed booking notice without a tutor summary still opens the handshake screen', () => {
   const target = targetFor(notice('booking', { bookingId: 'booking-1' }, 'Session confirmed'), {
     uid: 'student-1',
     currentRole: 'student',
     booking: booking(),
     now,
   });
+  assert.deepEqual(target.route, { pathname: '/b5', params: { bookingId: 'booking-1' } });
+});
+
+test('a pending booking notice titled Session confirmed falls back to student sessions', () => {
+  const target = targetFor(notice('booking', { bookingId: 'booking-1' }, 'Session confirmed'), {
+    uid: 'student-1',
+    currentRole: 'student',
+    booking: booking({ status: 'pending' }),
+    now,
+  });
   assert.equal(target.route, '/sessions');
+});
+
+test('a past confirmed booking notice does not reopen the handshake screen', () => {
+  const target = targetFor(notice('booking', { bookingId: 'booking-1' }, 'Session confirmed'), {
+    uid: 'student-1',
+    currentRole: 'student',
+    booking: booking({ scheduledAt: new Date(now - 60_000).toISOString() }),
+    now,
+  });
+  assert.deepEqual(target.route, { pathname: '/sessions', params: { tab: 'past' } });
 });
 
 test('a regular confirmed future tutor booking opens its details with the booking draft', () => {

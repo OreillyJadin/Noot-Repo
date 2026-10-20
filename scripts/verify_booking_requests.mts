@@ -27,6 +27,58 @@ const step = (name: string, ok: boolean, detail = '') => {
   console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ` — ${detail}` : ''}`);
 };
 const hoursFromNow = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
+const chicagoFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Chicago',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+const chicagoSlot = (days: number, minutes: number) => {
+  const partsAt = (date: Date) =>
+    Object.fromEntries(chicagoFormatter.formatToParts(date).map((part) => [part.type, part.value]));
+  const local = partsAt(new Date());
+  const date = new Date(Date.UTC(
+    Number(local.year),
+    Number(local.month) - 1,
+    Number(local.day) + days,
+  ));
+  const target = Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+    Math.floor(minutes / 60),
+    minutes % 60,
+  );
+  let instant = target;
+  for (let i = 0; i < 4; i++) {
+    const parts = partsAt(new Date(instant));
+    const represented = Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second),
+    );
+    const adjusted = instant + target - represented;
+    if (adjusted === instant) break;
+    instant = adjusted;
+  }
+  return new Date(instant).toISOString();
+};
+const chicagoWeekday = (days: number) => {
+  const local = Object.fromEntries(chicagoFormatter.formatToParts(new Date())
+    .map((part) => [part.type, part.value]));
+  return new Date(Date.UTC(
+    Number(local.year),
+    Number(local.month) - 1,
+    Number(local.day) + days,
+  )).getUTCDay();
+};
 const call = async (name: string, body: unknown, token?: string) => {
   const response = await fetch(`${URL}/functions/v1/${name}`, {
     method: 'POST',
@@ -58,7 +110,49 @@ let tutorId = '';
 let studentToken = '';
 let tutorToken = '';
 let otherToken = '';
+const selectedSlots: string[] = [];
 let stage = 'load seeded tutor';
+const nextBookingSlot = async (preferredDays: number) => {
+  const { data: availability, error: availabilityError } = await admin.from('tutor_availability')
+    .select('day_of_week,start_time,end_time').eq('tutor_id', tutorId);
+  if (availabilityError) throw availabilityError;
+  const { data: existingBookings, error: bookingsError } = await admin.from('bookings')
+    .select('scheduled_at,duration_minutes').eq('tutor_id', tutorId)
+    .in('status', ['pending', 'confirmed']);
+  if (bookingsError) throw bookingsError;
+  const toMinutes = (time: string) => {
+    const [hour, minute] = time.slice(0, 5).split(':').map(Number);
+    return hour * 60 + minute;
+  };
+  const offsets = [1, 2, 3, 4, 5, 6].sort((a, b) =>
+    Math.abs(a - preferredDays) - Math.abs(b - preferredDays));
+  for (const dayOffset of offsets) {
+    const weekday = chicagoWeekday(dayOffset);
+    for (const window of availability ?? []) {
+      if (Number(window.day_of_week) !== weekday) continue;
+      const startMinute = toMinutes(window.start_time as string);
+      const endMinute = toMinutes(window.end_time as string);
+      for (let minute = startMinute; minute + 60 <= endMinute; minute += 60) {
+        const candidate = chicagoSlot(dayOffset, minute);
+        const start = new Date(candidate).getTime();
+        const end = start + 60 * 60_000;
+        const overlaps = [...(existingBookings ?? []).map((booking) => ({
+          start: new Date(booking.scheduled_at as string).getTime(),
+          end: new Date(booking.scheduled_at as string).getTime() +
+            Number(booking.duration_minutes) * 60_000,
+        })), ...selectedSlots.map((slot) => {
+          const slotStart = new Date(slot).getTime();
+          return { start: slotStart, end: slotStart + 60 * 60_000 };
+        })].some((booking) => booking.start < end && start < booking.end);
+        if (start > Date.now() + 2 * 60 * 60_000 && start < Date.now() + 6 * 86_400_000 && !overlaps) {
+          selectedSlots.push(candidate);
+          return candidate;
+        }
+      }
+    }
+  }
+  throw new Error('Could not find a free hour inside tutor availability and the six-day booking horizon');
+};
 
 try {
   const { data: tutor, error: tutorError } = await admin.from('users').select('id,email').eq('email', 'sara@crimson.ua.edu').single();
@@ -89,7 +183,7 @@ try {
   if (!studentSignIn.ok) throw new Error(studentSignIn.error);
 
   stage = 'create payment intent';
-  const scheduledAt = hoursFromNow(72);
+  const scheduledAt = await nextBookingSlot(3);
   const pi = await api.createPaymentIntent({ tutorId, courseCode, durationMinutes: 60, scheduledAt });
   step('payment intent includes service fee', pi.amountCents === expectedTotalCents &&
     pi.studentFeeCents === Math.round(expectedStudentFee * 100),
@@ -141,7 +235,7 @@ try {
   step('repeated acceptance returns 409', repeated.status === 409, `HTTP ${repeated.status}`);
 
   // The surfaces the tutor lands on after accepting: the session must show in their
-  // upcoming list, and the conversation must already hold the student's booking message.
+  // upcoming list, and acceptance has created the conversation with the student's note.
   await auth.signInWithPassword(tutor.email as string, DEV_PASSWORD);
   const tutorUpcoming = await api.listUpcoming('tutor');
   step('accepted session shows in the tutor upcoming list',
@@ -153,7 +247,7 @@ try {
   await auth.signInWithPassword(studentEmail, PASSWORD);
 
   stage = 'verify tutor decline and credit return';
-  const declineAt = hoursFromNow(96);
+  const declineAt = await nextBookingSlot(4);
   await admin.from('credit_ledger').insert({ user_id: studentId, amount_cents: 500, kind: 'adjustment' });
   const declinePi = await api.createPaymentIntent({ tutorId, courseCode, durationMinutes: 60, scheduledAt: declineAt });
   intents.push(declinePi.paymentIntentId);
@@ -196,7 +290,7 @@ try {
   step('declined request does not count as a tutor cancellation', cancelledAfterDecline === cancelledBeforeDecline);
 
   stage = 'verify expired accept and one-time reminder';
-  const lateAt = hoursFromNow(120);
+  const lateAt = await nextBookingSlot(5);
   const latePi = await api.createPaymentIntent({ tutorId, courseCode, durationMinutes: 60, scheduledAt: lateAt });
   intents.push(latePi.paymentIntentId);
   if (latePi.paymentIntentId.startsWith('pi_')) await authorizeHold(latePi.paymentIntentId);
@@ -227,14 +321,15 @@ try {
   step('acceptance reminder fires once', !!reminderRow?.accept_reminder_sent_at && reminders?.length === 1);
 
   stage = 'verify scheduled expiry and RPC access';
-  const expiryAt = hoursFromNow(102);
+  const expiryAt = await nextBookingSlot(5);
   const expiryPi = await api.createPaymentIntent({ tutorId, courseCode, durationMinutes: 60, scheduledAt: expiryAt });
   intents.push(expiryPi.paymentIntentId);
   if (expiryPi.paymentIntentId.startsWith('pi_')) await authorizeHold(expiryPi.paymentIntentId);
   const expiryBooking = await api.bookings.confirm({ tutorId, courseCode, scheduledAt: expiryAt, durationMinutes: 60, sessionType: 'in_person', paymentIntentId: expiryPi.paymentIntentId });
   bookings.push(expiryBooking.bookingId);
+  await admin.from('bookings').update({ accept_by: new Date(Date.now() - 1000).toISOString() }).eq('id', expiryBooking.bookingId);
   const balanceBeforeExpiry = await api.credits.balance();
-  const expireNow = hoursFromNow(13);
+  const expireNow = new Date().toISOString();
   const { error: expireError } = await admin.rpc('expire_booking_requests', { p_now: expireNow });
   const { data: expiredRow } = await admin.from('bookings').select('status,cancel_reason,refund_percent').eq('id', expiryBooking.bookingId).single();
   step('service expiry RPC cancels the due request at 100%', !expireError && expiredRow?.status === 'cancelled' && expiredRow.cancel_reason === 'tutor_no_response' && expiredRow.refund_percent === 100);
@@ -243,7 +338,7 @@ try {
   step('authenticated users cannot execute expiry RPC', !!userRpcError);
 
   stage = 'verify pending cancellation and client write denial';
-  const cancelAt = hoursFromNow(108);
+  const cancelAt = await nextBookingSlot(5);
   const cancelPi = await api.createPaymentIntent({ tutorId, courseCode, durationMinutes: 60, scheduledAt: cancelAt });
   intents.push(cancelPi.paymentIntentId);
   if (cancelPi.paymentIntentId.startsWith('pi_')) await authorizeHold(cancelPi.paymentIntentId);

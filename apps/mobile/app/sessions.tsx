@@ -326,10 +326,14 @@ export default function Sessions() {
                         <Text style={[styles.metaText, { color: t.accent, marginTop: 12, fontWeight: '600' }]}>
                           Waiting for {tutorName} to accept · by {formatSessionTime(b.acceptBy ?? b.scheduledAt)}
                         </Text>
-                        <AdaptiveRow style={styles.btnRow}>
-                          <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
-                          <Button label="Cancel request" kind="tint" size="sm" style={{ flex: 1 }} onPress={() => cancelSession(tutor, b.id, b.scheduledAt)} />
-                        </AdaptiveRow>
+                        <Button
+                          label="Cancel request"
+                          kind="tint"
+                          size="sm"
+                          full
+                          style={{ marginTop: 12 }}
+                          onPress={() => cancelSession(tutor, b.id, b.scheduledAt)}
+                        />
                       </>
                     ) : (
                       <>

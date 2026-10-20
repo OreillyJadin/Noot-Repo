@@ -17,6 +17,7 @@ import { AuthGate } from '../lib/AuthGate';
 import { SignedOutGuard } from '../lib/SignedOutGuard';
 import { PushRegistrar } from '../lib/PushRegistrar';
 import { PushOpener } from '../lib/PushOpener';
+import { BookingConfirmedHost } from '../lib/BookingConfirmedHost';
 import { PayoutSetupHost } from '../lib/PayoutSetupHost';
 import { largeSecureStore } from '../lib/secureStorage';
 import { ThemePrefProvider, useThemePref } from '../lib/themePref';
@@ -50,11 +51,12 @@ function ThemedApp() {
   const tree = (
     <AppProvider>
       <MeProvider>
-      <StatusBar style={dark ? 'light' : 'dark'} />
+        <StatusBar style={dark ? 'light' : 'dark'} />
         <PushRegistrar />
-        <PushOpener />
         <SignedOutGuard />
         <AuthGate>
+          <PushOpener />
+          <BookingConfirmedHost />
           {/* Tab roots cross-fade instead of the jerky horizontal slide; drill-down
               screens (booking, edit, etc.) keep the default push animation. */}
           <Stack screenOptions={{ headerShown: false }}>

@@ -1,6 +1,6 @@
-// e2e_book_nonote — book a second session as the E2E student with NO intro note
+// e2e_book_nonote — book a second session as the E2E student with NO request note
 // through the API layer (b3 requires a note in the UI, so this path can't be
-// driven on screen). Proves confirm-booking's fallback intro message.
+// driven on screen). Confirms no message is posted before tutor acceptance.
 import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { api, auth, initSupabase } from '../packages/core/src/index.ts';
@@ -26,6 +26,16 @@ const courseCode = tc.course_code as string;
 
 const signIn = await auth.signInWithPassword('alex.rivera@crimson.ua.edu', DEV_PASSWORD);
 if (!signIn.ok) throw new Error(signIn.error);
+const studentId = (await api.getMe())?.id;
+if (!studentId) throw new Error('E2E student profile is missing');
+
+const { data: priorConversation } = await admin.from('conversations')
+  .select('id').eq('student_id', studentId).eq('tutor_id', tutorId).maybeSingle();
+const priorConversationId = priorConversation?.id as string | undefined;
+const { count: priorMessageCount } = priorConversationId
+  ? await admin.from('messages').select('id', { count: 'exact', head: true })
+      .eq('conversation_id', priorConversationId)
+  : { count: 0 };
 
 // Pick a free hour ~4 days out inside the tutor's availability. The server
 // checks windows in America/Chicago (CAMPUS_TZ), so evaluate candidates by
@@ -69,7 +79,35 @@ const created = await api.bookings.confirm({
   tutorId, courseCode, scheduledAt, durationMinutes: 60,
   sessionType: 'in_person', paymentIntentId: pi.paymentIntentId, message: '',
 });
-console.log('booking:', created.bookingId, 'conversation:', created.conversationId);
-const msgs = await api.chat.listMessages(created.conversationId);
-console.log('last message:', JSON.stringify(msgs.at(-1)?.content));
+const { data: pending } = await admin.from('bookings')
+  .select('status,request_note').eq('id', created.bookingId).single();
+if (pending?.status !== 'pending' || pending.request_note !== null || 'conversationId' in created) {
+  throw new Error('A no-note request must be pending, have a null request_note, and return no conversationId');
+}
+const { data: pendingConversation } = await admin.from('conversations')
+  .select('id').eq('student_id', studentId).eq('tutor_id', tutorId).maybeSingle();
+if (!priorConversationId && pendingConversation) {
+  throw new Error('Confirming the request unexpectedly created a conversation');
+}
+if (priorConversationId) {
+  const { count: pendingMessageCount } = await admin.from('messages')
+    .select('id', { count: 'exact', head: true }).eq('conversation_id', priorConversationId);
+  if (pendingMessageCount !== priorMessageCount) throw new Error('Confirming the request unexpectedly posted a message');
+}
+
+const tutorSignIn = await auth.signInWithPassword('sara.chen@crimson.ua.edu', DEV_PASSWORD);
+if (!tutorSignIn.ok) throw new Error(tutorSignIn.error);
+await api.bookings.respond({ bookingId: created.bookingId, action: 'accept' });
+const { data: conversation } = await admin.from('conversations')
+  .select('id').eq('student_id', studentId).eq('tutor_id', tutorId).maybeSingle();
+if (!conversation) throw new Error('Tutor acceptance did not create a conversation');
+const { data: messages } = await admin.from('messages')
+  .select('sender_id,content').eq('conversation_id', conversation.id).order('created_at');
+const additions = messages?.slice(priorMessageCount ?? 0) ?? [];
+if (additions.length !== 1 || additions[0].sender_id !== tutorId ||
+    !additions[0].content.startsWith('Accepted your')) {
+  throw new Error('No-note acceptance should add only the tutor acceptance message');
+}
+console.log('booking:', created.bookingId, 'accepted; no opening student message');
+console.log('acceptance message:', JSON.stringify(additions[0].content));
 console.log('DONE');

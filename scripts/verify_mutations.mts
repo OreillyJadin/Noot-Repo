@@ -65,8 +65,10 @@ await check('auth.signInWithPassword(student)', async () => {
 });
 
 const tutors = await api.tutors.search();
-const tutorId = tutors[0]?.userId;
-console.log(`   using tutorId=${tutorId} (${tutors[0]?.firstName})`);
+const tutor = tutors.find((candidate) =>
+  candidate.firstName === 'Sara' && candidate.lastName === 'Williams');
+const tutorId = tutor?.userId;
+console.log(`   using tutorId=${tutorId} (${tutor?.firstName} ${tutor?.lastName})`);
 const { data: tutorUser } = await admin.from('users').select('email').eq('id', tutorId!).single();
 const tutorEmail = tutorUser!.email as string;
 const acceptAsTutor = async (bookingId: string | undefined) => {
@@ -76,8 +78,6 @@ const acceptAsTutor = async (bookingId: string | undefined) => {
   await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   return result;
 };
-
-const future = (days: number) => new Date(Date.now() + days * 86400_000).toISOString();
 
 // Start from a clean slate: the server enforces a real double-booking check now, so
 // bookings this suite left behind on a previous run would collide with its own slots.
@@ -94,10 +94,83 @@ await admin.from('tutor_profiles').update({ stripe_charges_enabled: true }).eq('
 const { data: tcRow } = await admin
   .from('tutor_courses').select('course_code').eq('tutor_id', tutorId!).limit(1).single();
 const courseCode = tcRow!.course_code as string;
+const { data: availability, error: availabilityError } = await admin.from('tutor_availability')
+  .select('day_of_week,start_time,end_time').eq('tutor_id', tutorId!);
+if (availabilityError) throw availabilityError;
+const { data: existingBookings, error: bookingsError } = await admin.from('bookings')
+  .select('scheduled_at,duration_minutes').eq('tutor_id', tutorId!)
+  .in('status', ['pending', 'confirmed']);
+if (bookingsError) throw bookingsError;
+const chicagoFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+});
+const partsAt = (date: Date) => Object.fromEntries(chicagoFormatter.formatToParts(date)
+  .map((part) => [part.type, part.value]));
+const chicagoSlot = (days: number, minutes: number) => {
+  const local = partsAt(new Date());
+  const date = new Date(Date.UTC(Number(local.year), Number(local.month) - 1, Number(local.day) + days));
+  const target = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(),
+    Math.floor(minutes / 60), minutes % 60);
+  let instant = target;
+  for (let i = 0; i < 4; i++) {
+    const parts = partsAt(new Date(instant));
+    const represented = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+      Number(parts.hour), Number(parts.minute), Number(parts.second));
+    const adjusted = instant + target - represented;
+    if (adjusted === instant) break;
+    instant = adjusted;
+  }
+  return new Date(instant).toISOString();
+};
+const weekdayAt = (days: number) => {
+  const local = partsAt(new Date());
+  return new Date(Date.UTC(Number(local.year), Number(local.month) - 1,
+    Number(local.day) + days)).getUTCDay();
+};
+const minuteOf = (time: string) => {
+  const [hour, minute] = time.slice(0, 5).split(':').map(Number);
+  return hour * 60 + minute;
+};
+const selectedSlots: string[] = [];
+const future = async (preferredDays: number) => {
+  const offsets = [1, 2, 3, 4, 5, 6].sort((a, b) =>
+    Math.abs(a - preferredDays) - Math.abs(b - preferredDays));
+  for (const days of offsets) {
+    for (const window of availability ?? []) {
+      if (Number(window.day_of_week) !== weekdayAt(days)) continue;
+      for (let minute = minuteOf(window.start_time as string);
+        minute + 60 <= minuteOf(window.end_time as string); minute += 60) {
+        const candidate = chicagoSlot(days, minute);
+        const start = new Date(candidate).getTime();
+        const end = start + 60 * 60_000;
+        const overlaps = [...(existingBookings ?? []).map((booking) => {
+          const bookingStart = new Date(booking.scheduled_at as string).getTime();
+          return { start: bookingStart, end: bookingStart + Number(booking.duration_minutes) * 60_000 };
+        }), ...selectedSlots.map((slot) => {
+          const slotStart = new Date(slot).getTime();
+          return { start: slotStart, end: slotStart + 60 * 60_000 };
+        })].some((booking) => booking.start < end && start < booking.end);
+        if (start > Date.now() + 2 * 60 * 60_000 && start < Date.now() + 6 * 86_400_000 && !overlaps) {
+          selectedSlots.push(candidate);
+          return candidate;
+        }
+      }
+    }
+  }
+  throw new Error('Could not find a free hour inside tutor availability and the six-day booking horizon');
+};
+const futureByDays = new Map<number, string>();
+for (const days of [3, 5, 4, 1]) futureByDays.set(days, await future(days));
+const scheduledAt = (days: number) => {
+  const slot = futureByDays.get(days);
+  if (!slot) throw new Error(`No prepared booking slot for day ${days}`);
+  return slot;
+};
 
 // payment (simulated, no Stripe key). No amount is sent — see verify_pricing.mts.
 const pi = await check('createPaymentIntent', () =>
-  api.createPaymentIntent({ tutorId: tutorId!, courseCode, durationMinutes: 60, scheduledAt: future(3) }));
+  api.createPaymentIntent({ tutorId: tutorId!, courseCode, durationMinutes: 60, scheduledAt: scheduledAt(3) }));
 // confirm-booking requires an authorized hold (T5). No-op on the simulated path.
 await authorizeHold(pi?.paymentIntentId ?? '');
 
@@ -108,10 +181,10 @@ const heldIntent = async (scheduledAt: string) => {
   return p.paymentIntentId;
 };
 
-// confirm a booking → should create a row + conversation
+// confirm a booking → should create a pending row without opening a conversation
 const b1 = await check('bookings.confirm', () =>
   api.bookings.confirm({
-    tutorId: tutorId!, courseCode, scheduledAt: future(3), durationMinutes: 60,
+    tutorId: tutorId!, courseCode, scheduledAt: scheduledAt(3), durationMinutes: 60,
     sessionType: 'in_person', location: 'Gorgas Library, Fl 2',
     message: 'Looking forward to the session!', paymentIntentId: pi?.paymentIntentId,
   }),
@@ -127,15 +200,23 @@ await check('listUpcoming contains new booking', async () => {
 });
 
 // rate it (student → tutor)
+await admin.from('bookings').update({
+  status: 'completed',
+  scheduled_at: new Date(Date.now() - 60 * 60_000).toISOString(),
+}).eq('id', b1?.bookingId);
 await check('reviews.submit', () =>
   api.reviews.submit({ bookingId: b1?.bookingId, rating: 5, comment: 'Super helpful', happened: true }),
 );
+await admin.from('bookings').update({
+  status: 'confirmed',
+  scheduled_at: scheduledAt(3),
+}).eq('id', b1?.bookingId);
 
 // reschedule propose (student) → accept (TUTOR). Accepting must come from the other
 // party (T19) — a proposer accepting their own proposal is a one-sided rewrite of the
 // session time, so this suite has to switch identities here.
 await check('bookings.reschedule(propose)', () =>
-  api.bookings.reschedule({ bookingId: b1?.bookingId, action: 'propose', newScheduledAt: future(5) }),
+  api.bookings.reschedule({ bookingId: b1?.bookingId, action: 'propose', newScheduledAt: scheduledAt(5) }),
 );
 await check('reschedule proposal notifies the tutor', () =>
   assertBookingNotification(tutorId!, b1?.bookingId, 'New time proposed'),
@@ -151,7 +232,7 @@ await check('reschedule proposal notifies the tutor', () =>
   );
   await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
   await check('bookings.reschedule(propose before decline)', () =>
-    api.bookings.reschedule({ bookingId: b1?.bookingId, action: 'propose', newScheduledAt: future(4) }),
+    api.bookings.reschedule({ bookingId: b1?.bookingId, action: 'propose', newScheduledAt: scheduledAt(4) }),
   );
   await auth.signInWithPassword(tutorRow!.email as string, DEV_PASSWORD);
   await check('bookings.reschedule(decline, as the tutor)', () =>
@@ -164,10 +245,10 @@ await check('reschedule proposal notifies the tutor', () =>
 }
 
 // second booking → cancel (student, >24h → 100% refund)
-const pi2 = await heldIntent(future(4));
+const pi2 = await heldIntent(scheduledAt(4));
 const b2 = await check('bookings.confirm #2', () =>
   api.bookings.confirm({
-    tutorId: tutorId!, courseCode, scheduledAt: future(4), durationMinutes: 60,
+    tutorId: tutorId!, courseCode, scheduledAt: scheduledAt(4), durationMinutes: 60,
     sessionType: 'in_person', location: 'Gorgas Library', paymentIntentId: pi2,
   }),
 );
@@ -187,10 +268,10 @@ await check('confirmed student cancellation records attribution', async () => {
 });
 
 // third booking → report tutor no-show (student reports → full refund)
-const pi3 = await heldIntent(future(1));
+const pi3 = await heldIntent(scheduledAt(1));
 const b3 = await check('bookings.confirm #3', () =>
   api.bookings.confirm({
-    tutorId: tutorId!, courseCode, scheduledAt: future(1), durationMinutes: 60,
+    tutorId: tutorId!, courseCode, scheduledAt: scheduledAt(1), durationMinutes: 60,
     sessionType: 'in_person', location: 'Gorgas Library, Fl 2', paymentIntentId: pi3,
   }),
 );

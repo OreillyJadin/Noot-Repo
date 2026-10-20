@@ -129,7 +129,6 @@ async function createBooking(
     message: 'Availability verification',
   }, studentToken);
   if (typeof confirmation.body.bookingId === 'string') cleanup.bookings.push(confirmation.body.bookingId);
-  if (typeof confirmation.body.conversationId === 'string') cleanup.conversations.push(confirmation.body.conversationId);
   return { intent: pi, confirmation };
 }
 
@@ -252,6 +251,15 @@ try {
   if (reschedule.confirmation?.status === 200 && typeof bookingId === 'string') {
     const accepted = await call('respond-booking-request', { bookingId, action: 'accept' }, tutorToken);
     step('tutor accepts reschedule test booking', accepted.status === 200, `status=${accepted.status}`);
+    if (accepted.status === 200) {
+      const { data: conversation, error: conversationError } = await admin.from('conversations')
+        .select('id')
+        .eq('student_id', cleanup.users[0])
+        .eq('tutor_id', cleanup.users[1])
+        .maybeSingle();
+      if (conversationError) throw conversationError;
+      if (conversation) cleanup.conversations.push(conversation.id as string);
+    }
     const proposal = await call('reschedule-booking', {
       bookingId,
       action: 'propose',
