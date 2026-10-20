@@ -197,6 +197,7 @@ export default function XReschedulePropose() {
                 key={d.i}
                 disabled={!has}
                 onPress={() => {
+                  didInitialSnap.current = true;
                   setDay(d.i);
                   setSlot(null);
                 }}

@@ -85,8 +85,8 @@ function B3Inner() {
   const [length, setLength] = useState<number>(booking.lengthMin ?? 60);
   const slots = useMemo(() => slotsFromWindows(windows, length), [windows, length]);
   const booked = useMemo(() => bookedSlots(slots, busy, length), [slots, busy, length]);
-  const availableDays = BOOKABLE_DAYS.filter((d) =>
-    (slots[d.i] ?? []).some((s) => !booked[d.i]?.has(s)),
+  const hasWeeklySlots = BOOKABLE_DAYS.some(
+    (d) => (slots[d.i]?.length ?? 0) > 0,
   );
   const didInitialSnap = useRef(false);
   const [course, setCourse] = useState<string>(booking.course ?? tutor.courses[0]![0]);
@@ -277,6 +277,7 @@ function B3Inner() {
                   key={d.i}
                   disabled={!has}
                   onPress={() => {
+                    didInitialSnap.current = true;
                     setDay(d.i);
                     setSlot(null);
                   }}
@@ -348,7 +349,7 @@ function B3Inner() {
                 ? 'Fully booked this day — try another.'
                 : slotsLoading || busyLoading
                 ? 'Loading availability…'
-                : availableDays.length === 0
+                : !hasWeeklySlots
                   ? `${tutorFirst} hasn’t opened any times yet.`
                   : 'No open times this day — try another.'}
             </Text>
