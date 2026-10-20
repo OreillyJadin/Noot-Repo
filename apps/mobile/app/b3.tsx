@@ -268,10 +268,10 @@ function B3Inner() {
 
         <FieldBlock label="Pick a day">
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRow}>
-          {BOOKABLE_DAYS.map((d) => {
-            const has = !!(slots[d.i] && slots[d.i]!.length);
-            const allBooked = has && slots[d.i]!.every((s) => booked[d.i]?.has(s));
-            const on = day === d.i;
+            {BOOKABLE_DAYS.map((d) => {
+              const has = !!(slots[d.i] && slots[d.i]!.length);
+              const allBooked = has && slots[d.i]!.every((s) => booked[d.i]?.has(s));
+              const on = day === d.i;
               return (
                 <Pressable
                   key={d.i}
@@ -297,7 +297,7 @@ function B3Inner() {
                   </Text>
                   <View
                     style={[
-                    styles.dayDot,
+                      styles.dayDot,
                       { backgroundColor: has ? (allBooked ? t.text3 : on ? t.onAccent : t.good) : 'transparent' },
                     ]}
                   />
