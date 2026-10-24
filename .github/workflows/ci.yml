@@ -101,6 +101,7 @@ jobs:
           # either are left out; see the PR that added this workflow for the list and reasons.
           VERIFY_SCRIPTS: >-
             verify_account_deletion
+            verify_apple_pay_sheet
             verify_admin_chat
             verify_ambassador_cashouts
             verify_admin_calendar

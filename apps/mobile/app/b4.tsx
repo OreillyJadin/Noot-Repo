@@ -3,7 +3,7 @@
 // policy notes. Reads the booking draft from useApp() with safe fallbacks so
 // nothing renders undefined if a student lands here without going through B3.
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
 import { useStripe } from '@stripe/stripe-react-native';
@@ -13,6 +13,7 @@ import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { DAYS, MONTHS } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
+import { applePayCartItems } from '../lib/applePaySummary';
 
 const SHORT_NOTICE_MS = 3 * 60 * 60 * 1000;
 
@@ -67,9 +68,25 @@ function B4Inner() {
     ['Location', location],
   ];
 
-  const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const { initPaymentSheet, presentPaymentSheet, isPlatformPaySupported } = useStripe();
   const [status, setStatus] = useState<Status>('idle');
   const [policyOpen, setPolicyOpen] = useState(false);
+  const [walletSupported, setWalletSupported] = useState(false);
+
+  useEffect(() => {
+    if (Constants.appOwnership === 'expo' || Platform.OS !== 'android') return;
+    let active = true;
+    isPlatformPaySupported()
+      .then((supported) => { if (active) setWalletSupported(supported); })
+      .catch(() => { if (active) setWalletSupported(false); });
+    return () => { active = false; };
+  }, [isPlatformPaySupported]);
+
+  const paymentMethodLabel = Platform.OS === 'ios'
+    ? 'Card or Apple Pay'
+    : Platform.OS === 'android' && walletSupported
+      ? 'Card or Google Pay'
+      : 'Card';
 
   // Build an ISO scheduledAt from the picked day + slot ("3:00 PM"), falling back
   // to now+1d if either is missing/unparseable so we never send a bad timestamp.
@@ -135,7 +152,16 @@ function B4Inner() {
           paymentIntentClientSecret: pi.paymentIntentClientSecret ?? '',
           customerId: pi.customerId ?? undefined,
           customerEphemeralKeySecret: pi.ephemeralKeySecret ?? undefined,
-          applePay: { merchantCountryCode: 'US' },
+          applePay: {
+            merchantCountryCode: 'US',
+            cartItems: applePayCartItems({
+              sessionLabel: `${lenLabel} session with ${booking.tutor.name.split(' ')[0]}`,
+              amountCents: pi.amountCents,
+              studentFeeCents: pi.studentFeeCents,
+              creditCents: pi.creditCents,
+              chargeCents: pi.chargeCents,
+            }),
+          },
           // testEnv must be false in a release build or Google Pay stays in test mode.
           googlePay: { merchantCountryCode: 'US', testEnv: __DEV__ },
           returnURL: 'noot://stripe-redirect',
@@ -241,7 +267,7 @@ function B4Inner() {
             <Card style={{ padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Ic name="card" size={20} color={t.accent} strokeWidth={1.8} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontSize: 14.5, fontWeight: '600', color: t.text }}>Card, Apple Pay or Google Pay</Text>
+                <Text style={{ fontSize: 14.5, fontWeight: '600', color: t.text }}>{paymentMethodLabel}</Text>
                 <Text style={{ fontSize: 12.5, color: t.text3, marginTop: 2 }}>
                   You&apos;ll enter payment in a secure Stripe sheet when you confirm.
                 </Text>
