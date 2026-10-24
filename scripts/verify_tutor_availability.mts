@@ -51,6 +51,7 @@ const makeUser = async (email: string, first: string, last: string) => {
   const { error: updateError } = await admin.from('users').update({
     first_name: first,
     last_name: last,
+    date_of_birth: '2000-01-15',
     status: 'active',
     password_set_at: new Date().toISOString(),
     terms_accepted_at: new Date().toISOString(),

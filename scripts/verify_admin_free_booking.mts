@@ -47,6 +47,7 @@ async function mkUser(kind: 'admin' | 'student' | 'tutor') {
   const now = new Date().toISOString();
   await svc.from('users').update({
     first_name: kind, last_name: 'Verify', password_set_at: now,
+    date_of_birth: '2000-01-15',
     terms_accepted_at: now, terms_version: '2026-09-17', guidelines_accepted_at: now, guidelines_version: '2026-10-13',
   }).eq('id', id);
   const raw = createClient(URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
