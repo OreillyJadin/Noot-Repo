@@ -49,7 +49,11 @@ try {
   }
 
   // 3) A real passwordless sign-up (the emailed link, as the app's sign-up sends it).
-  const link = await admin.auth.admin.generateLink({ type: 'magiclink', email })
+  const link = await admin.auth.admin.generateLink({
+    type: 'magiclink',
+    email,
+    options: { data: { date_of_birth: '2000-01-15' } },
+  })
   const tokenHash = link.data.properties?.hashed_token
   newId = link.data.user?.id
   // GoTrue issues a 'signup' token for an address it has not seen, 'magiclink' otherwise.

@@ -33,7 +33,12 @@ type Role = 'student' | 'tutor' | 'ambassador' | 'admin'
 /** An account set up before this change: password and Terms done, guidelines never asked. */
 const makeUser = async (name: string, roles: Role[], activeRole: 'student' | 'tutor' | 'ambassador') => {
   const email = `${tag}_${name}@crimson.ua.edu`
-  const { data, error } = await svc.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true })
+  const { data, error } = await svc.auth.admin.createUser({
+    email,
+    password: PASSWORD,
+    email_confirm: true,
+    user_metadata: { date_of_birth: '2000-01-15' },
+  })
   if (error || !data.user) throw error ?? new Error(`createUser ${email}`)
   const id = data.user.id
   made.push(id)
