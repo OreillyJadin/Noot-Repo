@@ -61,6 +61,8 @@ function ThemedApp() {
               screens (booking, edit, etc.) keep the default push animation. */}
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="guidelines" options={{ gestureEnabled: false }} />
+            <Stack.Screen name="age_gate" options={{ gestureEnabled: false }} />
+            <Stack.Screen name="under_age" options={{ gestureEnabled: false }} />
             <Stack.Screen name="home" options={{ animation: 'fade' }} />
             <Stack.Screen name="student_home" options={{ animation: 'fade' }} />
             <Stack.Screen name="sessions" options={{ animation: 'fade' }} />

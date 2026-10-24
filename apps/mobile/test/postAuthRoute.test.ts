@@ -5,6 +5,7 @@ import { accountStateFrom, decidePostAuthRoute, lookupWithRetry, type AccountSta
 import { GUIDELINES_VERSION } from '../lib/guidelines.ts';
 
 const setUp: AccountState = {
+  dateOfBirth: '2000-01-15',
   hasPassword: true,
   acceptedTerms: true,
   acceptedGuidelines: true,
@@ -25,6 +26,7 @@ test('an account with no password yet starts onboarding', () => {
   assert.deepEqual(decidePostAuthRoute(found({ ...setUp, hasPassword: false })), { kind: 'onboarding' });
   // Whatever mode is saved: without a password they have not finished signing up.
   assert.deepEqual(decidePostAuthRoute(found({
+    dateOfBirth: '2000-01-15',
     hasPassword: false,
     acceptedTerms: false,
     acceptedGuidelines: true,
@@ -112,6 +114,7 @@ test('one acceptance covers every mode: switching modes never asks again', () =>
 });
 
 const row = {
+  dateOfBirth: '2000-01-15',
   passwordSetAt: '2026-10-01T00:00:00Z',
   termsAcceptedAt: '2026-10-01T00:00:00Z',
   guidelinesAcceptedAt: '2026-10-01T00:00:00Z',
@@ -154,4 +157,21 @@ test('the Terms gate comes before the Community Guidelines gate', () => {
     acceptedTerms: false,
     acceptedGuidelines: false,
   })), { kind: 'terms' });
+});
+
+test('a DOB set to under 18 blocks before password onboarding', () => {
+  assert.deepEqual(decidePostAuthRoute(found({
+    ...setUp,
+    dateOfBirth: '2010-06-15',
+    hasPassword: false,
+  })), { kind: 'under_age' });
+});
+
+test('a missing DOB routes to the age gate after password onboarding', () => {
+  assert.deepEqual(decidePostAuthRoute(found({ ...setUp, dateOfBirth: null })), { kind: 'age' });
+  assert.deepEqual(decidePostAuthRoute(found({
+    ...setUp,
+    dateOfBirth: null,
+    hasPassword: false,
+  })), { kind: 'onboarding' });
 });

@@ -56,6 +56,14 @@ export async function routeAfterAuth(
   });
   const route = decidePostAuthRoute(read.ok ? { ok: true, account: read.value } : { ok: false });
   if (route.kind === 'unavailable') return { ok: false, role: 'student', onboarding: false };
+  if (route.kind === 'age') {
+    router.replace('/age_gate');
+    return { ok: true, role: 'student', onboarding: false };
+  }
+  if (route.kind === 'under_age') {
+    router.replace('/under_age');
+    return { ok: true, role: 'student', onboarding: false };
+  }
   if (route.kind === 'terms') {
     // Not onboarding (they have a password) and not home: one screen, then back through here.
     router.replace('/accept_terms');
