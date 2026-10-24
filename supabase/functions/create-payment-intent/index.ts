@@ -16,6 +16,7 @@
 // null paymentIntentId tell the app to skip the PaymentSheet and confirm directly.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { isAdmin, requireActiveUser } from '../_shared/auth.ts';
+import { BookingAgeError, requireBookingAge } from '../_shared/age.ts';
 import { BookingError, freeBookingFor, resolveBooking } from '../_shared/booking.ts';
 import { creditToApply } from '../_shared/credits.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
@@ -44,6 +45,7 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
     if (inactiveResponse) return inactiveResponse;
 
     const body = await req.json().catch(() => ({}));
+    await requireBookingAge(db, user.id, body?.tutorId);
     let resolved = await resolveBooking(db, {
       studentId: user.id,
       tutorId: body?.tutorId,
@@ -161,6 +163,9 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
       { headers: cors },
     );
   } catch (err) {
+    if (err instanceof BookingAgeError) {
+      return Response.json({ error: err.code, message: err.message }, { status: err.status, headers: cors });
+    }
     if (err instanceof BookingError) {
       return Response.json({ error: err.message }, { status: err.status, headers: cors });
     }

@@ -12,8 +12,12 @@ import { GUIDELINES_VERSION } from '../apps/mobile/lib/guidelines.ts'
 
 const URL = 'http://127.0.0.1:54321'
 const MAILPIT = 'http://127.0.0.1:54324'
-const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
-const SERVICE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+const ANON =
+  process.env.SUPABASE_ANON_KEY ??
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
+const SERVICE =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
 
 let pass = 0, fail = 0, n = 0
 const step = (ok: boolean, msg: string) => {
@@ -66,7 +70,13 @@ try {
   // ---- the route that skipped the Terms: abandon onboarding, then Forgot password ----
   const email = `${tag}@crimson.ua.edu`
   let since = Date.now()
-  const sent = await auth.sendSignupVerification(email, 'Terry', 'Gate', 'http://localhost:8081/auth-callback')
+  const sent = await auth.sendSignupVerification(
+    email,
+    'Terry',
+    'Gate',
+    'http://localhost:8081/auth-callback',
+    '2000-01-15',
+  )
   const signupLink = await emailedLink(email, since)
   const verified = signupLink ? await auth.completeAuthFromUrl(signupLink) : { ok: false, error: 'no link' }
   const uid = await auth.getSessionUserId()

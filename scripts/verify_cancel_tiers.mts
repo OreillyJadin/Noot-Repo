@@ -127,6 +127,10 @@ try {
   });
   if (feeAccount.error || !feeAccount.data.user) throw feeAccount.error ?? new Error('Could not create fee test student');
   feeStudentId = feeAccount.data.user.id;
+  const { error: feeDobError } = await admin.from('users')
+    .update({ date_of_birth: '2000-01-15' })
+    .eq('id', feeStudentId);
+  if (feeDobError) throw feeDobError;
   const sessionPrice = Math.round(Number(course.hourly_rate) * 100) / 100;
   const sessionCents = Math.round(sessionPrice * 100);
   const feeCents = Math.round(studentFeeFor(sessionPrice) * 100);

@@ -60,6 +60,10 @@ const emails = [`olp-a-${tag}@crimson.ua.edu`, `olp-b-${tag}@crimson.ua.edu`];
 for (const email of emails) {
   const { data, error } = await svc.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
   if (error || !data.user) throw error ?? new Error(`createUser ${email}`);
+  const { error: dobError } = await svc.from('users')
+    .update({ date_of_birth: '2000-01-15' })
+    .eq('id', data.user.id);
+  if (dobError) throw dobError;
   studentIds.push(data.user.id);
 }
 const [SA, SB] = studentIds as [string, string];

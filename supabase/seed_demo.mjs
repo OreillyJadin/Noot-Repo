@@ -129,6 +129,7 @@ async function ensureUser(email) {
   // Community Guidelines accepted. The Terms version is in apps/mobile/lib/legal.ts.
   const stamp = await admin.from('users')
     .update({
+      date_of_birth: '2000-01-15',
       password_set_at: new Date().toISOString(),
       terms_accepted_at: new Date().toISOString(),
       terms_version: '2026-09-17',
@@ -144,7 +145,9 @@ async function seedTutor(row, idx) {
   const [email, first, last, year, major, gender, bio, grade, rating, sessions, courses] = row;
   const id = await ensureUser(email);
   const chk = (label, { error }) => { if (error) throw new Error(`${email} ${label}: ${error.message}`); };
-  chk('users', await admin.from('users').update({ first_name: first, last_name: last, year, major, gender }).eq('id', id));
+  chk('users', await admin.from('users').update({
+    first_name: first, last_name: last, year, major, gender, date_of_birth: '2000-01-15',
+  }).eq('id', id));
   chk('role', await admin.from('user_roles').upsert({ user_id: id, role: 'tutor' }, { onConflict: 'user_id,role' }));
   chk('profile', await admin.from('tutor_profiles').upsert({
     user_id: id, bio, subjects: courses.map((c) => c[0]), hourly_rate: courses[0][2],
@@ -170,7 +173,10 @@ await seedCourses();
 
 const [se, sf, sl, sy, sm, sg] = DEV_STUDENT;
 const sid = await ensureUser(se);
-await admin.from('users').update({ first_name: sf, last_name: sl, year: sy, major: sm, gender: sg }).eq('id', sid);
+const studentUpdate = await admin.from('users').update({
+  first_name: sf, last_name: sl, year: sy, major: sm, gender: sg, date_of_birth: '2000-01-15',
+}).eq('id', sid);
+if (studentUpdate.error) throw new Error(`${se} users: ${studentUpdate.error.message}`);
 console.log(`✅ dev student ${se}`);
 for (let i = 0; i < TUTORS.length; i++) await seedTutor(TUTORS[i], i);
 
@@ -186,7 +192,9 @@ if (!seedAdmins) {
 }
 for (const [ae, af, al] of seedAdmins ? ADMINS : []) {
   const aid = await ensureUser(ae);
-  const nameRes = await admin.from('users').update({ first_name: af, last_name: al }).eq('id', aid);
+  const nameRes = await admin.from('users').update({
+    first_name: af, last_name: al, date_of_birth: '2000-01-15',
+  }).eq('id', aid);
   if (nameRes.error) throw new Error(`${ae} users: ${nameRes.error.message}`);
   const roleRes = await admin
     .from('user_roles')

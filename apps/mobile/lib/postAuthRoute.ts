@@ -18,9 +18,11 @@
 import type { User } from '@noot/core';
 import type { Role } from './store';
 import { guidelinesAreCurrent } from './guidelines';
+import { isAdult } from './age';
 
 /** What the decision reads about the signed-in account. */
 export interface AccountState {
+  dateOfBirth: string | null;
   /** The user has chosen a password (not the random one a link-only sign-up starts with). */
   hasPassword: boolean;
   /** The user has accepted the Terms of Use (users.terms_accepted_at, 0030). */
@@ -36,6 +38,8 @@ export type AccountLookup = { ok: true; account: AccountState | null } | { ok: f
 export type PostAuthRoute =
   | { kind: 'home'; role: Role; route: '/home' | '/tutor_home' | '/ambassador_home' }
   | { kind: 'onboarding' }
+  | { kind: 'age' }
+  | { kind: 'under_age' }
   | { kind: 'terms' }
   | { kind: 'guidelines' }
   | { kind: 'unavailable' };
@@ -43,8 +47,11 @@ export type PostAuthRoute =
 export function decidePostAuthRoute(lookup: AccountLookup): PostAuthRoute {
   if (!lookup.ok) return { kind: 'unavailable' };
   const account = lookup.account;
-  // No users row yet (it can lag a fresh sign-up), or no password → still signing up.
-  if (!account || !account.hasPassword) return { kind: 'onboarding' };
+  if (!account) return { kind: 'onboarding' };
+  if (account.dateOfBirth && !isAdult(account.dateOfBirth)) return { kind: 'under_age' };
+  // Onboarding precedes the missing-DOB gate for accounts still setting their password.
+  if (!account.hasPassword) return { kind: 'onboarding' };
+  if (!account.dateOfBirth) return { kind: 'age' };
   // Onboarding is where the Terms are accepted, on the same screen as the password. An
   // account can end up with a password without it: Forgot password after abandoning
   // onboarding, an acceptance that failed to save, or an account older than the Terms. None
@@ -61,10 +68,11 @@ export function decidePostAuthRoute(lookup: AccountLookup): PostAuthRoute {
 
 /** The decision's view of a users row. */
 export function accountStateFrom(
-  me: Pick<User, 'passwordSetAt' | 'termsAcceptedAt' | 'guidelinesAcceptedAt' | 'guidelinesVersion' | 'activeRole'>,
+  me: Pick<User, 'dateOfBirth' | 'passwordSetAt' | 'termsAcceptedAt' | 'guidelinesAcceptedAt' | 'guidelinesVersion' | 'activeRole'>,
   provenPassword = false,
 ): AccountState {
   return {
+    dateOfBirth: me.dateOfBirth,
     hasPassword: provenPassword || me.passwordSetAt != null,
     acceptedTerms: me.termsAcceptedAt != null,
     acceptedGuidelines: guidelinesAreCurrent(me.guidelinesAcceptedAt, me.guidelinesVersion),

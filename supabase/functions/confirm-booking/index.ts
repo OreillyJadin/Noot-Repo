@@ -18,6 +18,7 @@
 // are auto-injected by the runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { isAdmin, requireActiveUser } from '../_shared/auth.ts';
+import { BookingAgeError, requireBookingAge } from '../_shared/age.ts';
 import { BookingError, freeBookingFor, resolveBooking, SLOT_TAKEN_NOT_CHARGED, type ResolvedBooking } from '../_shared/booking.ts';
 import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
 import { acceptDeadline } from '../_shared/acceptance.ts';
@@ -84,6 +85,8 @@ serveWithErrorReporting('confirm-booking', async (req) => {
 
     // The caller is the student and must be a party to the booking they create.
     const studentId = user.id;
+
+    await requireBookingAge(db, studentId, body?.tutorId);
 
     // Single source of truth for price, fee, payout and tutor eligibility. This also
     // rejects blocked pairs, which the service-role inserts below would otherwise bypass.
@@ -324,6 +327,9 @@ serveWithErrorReporting('confirm-booking', async (req) => {
       { headers: cors },
     );
   } catch (e) {
+    if (e instanceof BookingAgeError) {
+      return Response.json({ error: e.code, message: e.message }, { status: e.status, headers: cors });
+    }
     if (e instanceof BookingError) {
       return Response.json({ error: e.message }, { status: e.status, headers: cors });
     }
