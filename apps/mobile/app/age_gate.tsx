@@ -3,8 +3,8 @@ import { SafeAreaView, ScrollView, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Button, useTheme } from '@noot/ui';
 import { api, auth } from '@noot/core';
-import { DateOfBirthFields } from '../lib/DateOfBirthFields';
-import { parseDob } from '../lib/age';
+import { DateOfBirthPicker } from '../lib/DateOfBirthPicker';
+import { isValidDob } from '../lib/age';
 import { forgetThisDevice } from '../lib/push';
 import { resetToSignedOut } from '../lib/resetToSignedOut';
 import { useApp } from '../lib/store';
@@ -14,20 +14,17 @@ export default function AgeGate() {
   const t = useTheme();
   const router = useRouter();
   const { setRole } = useApp();
-  const [month, setMonth] = useState('');
-  const [day, setDay] = useState('');
-  const [year, setYear] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleContinue = async () => {
-    const dob = parseDob(month, day, year);
-    if (!dob) { setError('Enter a real date of birth.'); return; }
+    if (!dateOfBirth || !isValidDob(dateOfBirth)) { setError('Select your date of birth.'); return; }
     setBusy(true);
     setError(null);
     try {
-      const adult = await api.profile.confirmDateOfBirth(dob);
+      const adult = await api.profile.confirmDateOfBirth(dateOfBirth);
       if (!adult) {
         router.replace('/under_age');
         return;
@@ -53,15 +50,11 @@ export default function AgeGate() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={[styles.title, { color: t.text }]}>Date of birth</Text>
         <Text style={[styles.body, { color: t.text2 }]}>
-          noot is for people 18 and older. Enter your date of birth to continue. You can&apos;t change it later.
+          noot is for people 18 and older. Select your date of birth to continue. You can&apos;t change it later.
         </Text>
-        <DateOfBirthFields
-          month={month}
-          day={day}
-          year={year}
-          onChangeMonth={setMonth}
-          onChangeDay={setDay}
-          onChangeYear={setYear}
+        <DateOfBirthPicker
+          value={dateOfBirth}
+          onChange={(value) => { setDateOfBirth(value); setError(null); }}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button label={busy ? 'Saving…' : 'Continue'} disabled={busy || leaving} onPress={handleContinue} />

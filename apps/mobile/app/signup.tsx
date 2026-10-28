@@ -15,8 +15,8 @@ import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { savePendingInvite } from '../lib/pendingInvite';
 import { EmailCodeEntry } from '../lib/EmailCodeEntry';
-import { DateOfBirthFields } from '../lib/DateOfBirthFields';
-import { isAdult, parseDob } from '../lib/age';
+import { DateOfBirthPicker } from '../lib/DateOfBirthPicker';
+import { isAdult, isValidDob } from '../lib/age';
 import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
 
 /** "Ada Lovelace" → ["Ada", "Lovelace"]; single word → first name only. */
@@ -31,9 +31,7 @@ export default function SignUp() {
   const { setRole } = useApp();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [birthMonth, setBirthMonth] = useState('');
-  const [birthDay, setBirthDay] = useState('');
-  const [birthYear, setBirthYear] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,8 +61,7 @@ export default function SignUp() {
     const trimmedEmail = email.trim();
     if (!trimmedName) { setError('Enter your full name.'); return; }
     if (!trimmedEmail) { setError('Enter your campus email.'); return; }
-    const dateOfBirth = parseDob(birthMonth, birthDay, birthYear);
-    if (!dateOfBirth) { setError('Enter a real date of birth.'); return; }
+    if (!dateOfBirth || !isValidDob(dateOfBirth)) { setError('Select your date of birth.'); return; }
     if (!isAdult(dateOfBirth)) { setError('Sorry — you must be 18 or older to use noot.'); return; }
     if (codeStatus === 'missing') { setError('That invite code wasn’t found. Fix it, or clear it to continue.'); return; }
     if (codeStatus === 'checking') { setError('Still checking your invite code — try again in a moment.'); return; }
@@ -129,13 +126,9 @@ export default function SignUp() {
             />
             <View style={styles.dateOfBirth}>
               <Text style={[styles.dateOfBirthLabel, { color: t.text }]}>Date of birth</Text>
-              <DateOfBirthFields
-                month={birthMonth}
-                day={birthDay}
-                year={birthYear}
-                onChangeMonth={(value) => { setBirthMonth(value); clearErr(); }}
-                onChangeDay={(value) => { setBirthDay(value); clearErr(); }}
-                onChangeYear={(value) => { setBirthYear(value); clearErr(); }}
+              <DateOfBirthPicker
+                value={dateOfBirth}
+                onChange={(value) => { setDateOfBirth(value); clearErr(); }}
               />
               <Text style={[styles.dateOfBirthHint, { color: t.text3 }]}>
                 You must be 18 or older to use noot.

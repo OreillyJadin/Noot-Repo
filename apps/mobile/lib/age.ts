@@ -35,6 +35,15 @@ export function parseDob(month: DatePart, day: DatePart, year: DatePart): string
   return `${yearText}-${String(monthNumber).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`;
 }
 
+export function toIsoDate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function isValidDob(iso: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  return !!match && parseDob(Number(match[2]), Number(match[3]), Number(match[1])) === iso;
+}
+
 export function isAdult(dob: string, today = new Date()): boolean {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob);
   if (!match) return false;
