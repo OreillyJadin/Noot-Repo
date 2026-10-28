@@ -19,6 +19,7 @@ export type Timestamp = string;
 export interface User {
   id: UUID;
   email: string; // .edu, unique
+  dateOfBirth: string | null;
   firstName: string;
   lastName: string;
   /** A user may hold several roles; activeRole is the one currently switched-to. */

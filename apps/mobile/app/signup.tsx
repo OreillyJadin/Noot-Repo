@@ -15,6 +15,8 @@ import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { savePendingInvite } from '../lib/pendingInvite';
 import { EmailCodeEntry } from '../lib/EmailCodeEntry';
+import { DateOfBirthPicker } from '../lib/DateOfBirthPicker';
+import { isAdult, isValidDob } from '../lib/age';
 import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from '../lib/postAuth';
 
 /** "Ada Lovelace" → ["Ada", "Lovelace"]; single word → first name only. */
@@ -29,6 +31,7 @@ export default function SignUp() {
   const { setRole } = useApp();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +61,8 @@ export default function SignUp() {
     const trimmedEmail = email.trim();
     if (!trimmedName) { setError('Enter your full name.'); return; }
     if (!trimmedEmail) { setError('Enter your campus email.'); return; }
+    if (!dateOfBirth || !isValidDob(dateOfBirth)) { setError('Select your date of birth.'); return; }
+    if (!isAdult(dateOfBirth)) { setError('Sorry — you must be 18 or older to use noot.'); return; }
     if (codeStatus === 'missing') { setError('That invite code wasn’t found. Fix it, or clear it to continue.'); return; }
     if (codeStatus === 'checking') { setError('Still checking your invite code — try again in a moment.'); return; }
     setBusy(true); setError(null);
@@ -66,7 +71,7 @@ export default function SignUp() {
       // on the project's redirect allow-list (config.toml / dashboard URL config).
       const redirectTo = Linking.createURL('/auth-callback');
       const { first, last } = splitName(trimmedName);
-      const res = await auth.sendSignupVerification(trimmedEmail, first, last, redirectTo);
+      const res = await auth.sendSignupVerification(trimmedEmail, first, last, redirectTo, dateOfBirth);
       if (res.ok) {
         // A code known to be wrong was stopped above. If the check couldn't run (offline),
         // it's saved anyway: the server validates it when it's claimed.
@@ -119,6 +124,16 @@ export default function SignUp() {
               onChangeText={(v) => { setEmail(v); clearErr(); }}
               keyboardType="email-address"
             />
+            <View style={styles.dateOfBirth}>
+              <Text style={[styles.dateOfBirthLabel, { color: t.text }]}>Date of birth</Text>
+              <DateOfBirthPicker
+                value={dateOfBirth}
+                onChange={(value) => { setDateOfBirth(value); clearErr(); }}
+              />
+              <Text style={[styles.dateOfBirthHint, { color: t.text3 }]}>
+                You must be 18 or older to use noot.
+              </Text>
+            </View>
             <Field
               label="Invite code (optional)"
               placeholder="NOOT-XXXXXX"
@@ -179,6 +194,9 @@ const styles = StyleSheet.create({
   h1: { fontSize: 26, fontWeight: '700' },
   sub: { fontSize: 15, lineHeight: 21 },
   hint: { fontSize: 13, textAlign: 'center' },
+  dateOfBirth: { gap: 8 },
+  dateOfBirthLabel: { fontSize: 14, fontWeight: '600' },
+  dateOfBirthHint: { fontSize: 13, lineHeight: 18 },
   eyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
   link: { fontSize: 14, textAlign: 'center' },
 });

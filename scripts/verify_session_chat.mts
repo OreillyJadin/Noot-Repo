@@ -166,6 +166,7 @@ try {
   const { error: userError } = await admin.from('users').update({
     first_name: 'Booking Flow',
     last_name: 'Student',
+    date_of_birth: '2000-01-15',
     status: 'active',
     password_set_at: new Date().toISOString(),
     terms_accepted_at: new Date().toISOString(),

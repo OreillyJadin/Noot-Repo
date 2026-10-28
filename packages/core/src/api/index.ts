@@ -357,6 +357,7 @@ function mapUser(row: any): User {
   return {
     id: row.id,
     email: row.email,
+    dateOfBirth: row.date_of_birth ?? null,
     firstName: row.first_name ?? '',
     lastName: row.last_name ?? '',
     roles: (row.user_roles ?? []).map((r: any) => r.role),
@@ -695,7 +696,9 @@ async function invokeFn<T>(name: string, body?: Record<string, unknown>): Promis
     if (res && typeof res.json === 'function') {
       try {
         const parsed = await res.clone().json();
-        const serverMessage = typeof parsed?.error === 'string' ? parsed.error : null;
+        const serverMessage = parsed?.error === 'age_required' && typeof parsed?.message === 'string'
+          ? parsed.message
+          : typeof parsed?.error === 'string' ? parsed.error : null;
         if (serverMessage) throw new FunctionError(serverMessage, res.status);
       } catch (e) {
         // A FunctionError is the message we want; anything else means the body wasn't
@@ -826,6 +829,13 @@ export const api = {
       const { error } = await getSupabase().from('users').update(row).eq('id', uid);
       if (error) throw error;
       notifyUserChanged();
+    },
+
+    async confirmDateOfBirth(dob: string): Promise<boolean> {
+      const { data, error } = await getSupabase().rpc('confirm_date_of_birth', { p_dob: dob });
+      if (error) throw error;
+      notifyUserChanged();
+      return data === true;
     },
 
     /**

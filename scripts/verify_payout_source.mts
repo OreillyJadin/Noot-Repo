@@ -106,7 +106,11 @@ const email = `payoutsrc+${Date.now()}@crimson.ua.edu`;
 const { data: created, error: cErr } = await svc.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
 if (cErr) throw cErr;
 const studentId = created.user!.id;
-await svc.from('users').update({ first_name: 'Payout', last_name: 'Source' }).eq('id', studentId);
+await svc.from('users').update({
+  first_name: 'Payout',
+  last_name: 'Source',
+  date_of_birth: '2000-01-15',
+}).eq('id', studentId);
 
 const raw = createClient(URL, ANON, { auth: { persistSession: false } });
 const asStudent = await raw.auth.signInWithPassword({ email, password: PASSWORD });
@@ -122,7 +126,7 @@ const tutorId = createdTutor.user!.id;
 {
   const now = new Date().toISOString();
   await svc.from('users').update({
-    first_name: 'Payout', last_name: 'Tutor', password_set_at: now,
+    first_name: 'Payout', last_name: 'Tutor', date_of_birth: '2000-01-15', password_set_at: now,
     terms_accepted_at: now, terms_version: '2026-09-17', guidelines_accepted_at: now, guidelines_version: '2026-10-13',
   }).eq('id', tutorId);
   await svc.from('user_roles').upsert({ user_id: tutorId, role: 'tutor' }, { onConflict: 'user_id,role' });

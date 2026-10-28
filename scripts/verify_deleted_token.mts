@@ -56,6 +56,7 @@ try {
   const { error: profileError } = await admin.from('users').update({
     first_name: 'Deleted',
     last_name: 'Token',
+    date_of_birth: '2000-01-15',
     status: 'active',
     deleted_at: null,
     password_set_at: new Date().toISOString(),

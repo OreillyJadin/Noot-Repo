@@ -34,6 +34,7 @@ const makeUser = async (email: string, first: string, last: string) => {
   // Stamp flags every run: a db reset can drop public.users while auth.users survives.
   await admin.from('users').upsert({
     id, email, first_name: first, last_name: last,
+    date_of_birth: '2000-01-15',
     password_set_at: new Date().toISOString(),
     terms_accepted_at: new Date().toISOString(), terms_version: '2026-09-17',
     guidelines_accepted_at: new Date().toISOString(), guidelines_version: GUIDELINES_VERSION,

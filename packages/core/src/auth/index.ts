@@ -126,6 +126,7 @@ export async function sendSignupVerification(
   firstName: string,
   lastName: string,
   redirectTo?: string,
+  dateOfBirth?: string,
 ): Promise<SignInResult> {
   if ((await isCampusEmail(email).catch(() => null)) === false) return { ok: false, error: NOT_A_CAMPUS_EMAIL };
   try {
@@ -138,7 +139,11 @@ export async function sendSignupVerification(
     email: email.trim(),
     options: {
       shouldCreateUser: true,
-      data: { first_name: firstName.trim(), last_name: lastName.trim() },
+      data: {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        ...(dateOfBirth ? { date_of_birth: dateOfBirth } : {}),
+      },
       ...(redirectTo ? { emailRedirectTo: redirectTo } : {}),
     },
   });

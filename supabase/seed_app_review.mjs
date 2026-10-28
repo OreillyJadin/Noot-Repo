@@ -165,6 +165,14 @@ if (!APPLY) {
   process.exit(0);
 }
 
+const reviewUserIds = [...new Set(PLAN.flatMap((b) => [idFor[b.student], idFor[b.tutor]]))];
+const { error: dobErr } = await admin
+  .from('users')
+  .update({ date_of_birth: '2000-01-15' })
+  .in('id', reviewUserIds);
+if (dobErr) fail(`review account age seed failed: ${dobErr.message}`);
+console.log(`✅ marked ${reviewUserIds.length} App Review account(s) 18+`);
+
 // --- 1. optionally give the demo tutors a Connect account that can receive a transfer ---
 if (CONNECT_ACCOUNT) {
   const { data: fixed, error: connectErr } = await admin

@@ -119,6 +119,7 @@ jobs:
             verify_course_catalog
             verify_credits
             verify_definer_lockdown
+            verify_age_gate
             verify_email_code
             verify_filter
             verify_guidelines

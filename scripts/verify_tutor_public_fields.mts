@@ -13,6 +13,7 @@ import { api, auth, initSupabase } from '../packages/core/src/index.ts';
 
 const URL = 'http://127.0.0.1:54321';
 const ANON =
+  process.env.SUPABASE_ANON_KEY ??
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
 const SERVICE =
   process.env.SUPABASE_SERVICE_ROLE_KEY ??
@@ -35,7 +36,7 @@ const VIEW_COLUMNS = [
   'grades_verified', 'approval_status',
 ];
 // Everything else that lives on those rows — owner, admin and service_role only.
-const USERS_SENSITIVE = ['email', 'stripe_customer_id', 'status', 'active_role', 'courses', 'gender', 'terms_accepted_at', 'password_set_at'];
+const USERS_SENSITIVE = ['email', 'stripe_customer_id', 'status', 'active_role', 'courses', 'gender', 'date_of_birth', 'terms_accepted_at', 'password_set_at'];
 const TUTOR_PROFILES_SENSITIVE = [
   'transcript_url', 'transcript_skipped', 'agreement_signed_name', 'agreement_signed_at', 'agreement_version',
   'stripe_connect_account_id', 'stripe_onboarded_at', 'stripe_charges_enabled', 'stripe_payouts_enabled',

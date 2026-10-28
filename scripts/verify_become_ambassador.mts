@@ -34,6 +34,7 @@ const launch = async () => {
     ok: true,
     account: {
       hasPassword: me.passwordSetAt != null,
+      dateOfBirth: me.dateOfBirth,
       acceptedTerms: me.termsAcceptedAt != null,
       acceptedGuidelines: me.guidelinesAcceptedAt != null,
       activeRole: me.activeRole,
@@ -43,7 +44,12 @@ const launch = async () => {
 }
 
 try {
-  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true })
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { date_of_birth: '2000-01-15' },
+  })
   if (error) throw error
   uid = data.user!.id
   const now = new Date().toISOString()

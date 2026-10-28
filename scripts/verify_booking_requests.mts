@@ -172,8 +172,16 @@ try {
   const created = await admin.auth.admin.createUser({ email: studentEmail, password: PASSWORD, email_confirm: true });
   if (created.error || !created.data.user) throw created.error ?? new Error('Could not create verification student');
   studentId = created.data.user.id;
+  const { error: studentDobError } = await admin.from('users')
+    .update({ date_of_birth: '2000-01-15' })
+    .eq('id', studentId);
+  if (studentDobError) throw studentDobError;
   const other = await admin.auth.admin.createUser({ email: otherEmail, password: PASSWORD, email_confirm: true });
   if (other.error || !other.data.user) throw other.error ?? new Error('Could not create second verification student');
+  const { error: otherDobError } = await admin.from('users')
+    .update({ date_of_birth: '2000-01-15' })
+    .eq('id', other.data.user.id);
+  if (otherDobError) throw otherDobError;
   stage = 'sign in verification users';
   ({ token: studentToken } = await login(studentEmail));
   ({ token: otherToken } = await login(otherEmail));

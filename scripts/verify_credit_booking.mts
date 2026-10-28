@@ -42,7 +42,11 @@ const email = `creditbook+${Date.now()}@crimson.ua.edu`;
 const { data: u, error: cErr } = await svc.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
 if (cErr) throw cErr;
 const uid = u.user!.id;
-await svc.from('users').update({ first_name: 'Credit', last_name: 'Booker' }).eq('id', uid);
+await svc.from('users').update({
+  first_name: 'Credit',
+  last_name: 'Booker',
+  date_of_birth: '2000-01-15',
+}).eq('id', uid);
 const signIn = await auth.signInWithPassword(email, PASSWORD);
 if (!signIn.ok) throw new Error(String(signIn.error));
 
