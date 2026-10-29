@@ -328,7 +328,7 @@ serveWithErrorReporting('confirm-booking', async (req) => {
     );
   } catch (e) {
     if (e instanceof BookingAgeError) {
-      return Response.json({ error: e.code, message: e.message }, { status: e.status, headers: cors });
+      return Response.json(e.toBody(), { status: e.status, headers: cors });
     }
     if (e instanceof BookingError) {
       return Response.json({ error: e.message }, { status: e.status, headers: cors });

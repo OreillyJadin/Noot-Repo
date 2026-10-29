@@ -164,7 +164,7 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
     );
   } catch (err) {
     if (err instanceof BookingAgeError) {
-      return Response.json({ error: err.code, message: err.message }, { status: err.status, headers: cors });
+      return Response.json(err.toBody(), { status: err.status, headers: cors });
     }
     if (err instanceof BookingError) {
       return Response.json({ error: err.message }, { status: err.status, headers: cors });
