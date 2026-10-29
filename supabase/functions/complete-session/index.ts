@@ -7,8 +7,8 @@
 // (sim_pi_…) just flip to completed.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
-import { BookingError, assertPayoutReady, assertSessionElapsed } from '../_shared/booking.ts';
-import { payTutor } from '../_shared/payouts.ts';
+import { BookingError } from '../_shared/booking.ts';
+import { completeBooking } from '../_shared/completeBooking.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -16,21 +16,6 @@ const cors = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-
-// Invite reward for a completed session (service-role internal call). Never fatal, and safe
-// to repeat — award_invite_rewards pays each invited person's inviter once, ever.
-async function awardInvites(url: string, bookingId: string): Promise<void> {
-  try {
-    await fetch(`${url}/functions/v1/award-referral-bonus`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ bookingId }),
-    });
-  } catch { /* non-fatal */ }
-}
 
 serveWithErrorReporting('complete-session', async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -52,115 +37,13 @@ serveWithErrorReporting('complete-session', async (req: Request) => {
 
     const { data: booking } = await db
       .from('bookings')
-      .select('id, tutor_id, status, scheduled_at, duration_minutes, stripe_payment_intent_id, tutor_payout_amount, price')
+      .select('id, tutor_id, status, scheduled_at, duration_minutes, stripe_payment_intent_id, tutor_payout_amount, price, created_at')
       .eq('id', bookingId)
       .maybeSingle();
     if (!booking) return Response.json({ error: 'booking not found' }, { status: 404, headers: cors });
     if (booking.tutor_id !== user.id) return Response.json({ error: 'forbidden' }, { status: 403, headers: cors });
-    // A $0 booking (an admin's, TUT-4) is a real session but not a paid one, so it earns
-    // nobody an invite reward.
-    const paidSession = Number(booking.price) > 0;
-    if (booking.status === 'completed') {
-      // A retry, e.g. after the payout failed below: the reward may not have fired yet.
-      if (paidSession) await awardInvites(url, bookingId);
-      return Response.json({ status: 'completed', captured: false, alreadyComplete: true }, { headers: cors });
-    }
-    if (booking.status !== 'confirmed') {
-      return Response.json({ error: `Cannot complete a ${booking.status} session` }, { status: 400, headers: cors });
-    }
-
-    // A session can only be completed once it's actually over. Without this a tutor could
-    // capture the hold for a session days away.
-    assertSessionElapsed(booking.scheduled_at as string, Number(booking.duration_minutes));
-
-    const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
-    const pi = booking.stripe_payment_intent_id as string | null;
-    let captured = false;
-    let transferId: string | null = null;
-    let chargeId: string | null = null;
-
-    // Real held payment → capture + transfer the payout to the tutor's connected account.
-    if (stripeKey && pi && pi.startsWith('pi_')) {
-      const { data: prof } = await db
-        .from('tutor_profiles')
-        .select('stripe_connect_account_id')
-        .eq('user_id', booking.tutor_id)
-        .maybeSingle();
-      const connectId = (prof?.stripe_connect_account_id as string | null | undefined) ?? null;
-
-      const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
-      const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
-
-      // Check the destination BEFORE capturing. Capture-then-fail used to leave the
-      // student charged, the tutor unpaid and the booking still 'confirmed'.
-      await assertPayoutReady(stripeKey, connectId);
-
-      const capturedPi = await stripe.paymentIntents.capture(
-        pi,
-        { expand: ['latest_charge'] },
-        { idempotencyKey: `capture_${bookingId}` },
-      );
-      captured = true;
-      const charge = typeof capturedPi.latest_charge === 'string' ? null : capturedPi.latest_charge;
-      chargeId = typeof capturedPi.latest_charge === 'string' ? capturedPi.latest_charge : (charge?.id ?? null);
-
-      const payout = await payTutor({
-        stripe,
-        bookingId,
-        destination: connectId!,
-        payoutCents: Math.round(Number(booking.tutor_payout_amount) * 100),
-        charge,
-        idempotencyKey: `transfer_${bookingId}`,
-        metadata: { booking_id: bookingId },
-      });
-      transferId = payout.transferId;
-      if (!payout.complete) {
-        // The money IS captured at this point, so record that fact and flag the booking
-        // rather than throwing and leaving the row looking untouched. Capture and both
-        // transfers are idempotency-keyed, so a retry resumes safely.
-        const failedAt = new Date().toISOString();
-        const { data: flagged } = await db
-          .from('bookings')
-          .update({ status: 'completed', stripe_charge_id: chargeId, stripe_transfer_id: transferId, payout_failed_at: failedAt })
-          .eq('id', bookingId)
-          .eq('status', 'confirmed')
-          .select('id');
-        // A cancel or no-show won meanwhile: keep its status, but still flag the captured charge.
-        if (!flagged?.length) {
-          await db.from('bookings').update({ payout_failed_at: failedAt }).eq('id', bookingId);
-          console.error('complete-session: captured, transfer failed and the booking left confirmed meanwhile', bookingId, chargeId);
-        }
-        console.error('complete-session: captured but transfer failed', bookingId, `owed ${payout.shortfallCents}c`, String(payout.error));
-        // The session did happen and was paid for, so the invite reward still applies.
-        if (paidSession) await awardInvites(url, bookingId);
-        return Response.json(
-          {
-            error: 'The payment was taken but the payout to the tutor failed. Our team has been notified and will complete it.',
-            captured: true,
-            payoutFailed: true,
-          },
-          { status: 502, headers: cors },
-        );
-      }
-    }
-
-    // Only from confirmed: a cancel or no-show that landed while we worked keeps its outcome
-    // (and its refund) instead of being overwritten, and earns no invite reward.
-    const { data: completedRows, error: upErr } = await db
-      .from('bookings')
-      .update({ status: 'completed', stripe_charge_id: chargeId, stripe_transfer_id: transferId })
-      .eq('id', bookingId)
-      .eq('status', 'confirmed')
-      .select('id');
-    if (upErr) throw upErr;
-    if (!completedRows?.length) {
-      if (captured) console.error('complete-session: captured but the booking left confirmed meanwhile', bookingId);
-      return Response.json({ error: 'This session was cancelled or reported as a no-show.' }, { status: 409, headers: cors });
-    }
-
-    if (paidSession) await awardInvites(url, bookingId);
-
-    return Response.json({ status: 'completed', captured, transferId }, { headers: cors });
+    const result = await completeBooking(db, url, booking);
+    return Response.json(result.body, { status: result.status, headers: cors });
   } catch (err) {
     if (err instanceof BookingError) {
       return Response.json({ error: err.message }, { status: err.status, headers: cors });
