@@ -39,6 +39,8 @@ export { attentionTotal, type AdminHubCounts } from './adminHub';
 export { mergeAvailabilityWindows, type AvailabilityWindow } from './availability';
 export {
   api,
+  FunctionError,
+  STUDENT_UNDER_AGE_MESSAGE,
   TUTOR_CANCEL_FLAG_OVER,
   NO_SHOW_FLAG_AT,
   REMINDER_CHOICES,

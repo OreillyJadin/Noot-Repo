@@ -123,9 +123,19 @@ try {
   check('anon cannot call confirm_date_of_birth', !!anonRpc.error, anonRpc.error?.message ?? '');
 
   if (process.env.VERIFY_BOOKING_AGE_FUNCTIONS === '1') {
-    const edgeStudent = await createUser('edge-function');
-    const edgeClient = await signIn(edgeStudent.email);
-    const { data: session } = await edgeClient.auth.getSession();
+    const noDobStudent = await createUser('edge-no-dob');
+    const underageStudent = await createUser('edge-underage');
+    const adultStudent = await createUser('edge-adult');
+    const noDobClient = await signIn(noDobStudent.email);
+    const underageClient = await signIn(underageStudent.email);
+    const adultClient = await signIn(adultStudent.email);
+    const noDobSession = await noDobClient.auth.getSession();
+    const underageSession = await underageClient.auth.getSession();
+    const adultSession = await adultClient.auth.getSession();
+    if (noDobSession.error || !noDobSession.data.session) throw noDobSession.error ?? new Error('No-DOB student session missing');
+    if (underageSession.error || !underageSession.data.session) throw underageSession.error ?? new Error('Underage student session missing');
+    if (adultSession.error || !adultSession.data.session) throw adultSession.error ?? new Error('Adult student session missing');
+
     const { data: tutor, error: tutorError } = await svc.from('users')
       .select('id')
       .eq('email', 'sara@crimson.ua.edu')
@@ -247,31 +257,51 @@ try {
       durationMinutes: 60,
       scheduledAt,
     };
-    const call = async () => {
+    const call = async (accessToken: string) => {
       const response = await fetch(`${URL}/functions/v1/create-payment-intent`, {
         method: 'POST',
         headers: {
           apikey: ANON,
-          Authorization: `Bearer ${session.session?.access_token ?? ''}`,
+          Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),
       });
       return { status: response.status, body: await response.json() as Record<string, unknown> };
     };
-    const denied = await call();
+
+    const noDob = await call(noDobSession.data.session.access_token);
     check(
-      'Edge Function denies a student without DOB before Stripe work',
-      denied.status === 403 && denied.body.error === 'age_required',
-      `${denied.status} ${String(denied.body.error ?? '')}`,
+      'Edge Function allows a student without DOB with simulated payment',
+      noDob.status === 200 && noDob.body.simulated === true,
+      `${noDob.status} ${String(noDob.body.error ?? noDob.body.simulated ?? '')}`,
     );
-    const ageConfirmation = await edgeClient.rpc('confirm_date_of_birth', { p_dob: adultDob });
-    if (ageConfirmation.error) throw ageConfirmation.error;
-    const allowed = await call();
+
+    const underageDob = dateAtAge(10);
+    const underageConfirmation = await underageClient.rpc('confirm_date_of_birth', { p_dob: underageDob });
+    if (underageConfirmation.error || underageConfirmation.data !== false) {
+      throw underageConfirmation.error ?? new Error('Underage DOB confirmation did not return false');
+    }
+    const underage = await call(underageSession.data.session.access_token);
+    const underageMessage = typeof underage.body.error === 'string' ? underage.body.error : '';
     check(
-      'Edge Function succeeds after adult DOB is confirmed without Stripe',
-      allowed.status === 200 && allowed.body.simulated === true,
-      `${allowed.status} ${String(allowed.body.error ?? allowed.body.simulated ?? '')}`,
+      'Edge Function refuses a known underage student with readable under_age error',
+      underage.status === 403 &&
+        underage.body.code === 'under_age' &&
+        underageMessage.length > 0 &&
+        underageMessage !== 'under_age',
+      `${underage.status} ${String(underage.body.code ?? '')} ${underageMessage}`,
+    );
+
+    const adultConfirmation = await adultClient.rpc('confirm_date_of_birth', { p_dob: adultDob });
+    if (adultConfirmation.error || adultConfirmation.data !== true) {
+      throw adultConfirmation.error ?? new Error('Adult DOB confirmation did not return true');
+    }
+    const adult = await call(adultSession.data.session.access_token);
+    check(
+      'Edge Function allows a student with adult DOB with simulated payment',
+      adult.status === 200 && adult.body.simulated === true,
+      `${adult.status} ${String(adult.body.error ?? adult.body.simulated ?? '')}`,
     );
   }
 } finally {
