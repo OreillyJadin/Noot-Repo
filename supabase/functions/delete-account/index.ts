@@ -45,16 +45,47 @@ serveWithErrorReporting('delete-account', async (req: Request) => {
 
     // Refuse if they still owe or are owed money on a live session — deleting mid-booking
     // would strand the counterparty with a session they can't complete or be paid for.
-    const { data: live, error: liveErr } = await db
+    const { data: pending, error: pendingErr } = await db
       .from('bookings')
       .select('id')
-      .in('status', ['pending', 'confirmed'])
+      .eq('status', 'pending')
       .or(`student_id.eq.${uid},tutor_id.eq.${uid}`)
       .limit(1);
-    if (liveErr) throw liveErr; // fail closed, as below
-    if (live?.length) {
+    if (pendingErr) throw pendingErr; // fail closed, as below
+    if (pending?.length) {
       return Response.json(
         { error: 'You have an upcoming session. Cancel it before deleting your account.' },
+        { status: 409, headers: cors },
+      );
+    }
+
+    const now = new Date().toISOString();
+    const { data: upcoming, error: upcomingErr } = await db
+      .from('bookings')
+      .select('id')
+      .eq('status', 'confirmed')
+      .gt('scheduled_end', now)
+      .or(`student_id.eq.${uid},tutor_id.eq.${uid}`)
+      .limit(1);
+    if (upcomingErr) throw upcomingErr;
+    if (upcoming?.length) {
+      return Response.json(
+        { error: 'You have an upcoming session. Cancel it before deleting your account.' },
+        { status: 409, headers: cors },
+      );
+    }
+
+    const { data: endedTutorBooking, error: endedTutorErr } = await db
+      .from('bookings')
+      .select('id')
+      .eq('tutor_id', uid)
+      .eq('status', 'confirmed')
+      .lte('scheduled_end', now)
+      .limit(1);
+    if (endedTutorErr) throw endedTutorErr;
+    if (endedTutorBooking?.length) {
+      return Response.json(
+        { error: 'You have a past session to mark complete before deleting your account.' },
         { status: 409, headers: cors },
       );
     }
