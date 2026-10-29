@@ -59,8 +59,8 @@ production project, Stripe, App Store Connect or the website. File names below a
 - **Owners can still write `created_at` / `deleted_at` on their own `users` row** (3.8).
   `email` is locked (`0071`) and `active_role` / `status` are guarded; the rest of
   `users_update` has no column restriction.
-- **No auto-complete 24h after a session** (`PRD_STATUS.md`): the only crons are session
-  reminders (`0054`) and request expiry (`0056`).
+- **No auto-complete 24h after a session** — done by the `auto-complete-sessions` cron in
+  migration `0092`.
 - **7 `TODO(api)` stubs left in `apps/mobile`**: student name on `tutor_calendar`, booking id
   on calendar sessions, `b5` → chat, the notification centre in `chat` / `chat_tutor`, the
   exact payout in `c4`, the past-sessions note in `sessions`.
