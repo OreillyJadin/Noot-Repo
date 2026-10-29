@@ -3,17 +3,20 @@
 // policy notes. Reads the booking draft from useApp() with safe fallbacks so
 // nothing renders undefined if a student lands here without going through B3.
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, StyleSheet, Alert, Platform } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, Alert, Platform, Modal } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
 import { useStripe } from '@stripe/stripe-react-native';
 import Constants from 'expo-constants';
-import { api, bookingQuote } from '@noot/core';
+import { api, bookingQuote, FunctionError, STUDENT_UNDER_AGE_MESSAGE } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { DAYS, MONTHS } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 import { applePayCartItems } from '../lib/applePaySummary';
+import { DateOfBirthPicker } from '../lib/DateOfBirthPicker';
+import { isValidDob } from '../lib/age';
 
 const SHORT_NOTICE_MS = 3 * 60 * 60 * 1000;
 
@@ -34,6 +37,7 @@ export default function B4() {
 function B4Inner() {
   const t = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { booking, patchBooking } = useApp();
   // Admins book for free (TUT-4). Display only: the server decides again from is_admin().
   const { isAdmin } = useMe();
@@ -72,6 +76,10 @@ function B4Inner() {
   const [status, setStatus] = useState<Status>('idle');
   const [policyOpen, setPolicyOpen] = useState(false);
   const [walletSupported, setWalletSupported] = useState(false);
+  const [ageSheetOpen, setAgeSheetOpen] = useState(false);
+  const [dateOfBirth, setDateOfBirth] = useState<string | null>(null);
+  const [dobError, setDobError] = useState<string | null>(null);
+  const [dobBusy, setDobBusy] = useState(false);
 
   useEffect(() => {
     if (Constants.appOwnership === 'expo' || Platform.OS !== 'android') return;
@@ -194,6 +202,19 @@ function B4Inner() {
     } catch (err) {
       setStatus('idle');
       const message = err instanceof Error ? err.message : 'Something went wrong — please try again.';
+      if (err instanceof FunctionError && err.code === 'age_required') {
+        setDobError(null);
+        setAgeSheetOpen(true);
+        return;
+      }
+      if (
+        err instanceof FunctionError &&
+        err.code === 'under_age' &&
+        message === STUDENT_UNDER_AGE_MESSAGE
+      ) {
+        router.replace('/under_age');
+        return;
+      }
       if (/just booked/i.test(message)) {
         Alert.alert('That time was just booked', message, [
           { text: 'Pick another time', onPress: () => router.back() },
@@ -203,6 +224,32 @@ function B4Inner() {
       }
     }
   };
+
+  const continueWithDateOfBirth = async () => {
+    if (dobBusy) return;
+    if (!dateOfBirth || !isValidDob(dateOfBirth)) {
+      setDobError('Select your date of birth.');
+      return;
+    }
+    setDobBusy(true);
+    setDobError(null);
+    try {
+      const adult = await api.profile.confirmDateOfBirth(dateOfBirth);
+      if (!adult) {
+        setAgeSheetOpen(false);
+        router.replace('/under_age');
+        return;
+      }
+      setAgeSheetOpen(false);
+      setDateOfBirth(null);
+      await pay();
+    } catch (err) {
+      setDobError(err instanceof Error ? err.message : 'Something went wrong — please try again.');
+    } finally {
+      setDobBusy(false);
+    }
+  };
+
   const scheduledAtDate = new Date(computeScheduledAt());
   const nowMs = Date.now();
   const startsSoon = scheduledAtDate.getTime() >= nowMs && scheduledAtDate.getTime() - nowMs < SHORT_NOTICE_MS;
@@ -320,6 +367,51 @@ function B4Inner() {
         <Button label={free ? 'Confirm booking' : `Confirm & pay $${due}`} full onPress={pay} disabled={status === 'processing'} />
       </ActionBar>
 
+      <Modal
+        visible={ageSheetOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAgeSheetOpen(false)}
+      >
+        <View style={styles.ageSheetRoot}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss date of birth prompt"
+            onPress={() => setAgeSheetOpen(false)}
+            style={styles.ageSheetBackdrop}
+          />
+          <View
+            style={[
+              styles.ageSheet,
+              {
+                backgroundColor: t.surface,
+                borderColor: t.border,
+                paddingBottom: Math.max(insets.bottom, 20),
+              },
+            ]}
+          >
+            <Text style={{ fontSize: 21, fontWeight: '700', color: t.text }}>Date of birth</Text>
+            <Text style={{ fontSize: 15, lineHeight: 22, color: t.text2 }}>
+              Add your date of birth to book. You must be 18 or older.
+            </Text>
+            <DateOfBirthPicker
+              value={dateOfBirth}
+              onChange={(value) => {
+                setDateOfBirth(value);
+                setDobError(null);
+              }}
+            />
+            {dobError ? <Text style={styles.ageSheetError}>{dobError}</Text> : null}
+            <Button
+              label={dobBusy ? 'Checking…' : 'Continue'}
+              full
+              disabled={dobBusy}
+              onPress={continueWithDateOfBirth}
+            />
+          </View>
+        </View>
+      </Modal>
+
       {/* Processing overlay — brief window while the sheet opens / booking is created. */}
       {status === 'processing' ? (
         <View style={[styles.processingOverlay, { backgroundColor: t.bg }]}>
@@ -342,5 +434,16 @@ const styles = StyleSheet.create({
   policyHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   policyToggle: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   policyBody: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, gap: 8 },
+  ageSheetRoot: { flex: 1, justifyContent: 'flex-end' },
+  ageSheetBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.4)' },
+  ageSheet: {
+    gap: 16,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderTopWidth: 1,
+  },
+  ageSheetError: { color: '#C0392B', fontSize: 14, lineHeight: 20 },
   processingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 18 },
 });

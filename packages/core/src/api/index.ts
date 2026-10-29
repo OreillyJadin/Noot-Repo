@@ -674,12 +674,16 @@ const TUTOR_SELECT = `
  */
 export class FunctionError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  readonly code?: string;
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = 'FunctionError';
     this.status = status;
+    this.code = code;
   }
 }
+
+export const STUDENT_UNDER_AGE_MESSAGE = 'You must be 18 or older to book sessions on noot.';
 
 /**
  * Invoke a Supabase Edge Function (server-only logic — see ARCHITECTURE.md §5).
@@ -696,10 +700,11 @@ async function invokeFn<T>(name: string, body?: Record<string, unknown>): Promis
     if (res && typeof res.json === 'function') {
       try {
         const parsed = await res.clone().json();
-        const serverMessage = parsed?.error === 'age_required' && typeof parsed?.message === 'string'
-          ? parsed.message
-          : typeof parsed?.error === 'string' ? parsed.error : null;
-        if (serverMessage) throw new FunctionError(serverMessage, res.status);
+        const serverMessage = typeof parsed?.error === 'string' ? parsed.error : null;
+        if (serverMessage !== null) {
+          const code = typeof parsed?.code === 'string' ? parsed.code : undefined;
+          throw new FunctionError(serverMessage, res.status, code);
+        }
       } catch (e) {
         // A FunctionError is the message we want; anything else means the body wasn't
         // the JSON shape we expected, so fall through to the original error.
