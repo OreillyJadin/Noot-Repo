@@ -11,6 +11,7 @@ Every function is wrapped with `_shared/observability.ts` for optional Sentry er
 | `confirm-booking` | Create booking on payment success, seed chat with B3 intro message. |
 | `connect-onboarding-link` | Tutor Stripe Connect onboarding. |
 | `complete-session` | Capture payment, transfer payout to tutor. |
+| `auto-complete-sessions` | Complete eligible ended sessions before their payment holds expire. |
 | `submit-rating` | Double-blind rating visibility. |
 | `cancel-booking` | 12h / 2h student refund tiers; transfers the tutor's share on late cancellations. |
 | `reschedule-booking` | Propose/accept new time; 3-reschedule rule. |

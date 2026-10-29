@@ -128,7 +128,7 @@ try {
   {
     const [a, b] = await Promise.allSettled([
       api.admin.scheduleInterview(tutorId, offered[2]!.toISOString(), 'first'),
-      api.admin.scheduleInterview(tutorId, (offered[3] ?? offered[0]!).toISOString(), 'second'),
+      api.admin.scheduleInterview(tutorId, (offered[3] ?? offered[0])!.toISOString(), 'second'),
     ])
     const { data: rows } = await admin.from('tutor_interviews').select('cancelled_at').eq('tutor_id', tutorId)
     const live = (rows ?? []).filter((r) => !r.cancelled_at)
