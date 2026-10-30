@@ -26,6 +26,8 @@ export interface BookingDraft {
   tutorPayoutAmount?: number;
   /** ISO time of the real booking. Drives the live cancellation refund tier. */
   scheduledAt?: string;
+  /** The note the student wrote with the request (bookings.request_note). */
+  requestNote?: string | null;
   acceptBy?: string | null;
   acceptedAt?: string | null;
   status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';

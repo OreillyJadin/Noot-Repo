@@ -59,7 +59,7 @@ export default function Saved() {
         <View style={{ gap: 10 }}>
           {tutors.map((tutor) => (
             <Card key={tutor.id} onPress={() => open(tutor)} style={styles.row}>
-              <Avatar size={48} />
+              <Avatar size={48} uri={tutor.avatarUrl} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={styles.rowHead}>
                   <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>

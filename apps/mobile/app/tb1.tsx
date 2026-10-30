@@ -10,19 +10,19 @@ import { Screen, Body, ActionBar, Button, Card, Avatar, Divider, H1, Sub, Ic, us
 import { feeRateFor } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { useApp, type BookingDraft } from '../lib/store';
-import { DAYS, type Tutor } from '../lib/data';
+import type { Tutor } from '../lib/data';
+import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
+import { formatSessionTime } from '../lib/formatSessionTime';
 
 
-function sessionFacts(booking: BookingDraft, tutor: Tutor | undefined, gradesVerified: boolean) {
-  const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1]!;
+function sessionFacts(booking: BookingDraft, scheduledAt: string, tutor: Tutor | undefined, gradesVerified: boolean) {
+  const [day, time] = formatSessionTime(scheduledAt).split(' · ');
   const lengthMin = booking.lengthMin ?? 60;
   const lengthHours = lengthMin / 60;
   const lenLabel = lengthMin === 30 ? '30 min' : `${lengthHours} hr`;
-  const slot = booking.slot ?? '3:00 PM';
-  const location = booking.location ?? 'Gorgas Library, Fl 2';
-  const course = booking.course ?? tutor?.courses[0]?.[0] ?? '';
-  const courseMatch = tutor?.courses.find((c) => c[0] === course) ?? tutor?.courses[0];
+  const course = booking.course ?? '';
+  const courseMatch = tutor?.courses.find((c) => c[0] === course);
   // A real booking carries its own price and payout (a $0 admin booking, a rate changed
   // since it was booked); the tutor's current course rate is only the preview before one exists.
   const previewFeeRate = feeRateFor(gradesVerified && !courseMatch?.[4]);
@@ -31,8 +31,7 @@ function sessionFacts(booking: BookingDraft, tutor: Tutor | undefined, gradesVer
   const payout = booking.tutorPayoutAmount ?? gross - gross * previewFeeRate;
   const fee = gross - payout;
   const rate = booking.price != null ? gross / lengthHours : previewRate;
-  const online = location.startsWith('Online');
-  return { dayObj, lengthHours, lenLabel, slot, location, course, rate, gross, fee, payout, online };
+  return { day: day!, time: time!, lengthHours, lenLabel, course, rate, gross, fee, payout };
 }
 
 export default function TB1() {
@@ -46,8 +45,9 @@ export default function TB1() {
   const studentMeta = [student.year, student.major].filter(Boolean).join(' · ');
   // Fee follows the course's verification status: 17.5% verified, 32.5% otherwise.
   const { gradesVerified } = useMe();
-  const f = sessionFacts(booking, tutor, gradesVerified);
-  const dayWord = f.dayObj.label === 'Today' ? 'today' : f.dayObj.label === 'Tomorrow' ? 'tomorrow' : f.dayObj.label;
+  if (!booking.scheduledAt) return <NoSession />;
+  const f = sessionFacts(booking, booking.scheduledAt, tutor, gradesVerified);
+  const dayWord = f.day === 'Today' ? 'today' : f.day === 'Tomorrow' ? 'tomorrow' : f.day;
 
   return (
     <Screen>
@@ -86,7 +86,7 @@ export default function TB1() {
           <Divider style={{ marginVertical: 14 }} />
           <View style={styles.row}>
             <Ic name="cal" size={17} color={t.accent} strokeWidth={1.8} />
-            <Text style={{ fontSize: 14, color: t.text }}>{f.dayObj.label} · {f.slot}</Text>
+            <Text style={{ fontSize: 14, color: t.text }}>{f.day} · {f.time}</Text>
             <Text style={{ marginLeft: 'auto', fontSize: 13, fontWeight: '700', color: t.good }}>+${f.payout.toFixed(2)}</Text>
           </View>
         </Card>

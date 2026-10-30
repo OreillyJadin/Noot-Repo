@@ -9,14 +9,14 @@ import { api } from '@noot/core';
 export default function Standing() {
   const t = useTheme();
   const router = useRouter();
-  const [stats, setStats] = useState<{ sessionsTaught: number; cancelledCount: number } | null>(null);
+  const [stats, setStats] = useState<{ sessionsTaught: number; cancelledCount: number; noShowCount: number } | null>(null);
   useEffect(() => {
     let active = true;
-    api.tutorStats().then((s) => { if (active) setStats({ sessionsTaught: s.sessionsTaught, cancelledCount: s.cancelledCount }); }).catch(() => {});
+    api.tutorStats().then((s) => { if (active) setStats(s); }).catch(() => {});
     return () => { active = false; };
   }, []);
 
-  const good = stats ? stats.cancelledCount === 0 : true;
+  const good = stats ? stats.cancelledCount === 0 && stats.noShowCount === 0 : true;
 
   return (
     <Screen>
@@ -28,7 +28,7 @@ export default function Standing() {
           </View>
           <Text style={[styles.status, { color: t.text }]}>{good ? 'Good standing' : 'Needs attention'}</Text>
           <Text style={[styles.statusSub, { color: t.text3 }]}>
-            {good ? 'Keep it up — reliable tutors rank higher in search.' : 'Frequent cancellations can lower your ranking.'}
+            {good ? 'Keep it up — complete your booked sessions.' : 'Cancellations you make and sessions you miss affect your standing.'}
           </Text>
         </Card>
 
@@ -41,13 +41,17 @@ export default function Standing() {
             {stats ? <Text style={[styles.statNum, { color: stats.cancelledCount ? t.text : t.text }]}>{stats.cancelledCount}</Text> : <Skeleton width={40} height={24} />}
             <Text style={[styles.statLabel, { color: t.text3 }]}>Cancellations</Text>
           </Card>
+          <Card style={styles.statCard}>
+            {stats ? <Text style={[styles.statNum, { color: t.text }]}>{stats.noShowCount}</Text> : <Skeleton width={40} height={24} />}
+            <Text style={[styles.statLabel, { color: t.text3 }]}>Sessions missed</Text>
+          </Card>
         </View>
 
         <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>How standing works</Eyebrow>
         <Card flat style={{ padding: 14, backgroundColor: t.surfaceAlt, gap: 10 }}>
           {[
-            'Complete your booked sessions — reliability is the biggest ranking factor.',
-            'Every cancellation counts toward your standing, and the student is always fully refunded.',
+            'Complete your booked sessions to maintain good standing.',
+            'Cancellations you make after confirming and sessions you miss count toward your standing. Student cancellations do not.',
             'Repeated no-shows can pause new bookings while our team reviews.',
           ].map((line) => (
             <View key={line} style={styles.tipRow}>

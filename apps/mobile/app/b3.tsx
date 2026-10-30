@@ -59,6 +59,11 @@ function focusMessage(tag: string | null, course: string, me = 'there'): string 
   }
 }
 
+// Grades are verified per tutor (grades_verified_at); 0048 locks every course grade once set.
+function gradeLabel(grade: string, verified: boolean): string {
+  return verified ? `Grade ${grade} · verified` : `Grade ${grade} · self-reported`;
+}
+
 export default function B3() {
   const { booking } = useApp();
   if (!booking.tutor) return <NoSession />;
@@ -215,7 +220,7 @@ function B3Inner() {
       <NavTop onBack={() => router.back()} title="Book a session" />
       <Body pad={20}>
         <Card flat style={{ ...styles.tutorMini, backgroundColor: t.surfaceAlt }}>
-          <Avatar size={42} />
+          <Avatar size={42} uri={tutor.avatarUrl} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.tutorName, { color: t.text }]}>{tutor.name}</Text>
             <Text style={{ fontSize: 13, color: t.text3 }}>
@@ -232,7 +237,9 @@ function B3Inner() {
             sub={
               courseEntry[4]
                 ? `$${rate}/hr · Currently taking`
-                : `$${rate}/hr · Grade ${courseEntry[1]} verified`
+                : courseEntry[1]
+                  ? `$${rate}/hr · ${gradeLabel(courseEntry[1], tutor.verified)}`
+                  : `$${rate}/hr`
             }
           />
         </FieldBlock>
@@ -453,9 +460,11 @@ function B3Inner() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{code}</Text>
-              <Text style={{ fontSize: 12, color: t.text3 }}>
-                {currentlyTaking ? 'Currently taking' : `Grade ${grade} verified`}
-              </Text>
+              {currentlyTaking || grade ? (
+                <Text style={{ fontSize: 12, color: t.text3 }}>
+                  {currentlyTaking ? 'Currently taking' : gradeLabel(grade, tutor.verified)}
+                </Text>
+              ) : null}
             </View>
             <Text style={{ fontSize: 15, fontWeight: '700', color: t.text }}>${r}/hr</Text>
           </Card>

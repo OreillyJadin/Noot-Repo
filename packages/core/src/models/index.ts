@@ -227,6 +227,8 @@ export interface Booking {
   cancellationDeadline: Timestamp; // scheduledAt − 12h
   cancelledAt: Timestamp | null;
   refundStatus: RefundStatus;
+  /** Share of the student's payment refunded, from 0 to 100. */
+  refundPercent: number;
   stripePaymentIntentId: string | null; // charged upfront
   createdAt: Timestamp;
   updatedAt: Timestamp;
