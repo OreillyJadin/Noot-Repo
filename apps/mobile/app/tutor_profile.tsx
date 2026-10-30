@@ -255,7 +255,7 @@ export default function TutorProfile() {
           </View>
         ) : null}
 
-        {/* earnings summary — real total from completed bookings (payouts still simulated) */}
+        {/* Earnings include the tutor's retained share of cancellations and no-shows. */}
         <Card onPress={setupPayouts} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
           <View style={[styles.promoIcon, { backgroundColor: t.accent }]}>
             <Ic name="dollar" size={20} color={t.onAccent} strokeWidth={1.8} />

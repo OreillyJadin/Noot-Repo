@@ -8,6 +8,7 @@
 //   • Trust-sensitive writes (create booking, capture payment, approve tutor, moderate
 //     review, award bonus) are NOT here — they're Edge Functions (service role). See §5.
 import { MIN_HOURLY_RATE } from '../pricing';
+import { tutorEarnedAmount } from '../earnings';
 import { getSupabase } from '../supabase';
 import { notifyUserChanged } from '../changes';
 import { normalizeCourseQuery, rankCourseMatches } from '../courseSearch';
@@ -1399,7 +1400,8 @@ export const api = {
 
   /**
    * Live dashboard stats for the signed-in tutor, derived from their real bookings
-   * (as tutor). Money reflects the current simulated payouts. `avgRating` comes from
+   * (as tutor). Earnings include the non-refunded share of settled bookings, not
+   * pending/confirmed sessions or a Stripe bank-payout balance. `avgRating` comes from
    * the denormalized profile average (null until they have approved reviews).
    */
   async tutorStats(): Promise<{
@@ -1416,7 +1418,7 @@ export const api = {
     const sb = getSupabase();
     const { data, error } = await sb
       .from('bookings')
-      .select('status, cancelled_by_role, cancelled_from_status, no_show_party, scheduled_at, tutor_payout_amount, duration_minutes')
+      .select('status, cancelled_by_role, cancelled_from_status, no_show_party, scheduled_at, tutor_payout_amount, refund_percent, duration_minutes')
       .eq('tutor_id', uid);
     if (error) throw error;
     const rows = data ?? [];
@@ -1428,10 +1430,20 @@ export const api = {
     );
     const noShows = rows.filter((r) => r.no_show_party === 'tutor');
     const weekAgo = Date.now() - 7 * 86_400_000;
-    const earnedTotal = completed.reduce((s, r) => s + num(r.tutor_payout_amount), 0);
-    const earnedThisWeek = completed
-      .filter((r) => new Date(r.scheduled_at as string).getTime() >= weekAgo)
-      .reduce((s, r) => s + num(r.tutor_payout_amount), 0);
+    const earnings = rows
+      .filter((r) => r.status === 'completed' || r.status === 'cancelled' || r.status === 'no_show')
+      .map((r) => ({
+        scheduledAt: r.scheduled_at as string,
+        cents: Math.round(tutorEarnedAmount({
+          status: r.status,
+          tutorPayoutAmount: num(r.tutor_payout_amount),
+          refundPercent: num(r.refund_percent),
+        }) * 100),
+      }));
+    const earnedTotal = earnings.reduce((s, r) => s + r.cents, 0) / 100;
+    const earnedThisWeek = earnings
+      .filter((r) => new Date(r.scheduledAt).getTime() >= weekAgo)
+      .reduce((s, r) => s + r.cents, 0) / 100;
     const hoursTaught = completed.reduce((s, r) => s + num(r.duration_minutes) / 60, 0);
     const { data: prof } = await sb.from('tutor_profiles').select('rating_avg').eq('user_id', uid).maybeSingle();
     const denom = completed.length + cancelled.length + noShows.length;
