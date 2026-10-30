@@ -6,7 +6,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-nati
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Ic, H1, Sub, Label, HeroIcon, useTheme } from '@noot/ui';
-import { api, type BusyTime } from '@noot/core';
+import { campusInstant, campusSlotISO, tryCampusSlotISO, addCampusDays, api, type BusyTime } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
 import { BOOKABLE_DAYS, DAYS, MONTHS } from '../lib/data';
 import { bookedSlots, slotsFromWindows } from '../lib/availability';
@@ -22,18 +22,10 @@ function sessionFacts(booking: BookingDraft) {
 }
 
 /** Combine a DAYS day-index + slot string ("3:00 PM") into an ISO timestamp.
- * DAYS starts at real today, so day-index N is today + N days. */
+ * DAYS starts at campus today, so day-index N is today + N days. */
 function scheduledAtISO(dayIndex: number, slot: string): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + dayIndex);
-  const m = slot.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  if (m) {
-    let h = parseInt(m[1]!, 10) % 12;
-    if (/PM/i.test(m[3]!)) h += 12;
-    d.setHours(h, parseInt(m[2]!, 10), 0, 0);
-  }
-  return d.toISOString();
+  const day = DAYS[dayIndex]!;
+  return campusSlotISO({ year: day.year, month: MONTHS.indexOf(day.month) + 1, day: day.dom }, slot);
 }
 
 export default function XReschedulePropose() {
@@ -59,8 +51,8 @@ export default function XReschedulePropose() {
     const first = BOOKABLE_DAYS[0]!;
     const last = BOOKABLE_DAYS[BOOKABLE_DAYS.length - 1]!;
     return {
-      from: new Date(first.year, MONTHS.indexOf(first.month), first.dom),
-      to: new Date(last.year, MONTHS.indexOf(last.month), last.dom + 1),
+      from: campusInstant({ year: first.year, month: MONTHS.indexOf(first.month) + 1, day: first.dom }),
+      to: campusInstant(addCampusDays({ year: last.year, month: MONTHS.indexOf(last.month) + 1, day: last.dom }, 1)),
     };
   }, []);
 
@@ -116,6 +108,7 @@ export default function XReschedulePropose() {
   const daySlots = slots[day] ?? [];
   const dayBooked = booked[day] ?? new Set<string>();
   const dayObj = BOOKABLE_DAYS.find((d) => d.i === day) ?? BOOKABLE_DAYS[0]!;
+  const proposedAt = tryCampusSlotISO({ year: dayObj.year, month: MONTHS.indexOf(dayObj.month) + 1, day: dayObj.dom }, slot ?? '3:00 PM');
 
   const send = async () => {
     if (!slot) return;
@@ -160,7 +153,7 @@ export default function XReschedulePropose() {
               <View style={{ flex: 1, alignItems: 'flex-end' }}>
                 <Text style={[styles.compareLabel, { color: t.text3 }]}>Proposed</Text>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: t.text }}>
-                  {formatSessionTime(scheduledAtISO(day, slot ?? ''))}
+                  {proposedAt ? formatSessionTime(proposedAt) : `${dayObj.label} · ${slot ?? '3:00 PM'}`}
                 </Text>
               </View>
             </View>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions, type TextStyle } from 'react-native';
-import type { AdminCalendarEvent } from '@noot/core';
+import { formatCampusTime, type AdminCalendarEvent } from '@noot/core';
 import { Ic, TEXT_CAPS, useLargeText, useTheme, type IconName } from '@noot/ui';
 import { INTERVIEW_MINUTES } from './interviewBlock';
 import { splitClock } from './monthGrid';
@@ -228,7 +228,7 @@ export function CalendarEventRow({
   const large = useLargeText();
   const muted = eventMuted(event);
   const color = eventColor(event, t);
-  const time = new Date(event.startsAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const time = formatCampusTime(event.startsAt);
   const { clock, meridiem } = splitClock(time);
   const duration = event.kind === 'interview' ? `${INTERVIEW_MINUTES} min` : event.minutes ? `${event.minutes} min` : null;
   const title = variant === 'hub' && event.kind === 'interview'

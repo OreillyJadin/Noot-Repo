@@ -113,7 +113,7 @@ serveWithErrorReporting('respond-booking-request', async (req: Request) => {
           const when = new Date(booking.scheduled_at).toLocaleString('en-US', {
             weekday: 'long', month: 'long', day: 'numeric',
             hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago',
-          });
+          }) + ' CT';
           const { error: messageError } = await db.from('messages').insert({
             conversation_id: conversation.id,
             sender_id: user.id,

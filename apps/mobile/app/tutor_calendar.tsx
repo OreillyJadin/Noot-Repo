@@ -10,7 +10,7 @@ import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, TabBar, Card, Avatar, Ic, Label, useTheme, useLargeText, TEXT_CAPS } from '@noot/ui';
-import { api, type TutorInterview } from '@noot/core';
+import { campusParts, formatCampusSlot, formatCampusTime, api, type TutorInterview } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { DAYS, MONTHS } from '../lib/data';
@@ -38,11 +38,7 @@ interface CalSession {
 
 // Format a booking time into the same slot labels the grid renders (CAL_TIMES).
 function slotLabel(d: Date): string {
-  const h = d.getHours();
-  const m = d.getMinutes();
-  const ampm = h < 12 ? 'AM' : 'PM';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
+  return formatCampusTime(d, false);
 }
 
 // Duration minutes -> friendly length label.
@@ -54,7 +50,8 @@ function lenLabel(min: number): string {
 
 // Map the booking's date to an index into the fixed 14-day DAYS window (or null if outside it).
 function dayIndexFor(d: Date): number | null {
-  const hit = DAYS.find((x) => x.dom === d.getDate() && x.month === MONTHS[d.getMonth()]);
+  const p = campusParts(d);
+  const hit = DAYS.find((x) => x.year === p.year && x.dom === p.day && x.month === MONTHS[p.month - 1]);
   return hit ? hit.i : null;
 }
 
@@ -309,7 +306,7 @@ export default function TutorCalendar() {
                     { color: s ? t.text : isOpen ? t.text2 : t.text3 },
                   ]}
                 >
-                  {time}
+                  {formatCampusSlot({ year: DAYS[day]!.year, month: MONTHS.indexOf(DAYS[day]!.month) + 1, day: DAYS[day]!.dom }, time)}
                 </Text>
                 {s ? (
                   <Card onPress={openDetail} style={styles.sessionCard}>

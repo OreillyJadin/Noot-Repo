@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tutorSessionDrafts } from '../lib/sessionDrafts.ts';
+import { formatCampusSessionWhen, formatCampusTime } from '../../../packages/core/src/campusTime.ts';
 
 const base = { studentFirstName: 'Sam', tutorFirstName: 'Sara', course: 'MATH 125', location: 'Gorgas Library', when: 'Thursday at 3:00 PM' };
 const loc = (over: Partial<typeof base>) => tutorSessionDrafts({ ...base, ...over }).find((d) => d.key === 'location')!.text;
@@ -11,6 +12,13 @@ test('the location draft names the booked library and asks the tutor for the exa
   assert.match(text, /^Hi Sam! For our MATH 125 session Thursday at 3:00 PM, let's meet at Gorgas Library\./);
   assert.match(text, /\[room number\]/);
   assert.match(text, /\[floor \/ area\]/);
+});
+
+test('campus-formatted booking times read naturally in draft sentences', () => {
+  const at = '2026-07-03T04:00:00Z';
+  const text = loc({ when: formatCampusSessionWhen(at) });
+  assert.ok(text.includes(`our MATH 125 session Thursday at ${formatCampusTime(at)}, let's meet`));
+  assert.doesNotMatch(text, /Today|Tomorrow|·/);
 });
 
 test('"Other — I\'ll suggest" is not treated as a place', () => {

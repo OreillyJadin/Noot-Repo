@@ -21,14 +21,7 @@ import { CountdownPills } from '../lib/CountdownPills';
 
 /** Booking scheduledAt (+ optional location) → "Tomorrow · 3:00 PM · Gorgas Library". */
 function sessionMeta(iso: string, location: string | null): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const dayDiff = Math.round((startOf(d) - startOf(now)) / 86400000);
-  const dayLabel =
-    dayDiff === 0 ? 'Today' : dayDiff === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  return [dayLabel, time, location].filter(Boolean).join(' · ');
+  return [formatSessionTime(iso), location].filter(Boolean).join(' · ');
 }
 
 function StatCard({ icon, big, label }: { icon: IconName; big: string; label: string }) {

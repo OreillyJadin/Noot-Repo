@@ -1,3 +1,10 @@
+import { addCampusDays, campusDayKey, campusInstant, campusParts } from '@noot/core';
+
+export function campusCalendarToday(now = new Date()): Date {
+  const p = campusParts(now);
+  return new Date(p.year, p.month - 1, p.day);
+}
+
 export function monthMatrix(year: number, month0: number): Date[][] {
   const first = new Date(year, month0, 1);
   const firstWeekday = first.getDay();
@@ -23,7 +30,7 @@ export function dayKey(date: Date): string {
 export function groupByDay<T extends { startsAt: string }>(items: T[]): Record<string, T[]> {
   const groups: Record<string, T[]> = {};
   for (const item of items) {
-    const key = dayKey(new Date(item.startsAt));
+    const key = campusDayKey(item.startsAt);
     (groups[key] ??= []).push(item);
   }
   for (const group of Object.values(groups)) {
@@ -37,17 +44,17 @@ export function monthRange(year: number, month0: number): { fromIso: string; toI
   const first = matrix[0]![0]!;
   const last = matrix[matrix.length - 1]![6]!;
   return {
-    fromIso: first.toISOString(),
-    toIso: new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1).toISOString(),
+    fromIso: campusInstant({ year: first.getFullYear(), month: first.getMonth() + 1, day: first.getDate() }).toISOString(),
+    toIso: campusInstant(addCampusDays({ year: last.getFullYear(), month: last.getMonth() + 1, day: last.getDate() }, 1)).toISOString(),
   };
 }
 
 export function splitClock(label: string): { clock: string; meridiem: string | null } {
   const trimmed = label.trim();
-  const match = trimmed.match(/^(.*?)\s*([ap])\.?\s*m\.?$/i);
+  const match = trimmed.match(/^(.*?)\s*([ap])\.?\s*m\.?( CT)?$/i);
   if (!match) return { clock: trimmed, meridiem: null };
   return {
     clock: match[1]!.trim(),
-    meridiem: match[2]!.toUpperCase() === 'A' ? 'AM' : 'PM',
+    meridiem: (match[2]!.toUpperCase() === 'A' ? 'AM' : 'PM') + (match[3] ?? ''),
   };
 }

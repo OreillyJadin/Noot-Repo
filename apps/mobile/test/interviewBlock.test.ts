@@ -1,10 +1,11 @@
 // Run: pnpm test
+import { campusInstant, campusTimeZoneLabel } from '../../../packages/core/src/campusTime.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { interviewBlockedSlots, interviewRange, slotMinutes } from '../lib/interviewBlock.ts';
 
 const SLOTS = ['9:00 AM', '10:30 AM', '12:00 PM', '1:30 PM', '3:00 PM', '4:30 PM', '6:00 PM', '7:30 PM'];
-const at = (h: number, m = 0) => new Date(2026, 9, 6, h, m);
+const at = (h: number, m = 0) => campusInstant({ year: 2026, month: 10, day: 6 }, h * 60 + m);
 
 test('slot labels read as minutes since midnight', () => {
   assert.equal(slotMinutes('9:00 AM'), 540);
@@ -39,6 +40,6 @@ test('a late interview blocks the last row', () => {
 });
 
 test('the hour is written out', () => {
-  assert.equal(interviewRange(at(15)), '3:00 PM – 4:00 PM');
-  assert.equal(interviewRange(at(11, 30)), '11:30 AM – 12:30 PM');
+  assert.equal(interviewRange(at(15)), `3:00 PM${campusTimeZoneLabel(at(15))} – 4:00 PM${campusTimeZoneLabel(at(16))}`);
+  assert.equal(interviewRange(at(11, 30)), `11:30 AM${campusTimeZoneLabel(at(11, 30))} – 12:30 PM${campusTimeZoneLabel(at(12, 30))}`);
 });

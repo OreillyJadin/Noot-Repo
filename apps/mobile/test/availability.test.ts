@@ -1,3 +1,4 @@
+import { campusInstant, formatCampusTime } from '../../../packages/core/src/campusTime.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DAYS, MONTHS } from '../lib/data.ts';
@@ -19,8 +20,9 @@ const slotsForLength = (lengthMin: number, windows = [window('14:00', '19:00')])
 
 const at = (dayIndex: number, hour: number, minute = 0) => {
   const date = DAYS[dayIndex]!;
-  return new Date(date.year, MONTHS.indexOf(date.month), date.dom, hour, minute).toISOString();
+  return campusInstant({ year: date.year, month: MONTHS.indexOf(date.month) + 1, day: date.dom }, hour * 60 + minute).toISOString();
 };
+const label = (hour: number) => formatCampusTime(at(day.i, hour));
 const busyRange = (dayIndex: number, startHour: number, startMinute: number, endHour: number, endMinute: number): BusyTime => ({
   startsAt: at(dayIndex, startHour, startMinute),
   endsAt: at(dayIndex, endHour, endMinute),
@@ -28,33 +30,33 @@ const busyRange = (dayIndex: number, startHour: number, startMinute: number, end
 const noonSlots = (lengthMin: number) => slotsFromWindows([window('12:00', '15:00')], lengthMin);
 
 test('60-minute sessions can start as late as 6 PM in a 2–7 PM window', () => {
-  assert.equal(slotsForLength(60).at(-1), '6:00 PM');
+  assert.equal(slotsForLength(60).at(-1), label(18));
 });
 
 test('120-minute sessions can start as late as 5 PM in a 2–7 PM window', () => {
-  assert.equal(slotsForLength(120).at(-1), '5:00 PM');
+  assert.equal(slotsForLength(120).at(-1), label(17));
 });
 
 test('90-minute sessions can start as late as 5 PM in a 2–7 PM window', () => {
-  assert.equal(slotsForLength(90).at(-1), '5:00 PM');
+  assert.equal(slotsForLength(90).at(-1), label(17));
 });
 
 test('a session can span adjacent availability windows', () => {
-  assert.ok(slotsForLength(120, [window('14:00', '16:00'), window('16:00', '19:00')]).includes('3:00 PM'));
+  assert.ok(slotsForLength(120, [window('14:00', '16:00'), window('16:00', '19:00')]).includes(label(15)));
 });
 
 test('a 12–1 booking blocks only the noon slot for a 60-minute session', () => {
   const slots = noonSlots(60);
   const booked = bookedSlots(slots, [busyRange(day.i, 12, 0, 13, 0)], 60);
-  assert.deepEqual([...booked[day.i]!], ['12:00 PM']);
-  assert.deepEqual(slots[day.i]!.filter((slot) => !booked[day.i]?.has(slot)), ['1:00 PM', '2:00 PM']);
+  assert.deepEqual([...booked[day.i]!], [label(12)]);
+  assert.deepEqual(slots[day.i]!.filter((slot) => !booked[day.i]?.has(slot)), [label(13), label(14)]);
 });
 
 test('a 12–1 booking does not block a 1 PM start for a 120-minute session', () => {
   const slots = noonSlots(120);
   const booked = bookedSlots(slots, [busyRange(day.i, 12, 0, 13, 0)], 120);
-  assert.deepEqual([...booked[day.i]!], ['12:00 PM']);
-  assert.equal(booked[day.i]!.has('1:00 PM'), false);
+  assert.deepEqual([...booked[day.i]!], [label(12)]);
+  assert.equal(booked[day.i]!.has(label(13)), false);
 });
 
 test('overlapping bookings block both 120-minute slots', () => {
@@ -63,7 +65,7 @@ test('overlapping bookings block both 120-minute slots', () => {
     busyRange(day.i, 12, 0, 13, 0),
     busyRange(day.i, 13, 30, 14, 0),
   ], 120);
-  assert.deepEqual([...booked[day.i]!], ['12:00 PM', '1:00 PM']);
+  assert.deepEqual([...booked[day.i]!], [label(12), label(13)]);
 });
 
 test('busy ranges on another day do not mark slots booked', () => {

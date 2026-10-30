@@ -1,25 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { api, type AdminBooking } from '@noot/core';
+import { campusDayKey, campusInstant, formatCampusTime, formatCampusSession, api, type AdminBooking } from '@noot/core';
 import { Body, EmptyState, NavTop, Screen, Skeleton, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { AdminTabs, safetyTabs, useAdminHubCounts } from '../lib/AdminTabs';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
 import { AdminRow, AdminSection, StatusDot } from '../lib/adminUi';
-import { dayKey } from '../lib/monthGrid';
 
 function when(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return formatCampusTime(iso);
 }
 
 function dayLabel(key: string, today: Date): string {
   const [year, month, day] = key.split('-').map(Number);
-  const date = new Date(year!, month! - 1, day!);
-  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-  if (key === dayKey(today)) return 'Today';
-  if (key === dayKey(tomorrow)) return 'Tomorrow';
-  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const date = campusInstant({ year: year!, month: month!, day: day! });
+  return formatCampusSession(date, today).split(' · ')[0]!;
 }
 
 function statusColor(status: string, t: ReturnType<typeof useTheme>): string {
@@ -87,7 +83,7 @@ function AdminBookingsScreen() {
   const groups = [...visibleBookings]
     .sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))
     .reduce<Record<string, AdminBooking[]>>((result, booking) => {
-      const key = dayKey(new Date(booking.scheduledAt));
+      const key = campusDayKey(booking.scheduledAt);
       (result[key] ??= []).push(booking);
       return result;
     }, {});

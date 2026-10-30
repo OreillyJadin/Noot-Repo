@@ -1,13 +1,14 @@
 // Run: pnpm test
+import { campusInstant, campusTimeZoneLabel } from '../../../packages/core/src/campusTime.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { interviewLabel, nextInterviewSlots, type WeeklyWindow } from '../lib/interviewSlots.ts';
 
 // Saturday 3 Oct 2026, 10:00 local.
-const now = new Date(2026, 9, 3, 10, 0);
+const now = campusInstant({ year: 2026, month: 10, day: 3 }, 600);
 const tue: WeeklyWindow = { dayOfWeek: 2, startTime: '15:00', endTime: '17:00' };
 const thu: WeeklyWindow = { dayOfWeek: 4, startTime: '09:30', endTime: '11:00' };
-const labels = (slots: Date[]) => slots.map(interviewLabel);
+const labels = (slots: Date[]) => slots.map((at) => interviewLabel(at).replace(/ CT$/, ''));
 
 test('offers the start of each availability window, soonest first', () => {
   assert.deepEqual(labels(nextInterviewSlots([thu, tue], now, 4)), [
@@ -49,11 +50,11 @@ test('a window with no usable start time is skipped, not offered at midnight', (
 });
 
 test('days are counted across a month end', () => {
-  const lateOct = new Date(2026, 9, 28, 10, 0); // Wed 28 Oct
+  const lateOct = campusInstant({ year: 2026, month: 10, day: 28 }, 600); // Wed 28 Oct
   assert.deepEqual(labels(nextInterviewSlots([tue], lateOct, 2)), ['Tue, Nov 3 · 3:00 PM', 'Tue, Nov 10 · 3:00 PM']);
 });
 
 test('midnight and noon read as 12', () => {
-  assert.equal(interviewLabel(new Date(2026, 9, 6, 0, 5)), 'Tue, Oct 6 · 12:05 AM');
-  assert.equal(interviewLabel(new Date(2026, 9, 6, 12, 0)), 'Tue, Oct 6 · 12:00 PM');
+  assert.equal(interviewLabel(campusInstant({ year: 2026, month: 10, day: 6 }, 5)), `Tue, Oct 6 · 12:05 AM${campusTimeZoneLabel(now)}`);
+  assert.equal(interviewLabel(campusInstant({ year: 2026, month: 10, day: 6 }, 720)), `Tue, Oct 6 · 12:00 PM${campusTimeZoneLabel(now)}`);
 });

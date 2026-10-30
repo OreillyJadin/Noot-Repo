@@ -5,14 +5,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, View, Text, StyleSheet } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Avatar, Badge, Button, EmptyState, Skeleton, useTheme, type BadgeTone } from '@noot/ui';
-import { api, tutorEarnedAmount, type Booking } from '@noot/core';
+import { formatCampusDate, api, tutorEarnedAmount, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor } from '../lib/data';
 import { draftFromBooking } from '../lib/bookingDraft';
 import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
 
 function whenLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  return formatCampusDate(iso, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 const STATUS_TONE: Record<string, BadgeTone> = {

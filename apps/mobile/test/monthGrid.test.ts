@@ -24,7 +24,7 @@ test('November 2026 DST transition keeps every visible local day unique and cons
   assert.deepEqual(keys, expected);
 });
 
-test('groupByDay sorts items within each local day by start time', () => {
+test('groupByDay sorts items within each campus day by start time', () => {
   const groups = groupByDay([
     { id: 'late', startsAt: '2026-10-12T15:00:00-05:00' },
     { id: 'other-day', startsAt: '2026-10-13T09:00:00-05:00' },
@@ -34,11 +34,10 @@ test('groupByDay sorts items within each local day by start time', () => {
   assert.deepEqual(groups['2026-10-13']?.map((item) => item.id), ['other-day']);
 });
 
-test('monthRange covers the entire visible matrix in local time', () => {
-  const matrix = monthMatrix(2026, 9);
+test('monthRange covers the entire visible matrix in campus time', () => {
   const { fromIso, toIso } = monthRange(2026, 9);
-  assert.equal(fromIso, matrix[0]![0]!.toISOString());
-  assert.equal(toIso, new Date(2026, 10, 1).toISOString());
+  assert.equal(fromIso, '2026-09-27T05:00:00.000Z');
+  assert.equal(toIso, '2026-11-01T05:00:00.000Z');
 });
 
 test('splitClock separates a standard meridiem', () => {
@@ -55,4 +54,10 @@ test('splitClock normalizes a dotted meridiem', () => {
 
 test('splitClock leaves 24-hour labels intact', () => {
   assert.deepEqual(splitClock('16:22'), { clock: '16:22', meridiem: null });
+});
+
+test('event grouping uses campus dates across device-local midnight', () => {
+  const groups = groupByDay([{ startsAt: '2026-07-02T05:30:00Z' }]);
+  assert.equal(groups['2026-07-02']?.length, 1);
+  assert.deepEqual(splitClock('3:00 PM CT'), { clock: '3:00', meridiem: 'PM CT' });
 });

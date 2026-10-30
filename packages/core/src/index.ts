@@ -2,6 +2,7 @@
 // package (and supabase/functions) may touch Supabase/Stripe directly.
 export * from './models';
 export { tutorEarnedAmount } from './earnings';
+export * from './campusTime';
 export {
   STORAGE_LIMITS,
   MAX_ATTACHMENT_BYTES,
