@@ -20,7 +20,7 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ic, Avatar, useTheme, type IconName } from '@noot/ui';
-import { formatCampusSession, api, auth, type Message as ApiMessage, type OutgoingAttachment } from '@noot/core';
+import { formatCampusSessionWhen, api, auth, type Message as ApiMessage, type OutgoingAttachment } from '@noot/core';
 import { useApp } from '../lib/store';
 import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
@@ -124,7 +124,7 @@ function ChatTutorInner() {
         course: booking.course ?? '',
         location: booking.location ?? '',
         when: booking.scheduledAt
-          ? formatCampusSession(booking.scheduledAt)
+          ? formatCampusSessionWhen(booking.scheduledAt)
           : '',
       })
     : [];

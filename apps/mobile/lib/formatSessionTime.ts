@@ -1,5 +1,7 @@
 import { formatCampusSession } from '@noot/core';
-export const formatSessionTime = formatCampusSession;
+export function formatSessionTime(iso: string): string {
+  return formatCampusSession(iso);
+}
 
 export function sessionDayAndTime(
   scheduledAt: string | undefined,

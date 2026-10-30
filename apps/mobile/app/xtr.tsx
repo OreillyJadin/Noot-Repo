@@ -6,7 +6,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-nati
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Ic, H1, Sub, Label, HeroIcon, useTheme } from '@noot/ui';
-import { campusInstant, campusSlotISO, addCampusDays, api, type BusyTime } from '@noot/core';
+import { campusInstant, campusSlotISO, tryCampusSlotISO, addCampusDays, api, type BusyTime } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
 import { BOOKABLE_DAYS, DAYS, MONTHS } from '../lib/data';
 import { bookedSlots, slotsFromWindows } from '../lib/availability';
@@ -108,6 +108,7 @@ export default function XReschedulePropose() {
   const daySlots = slots[day] ?? [];
   const dayBooked = booked[day] ?? new Set<string>();
   const dayObj = BOOKABLE_DAYS.find((d) => d.i === day) ?? BOOKABLE_DAYS[0]!;
+  const proposedAt = tryCampusSlotISO({ year: dayObj.year, month: MONTHS.indexOf(dayObj.month) + 1, day: dayObj.dom }, slot ?? '3:00 PM');
 
   const send = async () => {
     if (!slot) return;
@@ -152,7 +153,7 @@ export default function XReschedulePropose() {
               <View style={{ flex: 1, alignItems: 'flex-end' }}>
                 <Text style={[styles.compareLabel, { color: t.text3 }]}>Proposed</Text>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: t.text }}>
-                  {formatSessionTime(scheduledAtISO(day, slot ?? '3:00 PM'))}
+                  {proposedAt ? formatSessionTime(proposedAt) : `${dayObj.label} · ${slot ?? '3:00 PM'}`}
                 </Text>
               </View>
             </View>

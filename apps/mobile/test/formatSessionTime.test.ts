@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { campusDays, campusInstant } from '../../../packages/core/src/campusTime.ts';
-import { sessionDayAndTime } from '../lib/formatSessionTime.ts';
+import { formatSessionTime, sessionDayAndTime } from '../lib/formatSessionTime.ts';
 
 const fallback = { day: 'Wed Oct 21', time: '7:00 AM' };
 
@@ -26,4 +26,9 @@ test('separates the day label from the time for a date five days out', () => {
 
   assert.doesNotMatch(result.day, /·/);
   assert.match(result.time, /\d:\d\d/);
+});
+
+test('formatSessionTime ignores array callback arguments', () => {
+  const times = campusDays(2).map((day) => campusInstant(day, 900).toISOString());
+  assert.deepEqual(times.map(formatSessionTime), times.map((iso) => formatSessionTime(iso)));
 });

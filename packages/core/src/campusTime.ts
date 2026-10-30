@@ -72,9 +72,26 @@ export function formatCampusSession(at: Instant, now: Instant = new Date()): str
   return `${day} · ${formatCampusTime(at)}`;
 }
 
+export function formatCampusSessionWhen(at: Instant): string {
+  return `${formatCampusDate(at, { weekday: 'long' })} at ${formatCampusTime(at)}`;
+}
+
 export function campusSlotISO(day: CampusDate, slot: string): string {
   const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)(?: CT)?$/i.exec(slot.trim());
   if (!m || Number(m[1]) < 1 || Number(m[1]) > 12 || Number(m[2]) > 59) throw new RangeError('Invalid slot');
   const minutes = (Number(m[1]) % 12 + (m[3]!.toUpperCase() === 'PM' ? 12 : 0)) * 60 + Number(m[2]);
   return campusInstant(day, minutes).toISOString();
+}
+
+export function tryCampusSlotISO(day: CampusDate, slot: string): string | undefined {
+  try {
+    return campusSlotISO(day, slot);
+  } catch {
+    return undefined;
+  }
+}
+
+export function formatCampusSlot(day: CampusDate, slot: string): string {
+  const iso = tryCampusSlotISO(day, slot);
+  return iso ? formatCampusTime(iso) : slot;
 }

@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
 import { useStripe } from '@stripe/stripe-react-native';
 import Constants from 'expo-constants';
-import { formatCampusTime, campusSlotISO, api, bookingQuote, FunctionError, STUDENT_UNDER_AGE_MESSAGE } from '@noot/core';
+import { formatCampusTime, campusSlotISO, tryCampusSlotISO, api, bookingQuote, FunctionError, STUDENT_UNDER_AGE_MESSAGE } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { DAYS, MONTHS } from '../lib/data';
@@ -47,6 +47,8 @@ function B4Inner() {
   const lengthMin = booking.lengthMin ?? 60;
   const lenLabel = lengthMin === 30 ? '30 min' : `${lengthMin / 60} hr`;
   const slot = booking.slot ?? '3:00 PM';
+  const campusDay = { year: dayObj.year, month: MONTHS.indexOf(dayObj.month) + 1, day: dayObj.dom };
+  const previewScheduledAt = tryCampusSlotISO(campusDay, slot);
   const location = booking.location ?? 'Gorgas Library, Fl 2';
   const course = booking.course ?? tutor.courses[0]![0];
   const rate = (tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!)[2];
@@ -68,7 +70,7 @@ function B4Inner() {
     ['Tutor', tutor.name],
     ['Course', course],
     ['Date', dayObj.label],
-    ['Time', `${formatCampusTime(campusSlotISO({ year: dayObj.year, month: MONTHS.indexOf(dayObj.month) + 1, day: dayObj.dom }, slot))} · ${lenLabel}`],
+    ['Time', `${previewScheduledAt ? formatCampusTime(previewScheduledAt) : slot} · ${lenLabel}`],
     ['Location', location],
   ];
 
@@ -96,9 +98,7 @@ function B4Inner() {
       ? 'Card or Google Pay'
       : 'Card';
 
-  const computeScheduledAt = (): string => campusSlotISO(
-    { year: dayObj.year, month: MONTHS.indexOf(dayObj.month) + 1, day: dayObj.dom }, slot,
-  );
+  const computeScheduledAt = (): string => campusSlotISO(campusDay, slot);
 
   // Create a held (manual-capture) PaymentIntent, collect payment via Stripe's native
   // PaymentSheet (authorizes the hold), then create the booking through @noot/core and
@@ -232,7 +232,7 @@ function B4Inner() {
     }
   };
 
-  const scheduledAtDate = new Date(computeScheduledAt());
+  const scheduledAtDate = new Date(previewScheduledAt ?? NaN);
   const nowMs = Date.now();
   const startsSoon = scheduledAtDate.getTime() >= nowMs && scheduledAtDate.getTime() - nowMs < SHORT_NOTICE_MS;
 

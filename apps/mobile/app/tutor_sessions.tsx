@@ -16,7 +16,9 @@ import { GeckoLogo } from '../lib/GeckoLogo';
 type Tab = 'upcoming' | 'past';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
-const formatWhen = formatCampusSession;
+function formatWhen(iso: string): string {
+  return formatCampusSession(iso);
+}
 
 interface SessionRow { id: string; name: string; av: string; course: string; when: string; where: string; pay: string; status: string; booking: Booking; }
 

@@ -7,7 +7,6 @@ import { useMe } from '../lib/useMe';
 import { AdminTabs, safetyTabs, useAdminHubCounts } from '../lib/AdminTabs';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
 import { AdminRow, AdminSection, StatusDot } from '../lib/adminUi';
-const dayKey = campusDayKey;
 
 function when(iso: string): string {
   return formatCampusTime(iso);
@@ -84,7 +83,7 @@ function AdminBookingsScreen() {
   const groups = [...visibleBookings]
     .sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt))
     .reduce<Record<string, AdminBooking[]>>((result, booking) => {
-      const key = dayKey(new Date(booking.scheduledAt));
+      const key = campusDayKey(booking.scheduledAt);
       (result[key] ??= []).push(booking);
       return result;
     }, {});

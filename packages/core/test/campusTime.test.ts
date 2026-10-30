@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { campusParts, campusInstant, campusDays, campusSlotISO, campusTimeZoneLabel, formatCampusTime, formatCampusSession } from '../src/campusTime.ts';
+import { campusParts, campusInstant, campusDays, campusSlotISO, tryCampusSlotISO, campusTimeZoneLabel, formatCampusTime, formatCampusSession, formatCampusSessionWhen, formatCampusSlot } from '../src/campusTime.ts';
 
 test('campus parts and wall-clock conversion round trip in summer and winter', () => {
   for (const month of [1, 7]) {
@@ -47,4 +47,20 @@ test('invalid dates and slot labels fail explicitly', () => {
   assert.throws(() => campusSlotISO({ year: 2026, month: 2, day: 30 }, '3:00 PM'), RangeError);
   assert.throws(() => campusSlotISO({ year: 2026, month: 1, day: 1 }, ''), RangeError);
   assert.throws(() => campusInstant({ year: 2026, month: 1, day: 1 }, 1440), RangeError);
+});
+
+test('session prose uses a long campus weekday and time, including the CT label rule', () => {
+  const at = '2026-07-03T04:00:00Z';
+  assert.equal(formatCampusSessionWhen(at), `Thursday at ${formatCampusTime(at)}`);
+});
+
+test('slot previews format valid times and preserve invalid or nonexistent labels', () => {
+  const day = { year: 2026, month: 3, day: 8 };
+  assert.equal(tryCampusSlotISO(day, '3:00 PM'), campusSlotISO(day, '3:00 PM'));
+  assert.equal(formatCampusSlot(day, '3:00 PM'), formatCampusTime(campusSlotISO(day, '3:00 PM')));
+  for (const slot of ['', 'not a time', '2:30 AM', '2:30 AM CT']) {
+    assert.equal(tryCampusSlotISO(day, slot), undefined);
+    assert.equal(formatCampusSlot(day, slot), slot);
+    assert.throws(() => campusSlotISO(day, slot), RangeError);
+  }
 });

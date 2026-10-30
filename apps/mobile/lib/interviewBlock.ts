@@ -37,6 +37,5 @@ export function interviewBlockedSlots(at: Date, slots: string[]): string[] {
 
 /** "3:00 PM – 4:00 PM" for an interview starting at `at`. */
 export function interviewRange(at: Date): string {
-  const fmt = formatCampusTime;
-  return `${fmt(at)} – ${fmt(new Date(at.getTime() + INTERVIEW_MINUTES * 60 * 1000))}`;
+  return `${formatCampusTime(at)} – ${formatCampusTime(new Date(at.getTime() + INTERVIEW_MINUTES * 60 * 1000))}`;
 }

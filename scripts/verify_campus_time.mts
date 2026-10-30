@@ -56,3 +56,21 @@ const server = readFileSync(new URL('../supabase/functions/respond-booking-reque
 assert.match(server, /timeZone: 'America\/Chicago'/);
 assert.match(server, /\) \+ ' CT'/);
 console.log(`PASS: ${paths.length + 4} session-time source guards (non-session timestamps intentionally excluded)`);
+
+const source = (path: string) => readFileSync(new URL('../apps/mobile/' + path, import.meta.url), 'utf8');
+assert.match(source('app/chat_tutor.tsx'), /formatCampusSessionWhen\(booking\.scheduledAt\)/);
+for (const path of ['app/home.tsx', 'app/tutor_sessions.tsx', 'lib/formatSessionTime.ts', 'lib/interviewBlock.ts']) {
+  assert.doesNotMatch(source(path), /(?:const|let)\s+\w+\s*=\s*formatCampus\w+\s*;/);
+}
+const b4 = source('app/b4.tsx');
+assert.match(b4, /const previewScheduledAt = tryCampusSlotISO\(campusDay, slot\)/);
+assert.match(b4, /previewScheduledAt \? formatCampusTime\(previewScheduledAt\) : slot/);
+assert.match(b4, /new Date\(previewScheduledAt \?\? NaN\)/);
+assert.equal(b4.match(/computeScheduledAt\(\)/g)?.length, 1);
+assert.match(b4, /try\s*\{[^}]*const scheduledAt = computeScheduledAt\(\);\s*const pi = await api\.createPaymentIntent/s);
+assert.match(source('app/tutor_calendar.tsx'), /formatCampusSlot\(/);
+const xtr = source('app/xtr.tsx');
+assert.match(xtr, /const proposedAt = tryCampusSlotISO\(/);
+assert.match(xtr, /proposedAt \? formatSessionTime\(proposedAt\) :/);
+assert.equal(xtr.match(/scheduledAtISO\(day, /g)?.length, 1);
+console.log('PASS: draft prose, one-argument wrappers, and safe slot-render/strict submit guards');

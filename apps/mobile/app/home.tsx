@@ -21,7 +21,9 @@ import { nudgeCourse } from '../lib/browse';
 import { CountdownPills } from '../lib/CountdownPills';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
-const formatWhen = formatCampusSession;
+function formatWhen(iso: string): string {
+  return formatCampusSession(iso);
+}
 
 function StatCard({ icon, big, label, onPress }: { icon: IconName; big: string; label: string; onPress?: () => void }) {
   const t = useTheme();

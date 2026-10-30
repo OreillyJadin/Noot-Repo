@@ -10,7 +10,7 @@ import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, TabBar, Card, Avatar, Ic, Label, useTheme, useLargeText, TEXT_CAPS } from '@noot/ui';
-import { campusParts, campusSlotISO, formatCampusTime, api, type TutorInterview } from '@noot/core';
+import { campusParts, formatCampusSlot, formatCampusTime, api, type TutorInterview } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { DAYS, MONTHS } from '../lib/data';
@@ -306,7 +306,7 @@ export default function TutorCalendar() {
                     { color: s ? t.text : isOpen ? t.text2 : t.text3 },
                   ]}
                 >
-                  {formatCampusTime(campusSlotISO({ year: DAYS[day]!.year, month: MONTHS.indexOf(DAYS[day]!.month) + 1, day: DAYS[day]!.dom }, time))}
+                  {formatCampusSlot({ year: DAYS[day]!.year, month: MONTHS.indexOf(DAYS[day]!.month) + 1, day: DAYS[day]!.dom }, time)}
                 </Text>
                 {s ? (
                   <Card onPress={openDetail} style={styles.sessionCard}>
