@@ -3,9 +3,9 @@
 // platform endpoint signature (STRIPE_WEBHOOK_SECRET) or the Connect endpoint signature
 // (STRIPE_CONNECT_WEBHOOK_SECRET). Connect events only process account.updated:
 //   - account.updated   → cache Accounts v2 transfer/payout capability readiness
-//   - charge.refunded   → mark the booking refunded (reconciliation); give the student back
-//                         the same share of the Noot credit they used, and on a FULL refund
-//                         take back the invite reward the session earned (0040)
+//   - charge.refunded   → mark the booking refunded, record refund_percent as the raise-only
+//                         share of the charge returned to the student, give back the same share
+//                         of Noot credit, and on a FULL refund take back the invite reward (0040)
 //   - charge.dispute.created → take back the invite reward the session earned
 //   - charge.dispute.closed (lost) → give the student back the credit they used
 // Every handler failure returns 500 so Stripe redelivers; all handlers are idempotent.
@@ -13,6 +13,7 @@
 import Stripe from 'https://esm.sh/stripe@16?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getPayoutStatus } from '../_shared/connect.ts';
+import { chargeRefundPercent } from '../_shared/refunds.ts';
 import { verifyWithAnySecret, webhookSecrets } from '../_shared/webhook.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
@@ -93,17 +94,21 @@ serveWithErrorReporting('payments-webhook', async (req: Request) => {
         const charge = event.data.object as Stripe.Charge;
         const pi = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
         if (pi) {
+          const pct = chargeRefundPercent(charge);
           const { error: updateError } = await db
             .from('bookings')
             .update({ refund_status: 'refunded', stripe_refund_id: charge.refunds?.data?.[0]?.id ?? null })
             .eq('stripe_payment_intent_id', pi);
           if (updateError) throw new RetryableError('booking refund update failed');
+          const { error: percentError } = await db
+            .from('bookings')
+            .update({ refund_percent: pct })
+            .eq('stripe_payment_intent_id', pi)
+            .lt('refund_percent', pct);
+          if (percentError) throw new RetryableError('booking refund percent update failed');
           const bookingId = await bookingFor(db, pi);
           if (bookingId) {
             // Same share of credit as of cash. A cancelled hold that never captured counts as 100%.
-            const pct = charge.amount_captured > 0
-              ? Math.min(100, Math.round((charge.amount_refunded / charge.amount_captured) * 100))
-              : 100;
             await creditRpc(db, 'return_booking_credit', { p_booking: bookingId, p_percent: pct });
             // `refunded` is true only for a full refund.
             if (charge.refunded) await creditRpc(db, 'reverse_invite_rewards', { p_booking: bookingId });

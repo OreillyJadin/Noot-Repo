@@ -105,6 +105,17 @@ function runSql(sql: string) {
   }
 }
 
+async function setRefundPercent(bookingId: string, refundPercent: number) {
+  const { error } = await admin.from('bookings').update({ refund_percent: refundPercent }).eq('id', bookingId);
+  if (error) throw error;
+}
+
+async function readRefundPercent(bookingId: string): Promise<number> {
+  const { data, error } = await admin.from('bookings').select('refund_percent').eq('id', bookingId).single();
+  if (error || !data) throw error ?? new Error('booking refund percent missing');
+  return Number(data.refund_percent);
+}
+
 const dropFailureTriggers = () => runSql(`
   DROP TRIGGER IF EXISTS verify_payments_webhook_fail_tutor_update ON public.tutor_profiles;
   DROP FUNCTION IF EXISTS public.verify_payments_webhook_fail_tutor_update();
@@ -317,6 +328,7 @@ try {
     id: `ch_verify_${randomBytes(8).toString('hex')}`,
     object: 'charge',
     payment_intent: verifyPi,
+    amount: 1000,
     amount_captured: 1000,
     amount_refunded: 1000,
     refunded: true,
@@ -326,12 +338,110 @@ try {
   const refundTwo = await postPayload(refundedEvent, platformSecret);
   const { data: refundCache, error: refundCacheError } = await admin
     .from('bookings')
-    .select('refund_status')
+    .select('refund_status, refund_percent')
     .eq('id', bookingId)
     .single();
   step(8, refundOne.status === 200 && refundTwo.status === 200 &&
-    !refundCacheError && refundCache?.refund_status === 'refunded',
-  `charge.refunded delivered twice → ${refundOne.status}, ${refundTwo.status}; status=${refundCache?.refund_status}`);
+    !refundCacheError && refundCache?.refund_status === 'refunded' && refundCache.refund_percent === 100,
+  `charge.refunded delivered twice → ${refundOne.status}, ${refundTwo.status}; status=${refundCache?.refund_status}, percent=${refundCache?.refund_percent}`);
+
+  await setRefundPercent(bookingId, 0);
+  const partialRefundEvent = eventPayload('charge.refunded', {
+    id: `ch_verify_${randomBytes(8).toString('hex')}`,
+    object: 'charge',
+    payment_intent: verifyPi,
+    amount: 2000,
+    amount_captured: 2000,
+    amount_refunded: 500,
+    refunded: false,
+    refunds: { data: [] },
+  });
+  const partialOne = await postPayload(partialRefundEvent, platformSecret);
+  const partialTwo = await postPayload(partialRefundEvent, platformSecret);
+  let refundPercent = await readRefundPercent(bookingId);
+  step('9a', partialOne.status === 200 && partialTwo.status === 200 && refundPercent === 25,
+    `500 of 2000 refunded, delivered twice → ${partialOne.status}, ${partialTwo.status}; percent=${refundPercent}`);
+
+  const cumulativeRefundEvent = eventPayload('charge.refunded', {
+    id: `ch_verify_${randomBytes(8).toString('hex')}`,
+    object: 'charge',
+    payment_intent: verifyPi,
+    amount: 2000,
+    amount_captured: 2000,
+    amount_refunded: 1000,
+    refunded: false,
+    refunds: { data: [] },
+  });
+  const cumulativeRefund = await postPayload(cumulativeRefundEvent, platformSecret);
+  refundPercent = await readRefundPercent(bookingId);
+  step('9b', cumulativeRefund.status === 200 && refundPercent === 50,
+    `cumulative refund of 1000 → ${cumulativeRefund.status}; percent=${refundPercent}`);
+
+  const staleRefund = await postPayload(partialRefundEvent, platformSecret);
+  refundPercent = await readRefundPercent(bookingId);
+  step('9c', staleRefund.status === 200 && refundPercent === 50,
+    `stale 500 refund redelivery → ${staleRefund.status}; percent=${refundPercent}`);
+
+  await setRefundPercent(bookingId, 100);
+  const higherRefund = await postPayload(cumulativeRefundEvent, platformSecret);
+  refundPercent = await readRefundPercent(bookingId);
+  step('9d', higherRefund.status === 200 && refundPercent === 100,
+    `cumulative refund after app-set 100% → ${higherRefund.status}; percent=${refundPercent}`);
+
+  await setRefundPercent(bookingId, 50);
+  const { error: creditSpendError } = await admin.from('credit_ledger').insert({
+    user_id: student.id,
+    amount_cents: -1000,
+    kind: 'booking_spend',
+    booking_id: bookingId,
+  });
+  if (creditSpendError) throw new Error(`could not create booking credit spend: ${creditSpendError.message}`);
+
+  const partialCaptureEvent = eventPayload('charge.refunded', {
+    id: `ch_verify_${randomBytes(8).toString('hex')}`,
+    object: 'charge',
+    payment_intent: verifyPi,
+    amount: 2000,
+    amount_captured: 1000,
+    amount_refunded: 500,
+    refunded: false,
+    refunds: { data: [] },
+  });
+  const partialCaptureRefund = await postPayload(partialCaptureEvent, platformSecret);
+  refundPercent = await readRefundPercent(bookingId);
+  const { data: partialReturns, error: partialReturnsError } = await admin
+    .from('credit_ledger')
+    .select('amount_cents')
+    .eq('booking_id', bookingId)
+    .eq('kind', 'booking_return');
+  const partialCreditReturned = (partialReturns ?? []).reduce((sum, row) => sum + Number(row.amount_cents), 0);
+  step('9e', partialCaptureRefund.status === 200 && refundPercent === 75 &&
+    !partialReturnsError && partialCreditReturned === 750,
+  `partial capture/refund → ${partialCaptureRefund.status}; percent=${refundPercent}, credit=${partialCreditReturned}`);
+  step('9f partial credit', !partialReturnsError && partialCreditReturned === 750,
+    `75% refund returned ${partialCreditReturned} of 1000 Noot credit cents`);
+
+  const fullPartialCaptureEvent = eventPayload('charge.refunded', {
+    id: `ch_verify_${randomBytes(8).toString('hex')}`,
+    object: 'charge',
+    payment_intent: verifyPi,
+    amount: 2000,
+    amount_captured: 1000,
+    amount_refunded: 1000,
+    refunded: true,
+    refunds: { data: [] },
+  });
+  const fullPartialCaptureRefund = await postPayload(fullPartialCaptureEvent, platformSecret);
+  refundPercent = await readRefundPercent(bookingId);
+  const { data: fullReturns, error: fullReturnsError } = await admin
+    .from('credit_ledger')
+    .select('amount_cents')
+    .eq('booking_id', bookingId)
+    .eq('kind', 'booking_return');
+  const fullCreditReturned = (fullReturns ?? []).reduce((sum, row) => sum + Number(row.amount_cents), 0);
+  step('9f full credit', fullPartialCaptureRefund.status === 200 && refundPercent === 100 &&
+    !fullReturnsError && fullCreditReturned === 1000,
+  `full cumulative refund → ${fullPartialCaptureRefund.status}; percent=${refundPercent}, credit=${fullCreditReturned}`);
 
   runSql(bookingTrigger);
   const forcedBookingFailure = await postPayload(refundedEvent, platformSecret);
@@ -361,6 +471,8 @@ try {
   }
 
   if (bookingId) {
+    const { error: ledgerError } = await admin.from('credit_ledger').delete().eq('booking_id', bookingId);
+    step('cleanup ledger', !ledgerError, ledgerError ? 'could not remove temporary credit ledger rows' : 'removed temporary credit ledger rows');
     const { error } = await admin.from('bookings').delete().eq('id', bookingId);
     step('cleanup booking', !error, error ? 'could not remove temporary booking' : 'removed temporary booking');
   }
