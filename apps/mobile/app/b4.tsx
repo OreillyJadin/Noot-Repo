@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
 import { useStripe } from '@stripe/stripe-react-native';
 import Constants from 'expo-constants';
-import { api, bookingQuote, FunctionError, STUDENT_UNDER_AGE_MESSAGE } from '@noot/core';
+import { formatCampusTime, campusSlotISO, api, bookingQuote, FunctionError, STUDENT_UNDER_AGE_MESSAGE } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { DAYS, MONTHS } from '../lib/data';
@@ -68,7 +68,7 @@ function B4Inner() {
     ['Tutor', tutor.name],
     ['Course', course],
     ['Date', dayObj.label],
-    ['Time', `${slot} · ${lenLabel}`],
+    ['Time', `${formatCampusTime(campusSlotISO({ year: dayObj.year, month: MONTHS.indexOf(dayObj.month) + 1, day: dayObj.dom }, slot))} · ${lenLabel}`],
     ['Location', location],
   ];
 
@@ -96,27 +96,9 @@ function B4Inner() {
       ? 'Card or Google Pay'
       : 'Card';
 
-  // Build an ISO scheduledAt from the picked day + slot ("3:00 PM"), falling back
-  // to now+1d if either is missing/unparseable so we never send a bad timestamp.
-  const computeScheduledAt = (): string => {
-    try {
-      const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(slot.trim());
-      const monthIdx = MONTHS.indexOf(dayObj.month);
-      if (!m || monthIdx < 0) throw new Error('unparseable slot/day');
-      let hh = Number(m[1]);
-      const mm = Number(m[2]);
-      const pm = m[3]!.toUpperCase() === 'PM';
-      if (pm && hh !== 12) hh += 12;
-      if (!pm && hh === 12) hh = 0;
-      const d = new Date(dayObj.year, monthIdx, dayObj.dom, hh, mm, 0, 0);
-      if (Number.isNaN(d.getTime())) throw new Error('bad date');
-      return d.toISOString();
-    } catch {
-      const d = new Date();
-      d.setDate(d.getDate() + 1);
-      return d.toISOString();
-    }
-  };
+  const computeScheduledAt = (): string => campusSlotISO(
+    { year: dayObj.year, month: MONTHS.indexOf(dayObj.month) + 1, day: dayObj.dom }, slot,
+  );
 
   // Create a held (manual-capture) PaymentIntent, collect payment via Stripe's native
   // PaymentSheet (authorizes the hold), then create the booking through @noot/core and

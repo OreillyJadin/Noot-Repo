@@ -7,7 +7,7 @@ import { Body, EmptyState, Ic, Screen, Skeleton, TabBar, useTheme, TEXT_CAPS } f
 import { useMe } from '../lib/useMe';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
 import { AdminLargeHeader, AdminRow, AdminSection, CalendarEventRow, eventColor, eventMuted } from '../lib/adminUi';
-import { dayKey, groupByDay, monthMatrix, monthRange } from '../lib/monthGrid';
+import { campusCalendarToday, dayKey, groupByDay, monthMatrix, monthRange } from '../lib/monthGrid';
 import { useTabNav } from '../lib/useTabNav';
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -34,7 +34,7 @@ function AdminCalendarScreen() {
   const { active, onTab } = useTabNav({ scrollRef: bodyRef });
   const { me, loading: meLoading } = useMe();
   const isAdmin = !!me?.roles?.includes('admin');
-  const [today, setToday] = useState(() => new Date());
+  const [today, setToday] = useState(() => campusCalendarToday());
   const [selectedDate, setSelectedDate] = useState(today);
   const [visibleMonth, setVisibleMonth] = useState(firstOfMonth(today));
   const [mode, setMode] = useState<ViewMode>('month');
@@ -74,7 +74,7 @@ function AdminCalendarScreen() {
   }, [loadMonth, visibleMonth]);
 
   useFocusEffect(useCallback(() => {
-    setToday(new Date());
+    setToday(campusCalendarToday());
     void loadMonth(visibleMonthRef.current, true);
   }, [loadMonth]));
 
@@ -106,7 +106,7 @@ function AdminCalendarScreen() {
     setVisibleMonth(firstOfMonth(next));
   };
   const jumpToday = () => {
-    const now = new Date();
+    const now = campusCalendarToday();
     setToday(now);
     setSelectedDate(now);
     setVisibleMonth(firstOfMonth(now));

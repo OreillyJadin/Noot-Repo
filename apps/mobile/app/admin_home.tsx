@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api, attentionTotal, type AdminCalendarEvent, type AdminHubCounts } from '@noot/core';
+import { campusInstant, campusParts, addCampusDays, api, attentionTotal, type AdminCalendarEvent, type AdminHubCounts } from '@noot/core';
 import { Body, Ic, Screen, Skeleton, TabBar, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { interviewLabel } from '../lib/interviewSlots';
@@ -42,7 +42,7 @@ function AdminHomeScreen() {
     useCallback(() => {
       let alive = true;
       const now = new Date();
-      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const tomorrow = campusInstant(addCampusDays(campusParts(now), 1));
       setToday(now);
       setLoading(true);
       setEventsLoading(true);

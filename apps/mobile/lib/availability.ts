@@ -1,8 +1,8 @@
 // Turns a tutor's recurring weekly availability windows (api.tutors.getAvailability)
 // into the concrete per-day slot maps the booking + calendar screens render. This is
 // the real replacement for the old client-side slotsFor() mock generator.
-import { mergeAvailabilityWindows, type BusyTime, type TutorAvailability } from '@noot/core';
-import { DAYS, MONTHS } from './data';
+import { campusInstant, campusParts, campusSlotISO, formatCampusTime, mergeAvailabilityWindows, type BusyTime, type TutorAvailability } from '@noot/core';
+import { DAYS, MONTHS, buildDays } from './data';
 
 /** "14:00" / "14:30" → minutes since midnight. */
 function parseHM(s: string): number {
@@ -28,12 +28,11 @@ export function fmtSlot(min: number): string {
  * a day, so offering a time that has already passed sends the student all the way to
  * payment before the server refuses it with "That time is in the past".
  */
-export function slotsFromWindows(windows: TutorAvailability[], lengthMin = 60): Record<number, string[]> {
+export function slotsFromWindows(windows: TutorAvailability[], lengthMin = 60, now = new Date()): Record<number, string[]> {
   const map: Record<number, string[]> = {};
   const mergedWindows = mergeAvailabilityWindows(windows);
-  const now = new Date();
-  const minutesNow = now.getHours() * 60 + now.getMinutes();
-  for (const d of DAYS) {
+  const minutesNow = campusParts(now).minutes;
+  for (const d of buildDays(now)) {
     const dayWindows = mergedWindows.filter((w) => w.dayOfWeek === d.dowNum);
     if (dayWindows.length === 0) continue;
     const starts = new Set<number>();
@@ -41,10 +40,15 @@ export function slotsFromWindows(windows: TutorAvailability[], lengthMin = 60): 
       const end = parseHM(w.endTime);
       for (let m = parseHM(w.startTime); m + lengthMin <= end; m += 60) {
         if (d.i === 0 && m <= minutesNow) continue; // already passed today
-        starts.add(m);
+        try {
+          const at = campusInstant({ year: d.year, month: MONTHS.indexOf(d.month) + 1, day: d.dom }, m);
+          const endParts = campusParts(at.getTime() + lengthMin * 60_000);
+          if (endParts.day !== d.dom || endParts.minutes > end) continue;
+          starts.add(m);
+        } catch { /* Spring-forward gaps have no instant to book. */ }
       }
     }
-    if (starts.size) map[d.i] = [...starts].sort((a, b) => a - b).map(fmtSlot);
+    if (starts.size) map[d.i] = [...starts].sort((a, b) => a - b).map((m) => formatCampusTime(campusInstant({ year: d.year, month: MONTHS.indexOf(d.month) + 1, day: d.dom }, m)));
   }
   return map;
 }
@@ -61,7 +65,7 @@ export function nextFromWindows(windows: TutorAvailability[]): { dayIndex: numbe
 
 /** Parse a rendered clock label into minutes since midnight. */
 function parseSlotLabel(label: string): number | null {
-  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(label.trim());
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)(?: CT)?$/i.exec(label.trim());
   if (!m) return null;
   let hh = Number(m[1]);
   const mm = Number(m[2]);
@@ -91,13 +95,7 @@ export function bookedSlots(
     for (const label of labels) {
       const minutes = parseSlotLabel(label);
       if (minutes == null) continue;
-      const start = new Date(
-        day.year,
-        month,
-        day.dom,
-        Math.floor(minutes / 60),
-        minutes % 60,
-      ).getTime();
+      const start = Date.parse(campusSlotISO({ year: day.year, month: month + 1, day: day.dom }, label));
       const end = start + lengthMin * 60_000;
       if (ranges.some(([busyStart, busyEnd]) => start < busyEnd && busyStart < end)) {
         booked.add(label);

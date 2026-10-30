@@ -19,7 +19,7 @@ import {
   useTheme,
   type IconName,
 } from '@noot/ui';
-import { api, type BusyTime, type TutorAvailability, type TutoringLocation } from '@noot/core';
+import { campusInstant, addCampusDays, api, type BusyTime, type TutorAvailability, type TutoringLocation } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
 import { BOOKABLE_DAYS, MONTHS } from '../lib/data';
@@ -107,8 +107,8 @@ function B3Inner() {
     const first = BOOKABLE_DAYS[0]!;
     const last = BOOKABLE_DAYS[BOOKABLE_DAYS.length - 1]!;
     return {
-      from: new Date(first.year, MONTHS.indexOf(first.month), first.dom),
-      to: new Date(last.year, MONTHS.indexOf(last.month), last.dom + 1),
+      from: campusInstant({ year: first.year, month: MONTHS.indexOf(first.month) + 1, day: first.dom }),
+      to: campusInstant(addCampusDays({ year: last.year, month: MONTHS.indexOf(last.month) + 1, day: last.dom }, 1)),
     };
   }, []);
 

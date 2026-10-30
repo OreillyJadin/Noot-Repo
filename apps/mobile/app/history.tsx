@@ -5,11 +5,11 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Avatar, Badge, Ic, EmptyState, Skeleton, useTheme, type BadgeTone } from '@noot/ui';
-import { api, type Booking } from '@noot/core';
+import { formatCampusDate, api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 
 function whenLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  return formatCampusDate(iso, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 const STATUS_TONE: Record<string, BadgeTone> = {

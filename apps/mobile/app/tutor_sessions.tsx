@@ -5,7 +5,7 @@ import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Body, TabBar, Button, Badge, Card, Avatar, Ic, H2, EmptyState, Skeleton, AdaptiveRow, useTheme, TEXT_CAPS } from '@noot/ui';
-import { api } from '@noot/core';
+import { formatCampusSession, api } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
@@ -16,17 +16,7 @@ import { GeckoLogo } from '../lib/GeckoLogo';
 type Tab = 'upcoming' | 'past';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const dayDiff = Math.round((startDay - startToday) / 86400000);
-  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  const label =
-    dayDiff === 0 ? 'Today' : dayDiff === 1 ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-  return `${label} · ${time}`;
-}
+const formatWhen = formatCampusSession;
 
 interface SessionRow { id: string; name: string; av: string; course: string; when: string; where: string; pay: string; status: string; booking: Booking; }
 

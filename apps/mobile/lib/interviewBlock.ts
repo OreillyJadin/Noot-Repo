@@ -1,3 +1,4 @@
+import { campusParts, formatCampusTime } from '@noot/core';
 // Where a tutor's interview with the noot team sits on their calendar (ERR-032). Pure — see
 // test/interviewBlock.test.ts.
 //
@@ -17,11 +18,11 @@ export function slotMinutes(label: string): number | null {
 }
 
 /**
- * The calendar rows an interview starting at `at` (the phone's local time) takes up, out of
+ * The calendar rows an interview starting at `at` (campus time) takes up, out of
  * that day's `slots` (in order). Empty if it starts after the last row has ended its day.
  */
 export function interviewBlockedSlots(at: Date, slots: string[]): string[] {
-  const start = at.getHours() * 60 + at.getMinutes();
+  const start = campusParts(at).minutes;
   const end = start + INTERVIEW_MINUTES;
   const times = slots.map((label) => ({ label, min: slotMinutes(label) }));
   return times
@@ -36,9 +37,6 @@ export function interviewBlockedSlots(at: Date, slots: string[]): string[] {
 
 /** "3:00 PM – 4:00 PM" for an interview starting at `at`. */
 export function interviewRange(at: Date): string {
-  const fmt = (d: Date) => {
-    const h = d.getHours();
-    return `${h % 12 === 0 ? 12 : h % 12}:${String(d.getMinutes()).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
-  };
+  const fmt = formatCampusTime;
   return `${fmt(at)} – ${fmt(new Date(at.getTime() + INTERVIEW_MINUTES * 60 * 1000))}`;
 }

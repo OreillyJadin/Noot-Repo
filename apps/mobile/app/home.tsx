@@ -7,7 +7,7 @@ import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Skeleton, ViewingAs, useTheme, useLargeText, AdaptiveRow, TEXT_CAPS, type IconName } from '@noot/ui';
-import { api } from '@noot/core';
+import { formatCampusSession, api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { useMe, firstName } from '../lib/useMe';
@@ -21,17 +21,7 @@ import { nudgeCourse } from '../lib/browse';
 import { CountdownPills } from '../lib/CountdownPills';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const dayDiff = Math.round((startDay - startToday) / 86400000);
-  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  const label =
-    dayDiff === 0 ? 'Today' : dayDiff === 1 ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-  return `${label} · ${time}`;
-}
+const formatWhen = formatCampusSession;
 
 function StatCard({ icon, big, label, onPress }: { icon: IconName; big: string; label: string; onPress?: () => void }) {
   const t = useTheme();

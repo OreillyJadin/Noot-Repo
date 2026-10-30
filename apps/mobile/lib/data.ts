@@ -3,7 +3,7 @@
 // DAYS is a 14-day window from today (BOOKABLE_DAYS is the shorter slice a student may
 // actually book); per-tutor availability slots come
 // from api.tutors.getAvailability(...) via lib/availability.ts (no more mock generator).
-import type { ReviewSummary, TutorSummary } from '@noot/core';
+import { campusDays, type ReviewSummary, type TutorSummary } from '@noot/core';
 
 export const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -32,24 +32,12 @@ export interface Day {
  */
 export const BOOKING_HORIZON_DAYS = 6;
 
-function buildDays(): Day[] {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0); // real "today", local midnight
-  const out: Day[] = [];
-  for (let i = 0; i < 14; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    out.push({
-      i,
-      dowNum: d.getDay(),
-      dow: DOW[d.getDay()]!,
-      dom: d.getDate(),
-      month: MONTHS[d.getMonth()]!,
-      year: d.getFullYear(),
-      label: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : `${DOW[d.getDay()]} ${MONTHS[d.getMonth()]} ${d.getDate()}`,
-    });
-  }
-  return out;
+export function buildDays(now = new Date()): Day[] {
+  return campusDays(14, now).map((d, i) => ({
+    i, dowNum: d.dayOfWeek, dow: DOW[d.dayOfWeek]!, dom: d.day,
+    month: MONTHS[d.month - 1]!, year: d.year,
+    label: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : `${DOW[d.dayOfWeek]} ${MONTHS[d.month - 1]} ${d.day}`,
+  }));
 }
 
 /** Two weeks from today. For *viewing* (the tutor calendar pages this in weeks of 7). */

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { api, NO_SHOW_FLAG_AT, TUTOR_CANCEL_FLAG_OVER, type AdminUserHistory, type AdminUserHistoryBooking } from '@noot/core';
+import { formatCampusSession, api, NO_SHOW_FLAG_AT, TUTOR_CANCEL_FLAG_OVER, type AdminUserHistory, type AdminUserHistoryBooking } from '@noot/core';
 import { AdaptiveRow, Avatar, Body, Button, EmptyState, NavTop, Screen, Skeleton, useLargeText, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
@@ -230,7 +230,7 @@ function AdminUserScreen() {
                   key={booking.id}
                   title={booking.subject}
                   subtitleLines={0}
-                  subtitle={`${dateTimeLabel(booking.scheduledAt)} · ${booking.role === 'student' ? 'Student' : 'Tutor'} · ${booking.counterpartName}`}
+                  subtitle={`${formatCampusSession(booking.scheduledAt)} · ${booking.role === 'student' ? 'Student' : 'Tutor'} · ${booking.counterpartName}`}
                   detail={<Text style={[styles.historyDetail, { color: t.text2 }]}>{bookingOutcome(booking)}</Text>}
                   trailing={<Text style={[styles.status, { color: t.text3 }]}>{booking.status.replaceAll('_', ' ')}</Text>}
                 />
