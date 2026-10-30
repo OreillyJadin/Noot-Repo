@@ -143,6 +143,7 @@ jobs:
             verify_tutor_busy_times
             verify_tutor_public_fields
             verify_tutor_rate_bounds
+            verify_tutor_standing
             verify_tutor_status
             verify_tutoring_locations
             verify_uploads

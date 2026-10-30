@@ -1408,22 +1408,24 @@ export const api = {
     earnedTotal: number;
     avgRating: number | null;
     cancelledCount: number;
+    noShowCount: number;
     cancelRate: number;
   }> {
     const uid = await requireUid();
     const sb = getSupabase();
     const { data, error } = await sb
       .from('bookings')
-      .select('status, cancel_reason, accept_by, accepted_at, scheduled_at, tutor_payout_amount, duration_minutes')
+      .select('status, cancelled_by_role, cancelled_from_status, no_show_party, scheduled_at, tutor_payout_amount, duration_minutes')
       .eq('tutor_id', uid);
     if (error) throw error;
     const rows = data ?? [];
     const completed = rows.filter((r) => r.status === 'completed');
     const cancelled = rows.filter((r) =>
       r.status === 'cancelled' &&
-      !r.cancel_reason &&
-      !(r.accept_by && !r.accepted_at),
+      r.cancelled_by_role === 'tutor' &&
+      r.cancelled_from_status === 'confirmed',
     );
+    const noShows = rows.filter((r) => r.no_show_party === 'tutor');
     const weekAgo = Date.now() - 7 * 86_400_000;
     const earnedTotal = completed.reduce((s, r) => s + num(r.tutor_payout_amount), 0);
     const earnedThisWeek = completed
@@ -1431,7 +1433,7 @@ export const api = {
       .reduce((s, r) => s + num(r.tutor_payout_amount), 0);
     const hoursTaught = completed.reduce((s, r) => s + num(r.duration_minutes) / 60, 0);
     const { data: prof } = await sb.from('tutor_profiles').select('rating_avg').eq('user_id', uid).maybeSingle();
-    const denom = completed.length + cancelled.length;
+    const denom = completed.length + cancelled.length + noShows.length;
     return {
       sessionsTaught: completed.length,
       hoursTaught,
@@ -1439,7 +1441,8 @@ export const api = {
       earnedTotal,
       avgRating: prof?.rating_avg != null ? Number(prof.rating_avg) : null,
       cancelledCount: cancelled.length,
-      cancelRate: denom ? cancelled.length / denom : 0,
+      noShowCount: noShows.length,
+      cancelRate: denom ? (cancelled.length + noShows.length) / denom : 0,
     };
   },
 
