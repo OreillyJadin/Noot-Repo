@@ -456,6 +456,7 @@ function mapBooking(row: any): Booking {
     cancellationDeadline: row.cancellation_deadline,
     cancelledAt: row.cancelled_at ?? null,
     refundStatus: row.refund_status,
+    refundPercent: num(row.refund_percent),
     stripePaymentIntentId: row.stripe_payment_intent_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
