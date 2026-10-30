@@ -107,6 +107,7 @@ jobs:
             verify_admin_calendar
             verify_admin_user_search
             verify_b2_tutor_chat
+            verify_b3_grade_copy
             verify_backend
             verify_bad_language
             verify_become_ambassador
