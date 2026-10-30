@@ -118,6 +118,7 @@ jobs:
             verify_browse
             verify_campus_gate
             verify_campus_time
+            verify_cancel_payout_ui
             verify_chat_attachments
             verify_course_catalog
             verify_credits
