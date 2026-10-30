@@ -132,6 +132,7 @@ jobs:
             verify_moderation
             verify_password_auth
             verify_push_tokens
+            verify_reschedule_copy
             verify_s1_sync
             verify_session_reminders
             verify_sign_out
