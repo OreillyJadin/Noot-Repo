@@ -15,10 +15,11 @@ export type ChargeFunds = Pick<Stripe.Charge, 'amount' | 'amount_captured' | 'am
 /** Cents of a captured charge still available to back a source_transaction transfer. */
 export function chargeAvailableCents(charge: ChargeFunds | null): number {
   if (!charge) return 0;
-  // A partial capture (late cancel) leaves `amount` at the authorized total and books
-  // nothing as refunded — only `amount_captured` was ever collected. Refunds issued since
-  // (payments-webhook) come off that. `amount` itself is never the right bound.
-  return Math.max(0, Number(charge.amount_captured ?? 0) - Number(charge.amount_refunded ?? 0));
+  // Stripe includes the released authorization in amount_refunded after partial capture.
+  const captured = Number(charge.amount_captured ?? 0);
+  const released = Math.max(0, Number(charge.amount) - captured);
+  const refunded = Math.max(0, Number(charge.amount_refunded ?? 0) - released);
+  return Math.max(0, captured - refunded);
 }
 
 export type PayoutSplit = { fromCharge: number; fromBalance: number };

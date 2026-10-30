@@ -71,7 +71,7 @@ check('a partial capture counts only what was captured, not the authorized total
   chargeAvailableCents({ amount: 4000, amount_captured: 2000, amount_refunded: 0 }) === 2000);
 check('refunds since the capture come off the available amount',
   chargeAvailableCents({ amount: 3276, amount_captured: 3276, amount_refunded: 500 }) === 2776 &&
-    chargeAvailableCents({ amount: 4000, amount_captured: 2000, amount_refunded: 500 }) === 1500);
+    chargeAvailableCents({ amount: 4000, amount_captured: 2000, amount_refunded: 2500 }) === 1500);
 
 // --- a connected account that can receive transfers --------------------------------------
 let acct = process.env.NOOT_VERIFY_CONNECT_ACCOUNT ?? '';
