@@ -122,6 +122,7 @@ jobs:
             verify_age_gate
             verify_age_required_ui
             verify_email_code
+            verify_tutor_history_refunds
             verify_filter
             verify_guidelines
             verify_guidelines_all_roles
