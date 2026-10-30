@@ -2,7 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { campusInstant, campusParts, addCampusDays, api, attentionTotal, type AdminCalendarEvent, type AdminHubCounts } from '@noot/core';
+import { campusInstant, campusParts, addCampusDays, formatCampusDate, api, attentionTotal, type AdminCalendarEvent, type AdminHubCounts } from '@noot/core';
 import { Body, Ic, Screen, Skeleton, TabBar, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { interviewLabel } from '../lib/interviewSlots';
@@ -74,7 +74,7 @@ function AdminHomeScreen() {
 
   const knownCounts = counts ?? EMPTY_COUNTS;
   const needsLook = counts ? attentionTotal(counts) : null;
-  const dateSubtitle = today.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  const dateSubtitle = formatCampusDate(today, { weekday: 'long', month: 'long', day: 'numeric' });
 
   const ambassadorWork = (counts?.ambassadorApplications ?? 0) + (counts?.cashouts ?? 0);
 
