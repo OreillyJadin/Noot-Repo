@@ -127,6 +127,7 @@ jobs:
             verify_rate_session_ui
             verify_email_code
             verify_tutor_history_refunds
+            verify_tutor_earned_totals
             verify_student_history_refunds
             verify_filter
             verify_guidelines
