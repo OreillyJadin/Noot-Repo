@@ -9,24 +9,12 @@ import { api } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
+import { formatSessionTime } from '../lib/formatSessionTime';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
 
 type Tab = 'upcoming' | 'past';
-
-/** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const dayDiff = Math.round((startDay - startToday) / 86400000);
-  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  const label =
-    dayDiff === 0 ? 'Today' : dayDiff === 1 ? 'Tomorrow' : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-  return `${label} · ${time}`;
-}
 
 interface SessionRow { id: string; name: string; av: string; course: string; when: string; where: string; pay: string; status: string; booking: Booking; }
 
@@ -55,7 +43,7 @@ export default function TutorSessions() {
         name,
         av: name.charAt(0) || 'S',
         course: b.subject,
-        when: formatWhen(b.scheduledAt),
+        when: formatSessionTime(b.scheduledAt),
         // Plain "Online" — see the note in tutor_calendar.tsx (T14).
         where: b.sessionType === 'video' ? 'Online' : b.location ?? 'In person',
         pay: `$${b.tutorPayoutAmount.toFixed(2)}`,
@@ -186,7 +174,7 @@ export default function TutorSessions() {
                       {r.status === 'pending' ? (
                         <>
                           <Text style={[styles.meta, { color: t.accent, fontWeight: '600' }]}>
-                            New request · respond by {formatWhen(r.booking.acceptBy ?? r.booking.scheduledAt)}
+                            New request · respond by {formatSessionTime(r.booking.acceptBy ?? r.booking.scheduledAt)}
                           </Text>
                           {r.booking.requestNote ? (
                             <Text numberOfLines={3} style={[styles.meta, { color: t.text2, marginTop: 4 }]}>
