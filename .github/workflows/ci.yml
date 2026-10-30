@@ -103,6 +103,7 @@ jobs:
             verify_account_deletion
             verify_apple_pay_sheet
             verify_admin_chat
+            verify_admin_badge_refresh
             verify_ambassador_cashouts
             verify_admin_calendar
             verify_admin_user_search
