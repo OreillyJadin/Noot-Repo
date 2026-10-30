@@ -69,6 +69,33 @@ const tutor: Tutor = {
 
 const notice = (type: string, data: Record<string, unknown> = {}, title = '') => ({ type, data, title });
 
+test('a completion rating notice carries the exact completed booking and tutor into C2', () => {
+  const target = targetFor(notice('booking', { bookingId: 'booking-1', event: 'rate_session' }), {
+    uid: 'student-1', currentRole: 'tutor', booking: booking({ status: 'completed' }), tutor, canRate: true, now,
+  });
+  assert.equal(target.role, 'student');
+  assert.equal(target.route, '/c2');
+  assert.equal(target.draft?.bookingId, 'booking-1');
+  assert.equal(target.draft?.studentId, 'student-1');
+  assert.equal(target.draft?.course, 'MATH 125');
+  assert.equal(target.draft?.status, 'completed');
+  assert.equal(target.draft?.tutor, tutor);
+});
+
+test('stale, rated, unavailable or mismatched rating notices do not reopen C2', () => {
+  const n = notice('booking', { bookingId: 'booking-1', event: 'rate_session' });
+  const ctx = { uid: 'student-1', currentRole: 'student' as const, booking: booking({ status: 'completed' }), tutor, canRate: true, now };
+  for (const override of [
+    { canRate: false }, { canRate: undefined }, { tutor: null }, { booking: null },
+    { booking: booking({ status: 'cancelled' }) }, { booking: booking({ status: 'confirmed' }) },
+    { booking: booking({ id: 'another-booking', status: 'completed' }) },
+    { uid: 'tutor-1' }, { uid: 'outsider' },
+  ]) {
+    assert.notEqual(targetFor(n, { ...ctx, ...override }).route, '/c2', JSON.stringify(override));
+  }
+  assert.notEqual(targetFor(notice('booking', { bookingId: 'booking-1' }), ctx).route, '/c2');
+});
+
 test('a message to the tutor opens their student chat with the student draft', () => {
   const target = targetFor(notice('message', { conversationId: 'conversation-1' }), {
     uid: 'tutor-1',

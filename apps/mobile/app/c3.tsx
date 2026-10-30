@@ -1,6 +1,5 @@
 // C3 · Tutor Rates Student — ported from screens-completion.jsx (C3).
-// Mirrors C2's controls, but the written note is private (tutors + noot team
-// only, never shown to students).
+// Uses the same admin-moderated reviews as C2.
 import React, { useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -121,19 +120,19 @@ export default function C3() {
           </Text>
         </View>
 
-        <Text style={[styles.label, { color: t.text2 }]}>Private notes · optional</Text>
+        <Text style={[styles.label, { color: t.text2 }]}>Add a review · optional</Text>
         <Field
           multiline
           value={review}
           maxLength={REVIEW_MAX}
           onChangeText={(v) => setReview(v.slice(0, REVIEW_MAX))}
-          placeholder="Punctual? Prepared? Anything other tutors should know…"
+          placeholder="How was your session with this student?"
           hint={`${review.length} / ${REVIEW_MAX}`}
         />
         <View style={styles.privacyRow}>
-          <Ic name="lock" size={14} color={t.text3} strokeWidth={1.8} />
+          <Ic name="check" size={14} color={t.text3} strokeWidth={1.8} />
           <Text style={[styles.privacyText, { color: t.text3 }]}>
-            Never shown to students — visible only to other tutors and the noot team.
+            Reviews are checked by the noot team before they can be visible to others. Do not include private information.
           </Text>
         </View>
 
@@ -144,7 +143,7 @@ export default function C3() {
             <View style={[styles.warnBox, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>
               <Ic name="alert" size={17} color={t.accent} strokeWidth={1.9} />
               <Text style={[styles.warnText, { color: t.text2 }]}>
-                We&apos;ll open a dispute and hold the payout while our team reviews what happened.
+                Submitting feedback does not open a dispute or change payment. Contact support if you need help with this session.
               </Text>
             </View>
           ) : null}
@@ -152,7 +151,7 @@ export default function C3() {
       </Body>
       <ActionBar>
         <Button
-          label={happened === 'no' ? 'Submit & report issue' : 'Submit rating'}
+          label="Submit rating"
           kind="primary"
           full
           disabled={!ready || submitting}

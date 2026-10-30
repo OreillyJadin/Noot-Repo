@@ -24,6 +24,7 @@ export function targetFor(
     conversation?: Conversation | null;
     booking?: Booking | null;
     tutor?: Tutor | null;
+    canRate?: boolean;
     now?: number;
   },
 ): NotificationTarget {
@@ -53,6 +54,20 @@ export function targetFor(
 
     const role: Role = booking.tutorId === ctx.uid ? 'tutor' : 'student';
     const isFuture = new Date(booking.scheduledAt).getTime() > (ctx.now ?? Date.now());
+
+    if (
+      n.data.event === 'rate_session' &&
+      n.data.bookingId === booking.id &&
+      booking.studentId === ctx.uid &&
+      booking.status === 'completed' &&
+      ctx.canRate && ctx.tutor
+    ) {
+      return {
+        role: 'student',
+        route: '/c2',
+        draft: { ...draftFromBooking(booking), tutor: ctx.tutor },
+      };
+    }
 
     if (
       n.title === 'Session confirmed' &&
