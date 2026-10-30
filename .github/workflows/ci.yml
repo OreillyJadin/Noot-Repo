@@ -125,6 +125,8 @@ jobs:
             verify_age_gate
             verify_age_required_ui
             verify_rate_session_ui
+            verify_rating_prompt_ui
+            verify_rating_notifications
             verify_email_code
             verify_tutor_history_refunds
             verify_tutor_earned_totals

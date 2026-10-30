@@ -39,6 +39,7 @@ export async function openNotification(
   let conversation: Conversation | null = null;
   let booking: Booking | null = null;
   let tutor: ReturnType<typeof toTutor> | null = null;
+  let canRate = false;
   if (n.type === 'message' && typeof n.data.conversationId === 'string') {
     try {
       conversation = await api.chat.getConversation(n.data.conversationId);
@@ -62,7 +63,7 @@ export async function openNotification(
     if (
       booking &&
       booking.tutorId !== uid &&
-      BOOKING_CHAT_NOTIFICATION_TITLES.has(n.title)
+      (BOOKING_CHAT_NOTIFICATION_TITLES.has(n.title) || n.data.event === 'rate_session')
     ) {
       try {
         const summary = await api.tutors.getById(booking.tutorId);
@@ -71,9 +72,17 @@ export async function openNotification(
         tutor = null;
       }
     }
+    if (booking?.studentId === uid && booking.status === 'completed' && n.data.event === 'rate_session') {
+      try {
+        const rated = await api.reviews.listRatedBookingIds([booking.id]);
+        canRate = !rated.includes(booking.id);
+      } catch {
+        canRate = false;
+      }
+    }
   }
 
-  const target = targetFor(n, { uid, currentRole: ctx.currentRole, conversation, booking, tutor });
+  const target = targetFor(n, { uid, currentRole: ctx.currentRole, conversation, booking, tutor, canRate });
   let replacedHome = false;
   if (target.role !== ctx.currentRole) {
     void api.profile.setActiveRole(target.role).catch(() => {});

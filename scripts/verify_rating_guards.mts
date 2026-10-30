@@ -132,6 +132,7 @@ try {
   const tutorId = tutor.id;
 
   const studentToken = await loginToken(student.email);
+  const tutorToken = await loginToken(tutor.email);
   const outsiderToken = await loginToken(outsider.email);
   const completedId = await createCompletedBooking(studentId, tutorId);
   const pendingId = await createPendingBooking(studentId, tutorId);
@@ -176,6 +177,20 @@ try {
   step('whitespace-padded comment returns 200', padded.status === 200, JSON.stringify(padded.body));
   step('whitespace-padded comment is stored trimmed',
     await storedComment(completedId, studentId) === 'Nice work');
+
+  stage = 'tutor rates student';
+  const tutorRating = await call(tutorToken, { bookingId: completedId, rating: 5, comment: 'Prepared and punctual' });
+  step('tutor can rate the student on a completed booking', tutorRating.status === 200, JSON.stringify(tutorRating.body));
+  const { data: bothReviews, error: bothError } = await admin.from('reviews')
+    .select('reviewer_id, subject_user_id, approval_status')
+    .eq('booking_id', completedId);
+  step('two independent pending reviews target the opposite participants',
+    !bothError && bothReviews?.length === 2 &&
+      bothReviews.some((r) => r.reviewer_id === tutorId && r.subject_user_id === studentId && r.approval_status === 'pending') &&
+      bothReviews.some((r) => r.reviewer_id === studentId && r.subject_user_id === tutorId && r.approval_status === 'pending'),
+    bothError?.message);
+  const earlyTutorRating = await call(tutorToken, { bookingId: pendingId, rating: 5 });
+  step('tutor also cannot rate an incomplete booking', earlyTutorRating.status === 409, JSON.stringify(earlyTutorRating.body));
 
   stage = 'non-party check';
   const nonParty = await call(outsiderToken, { bookingId: completedId, rating: 5 });

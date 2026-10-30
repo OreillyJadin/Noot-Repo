@@ -1,9 +1,9 @@
 // TS Tutor Sessions — ported from screens-home.jsx (TutorSessions). Upcoming/Past
 // segmented list of a tutor's sessions. Tab root (tutor Sessions tab).
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Body, TabBar, Button, Badge, Card, Avatar, Ic, H2, EmptyState, Skeleton, AdaptiveRow, useTheme, TEXT_CAPS } from '@noot/ui';
 import { api } from '@noot/core';
 import type { Booking } from '@noot/core';
@@ -13,6 +13,7 @@ import { formatSessionTime } from '../lib/formatSessionTime';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
+import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
 
 type Tab = 'upcoming' | 'past';
 
@@ -32,6 +33,7 @@ export default function TutorSessions() {
   const [past, setPast] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [ratedLookup, setRatedLookup] = useState<RatedLookup | null>(null);
   useEffect(() => {
     let active = true;
     const toRow = (b: import('@noot/core').Booking, names: Record<string, { firstName: string; lastName: string }>): SessionRow => {
@@ -67,6 +69,19 @@ export default function TutorSessions() {
     return () => { active = false; };
   }, [reloadKey]);
 
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setRatedLookup(null);
+    const bookingIds = past.filter((r) => r.booking.status === 'completed').map((r) => r.id);
+    api.reviews
+      .listRatedBookingIds(bookingIds)
+      .then((ids) => {
+        if (active) setRatedLookup({ checked: new Set(bookingIds), rated: new Set(ids) });
+      })
+      .catch(() => { if (active) setRatedLookup(null); });
+    return () => { active = false; };
+  }, [past, reloadKey]));
+
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef, onReselect: () => setTab('upcoming') });
   // Carry the tapped session into the draft tb2 and the chat read (B2) — it used to open
@@ -74,6 +89,11 @@ export default function TutorSessions() {
   const openDetail = (r: SessionRow) => {
     patchBooking(draftFromBooking(r.booking));
     router.push('/tb2');
+  };
+
+  const rate = (r: SessionRow) => {
+    patchBooking(draftFromBooking(r.booking));
+    router.push('/c3');
   };
 
   const acceptRequest = async (id: string) => {
@@ -109,7 +129,9 @@ export default function TutorSessions() {
     setBusyId(id);
     try {
       await api.bookings.complete(id);
-      setPast((rows) => rows.map((r) => (r.id === id ? { ...r, status: 'completed' } : r)));
+      setPast((rows) => rows.map((r) => (r.id === id
+        ? { ...r, status: 'completed', booking: { ...r.booking, status: 'completed' } }
+        : r)));
       Alert.alert('Session completed', 'Payment released to your Stripe account.');
     } catch (e) {
       Alert.alert('Could not complete', e instanceof Error ? e.message : 'Please try again.');
@@ -265,6 +287,21 @@ export default function TutorSessions() {
                       />
                     </View>
                   )}
+                  {canRateBooking(r.booking, ratedLookup) ? (
+                    <Button
+                      label="Rate student"
+                      kind="secondary"
+                      size="md"
+                      full
+                      disabled={!!busyId}
+                      onPress={() => rate(r)}
+                      style={{ marginTop: 12 }}
+                    />
+                  ) : isRatedBooking(r.booking, ratedLookup) ? (
+                    <View style={{ marginTop: 10, alignSelf: 'flex-start' }}>
+                      <Badge label="Rated" tone="neutral" />
+                    </View>
+                  ) : null}
                 </Card>
               );
             })}
