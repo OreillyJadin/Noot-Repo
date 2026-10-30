@@ -11,34 +11,33 @@ import { Screen, NavTop, Body, Card, Avatar, Divider, Eyebrow, Button, Ic, useTh
 import { api, feeRateFor } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { useApp, type BookingDraft } from '../lib/store';
-import { DAYS, toTutor, type Tutor } from '../lib/data';
+import { toTutor, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
 import { formatSessionTime } from '../lib/formatSessionTime';
 
 
-function sessionFacts(booking: BookingDraft, tutor: Tutor, gradesVerified: boolean) {
-  const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1]!;
+function sessionFacts(booking: BookingDraft, scheduledAt: string, tutor: Tutor, gradesVerified: boolean) {
+  const [day, time] = formatSessionTime(scheduledAt).split(' · ');
   const lengthMin = booking.lengthMin ?? 60;
   const lengthHours = lengthMin / 60;
   const lenLabel = lengthMin === 30 ? '30 min' : `${lengthHours} hr`;
-  const slot = booking.slot ?? '3:00 PM';
-  const location = booking.location ?? 'Gorgas Library, Fl 2';
-  const course = booking.course ?? tutor.courses[0]![0];
-  const courseMatch = tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!;
+  const location = booking.location ?? '';
+  const course = booking.course ?? '';
+  const courseMatch = tutor.courses.find((c) => c[0] === course);
   // A real booking carries its own price and payout (a $0 admin booking, a rate or
   // verification changed since it was booked), so the rate and fee shown are derived from
   // those amounts. The tutor's current course rate is only the preview before one exists.
   const booked = booking.price != null;
-  const previewRate = courseMatch[2];
-  const previewFeeRate = feeRateFor(gradesVerified && !courseMatch[4]);
+  const previewRate = courseMatch?.[2] ?? 0;
+  const previewFeeRate = feeRateFor(gradesVerified && !courseMatch?.[4]);
   const gross = booked ? booking.price! : previewRate * lengthHours;
   const payout = booking.tutorPayoutAmount ?? gross - gross * previewFeeRate;
   const fee = gross - payout;
   const feeRate = booked ? (gross > 0 ? fee / gross : 0) : previewFeeRate;
   const rate = booked ? gross / lengthHours : previewRate;
-  const online = location.startsWith('Online');
-  return { dayObj, lengthHours, lenLabel, slot, location, course, rate, feeRate, gross, fee, payout, online };
+  const online = booking.sessionType === 'video';
+  return { day: day!, time: time!, lengthHours, lenLabel, location, course, rate, feeRate, gross, fee, payout, online };
 }
 
 function FactRow({ ic, label, value }: { ic: IconName; label: string; value: string }) {
@@ -86,9 +85,9 @@ export default function TB2() {
     !!booking.rescheduleProposedBy &&
     booking.rescheduleProposedBy === me?.id;
   const tutor = booking.tutor ?? fetchedTutor;
-  if (!tutor) return <NoSession />;
+  if (!tutor || !booking.scheduledAt) return <NoSession />;
   // Fee follows the course's verification status: 17.5% verified, 32.5% otherwise.
-  const f = sessionFacts(booking, tutor, gradesVerified);
+  const f = sessionFacts(booking, booking.scheduledAt, tutor, gradesVerified);
 
   return (
     <Screen>
@@ -129,39 +128,34 @@ export default function TB2() {
           <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>Session</Eyebrow>
           <View style={{ gap: 12 }}>
             <FactRow ic="cap" label="Course" value={f.course} />
-            <FactRow ic="cal" label="Date" value={f.dayObj.label} />
-            <FactRow ic="clock" label="Time" value={`${f.slot} · ${f.lenLabel}`} />
+            <FactRow ic="cal" label="Date" value={f.day} />
+            <FactRow ic="clock" label="Time" value={`${f.time} · ${f.lenLabel}`} />
             <FactRow
               ic={f.online ? 'video' : 'pin'}
               label={f.online ? 'Virtual' : 'In person'}
-              value={f.online ? 'Integrated video' : f.location}
+              value={f.online ? 'Integrated video' : f.location || 'Location not set'}
             />
           </View>
         </Card>
 
         {/* student's message + focus */}
-        <Card onPress={() => router.push('/chat_tutor')} style={{ marginTop: 12, padding: 16 }}>
-          <View style={styles.msgHead}>
-            <Eyebrow style={{ color: t.text3 }}>From {student.first}</Eyebrow>
-            {booking.tag ? (
-              <View style={[styles.tagPill, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>
-                <Text style={[styles.tagLabel, { color: t.accent }]}>{booking.tag}</Text>
-              </View>
-            ) : null}
-          </View>
-          <View style={styles.msgRow}>
-            <Avatar size={32} label={student.first[0]} />
-            <View style={[styles.bubble, { backgroundColor: t.surfaceAlt }]}>
-              <Text style={{ fontSize: 14, lineHeight: 21, color: t.text }}>
-                {booking.message || `Hey, I'm ${student.first}! Looking forward to working through ${f.course} with you.`}
-              </Text>
+        {booking.requestNote?.trim() ? (
+          <Card onPress={() => router.push('/chat_tutor')} style={{ marginTop: 12, padding: 16 }}>
+            <View style={styles.msgHead}>
+              <Eyebrow style={{ color: t.text3 }}>From {student.first}</Eyebrow>
             </View>
-          </View>
-          <View style={styles.tapRow}>
-            <Ic name="chat" size={14} color={t.accent} strokeWidth={1.9} />
-            <Text style={{ fontSize: 12.5, fontWeight: '600', color: t.accent }}>Tap to open the full conversation</Text>
-          </View>
-        </Card>
+            <View style={styles.msgRow}>
+              <Avatar size={32} label={student.first[0]} />
+              <View style={[styles.bubble, { backgroundColor: t.surfaceAlt }]}>
+                <Text style={{ fontSize: 14, lineHeight: 21, color: t.text }}>{booking.requestNote}</Text>
+              </View>
+            </View>
+            <View style={styles.tapRow}>
+              <Ic name="chat" size={14} color={t.accent} strokeWidth={1.9} />
+              <Text style={{ fontSize: 12.5, fontWeight: '600', color: t.accent }}>Tap to open the full conversation</Text>
+            </View>
+          </Card>
+        ) : null}
 
         {/* earnings preview */}
         <Card style={{ marginTop: 12, padding: 16 }}>
@@ -289,8 +283,6 @@ const styles = StyleSheet.create({
   factLabel: { fontSize: 13, width: 64, flexShrink: 0 },
   factValue: { fontSize: 14, fontWeight: '600', textAlign: 'right', flex: 1 },
   msgHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  tagPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
-  tagLabel: { fontSize: 12, fontWeight: '700' },
   msgRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   bubble: { flex: 1, paddingHorizontal: 13, paddingVertical: 11, borderTopLeftRadius: 4, borderTopRightRadius: 14, borderBottomLeftRadius: 14, borderBottomRightRadius: 14 },
   tapRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10 },
