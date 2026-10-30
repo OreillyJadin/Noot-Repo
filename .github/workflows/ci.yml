@@ -142,6 +142,7 @@ jobs:
             verify_terms_gate
             verify_tutor_busy_times
             verify_tutor_public_fields
+            verify_tutor_avatar
             verify_tutor_rate_bounds
             verify_tutor_status
             verify_tutoring_locations
