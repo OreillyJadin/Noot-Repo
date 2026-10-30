@@ -1,6 +1,16 @@
 import type { Booking } from '@noot/core';
 
-/** A student can rate a session once it's completed, and only until they've rated it. */
-export function canRateBooking(b: Pick<Booking, 'id' | 'status'>, ratedIds: ReadonlySet<string>): boolean {
-  return b.status === 'completed' && !ratedIds.has(b.id);
+/** Result of a successful rated-review lookup: which bookings were checked, and which of those the student has rated. */
+export interface RatedLookup {
+  checked: ReadonlySet<string>;
+  rated: ReadonlySet<string>;
+}
+
+/** Offer "Rate session" only for a completed booking we've confirmed the student hasn't rated yet. */
+export function canRateBooking(b: Pick<Booking, 'id' | 'status'>, lookup: RatedLookup | null): boolean {
+  return b.status === 'completed' && lookup !== null && lookup.checked.has(b.id) && !lookup.rated.has(b.id);
+}
+
+export function isRatedBooking(b: Pick<Booking, 'id' | 'status'>, lookup: RatedLookup | null): boolean {
+  return b.status === 'completed' && lookup !== null && lookup.rated.has(b.id);
 }

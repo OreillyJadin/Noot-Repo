@@ -13,7 +13,7 @@ import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { draftFromBooking } from '../lib/bookingDraft';
-import { canRateBooking } from '../lib/rating';
+import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
 import { VerifiedBadge } from '../lib/VerifiedBadge';
 import { formatSessionTime } from '../lib/formatSessionTime';
 
@@ -59,7 +59,7 @@ export default function Sessions() {
   // Saved: the student's saved-tutors list.
   const [saved, setSaved] = useState<Tutor[]>([]);
   const [past, setPast] = useState<UpcomingItem[]>([]);
-  const [ratedIds, setRatedIds] = useState<Set<string>>(() => new Set());
+  const [ratedLookup, setRatedLookup] = useState<RatedLookup | null>(null);
   const [loading, setLoading] = useState(true);
   const [savedLoading, setSavedLoading] = useState(true);
 
@@ -122,13 +122,16 @@ export default function Sessions() {
 
   useFocusEffect(useCallback(() => {
     let active = true;
+    setRatedLookup(null);
     const bookingIds = past
       .filter(({ booking }) => booking.status === 'completed')
       .map(({ booking }) => booking.id);
     api.reviews
       .listRatedBookingIds(bookingIds)
-      .then((ids) => { if (active) setRatedIds(new Set(ids)); })
-      .catch(() => { /* keep the last successful result */ });
+      .then((ids) => {
+        if (active) setRatedLookup({ checked: new Set(bookingIds), rated: new Set(ids) });
+      })
+      .catch(() => { if (active) setRatedLookup(null); });
     return () => { active = false; };
   }, [past, reloadKey]));
 
@@ -391,7 +394,7 @@ export default function Sessions() {
         ) : (
           <View style={{ gap: 12 }}>
             {past.map(({ booking: b, tutor }) => {
-              const canRate = canRateBooking(b, ratedIds);
+              const canRate = canRateBooking(b, ratedLookup);
               return (
                 <Card key={b.id} style={{ padding: 14 }}>
                   <View style={styles.pastHead}>
@@ -419,7 +422,7 @@ export default function Sessions() {
                             tone="neutral"
                           />
                         ) : null}
-                        {b.status === 'completed' && ratedIds.has(b.id) ? <Badge label="Rated" tone="good" /> : null}
+                        {isRatedBooking(b, ratedLookup) ? <Badge label="Rated" tone="good" /> : null}
                       </View>
                     </View>
                   </View>

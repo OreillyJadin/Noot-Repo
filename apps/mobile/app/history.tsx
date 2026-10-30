@@ -9,7 +9,7 @@ import { api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor } from '../lib/data';
 import { draftFromBooking } from '../lib/bookingDraft';
-import { canRateBooking } from '../lib/rating';
+import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
 
 function whenLabel(iso: string): string {
   return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
@@ -31,7 +31,7 @@ export default function History() {
 
   const [rows, setRows] = useState<Booking[] | null>(null);
   const [names, setNames] = useState<Record<string, { firstName: string; lastName: string }>>({});
-  const [ratedIds, setRatedIds] = useState<Set<string>>(() => new Set());
+  const [ratedLookup, setRatedLookup] = useState<RatedLookup | null>(null);
   const [opening, setOpening] = useState(false);
   useEffect(() => {
     let active = true;
@@ -48,11 +48,14 @@ export default function History() {
   useFocusEffect(useCallback(() => {
     if (isTutor || rows === null) return;
     let active = true;
+    setRatedLookup(null);
     const bookingIds = rows.filter((b) => b.status === 'completed').map((b) => b.id);
     api.reviews
       .listRatedBookingIds(bookingIds)
-      .then((ids) => { if (active) setRatedIds(new Set(ids)); })
-      .catch(() => { /* keep the last successful result */ });
+      .then((ids) => {
+        if (active) setRatedLookup({ checked: new Set(bookingIds), rated: new Set(ids) });
+      })
+      .catch(() => { if (active) setRatedLookup(null); });
     return () => { active = false; };
   }, [isTutor, rows]));
 
@@ -113,9 +116,9 @@ export default function History() {
                     <View style={styles.badges}>
                       <Badge label={b.status === 'no_show' ? 'No-show' : b.status.charAt(0).toUpperCase() + b.status.slice(1)} tone={STATUS_TONE[b.status] ?? 'neutral'} />
                       {refunded ? <Badge label="Refunded" tone="accentSoft" /> : null}
-                      {!isTutor && b.status === 'completed' && ratedIds.has(b.id) ? <Badge label="Rated" tone="good" /> : null}
+                      {!isTutor && isRatedBooking(b, ratedLookup) ? <Badge label="Rated" tone="good" /> : null}
                     </View>
-                    {!isTutor && canRateBooking(b, ratedIds) ? (
+                    {!isTutor && canRateBooking(b, ratedLookup) ? (
                       <Button
                         label="Rate session"
                         kind="tint"
