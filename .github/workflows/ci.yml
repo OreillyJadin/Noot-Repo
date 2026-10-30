@@ -121,6 +121,7 @@ jobs:
             verify_definer_lockdown
             verify_age_gate
             verify_age_required_ui
+            verify_rate_session_ui
             verify_email_code
             verify_filter
             verify_guidelines

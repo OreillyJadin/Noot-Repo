@@ -2668,6 +2668,19 @@ export const api = {
 
   // --- reviews ---
   reviews: {
+    /** Which of these bookings the signed-in user has already rated (own reviews are visible to their author under RLS, pending included). */
+    async listRatedBookingIds(bookingIds: string[]): Promise<string[]> {
+      if (bookingIds.length === 0) return [];
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('reviews')
+        .select('booking_id')
+        .eq('reviewer_id', uid)
+        .in('booking_id', bookingIds);
+      if (error) throw error;
+      return (data ?? []).map((r) => r.booking_id as string);
+    },
+
     /** Approved reviews for a tutor, with reviewer name + course (RLS hides unapproved). */
     async listForTutor(tutorId: string): Promise<ReviewSummary[]> {
       const { data, error } = await getSupabase()
