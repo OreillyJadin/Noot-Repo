@@ -99,8 +99,8 @@ function XRescheduleRequestInner() {
                 </>
               ) : (
                 <>
-                  After <Text style={{ color: t.text, fontWeight: '700' }}>3 reschedules</Text> of the same session, you&apos;re
-                  automatically refunded in full plus a credit for the inconvenience.
+                  There&apos;s no limit on reschedules, and a new time only applies when you both agree. If {otherFirst} cancels,
+                  you&apos;re refunded in full; if you cancel, you get a full refund 12+ hours ahead, 50% at 2–12 hours, and none under 2 hours.
                 </>
               )}
             </Text>
