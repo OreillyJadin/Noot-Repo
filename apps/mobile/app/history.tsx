@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, View, Text, StyleSheet } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Avatar, Badge, Button, EmptyState, Skeleton, useTheme, type BadgeTone } from '@noot/ui';
-import { api, type Booking } from '@noot/core';
+import { api, tutorEarnedAmount, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor } from '../lib/data';
 import { draftFromBooking } from '../lib/bookingDraft';
@@ -97,8 +97,8 @@ export default function History() {
               const otherId = isTutor ? b.studentId : b.tutorId;
               const nm = names[otherId];
               const name = (nm ? `${nm.firstName} ${nm.lastName}`.trim() : '') || (isTutor ? 'Student' : 'Tutor');
-              // The student pays session price plus service fee minus credit; tutor payout is unchanged.
-              const amount = isTutor ? b.tutorPayoutAmount : b.price + b.studentFee - b.creditApplied;
+              // The student pays session price plus service fee minus credit; tutor earnings reflect refunds.
+              const amount = isTutor ? tutorEarnedAmount(b) : b.price + b.studentFee - b.creditApplied;
               const refunded = b.refundStatus === 'refunded';
               return (
                 <Card key={b.id} style={styles.row}>
@@ -107,7 +107,7 @@ export default function History() {
                     <View style={styles.top}>
                       <Text style={[styles.name, { color: t.text }]} numberOfLines={1}>{name}</Text>
                       <Text style={[styles.amount, { color: isTutor && b.status === 'completed' ? t.good : t.text }]}>
-                        {isTutor ? '+' : ''}${Number(amount).toFixed(2)}
+                        {isTutor && amount > 0 ? '+' : ''}${Number(amount).toFixed(2)}
                       </Text>
                     </View>
                     <Text style={[styles.meta, { color: t.text3 }]} numberOfLines={1}>

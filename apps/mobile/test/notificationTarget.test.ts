@@ -32,6 +32,7 @@ function booking(overrides: Partial<Booking> = {}): Booking {
     cancellationDeadline: new Date(now).toISOString(),
     cancelledAt: null,
     refundStatus: 'not_applicable',
+    refundPercent: 0,
     stripePaymentIntentId: null,
     createdAt: new Date(now - 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(now - 24 * 60 * 60 * 1000).toISOString(),
