@@ -102,7 +102,7 @@ export default function C4() {
         </Card>
       </Body>
       <ActionBar>
-        <Button label="Done" kind="secondary" full onPress={() => router.replace('/home')} />
+        <Button label="Done" kind="secondary" full onPress={() => router.replace(isTutor ? '/tutor_home' : '/home')} />
       </ActionBar>
     </Screen>
   );
