@@ -103,10 +103,12 @@ jobs:
             verify_account_deletion
             verify_apple_pay_sheet
             verify_admin_chat
+            verify_admin_badge_refresh
             verify_ambassador_cashouts
             verify_admin_calendar
             verify_admin_user_search
             verify_b2_tutor_chat
+            verify_b3_grade_copy
             verify_backend
             verify_bad_language
             verify_become_ambassador
@@ -132,6 +134,7 @@ jobs:
             verify_moderation
             verify_password_auth
             verify_push_tokens
+            verify_reschedule_copy
             verify_s1_sync
             verify_session_reminders
             verify_sign_out

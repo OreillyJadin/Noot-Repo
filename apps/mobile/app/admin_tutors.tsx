@@ -41,7 +41,8 @@ function AdminTutorsScreen() {
 
   const [pending, setPending] = useState<PendingTutor[]>([]);
   const [loading, setLoading] = useState(true);
-  const counts = useAdminHubCounts();
+  const [refreshKey, setRefreshKey] = useState(0);
+  const counts = useAdminHubCounts(true, refreshKey);
   const [busy, setBusy] = useState<string | null>(null);
   // Per applicant: the interview already set, the times their availability offers, and the
   // meeting link/place the admin is typing. `changing` reopens the times for a set interview.
@@ -99,6 +100,7 @@ function AdminTutorsScreen() {
       else if (action === 'reject') await api.admin.approveTutor(tutor.userId, 'rejected');
       else await api.admin.approveTutor(tutor.userId, 'approved', { verifyGrades: action === 'approveAndVerify' });
       setPending((prev) => prev.filter((p) => p.userId !== tutor.userId));
+      setRefreshKey((key) => key + 1);
     } catch (e) {
       Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
     } finally {
