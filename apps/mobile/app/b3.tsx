@@ -220,7 +220,7 @@ function B3Inner() {
       <NavTop onBack={() => router.back()} title="Book a session" />
       <Body pad={20}>
         <Card flat style={{ ...styles.tutorMini, backgroundColor: t.surfaceAlt }}>
-          <Avatar size={42} />
+          <Avatar size={42} uri={tutor.avatarUrl} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.tutorName, { color: t.text }]}>{tutor.name}</Text>
             <Text style={{ fontSize: 13, color: t.text3 }}>

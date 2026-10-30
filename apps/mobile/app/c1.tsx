@@ -70,7 +70,7 @@ export default function C1() {
         </Card>
 
         <View style={[styles.rateRow, { backgroundColor: t.surfaceAlt }]}>
-          <Avatar size={42} label={isTutor ? student.first[0] : undefined} />
+          <Avatar size={42} label={isTutor ? student.first[0] : undefined} uri={isTutor ? null : tutor.avatarUrl} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 13, color: t.text3 }}>You&apos;re rating</Text>
             <Text style={{ fontSize: 16, fontWeight: '600', color: t.text }}>{rateTarget}</Text>

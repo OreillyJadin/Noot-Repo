@@ -132,7 +132,7 @@ function XRescheduleRequestInner() {
       <NavTop onBack={() => router.back()} title="Reschedule request" />
       <Body pad={20}>
         <View style={styles.headRow}>
-          <Avatar size={48} />
+          <Avatar size={48} uri={role === 'tutor' ? null : booking.tutor?.avatarUrl} />
           <View>
             <H2 style={{ fontSize: 18 }}>{otherFirst} wants to move your session</H2>
             <Text style={{ fontSize: 13, color: t.text3, marginTop: 2 }}>{booking.course ?? ''}</Text>

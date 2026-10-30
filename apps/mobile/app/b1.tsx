@@ -249,7 +249,7 @@ export default function B1() {
           {list.map((tt) => (
             <Card key={tt.id} onPress={() => open(tt)} style={styles.tutorCard}>
               <View style={{ flexDirection: 'row', gap: 12 }}>
-                <Avatar size={56} />
+                <Avatar size={56} uri={tt.avatarUrl} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={styles.rowBetween}>
                     <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>{tt.name}</Text>
