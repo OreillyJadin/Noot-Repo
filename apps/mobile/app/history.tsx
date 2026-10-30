@@ -1,12 +1,15 @@
 // Booking / earnings history — past sessions for the signed-in user via api.listPast().
 // Student view: "Booking & payment history" (what they paid). Tutor view: "Earnings &
 // payment history" (their payout). Role-aware from useApp().
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Card, Avatar, Badge, Ic, EmptyState, Skeleton, useTheme, type BadgeTone } from '@noot/ui';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, View, Text, StyleSheet } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Screen, NavTop, Body, Card, Avatar, Badge, Button, EmptyState, Skeleton, useTheme, type BadgeTone } from '@noot/ui';
 import { api, tutorEarnedAmount, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
+import { toTutor } from '../lib/data';
+import { draftFromBooking } from '../lib/bookingDraft';
+import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
 
 function whenLabel(iso: string): string {
   return new Date(iso).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
@@ -23,11 +26,13 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 export default function History() {
   const t = useTheme();
   const router = useRouter();
-  const { role } = useApp();
+  const { role, patchBooking } = useApp();
   const isTutor = role === 'tutor';
 
   const [rows, setRows] = useState<Booking[] | null>(null);
   const [names, setNames] = useState<Record<string, { firstName: string; lastName: string }>>({});
+  const [ratedLookup, setRatedLookup] = useState<RatedLookup | null>(null);
+  const [opening, setOpening] = useState(false);
   useEffect(() => {
     let active = true;
     Promise.all([
@@ -39,6 +44,38 @@ export default function History() {
       .finally(() => {});
     return () => { active = false; };
   }, [isTutor]);
+
+  useFocusEffect(useCallback(() => {
+    if (isTutor || rows === null) return;
+    let active = true;
+    setRatedLookup(null);
+    const bookingIds = rows.filter((b) => b.status === 'completed').map((b) => b.id);
+    api.reviews
+      .listRatedBookingIds(bookingIds)
+      .then((ids) => {
+        if (active) setRatedLookup({ checked: new Set(bookingIds), rated: new Set(ids) });
+      })
+      .catch(() => { if (active) setRatedLookup(null); });
+    return () => { active = false; };
+  }, [isTutor, rows]));
+
+  const rateSession = async (b: Booking) => {
+    if (opening) return;
+    setOpening(true);
+    try {
+      const summary = await api.tutors.getById(b.tutorId);
+      if (!summary) {
+        Alert.alert('Couldn’t open rating', 'Please try again.');
+        return;
+      }
+      patchBooking({ ...draftFromBooking(b), tutor: toTutor(summary) });
+      router.push('/c2');
+    } catch {
+      Alert.alert('Couldn’t open rating', 'Please try again.');
+    } finally {
+      setOpening(false);
+    }
+  };
 
   const title = isTutor ? 'Earnings & payment history' : 'Booking & payment history';
 
@@ -79,7 +116,18 @@ export default function History() {
                     <View style={styles.badges}>
                       <Badge label={b.status === 'no_show' ? 'No-show' : b.status.charAt(0).toUpperCase() + b.status.slice(1)} tone={STATUS_TONE[b.status] ?? 'neutral'} />
                       {refunded ? <Badge label="Refunded" tone="accentSoft" /> : null}
+                      {!isTutor && isRatedBooking(b, ratedLookup) ? <Badge label="Rated" tone="good" /> : null}
                     </View>
+                    {!isTutor && canRateBooking(b, ratedLookup) ? (
+                      <Button
+                        label="Rate session"
+                        kind="tint"
+                        size="sm"
+                        disabled={opening}
+                        style={{ alignSelf: 'flex-start', marginTop: 8 }}
+                        onPress={() => void rateSession(b)}
+                      />
+                    ) : null}
                   </View>
                 </Card>
               );

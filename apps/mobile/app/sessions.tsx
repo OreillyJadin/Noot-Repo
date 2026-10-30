@@ -1,10 +1,10 @@
 // S5 My Sessions — ported from screens-tabs.jsx (SessionsTab). Upcoming / Past / Saved
 // segmented tabs. Upcoming, Past and Saved all read live via @noot/core
 // because the backend has no past-sessions endpoint (see TODO(api) below).
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Alert, Pressable, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, Chip, Button, AdaptiveRow, Ic, H1, TabBar, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
@@ -12,6 +12,8 @@ import { api } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
+import { draftFromBooking } from '../lib/bookingDraft';
+import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
 import { VerifiedBadge } from '../lib/VerifiedBadge';
 import { formatSessionTime } from '../lib/formatSessionTime';
 
@@ -57,6 +59,7 @@ export default function Sessions() {
   // Saved: the student's saved-tutors list.
   const [saved, setSaved] = useState<Tutor[]>([]);
   const [past, setPast] = useState<UpcomingItem[]>([]);
+  const [ratedLookup, setRatedLookup] = useState<RatedLookup | null>(null);
   const [loading, setLoading] = useState(true);
   const [savedLoading, setSavedLoading] = useState(true);
 
@@ -117,11 +120,30 @@ export default function Sessions() {
     return () => { active = false; };
   }, [reloadKey]);
 
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setRatedLookup(null);
+    const bookingIds = past
+      .filter(({ booking }) => booking.status === 'completed')
+      .map(({ booking }) => booking.id);
+    api.reviews
+      .listRatedBookingIds(bookingIds)
+      .then((ids) => {
+        if (active) setRatedLookup({ checked: new Set(bookingIds), rated: new Set(ids) });
+      })
+      .catch(() => { if (active) setRatedLookup(null); });
+    return () => { active = false; };
+  }, [past, reloadKey]));
+
   // Navigation into the mutation flows below is unchanged (read-only pass); each carries
   // the resolved tutor into the target screen via the local booking store.
   const message = (tutor: Tutor | null) => {
     patchBooking({ tutor: tutor ?? undefined });
     router.push('/chat');
+  };
+  const rate = (tutor: Tutor, b: Booking) => {
+    patchBooking({ ...draftFromBooking(b), tutor });
+    router.push('/c2');
   };
   // Change/completion flows act on a real booking id. Upcoming items carry the full booking;
   // when reached without one (e.g. the dev launcher), the proposer screen keeps its demo state.
@@ -372,35 +394,51 @@ export default function Sessions() {
         ) : (
           <View style={{ gap: 12 }}>
             {past.map(({ booking: b, tutor }) => {
+              const canRate = canRateBooking(b, ratedLookup);
               return (
                 <Card key={b.id} style={{ padding: 14 }}>
                   <View style={styles.pastHead}>
                     <Avatar size={44} uri={tutor?.avatarUrl} />
-                    <View style={{ flex: 1 }}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={[styles.nameSm, { color: t.text }]}>{tutor?.name ?? 'Your tutor'}</Text>
                       <Text style={[styles.sub, { color: t.text3 }]}>
                         {b.subject} · {formatSessionTime(b.scheduledAt)}
                       </Text>
-                      {b.cancelReason ? (
-                        <Badge
-                          label={b.cancelReason === 'tutor_declined' ? 'Declined' : 'Expired, not accepted'}
-                          tone="neutral"
-                        />
-                      ) : b.status === 'cancelled' ? (
-                        <Badge
-                          label={
-                            b.cancelledByRole === 'student'
-                              ? 'You cancelled'
-                              : b.cancelledByRole === 'tutor'
-                                ? 'Tutor cancelled'
-                                : 'Cancelled'
-                          }
-                          tone="neutral"
-                        />
-                      ) : null}
+                      <View style={styles.pastBadges}>
+                        {b.cancelReason ? (
+                          <Badge
+                            label={b.cancelReason === 'tutor_declined' ? 'Declined' : 'Expired, not accepted'}
+                            tone="neutral"
+                          />
+                        ) : b.status === 'cancelled' ? (
+                          <Badge
+                            label={
+                              b.cancelledByRole === 'student'
+                                ? 'You cancelled'
+                                : b.cancelledByRole === 'tutor'
+                                  ? 'Tutor cancelled'
+                                  : 'Cancelled'
+                            }
+                            tone="neutral"
+                          />
+                        ) : null}
+                        {isRatedBooking(b, ratedLookup) ? <Badge label="Rated" tone="good" /> : null}
+                      </View>
                     </View>
-                    <Button label="Message" kind="secondary" size="sm" iconRight="chat" onPress={() => message(tutor)} />
                   </View>
+                  <AdaptiveRow style={styles.btnRow}>
+                    <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
+                    {tutor && canRate ? (
+                      <Button
+                        label="Rate session"
+                        kind="primary"
+                        size="sm"
+                        iconRight="star"
+                        style={{ flex: 1 }}
+                        onPress={() => rate(tutor, b)}
+                      />
+                    ) : null}
+                  </AdaptiveRow>
                 </Card>
               );
             })}
@@ -427,6 +465,7 @@ const styles = StyleSheet.create({
   linkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10, justifyContent: 'center' },
   link: { fontSize: 12, fontWeight: '600' },
   pastHead: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  pastBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   savedRow: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
   rowHead: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, justifyContent: 'space-between', alignItems: 'baseline' },
   name: { fontSize: 16, fontWeight: '600' },
