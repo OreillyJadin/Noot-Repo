@@ -25,6 +25,7 @@ function XRescheduleRequestInner() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { booking, role } = useApp();
+  const isTutor = role === 'tutor';
   const student = useCounterpart(role === 'tutor' ? booking.studentId : undefined);
   const otherFirst = role === 'tutor' ? student.first : booking.tutor?.name.split(' ')[0] ?? 'your tutor';
   const proposedByOther = role === 'tutor' ? booking.studentId : booking.tutorId ?? booking.tutor?.id;
@@ -75,7 +76,15 @@ function XRescheduleRequestInner() {
                   . Payment is unchanged and all reminders are updated.
                 </>
               ) : (
-                <>{otherFirst} will either honor the original time or cancel for a full refund.</>
+                isTutor ? (
+                  <>
+                    Your session with {otherFirst} stays at{' '}
+                    <Text style={{ color: t.text, fontWeight: '700' }}>{currentTime}</Text>.
+                    We&apos;ve let them know you declined the new time.
+                  </>
+                ) : (
+                  <>{otherFirst} will either honor the original time or cancel for a full refund.</>
+                )
               )}
             </Sub>
           </View>
@@ -84,8 +93,16 @@ function XRescheduleRequestInner() {
               <Ic name="alert" size={16} color={t.text3} strokeWidth={1.8} />
             </View>
             <Text style={{ fontSize: 12, color: t.text2, lineHeight: 18, flex: 1 }}>
-              After <Text style={{ color: t.text, fontWeight: '700' }}>3 reschedules</Text> of the same session, you&apos;re
-              automatically refunded in full plus a credit for the inconvenience.
+              {isTutor ? (
+                <>
+                  Can&apos;t make it? Propose another time or cancel from the session. If you cancel, {otherFirst} is refunded in full.
+                </>
+              ) : (
+                <>
+                  After <Text style={{ color: t.text, fontWeight: '700' }}>3 reschedules</Text> of the same session, you&apos;re
+                  automatically refunded in full plus a credit for the inconvenience.
+                </>
+              )}
             </Text>
           </Card>
         </Body>
@@ -115,7 +132,7 @@ function XRescheduleRequestInner() {
       <NavTop onBack={() => router.back()} title="Reschedule request" />
       <Body pad={20}>
         <View style={styles.headRow}>
-          <Avatar size={48} />
+          <Avatar size={48} uri={role === 'tutor' ? null : booking.tutor?.avatarUrl} />
           <View>
             <H2 style={{ fontSize: 18 }}>{otherFirst} wants to move your session</H2>
             <Text style={{ fontSize: 13, color: t.text3, marginTop: 2 }}>{booking.course ?? ''}</Text>

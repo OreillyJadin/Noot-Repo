@@ -67,6 +67,7 @@ function TutorRow({
   rate,
   sessions,
   verified,
+  avatarUrl,
   onPress,
 }: {
   name: string;
@@ -75,13 +76,14 @@ function TutorRow({
   rate: string;
   sessions: number;
   verified: boolean;
+  avatarUrl: string | null;
   onPress: () => void;
 }) {
   const t = useTheme();
   const large = useLargeText();
   return (
     <Card onPress={onPress} style={styles.tutorRow}>
-      {large ? null : <Avatar size={46} />}
+      {large ? null : <Avatar size={46} uri={avatarUrl} />}
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={styles.rowBetween}>
           <Text style={[styles.tutorName, { color: t.text }]}>{name}</Text>
@@ -216,7 +218,7 @@ export default function Home() {
               <Badge label={next.course} tone="ink" />
             </View>
             <AdaptiveRow style={styles.nextTutorRow}>
-              <Avatar size={40} />
+              <Avatar size={40} uri={next.tutor?.avatarUrl} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.nextName, { color: t.onAccent }]}>{next.tutorName}</Text>
                 <Text style={[styles.nextMeta, { color: t.onAccent }]}>
@@ -304,6 +306,7 @@ export default function Home() {
                 rate={`$${tt.rate}`}
                 sessions={tt.sessions}
                 verified={tt.verified}
+                avatarUrl={tt.avatarUrl}
               />
             );
           })}

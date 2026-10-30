@@ -60,7 +60,7 @@ function B2Inner() {
 
       <Body pad={20} contentStyle={{ paddingTop: 0 }}>
         <View style={styles.header}>
-          <Avatar size={92} />
+          <Avatar size={92} uri={tutor.avatarUrl} />
           <H1 style={{ fontSize: 24, marginTop: 14 }}>{tutor.name}</H1>
           <Text style={{ fontSize: 14, color: t.text3, marginTop: 3 }}>
             {tutor.year} · {tutor.major}

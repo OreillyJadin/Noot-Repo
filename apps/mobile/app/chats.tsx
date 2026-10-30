@@ -48,6 +48,7 @@ function fallbackTutor(c: ConversationSummary): Tutor {
     rate: 0,
     verified: false,
     verifiedGrade: '',
+    avatarUrl: null,
     next: 0,
     nextLabel: '',
     bio: '',

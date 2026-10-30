@@ -1,6 +1,7 @@
 // @noot/core — the app's data + auth boundary. UI imports from here; only this
 // package (and supabase/functions) may touch Supabase/Stripe directly.
 export * from './models';
+export { tutorEarnedAmount } from './earnings';
 export {
   STORAGE_LIMITS,
   MAX_ATTACHMENT_BYTES,
