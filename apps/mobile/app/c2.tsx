@@ -115,7 +115,7 @@ function C2Inner() {
       <NavTop title="Rate your session" onBack={() => router.back()} />
       <Body pad={20}>
         <View style={styles.header}>
-          <Avatar size={72} />
+          <Avatar size={72} uri={tutor.avatarUrl} />
           <Text style={[styles.h2, { color: t.text }]}>{tutor.name}</Text>
           <Text style={[styles.headerMeta, { color: t.text3 }]}>{booking.course ? `${booking.course} · ` : ''}{tutor.year}</Text>
         </View>

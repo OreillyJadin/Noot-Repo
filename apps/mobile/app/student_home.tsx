@@ -47,7 +47,7 @@ function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => voi
   return (
     <Card onPress={onPress} style={styles.rowCard}>
       <View style={styles.rowInner}>
-        {large ? null : <Avatar size={46} />}
+        {large ? null : <Avatar size={46} uri={tutor.avatarUrl} />}
         <View style={styles.rowBody}>
           <View style={styles.rowTop}>
             <Text style={[styles.rowName, { color: t.text }]}>{tutor.name}</Text>
@@ -253,7 +253,7 @@ export default function StudentHome() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carousel}>
               {picked.picks.map(({ tutor, course }) => (
                 <Card key={tutor.id} onPress={() => openTutor(tutor, course)} style={styles.miniCard}>
-                  <Avatar size={40} />
+                  <Avatar size={40} uri={tutor.avatarUrl} />
                   <Text style={[styles.miniName, { color: t.text }]}>{tutor.name}</Text>
                   {course ? <Badge label={course} tone="accentSoft" /> : null}
                   {tutor.verified ? (

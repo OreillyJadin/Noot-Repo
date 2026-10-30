@@ -261,7 +261,7 @@ export default function Sessions() {
             {saved.map((tutor) => {
               return (
                 <Card key={tutor.id} onPress={() => openTutor(tutor)} style={styles.savedRow}>
-                  <Avatar size={46} />
+                  <Avatar size={46} uri={tutor.avatarUrl} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <View style={styles.rowHead}>
                       <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
@@ -327,7 +327,7 @@ export default function Sessions() {
                   ) : null}
                   <View style={{ padding: 14 }}>
                     <View style={styles.upcomingHead}>
-                      <Avatar size={46} />
+                      <Avatar size={46} uri={tutor?.avatarUrl} />
                       <View style={{ flex: 1, minWidth: 140 }}>
                         <Text style={[styles.name, { color: t.text }]}>{tutorName}</Text>
                         <Text style={[styles.sub, { color: t.text3 }]}>{b.subject}</Text>
@@ -398,7 +398,7 @@ export default function Sessions() {
               return (
                 <Card key={b.id} style={{ padding: 14 }}>
                   <View style={styles.pastHead}>
-                    <Avatar size={44} />
+                    <Avatar size={44} uri={tutor?.avatarUrl} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={[styles.nameSm, { color: t.text }]}>{tutor?.name ?? 'Your tutor'}</Text>
                       <Text style={[styles.sub, { color: t.text3 }]}>

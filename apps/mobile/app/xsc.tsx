@@ -74,7 +74,7 @@ function SessionStrip({ booking, tutor }: { booking: BookingDraft; tutor: Tutor 
   const sub = `${f.course} · ${tutor.year}`;
   return (
     <Card flat style={{ padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surfaceAlt }}>
-      <Avatar size={42} />
+      <Avatar size={42} uri={tutor.avatarUrl} />
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{name}</Text>
         <Text style={{ fontSize: 13, color: t.text3 }}>{sub}</Text>
