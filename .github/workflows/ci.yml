@@ -106,6 +106,7 @@ jobs:
             verify_admin_badge_refresh
             verify_ambassador_cashouts
             verify_admin_calendar
+            verify_admin_campus_day
             verify_admin_user_search
             verify_b2_tutor_chat
             verify_b3_grade_copy
@@ -118,6 +119,7 @@ jobs:
             verify_browse
             verify_campus_gate
             verify_campus_time
+            verify_cancel_payout_ui
             verify_chat_attachments
             verify_course_catalog
             verify_credits
@@ -130,6 +132,7 @@ jobs:
             verify_rating_notifications
             verify_email_code
             verify_tutor_history_refunds
+            verify_tutor_sessions_past_refunds
             verify_tutor_earned_totals
             verify_student_history_refunds
             verify_filter
