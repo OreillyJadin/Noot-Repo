@@ -26,21 +26,31 @@ for (const payout of [20.25, 0]) {
 }
 console.log('PASS: cancellation uses stored tutor payout: $20.25 / $10.13 / $0, including free bookings');
 
-// Exercise every clock hour around both DST changes and a normal midnight.
+// Exercise quarter-hours and sub-minute clocks around both DST changes and a normal midnight.
 for (const date of ['2026-03-07', '2026-10-31', '2026-07-01']) {
-  for (let hour = 0; hour < 72; hour++) {
-    const now = Date.parse(`${date}T00:37:00Z`) + hour * 3600_000;
-    for (const ahead of [5, 10, 30, 40, 50, 60, 70]) {
+  for (let quarter = 0; quarter < 72 * 4 * 2; quarter++) {
+    const now = Date.parse(`${date}T00:00:00Z`) + Math.floor(quarter / 2) * 900_000 + (quarter % 2 ? 37_123 : 0);
+    for (const ahead of [1, 5, 10, 30, 40, 50, 60, 70, 72, 90, 95, 96]) {
       const at = Date.parse(bookingTime(ahead, now));
       const start = campusParts(at);
       const end = campusParts(at + 3600_000);
       assert.ok(start.minutes + 60 <= 23 * 60 + 59);
       assert.equal(start.day, end.day);
       const hoursUntil = (at - now) / 3600_000;
-      assert.ok(hoursUntil >= ahead && hoursUntil < ahead + 2);
-      if (ahead <= 10) assert.ok(hoursUntil >= 2 && hoursUntil < 12, 'partial refund tier');
-      else assert.ok(hoursUntil >= 12 && hoursUntil < 144, 'early refund inside booking horizon');
+      if (ahead < 2) assert.ok(hoursUntil >= 0.5 && hoursUntil < 2, 'late refund tier');
+      else assert.ok(hoursUntil >= ahead && hoursUntil < ahead + 2);
+      if (ahead >= 2 && ahead <= 10) assert.ok(hoursUntil >= 2 && hoursUntil < 12, 'partial refund tier');
+      if (ahead >= 12) assert.ok(hoursUntil >= 12 && hoursUntil < 144, 'early refund inside booking horizon');
     }
   }
 }
 console.log('PASS: verification booking times stay within campus availability and intended refund tiers across DST');
+
+const source = readFileSync(new URL('./verify_payout_source.mts', import.meta.url), 'utf8');
+assert.match(source, /const at = \(hoursAhead: number\) => bookingTime\(hoursAhead\)/);
+assert.doesNotMatch(source, /slot\+\+|chicagoHour/);
+const guards = readFileSync(new URL('./verify_payout_guards.mts', import.meta.url), 'utf8');
+assert.match(guards, /createBookingTutor\(admin, 'payout-guards'\)/);
+assert.match(guards, /const scheduledAt = bookingTime\(hoursAhead\)/);
+assert.match(guards, /newScheduledAt: bookingTime\(96\)/);
+assert.doesNotMatch(guards, /api\.tutors\.search\(\)/);

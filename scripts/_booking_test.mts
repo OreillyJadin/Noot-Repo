@@ -4,9 +4,17 @@ import { DEV_PASSWORD } from './_devPassword.mjs';
 
 /** A full hour inside one campus day, not a session straddling midnight. */
 export function bookingTime(hoursAhead: number, now = Date.now()): string {
+  const fits = (start: number) => campusParts(start).minutes + 60 <= 23 * 60 + 59 &&
+    campusParts(start).day === campusParts(start + 3600_000).day;
+  if (hoursAhead < 2) {
+    for (const ahead of [hoursAhead, 0.5, 1.5]) {
+      const start = Math.ceil((now + ahead * 3600_000) / 60_000) * 60_000;
+      if (fits(start)) return new Date(start).toISOString();
+    }
+    throw new Error('No same-day booking hour inside the late-cancellation tier');
+  }
   let start = Math.ceil((now + hoursAhead * 3600_000) / 3600_000) * 3600_000;
-  while (campusParts(start).minutes + 60 > 23 * 60 + 59 ||
-    campusParts(start).day !== campusParts(start + 3600_000).day) {
+  while (!fits(start)) {
     start += 3600_000;
   }
   return new Date(start).toISOString();
