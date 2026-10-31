@@ -141,7 +141,7 @@ export async function reverseTutorTransfers(args: {
   }
 
   const shares = reversalShares(
-    stripeSideRefunds(refunds),
+    stripeSideRefunds(refunds).filter((refund) => refund.status === 'succeeded'),
     charge.amount_captured ?? 0,
     transfers.filter((transfer) => transfer.refundBaselineCents === undefined).reduce((sum, transfer) => sum + transfer.amount, 0),
   );

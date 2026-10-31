@@ -25,6 +25,18 @@ export function tutorPayoutFor(gross: number, gradesVerified: boolean): number {
 export const MIN_HOURLY_RATE = 10;
 export const MAX_HOURLY_RATE = 120;
 
+/** Display-only hourly estimate; currently-taking courses never get the verified fee. */
+export function tutorHourlyEstimate(hourlyRate: number, gradesVerified: boolean, currentlyTaking: boolean) {
+  if (!Number.isFinite(hourlyRate) || hourlyRate < MIN_HOURLY_RATE || hourlyRate > MAX_HOURLY_RATE) return null;
+  const verifiedCourse = gradesVerified && !currentlyTaking;
+  const gross = round2(hourlyRate);
+  return {
+    gross,
+    net: tutorPayoutFor(gross, verifiedCourse),
+    feeRate: feeRateFor(verifiedCourse),
+  };
+}
+
 /**
  * Noot credit at checkout — display only, mirrors supabase/functions/_shared/credits.ts.
  * The card is always charged at least MIN_CHARGE_CENTS; the rest can be credit.

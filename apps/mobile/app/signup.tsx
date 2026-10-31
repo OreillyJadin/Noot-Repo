@@ -97,6 +97,7 @@ export default function SignUp() {
       <KeyboardAwareScrollView
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         bottomOffset={24}
       >
         {!sent ? (
