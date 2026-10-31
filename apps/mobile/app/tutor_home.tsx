@@ -18,6 +18,7 @@ import { NotificationBell } from '../lib/NotificationBell';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { formatSessionTime } from '../lib/formatSessionTime';
 import { CountdownPills } from '../lib/CountdownPills';
+import { useSessionClock } from '../lib/useSessionClock';
 
 /** Booking scheduledAt (+ optional location) → "Tomorrow · 3:00 PM · Gorgas Library". */
 function sessionMeta(iso: string, location: string | null): string {
@@ -44,6 +45,7 @@ const ACTIONS: [IconName, string, string][] = [
 ];
 
 export default function TutorHome() {
+  const now = useSessionClock();
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const large = useLargeText();
@@ -73,7 +75,7 @@ export default function TutorHome() {
     api.tutorStats().then((s) => { if (active) setStats(s); }).catch(() => {});
     api.resolveParticipantNames().then((n) => { if (active) setNames(n); }).catch(() => {});
     return () => { active = false; };
-  }, [reloadKey]);
+  }, [reloadKey, now]);
 
   // Countdown to the real session when we have one.
   const target = useMemo(() => (next ? new Date(next.scheduledAt).getTime() : Date.now()), [next]);
@@ -162,7 +164,7 @@ export default function TutorHome() {
           <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
             <GeckoLogo style={styles.geckoDeco} />
             <View style={styles.rowBetween}>
-              <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>YOUR NEXT SESSION</Text>
+              <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>{target <= now && now < target + next.durationMinutes * 60_000 ? 'SESSION IN PROGRESS' : 'YOUR NEXT SESSION'}</Text>
               <Badge label={next.subject} tone="ink" />
             </View>
             <AdaptiveRow style={styles.nextTutorRow}>
@@ -178,7 +180,7 @@ export default function TutorHome() {
                 <Text style={[styles.payoutLabel, { color: t.onAccent }]}>payout</Text>
               </View>
             </AdaptiveRow>
-            <CountdownPills target={target} />
+            <CountdownPills target={target} endsAt={target + next.durationMinutes * 60_000} now={now} />
             <AdaptiveRow style={styles.nextActions}>
               <Pressable onPress={openChat} style={[styles.nextBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
                 <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />

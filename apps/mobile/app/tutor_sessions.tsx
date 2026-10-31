@@ -5,7 +5,7 @@ import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Body, TabBar, Button, Badge, Card, Avatar, Ic, H2, EmptyState, Skeleton, AdaptiveRow, useTheme, TEXT_CAPS } from '@noot/ui';
-import { api, tutorEarnedAmount } from '@noot/core';
+import { api, tutorEarnedAmount, sessionPhase } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
@@ -14,12 +14,14 @@ import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { GeckoLogo } from '../lib/GeckoLogo';
 import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
+import { useSessionClock } from '../lib/useSessionClock';
 
 type Tab = 'upcoming' | 'past';
 
 interface SessionRow { id: string; name: string; av: string; course: string; when: string; where: string; pay: string; status: string; booking: Booking; }
 
 export default function TutorSessions() {
+  const now = useSessionClock();
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
@@ -67,12 +69,13 @@ export default function TutorSessions() {
       .catch(() => { /* no session / offline → empty state */ })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [reloadKey]);
+  }, [reloadKey, now]);
 
+  const completedBookingKey = past.filter((r) => r.booking.status === 'completed').map((r) => r.id).sort().join(',');
   useFocusEffect(useCallback(() => {
     let active = true;
     setRatedLookup(null);
-    const bookingIds = past.filter((r) => r.booking.status === 'completed').map((r) => r.id);
+    const bookingIds = completedBookingKey ? completedBookingKey.split(',') : [];
     api.reviews
       .listRatedBookingIds(bookingIds)
       .then((ids) => {
@@ -80,7 +83,7 @@ export default function TutorSessions() {
       })
       .catch(() => { if (active) setRatedLookup(null); });
     return () => { active = false; };
-  }, [past, reloadKey]));
+  }, [completedBookingKey, reloadKey]));
 
   const scrollRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef, onReselect: () => setTab('upcoming') });
@@ -193,6 +196,7 @@ export default function TutorSessions() {
                       <Text style={[styles.meta, { color: t.text3 }]}>
                         {r.course} · {r.when}
                       </Text>
+                      {sessionPhase(r.booking, now) === 'active' ? <Badge label="Session in progress" tone="good" /> : null}
                       {r.status === 'pending' ? (
                         <>
                           <Text style={[styles.meta, { color: t.accent, fontWeight: '600' }]}>

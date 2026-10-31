@@ -8,7 +8,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Screen, Body, Card, Avatar, Badge, Chip, Button, AdaptiveRow, Ic, H1, TabBar, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
-import { api } from '@noot/core';
+import { api, sessionPhase, canReportNoShow } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -16,6 +16,7 @@ import { draftFromBooking } from '../lib/bookingDraft';
 import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
 import { VerifiedBadge } from '../lib/VerifiedBadge';
 import { formatSessionTime } from '../lib/formatSessionTime';
+import { useSessionClock } from '../lib/useSessionClock';
 
 type SegmentKey = 'upcoming' | 'past' | 'saved';
 
@@ -44,6 +45,7 @@ function TabHeader({ title }: { title: string }) {
 }
 
 export default function Sessions() {
+  const now = useSessionClock();
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
@@ -91,7 +93,7 @@ export default function Sessions() {
       .catch(() => { /* no session / offline → empty state */ })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [reloadKey]);
+  }, [reloadKey, now]);
   useEffect(() => {
     let active = true;
     api.tutors
@@ -118,14 +120,13 @@ export default function Sessions() {
       .catch(() => { /* no session / offline → empty state */ })
       .finally(() => { if (active) setPastLoading(false); });
     return () => { active = false; };
-  }, [reloadKey]);
+  }, [reloadKey, now]);
 
+  const completedBookingKey = past.filter(({ booking }) => booking.status === 'completed').map(({ booking }) => booking.id).sort().join(',');
   useFocusEffect(useCallback(() => {
     let active = true;
     setRatedLookup(null);
-    const bookingIds = past
-      .filter(({ booking }) => booking.status === 'completed')
-      .map(({ booking }) => booking.id);
+    const bookingIds = completedBookingKey ? completedBookingKey.split(',') : [];
     api.reviews
       .listRatedBookingIds(bookingIds)
       .then((ids) => {
@@ -133,7 +134,7 @@ export default function Sessions() {
       })
       .catch(() => { if (active) setRatedLookup(null); });
     return () => { active = false; };
-  }, [past, reloadKey]));
+  }, [completedBookingKey, reloadKey]));
 
   // Navigation into the mutation flows below is unchanged (read-only pass); each carries
   // the resolved tutor into the target screen via the local booking store.
@@ -194,25 +195,9 @@ export default function Sessions() {
       Alert.alert('Something went wrong', 'Could not open cancel. Please try again.');
     }
   };
-  const reportNoShow = (tutor: Tutor | null, bookingId?: string) => {
+  const reportNoShow = (tutor: Tutor | null, b: Booking) => {
     try {
-      if (!bookingId) {
-        patchBooking({ tutor: tutor ?? undefined });
-        router.push('/xns');
-        return;
-      }
-      const realBooking = upcoming.find((item) => item.booking.id === bookingId)?.booking;
-      patchBooking({
-        tutor: tutor ?? undefined,
-        bookingId,
-        scheduledAt: realBooking?.scheduledAt,
-        course: realBooking?.subject,
-        lengthMin: realBooking?.durationMinutes,
-        price: realBooking?.price,
-        studentFee: realBooking?.studentFee,
-        creditApplied: realBooking?.creditApplied,
-        tutorPayoutAmount: realBooking?.tutorPayoutAmount,
-      });
+      patchBooking({ ...draftFromBooking(b), tutor: tutor ?? undefined });
       router.push('/xns');
     } catch (e) {
       Alert.alert('Something went wrong', 'Could not open no-show report. Please try again.');
@@ -316,14 +301,15 @@ export default function Sessions() {
               const hasProposal = !!b.rescheduleProposedAt && !!b.rescheduleProposedBy;
               const fromTutor = hasProposal && b.rescheduleProposedBy === b.tutorId;
               const fromStudent = hasProposal && b.rescheduleProposedBy === b.studentId;
-              // "Starts soon" if the session begins within the next hour.
-              const soon = b.status === 'confirmed' && new Date(b.scheduledAt).getTime() - Date.now() < 3_600_000;
+              const phase = sessionPhase(b, now);
+              const inProgress = phase === 'active';
+              const soon = phase === 'upcoming' && new Date(b.scheduledAt).getTime() - now < 3_600_000;
               return (
                 <Card key={b.id} style={styles.cardNoPad}>
-                  {soon ? (
+                  {soon || inProgress ? (
                     <View style={[styles.soonBanner, { backgroundColor: t.accent }]}>
                       <Ic name="clock" size={13} color={t.onAccent} strokeWidth={2.2} />
-                      <Text style={[styles.soonText, { color: t.onAccent }]}>Starts soon · reminder set</Text>
+                      <Text style={[styles.soonText, { color: t.onAccent }]}>{inProgress ? 'Session in progress' : 'Starts soon · reminder set'}</Text>
                     </View>
                   ) : null}
                   <View style={{ padding: 14 }}>
@@ -368,14 +354,16 @@ export default function Sessions() {
                             kind="tint"
                             size="sm"
                             style={{ flex: 1 }}
-                            disabled={fromStudent}
+                            disabled={fromStudent || inProgress}
                             onPress={() => reschedule(tutor, b)}
                           />
                         </AdaptiveRow>
                         <View style={styles.linkRow}>
-                          <Text onPress={() => cancelSession(tutor, b.id, b.scheduledAt)} style={[styles.link, { color: t.text3 }]}>Cancel session</Text>
-                          <Text style={[styles.link, { color: t.text3 }]}>·</Text>
-                          <Text onPress={() => reportNoShow(tutor, b.id)} style={[styles.link, { color: t.text3 }]}>Report a no-show</Text>
+                          {phase === 'upcoming' ? (
+                            <Text onPress={() => cancelSession(tutor, b.id, b.scheduledAt)} style={[styles.link, { color: t.text3 }]}>Cancel session</Text>
+                          ) : (
+                            <Text style={[styles.link, { color: t.text2 }]}>No-show reports open in Past after the scheduled end.</Text>
+                          )}
                         </View>
                       </>
                     )}
@@ -440,6 +428,10 @@ export default function Sessions() {
                       />
                     ) : null}
                   </AdaptiveRow>
+                  {tutor && canReportNoShow(b, now) ? (
+                    <Button label="Report a no-show" kind="tint" size="sm" full
+                      style={{ marginTop: 10 }} onPress={() => reportNoShow(tutor, b)} />
+                  ) : null}
                 </Card>
               );
             })}
