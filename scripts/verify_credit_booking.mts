@@ -15,6 +15,7 @@ import { initSupabase, api, auth } from '../packages/core/src/index.ts';
 import { createClient } from '@supabase/supabase-js';
 import { createHmac } from 'node:crypto';
 import { authorizeHold, cancelHold, getPaymentIntent, setPaymentIntentMetadata, stripeTestMode } from './_stripe_test.mts';
+import { bookingTime, createBookingTutor } from './_booking_test.mts';
 
 const URL = 'http://127.0.0.1:54321';
 const ANON =
@@ -50,41 +51,39 @@ await svc.from('users').update({
 const signIn = await auth.signInWithPassword(email, PASSWORD);
 if (!signIn.ok) throw new Error(String(signIn.error));
 
-const tutors = await api.tutors.search();
-const tutorId = tutors[0]!.userId;
-await svc.from('tutor_profiles').update({ stripe_charges_enabled: true }).eq('user_id', tutorId);
-const { data: tc } = await svc.from('tutor_courses').select('course_code, hourly_rate').eq('tutor_id', tutorId).limit(1).single();
-const courseCode = tc!.course_code as string;
-const sessionCents = Math.round(Number(tc!.hourly_rate) * 100);
-const expectedFeeCents = Math.round((Math.round(Number(tc!.hourly_rate) * 100) / 100) * 0.17 * 100);
-const expectedTotalCents = sessionCents + expectedFeeCents;
-
-const grant = (cents: number) => svc.from('credit_ledger').insert({ user_id: uid, amount_cents: cents, kind: 'adjustment' });
 const holds: string[] = [];
 const bookings: string[] = [];
-let slot = 0;
-// Distinct times so each test booking is its own slot.
-const at = (hoursAhead: number) => new Date(Date.now() + hoursAhead * 3600e3 + slot++ * 60e3).toISOString();
-
-async function hold(scheduledAt: string) {
-  const pi = await api.createPaymentIntent({ tutorId, courseCode, durationMinutes: 60, scheduledAt });
-  holds.push(pi.paymentIntentId);
-  await authorizeHold(pi.paymentIntentId);
-  return pi;
-}
-async function confirm(paymentIntentId: string, scheduledAt: string) {
-  const r = await api.bookings.confirm({ tutorId, courseCode, scheduledAt, durationMinutes: 60, sessionType: 'in_person', paymentIntentId });
-  bookings.push(r.bookingId);
-  return r.bookingId;
-}
-async function accept(bookingId: string) {
-  const { data: tutor } = await svc.from('users').select('email').eq('id', tutorId).single();
-  await auth.signInWithPassword(tutor!.email as string, PASSWORD);
-  await api.bookings.respond({ bookingId, action: 'accept' });
-  await auth.signInWithPassword(email, PASSWORD);
-}
+let tutorFixture: Awaited<ReturnType<typeof createBookingTutor>> | undefined;
 
 try {
+  tutorFixture = await createBookingTutor(svc, 'credit-tutor');
+  const tutorId = tutorFixture.id;
+  const courseCode = tutorFixture.courseCode;
+  const sessionCents = Math.round(tutorFixture.hourlyRate * 100);
+  const expectedFeeCents = Math.round(tutorFixture.hourlyRate * 0.17 * 100);
+  const expectedTotalCents = sessionCents + expectedFeeCents;
+
+  const grant = (cents: number) => svc.from('credit_ledger').insert({ user_id: uid, amount_cents: cents, kind: 'adjustment' });
+  // Distinct hours so each test booking is its own slot.
+  const at = (hoursAhead: number) => bookingTime(hoursAhead);
+
+  async function hold(scheduledAt: string) {
+    const pi = await api.createPaymentIntent({ tutorId, courseCode, durationMinutes: 60, scheduledAt });
+    holds.push(pi.paymentIntentId);
+    await authorizeHold(pi.paymentIntentId);
+    return pi;
+  }
+  async function confirm(paymentIntentId: string, scheduledAt: string) {
+    const r = await api.bookings.confirm({ tutorId, courseCode, scheduledAt, durationMinutes: 60, sessionType: 'in_person', paymentIntentId });
+    bookings.push(r.bookingId);
+    return r.bookingId;
+  }
+  async function accept(bookingId: string) {
+    await auth.signInWithPassword(tutorFixture!.email, PASSWORD);
+    await api.bookings.respond({ bookingId, action: 'accept' });
+    await auth.signInWithPassword(email, PASSWORD);
+  }
+
   console.log('— credit comes off the hold —');
   await grant(500);
   const t1 = at(30);
@@ -230,8 +229,7 @@ try {
     cancellation_deadline: new Date(Date.now() - 2 * 864e5).toISOString(),
   }).select('id').single();
   const tutorClient = createClient(URL, ANON, { auth: { persistSession: false } });
-  const { data: tutorUser } = await svc.from('users').select('email').eq('id', tutorId).single(); // seeded, DEV_PASSWORD
-  await tutorClient.auth.signInWithPassword({ email: tutorUser!.email as string, password: PASSWORD });
+  await tutorClient.auth.signInWithPassword({ email: tutorFixture.email, password: PASSWORD });
   const { data: { session: ts } } = await tutorClient.auth.getSession();
   const retry = await fetch(`${URL}/functions/v1/complete-session`, {
     method: 'POST', headers: { Authorization: `Bearer ${ts!.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: done2!.id }),
@@ -255,8 +253,20 @@ try {
   await ac.auth.signInWithPassword({ email: ae, password: PASSWORD });
   await svc.from('user_roles').insert({ user_id: a.user!.id, role: 'ambassador' });
   await svc.from('ambassador_approvals').insert({ user_id: a.user!.id });
+  // This RPC only checks cached payout readiness; it does not make a Stripe transfer.
+  const { error: payoutError } = await svc.from('ambassador_profiles').upsert({
+    user_id: a.user!.id, referral_code: `credit-${a.user!.id}`,
+    stripe_connect_account_id: 'acct_verify_credit_booking', stripe_transfers_enabled: true,
+  }, { onConflict: 'user_id' });
+  if (payoutError) throw payoutError;
   await svc.from('credit_ledger').insert({ user_id: a.user!.id, amount_cents: 1000, kind: 'adjustment' });
-  await ac.rpc('request_credit_cashout', { p_cents: 1000 });
+  const { data: cashoutId, error: cashoutError } = await ac.rpc('request_credit_cashout', { p_cents: 1000 });
+  if (cashoutError || !cashoutId) throw cashoutError ?? new Error('Cash-out request returned no id');
+  const { data: cashout, error: cashoutRowError } = await svc.from('credit_cashouts')
+    .select('user_id,amount_cents,status').eq('id', cashoutId).single();
+  if (cashoutRowError) throw cashoutRowError;
+  check('cash-out request creates a pending $10 withdrawal',
+    cashout?.user_id === a.user!.id && cashout.amount_cents === 1000 && cashout.status === 'pending');
   const { data: { session: as } } = await ac.auth.getSession();
   const delRes = await fetch(`${URL}/functions/v1/delete-account`, {
     method: 'POST', headers: { Authorization: `Bearer ${as!.access_token}`, 'Content-Type': 'application/json' }, body: '{}',
@@ -332,10 +342,14 @@ try {
     await svc.auth.admin.deleteUser(x.userId);
   }
 } finally {
-  for (const pi of holds) await cancelHold(pi).catch(() => {});
-  await svc.from('credit_ledger').delete().eq('user_id', uid);
-  for (const b of bookings) await svc.from('bookings').delete().eq('id', b);
-  await svc.auth.admin.deleteUser(uid);
+  try {
+    for (const pi of holds) await cancelHold(pi).catch(() => {});
+    await svc.from('credit_ledger').delete().eq('user_id', uid);
+    for (const b of bookings) await svc.from('bookings').delete().eq('id', b);
+    await svc.auth.admin.deleteUser(uid);
+  } finally {
+    await tutorFixture?.cleanup();
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
