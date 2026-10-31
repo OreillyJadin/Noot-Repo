@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { capturedRefundCents, chargeRefundPercent, refundOwedCents, type RefundReader } from '../functions/_shared/refunds.ts';
+import { capturedRefundCents, chargeRefundedCents, chargeRefundPercent, refundOwedCents, type RefundReader } from '../functions/_shared/refunds.ts';
+
+test('exact returned cents include release and captured refunds, capped at the charge', () => {
+  assert.equal(chargeRefundedCents({ amount: 3510, amount_captured: 3510 }, 1000), 1000);
+  assert.equal(chargeRefundedCents({ amount: 3510, amount_captured: 1755 }, 1000), 2755);
+  assert.equal(chargeRefundedCents({ amount: 3510, amount_captured: 0 }, 0), 3510);
+  assert.equal(chargeRefundedCents({ amount: 3510, amount_captured: 1755 }, 5000), 3510);
+  assert.equal(chargeRefundedCents({}, 0), 0);
+});
 
 test('full-capture refunds use cumulative refunded charge totals', () => {
   for (const [refunded, expected] of [[500, 25], [1000, 50], [2000, 100]]) {

@@ -13,7 +13,7 @@
 import Stripe from 'https://esm.sh/stripe@16?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getPayoutStatus } from '../_shared/connect.ts';
-import { capturedRefundCents, chargeRefundPercent } from '../_shared/refunds.ts';
+import { capturedRefundCents, chargeRefundedCents, chargeRefundPercent } from '../_shared/refunds.ts';
 import { verifyWithAnySecret, webhookSecrets } from '../_shared/webhook.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
@@ -112,6 +112,13 @@ serveWithErrorReporting('payments-webhook', async (req: Request) => {
             .eq('stripe_payment_intent_id', pi)
             .lt('refund_percent', pct);
           if (percentError) throw new RetryableError('booking refund percent update failed');
+          const back = chargeRefundedCents(charge, refundedCents);
+          const { error: centsError } = await db
+            .from('bookings')
+            .update({ refunded_cents: back })
+            .eq('stripe_payment_intent_id', pi)
+            .or(`refunded_cents.is.null,refunded_cents.lt.${back}`);
+          if (centsError) throw new RetryableError('booking refunded cents update failed');
           const bookingId = await bookingFor(db, pi);
           if (bookingId) {
             // Same share of credit as of cash. A cancelled hold that never captured counts as 100%.

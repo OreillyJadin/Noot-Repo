@@ -14,7 +14,7 @@ import {
   assertPayoutReady,
   assertSessionElapsed,
 } from '../_shared/booking.ts';
-import { capturedRefundCents, chargeRefundPercent, refundOwedCents } from '../_shared/refunds.ts';
+import { capturedRefundCents, chargeRefundedCents, chargeRefundPercent, refundOwedCents } from '../_shared/refunds.ts';
 import { updateConfirmedBookingRaiseOnly } from '../_shared/refundWrite.ts';
 
 const cors = {
@@ -96,6 +96,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
     const pi = booking.stripe_payment_intent_id as string | null;
     let transferId: string | null = null;
     let chargeId: string | null = null;
+    let refundedCents: number | null = null;
     if (stripeKey && pi && pi.startsWith('pi_')) {
       const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
       const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
@@ -127,7 +128,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
               payout_failed_at: failedAt,
             };
             const { data: flagged, error: flagError } =
-              await updateConfirmedBookingRaiseOnly(db, bookingId, base, refundPercent);
+              await updateConfirmedBookingRaiseOnly(db, bookingId, base, refundPercent, refundedCents);
             if (flagError) {
               console.error('report-no-show: payout failure status update failed', bookingId, flagError.message);
             }
@@ -151,6 +152,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
 
         if (current.status === 'canceled') {
           refundPercent = 100;
+          refundedCents = current.amount;
         } else if (current.status === 'succeeded') {
           if (await otherOutcomeTransferExists(stripe, bookingId, tutorNoShow ? null : 'student_no_show')) {
             return Response.json({ error: 'This session was already completed or cancelled.' }, { status: 409, headers: cors });
@@ -174,6 +176,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
             }
           }
           refundPercent = Math.max(targetPercent, chargeRefundPercent(charge, refunded + owed));
+          refundedCents = chargeRefundedCents(charge, refunded + owed);
           chargeId = charge.id;
           if (refundPercent < 100 && !tutorNoShow) {
             const { data: prof } = await db
@@ -188,6 +191,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
           }
         } else if (tutorNoShow) {
           await stripe.paymentIntents.cancel(pi, {}, { idempotencyKey: `noshow_cancel_${bookingId}` });
+          refundedCents = current.amount;
         } else {
           const { data: prof } = await db
             .from('tutor_profiles')
@@ -204,6 +208,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
           );
           const charge = typeof capped.latest_charge === 'string' ? null : capped.latest_charge;
           chargeId = typeof capped.latest_charge === 'string' ? capped.latest_charge : (charge?.id ?? null);
+          refundedCents = charge ? chargeRefundedCents(charge, 0) : 0;
           const payoutFailure = await payNoShowTutor(charge, connectId!);
           if (payoutFailure) return payoutFailure;
         }
@@ -228,7 +233,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
       stripe_transfer_id: transferId,
     };
     const { data: noShowRow, error: updateErr } =
-      await updateConfirmedBookingRaiseOnly(db, bookingId, base, refundPercent);
+      await updateConfirmedBookingRaiseOnly(db, bookingId, base, refundPercent, refundedCents);
     if (updateErr) return Response.json({ error: updateErr.message }, { status: 400, headers: cors });
     // Completed or cancelled while we worked: that outcome stands, and no credit comes back.
     if (!noShowRow) {

@@ -63,6 +63,7 @@ async function createBooking(options: {
   paymentIntentId?: string | null;
   refundPercent?: number;
   refundStatus?: 'refunded' | 'not_refunded' | 'not_applicable';
+  refundedCents?: number;
 }, studentId: string, tutorId: string) {
   const scheduledAt = new Date(fixtureBaseTime + options.hoursAhead * 60 * 60 * 1000);
   const row: Record<string, unknown> = {
@@ -84,6 +85,7 @@ async function createBooking(options: {
   };
   if (options.refundPercent !== undefined) row.refund_percent = options.refundPercent;
   if (options.refundStatus !== undefined) row.refund_status = options.refundStatus;
+  if (options.refundedCents !== undefined) row.refunded_cents = options.refundedCents;
   const { data, error } = await admin.from('bookings').insert(row).select('id').single();
   if (error || !data) throw new Error(`Could not create test booking: ${error?.message ?? 'no row returned'}`);
   bookingIds.push(data.id);
@@ -102,7 +104,7 @@ async function cancelBooking(bookingId: string, token: string) {
   });
   const body = await response.json().catch(() => ({}));
   const { data: booking, error } = await admin.from('bookings')
-    .select('status, refund_percent, refund_status, stripe_charge_id')
+    .select('status, refund_percent, refund_status, refunded_cents, stripe_charge_id')
     .eq('id', bookingId)
     .single();
   if (error || !booking) throw new Error(`Could not read cancelled booking: ${error?.message ?? 'no row returned'}`);
@@ -201,10 +203,11 @@ try {
         cancellationResult(result, 100, 'refunded') &&
         result.booking.stripe_charge_id === null &&
         afterCancel.status === 'canceled' &&
-        afterCancel.amount_received === 0;
+        afterCancel.amount_received === 0 &&
+        result.booking.refunded_cents === chargedCents;
       return {
         ok,
-        detail: `PI ${before.status} → ${afterRelease.status} → ${afterCancel.status}, HTTP ${result.response.status}, captured ${afterCancel.amount_received}c, refund=${result.booking.refund_percent}/${result.booking.refund_status}`,
+        detail: `PI ${before.status} → ${afterRelease.status} → ${afterCancel.status}, HTTP ${result.response.status}, captured ${afterCancel.amount_received}c, refund=${result.booking.refund_percent}/${result.booking.refund_status}, refunded_cents=${result.booking.refunded_cents}`,
       };
     });
 
@@ -229,10 +232,11 @@ try {
         chargeAfter.amount_refunded === chargedCents &&
         addedRefunds.length === 1 &&
         addedRefunds[0]?.amount === chargedCents - firstRefund.amount &&
+        result.booking.refunded_cents === chargedCents &&
         rowOk;
       return {
         ok,
-        detail: `PI ${capture.status}, initial refund ${firstRefund.amount}c, final charge refunded ${chargeAfter.amount_refunded}/${chargedCents}c, new refunds ${addedRefunds.map((refund) => refund.amount).join(',')}c, HTTP ${result.response.status}, row ${result.booking.refund_percent}/${result.booking.refund_status}`,
+        detail: `PI ${capture.status}, initial refund ${firstRefund.amount}c, final charge refunded ${chargeAfter.amount_refunded}/${chargedCents}c, new refunds ${addedRefunds.map((refund) => refund.amount).join(',')}c, HTTP ${result.response.status}, row ${result.booking.refund_percent}/${result.booking.refund_status}, refunded_cents=${result.booking.refunded_cents}`,
       };
     });
 
@@ -255,10 +259,11 @@ try {
         refundsAfter.length === refundsBefore.length &&
         chargeAfter.amount_refunded === initialRefund.amount &&
         cancellationResult(result, 60, 'refunded') &&
-        result.booking.stripe_charge_id === chargeId;
+        result.booking.stripe_charge_id === chargeId &&
+        result.booking.refunded_cents === initialRefund.amount;
       return {
         ok,
-        detail: `PI ${capture.status}, initial/final refund ${initialRefund.amount}/${chargeAfter.amount_refunded}c, new refunds ${refundsAfter.length - refundsBefore.length}, HTTP ${result.response.status}, row ${result.booking.refund_percent}/${result.booking.refund_status}`,
+        detail: `PI ${capture.status}, initial/final refund ${initialRefund.amount}/${chargeAfter.amount_refunded}c, new refunds ${refundsAfter.length - refundsBefore.length}, HTTP ${result.response.status}, row ${result.booking.refund_percent}/${result.booking.refund_status}, refunded_cents=${result.booking.refunded_cents}`,
       };
     });
 
@@ -274,10 +279,26 @@ try {
         after.status === 'succeeded' &&
         after.amount_received === expectedCapture &&
         cancellationResult(result, 50, 'refunded') &&
-        Boolean(result.booking.stripe_charge_id);
+        Boolean(result.booking.stripe_charge_id) &&
+        result.booking.refunded_cents === chargedCents - expectedCapture;
       return {
         ok,
-        detail: `PI ${before.status} → ${after.status}, captured ${after.amount_received}/${expectedCapture}c, HTTP ${result.response.status}, row ${result.booking.refund_percent}/${result.booking.refund_status}`,
+        detail: `PI ${before.status} → ${after.status}, captured ${after.amount_received}/${expectedCapture}c, HTTP ${result.response.status}, row ${result.booking.refund_percent}/${result.booking.refund_status}, refunded_cents=${result.booking.refunded_cents}`,
+      };
+    });
+
+    await record('tier-50 cancellation never lowers a larger recorded refunded_cents', async () => {
+      const intent = await createManualCaptureIntent(chargedCents);
+      paymentIntentIds.push(intent.id);
+      const bookingId = await createBooking(
+        { hoursAhead: 8.5, paymentIntentId: intent.id, refundedCents: chargedCents },
+        student.id,
+        tutor.id,
+      );
+      const result = await cancelBooking(bookingId, student.token);
+      return {
+        ok: cancellationResult(result, 50, 'refunded') && result.booking.refunded_cents === chargedCents,
+        detail: `HTTP ${result.response.status}, refunded_cents ${chargedCents} → ${result.booking.refunded_cents}`,
       };
     });
   }

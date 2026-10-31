@@ -12,8 +12,8 @@ import { assertPayoutReady } from '../_shared/booking.ts';
 import { lateCancelTutorPayoutCents, studentCancelRefundPercent } from '../_shared/cancellation.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 import { otherOutcomeTransferExists, payTutor } from '../_shared/payouts.ts';
-import { capturedRefundCents, chargeRefundPercent, refundOwedCents } from '../_shared/refunds.ts';
-import { updateConfirmedBookingRaiseOnly } from '../_shared/refundWrite.ts';
+import { capturedRefundCents, chargeRefundedCents, chargeRefundPercent, refundOwedCents } from '../_shared/refunds.ts';
+import { raiseRefundedCents, updateConfirmedBookingRaiseOnly } from '../_shared/refundWrite.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -75,6 +75,10 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     }
 
     const now = new Date();
+    const chargedCents = Math.round(Number(booking.price) * 100) +
+      Math.round(Number(booking.student_fee) * 100) -
+      Math.round(Number(booking.credit_applied ?? 0) * 100);
+    const hasCardAmount = chargedCents > 0 && (booking.stripe_payment_intent_id as string | null)?.startsWith('pi_');
     if (booking.status === 'pending') {
       const paymentIntentId = booking.stripe_payment_intent_id as string | null;
       const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
@@ -100,6 +104,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
       if (!cancelled) {
         return Response.json({ error: 'This request is no longer pending' }, { status: 409, headers: cors });
       }
+      if (hasCardAmount) await raiseRefundedCents(db, bookingId, chargedCents);
 
       const { error: creditError } = await db.rpc('return_booking_credit', {
         p_booking: bookingId,
@@ -188,6 +193,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     let chargeId: string | null = null;
     let transferId: string | null = null;
     let payoutFailedAt: string | null = null;
+    let refundedCents: number | null = null;
     if (stripeKey && pi && pi.startsWith('pi_')) {
       const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
       const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
@@ -258,6 +264,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
             );
           }
           refundPercent = Math.max(refundPercent, chargeRefundPercent(charge, refundedAfter));
+          refundedCents = chargeRefundedCents(charge, refundedAfter);
           chargeId = charge.id;
           if (refundPercent < 100) await payLateCancelTutor(charge);
         } else {
@@ -265,10 +272,6 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
             await stripe.paymentIntents.cancel(pi, {}, { idempotencyKey: `cancel_${bookingId}` });
           } else {
             // The card was held for session price plus service fee, minus any Noot credit.
-            const chargedCents =
-              Math.round(Number(booking.price) * 100) +
-              Math.round(Number(booking.student_fee) * 100) -
-              Math.round(Number(booking.credit_applied ?? 0) * 100);
             const captureCents = Math.round((chargedCents * (100 - refundPercent)) / 100);
             const capturedPi = await stripe.paymentIntents.capture(
               pi,
@@ -289,6 +292,9 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
       }
     }
 
+    if (refundedCents === null && hasCardAmount) {
+      refundedCents = chargedCents - Math.round((chargedCents * (100 - refundPercent)) / 100);
+    }
     const base = {
       status: 'cancelled',
       cancelled_by_role: isStudent ? 'student' : 'tutor',
@@ -299,7 +305,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
       ...(payoutFailedAt ? { payout_failed_at: payoutFailedAt } : {}),
     };
     const { data: updated, error: updateError } =
-      await updateConfirmedBookingRaiseOnly(db, bookingId, base, refundPercent);
+      await updateConfirmedBookingRaiseOnly(db, bookingId, base, refundPercent, refundedCents);
 
     if (updateError) {
       return Response.json({ error: updateError.message }, { status: 400, headers: cors });
