@@ -9,6 +9,7 @@
 //     review, award bonus) are NOT here — they're Edge Functions (service role). See §5.
 import { MIN_HOURLY_RATE } from '../pricing';
 import { tutorEarnedAmount } from '../earnings';
+import { SESSION_LOOKBACK_MS, isUpcomingSession, isPastSession } from '../sessionTiming';
 import { getSupabase } from '../supabase';
 import { notifyUserChanged } from '../changes';
 import { normalizeCourseQuery, rankCourseMatches } from '../courseSearch';
@@ -1342,25 +1343,25 @@ export const api = {
 
   // --- bookings ---
   /**
-   * Pending requests and confirmed future sessions for the signed-in user. With no
+   * Pending requests and confirmed future/in-progress sessions for the signed-in user. With no
    * `side`, bookings where the user is student OR tutor both count (e.g. the shared
    * calendar). Pass `'student'` or `'tutor'` to scope to that role only, so a
    * dual-role user's other-side bookings don't leak into role-scoped screens.
    */
   async listUpcoming(side?: 'student' | 'tutor'): Promise<Booking[]> {
     const uid = await requireUid();
-    const nowIso = new Date().toISOString();
+    const now = Date.now();
     let query = getSupabase()
       .from('bookings')
       .select('*')
       .in('status', ['pending', 'confirmed'])
-      .gte('scheduled_at', nowIso);
+      .gte('scheduled_at', new Date(now - SESSION_LOOKBACK_MS).toISOString());
     query = side
       ? query.eq(side === 'student' ? 'student_id' : 'tutor_id', uid)
       : query.or(`student_id.eq.${uid},tutor_id.eq.${uid}`);
     const { data, error } = await query.order('scheduled_at', { ascending: true });
     if (error) throw error;
-    return (data ?? []).map(mapBooking);
+    return (data ?? []).map(mapBooking).filter((booking) => isUpcomingSession(booking, now));
   },
 
   /**
@@ -1381,9 +1382,7 @@ export const api = {
       : query.or(`student_id.eq.${uid},tutor_id.eq.${uid}`);
     const { data, error } = await query.order('scheduled_at', { ascending: false });
     if (error) throw error;
-    return (data ?? [])
-      .filter((row) => row.status === 'cancelled' || new Date(row.scheduled_at).getTime() < nowMs)
-      .map(mapBooking);
+    return (data ?? []).map(mapBooking).filter((booking) => isPastSession(booking, nowMs));
   },
 
   /**
