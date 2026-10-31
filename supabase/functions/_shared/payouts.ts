@@ -9,16 +9,36 @@
 // transfer from the platform balance. Each half keeps a stable idempotency key so a
 // retry resumes rather than paying twice.
 import type Stripe from 'https://esm.sh/stripe@16?target=deno';
+import { capturedRefundCents } from './refunds.ts';
+
+interface TransferRecord {
+  metadata?: Record<string, string> | null;
+}
+
+export interface TransferReader {
+  transfers: {
+    list(params: { transfer_group: string; limit: number }): AsyncIterable<TransferRecord>;
+  };
+}
 
 export type ChargeFunds = Pick<Stripe.Charge, 'amount' | 'amount_captured' | 'amount_refunded'>;
 
+/** Whether a different outcome has already paid the tutor for this booking. */
+export async function otherOutcomeTransferExists(
+  stripe: TransferReader,
+  bookingId: string,
+  ownReason: string | null,
+): Promise<boolean> {
+  for await (const transfer of stripe.transfers.list({ transfer_group: bookingId, limit: 100 })) {
+    if (ownReason === null || transfer.metadata?.reason !== ownReason) return true;
+  }
+  return false;
+}
+
 /** Cents of a captured charge still available to back a source_transaction transfer. */
-export function chargeAvailableCents(charge: ChargeFunds | null): number {
+export function chargeAvailableCents(charge: ChargeFunds | null, capturedRefundedCents: number): number {
   if (!charge) return 0;
-  // A partial capture (late cancel) leaves `amount` at the authorized total and books
-  // nothing as refunded — only `amount_captured` was ever collected. Refunds issued since
-  // (payments-webhook) come off that. `amount` itself is never the right bound.
-  return Math.max(0, Number(charge.amount_captured ?? 0) - Number(charge.amount_refunded ?? 0));
+  return Math.max(0, Number(charge.amount_captured ?? 0) - Math.max(0, capturedRefundedCents));
 }
 
 export type PayoutSplit = { fromCharge: number; fromBalance: number };
@@ -60,11 +80,12 @@ export type PayoutArgs = {
  */
 export async function payTutor(args: PayoutArgs): Promise<PayoutResult> {
   const { stripe, bookingId, destination, payoutCents, charge, idempotencyKey, metadata } = args;
-  const { fromCharge, fromBalance } = splitPayoutFunding(payoutCents, chargeAvailableCents(charge));
   const base = { currency: 'usd', destination, transfer_group: bookingId } as const;
   let transferId: string | null = null;
-  let owed = fromCharge + fromBalance;
+  let owed = Math.max(0, Math.round(payoutCents));
   try {
+    const refunded = charge ? await capturedRefundCents(stripe, charge) : 0;
+    const { fromCharge, fromBalance } = splitPayoutFunding(payoutCents, chargeAvailableCents(charge, refunded));
     if (fromCharge > 0) {
       const t = await stripe.transfers.create(
         {
