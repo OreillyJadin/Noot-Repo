@@ -1,6 +1,7 @@
 // @noot/core — the app's data + auth boundary. UI imports from here; only this
 // package (and supabase/functions) may touch Supabase/Stripe directly.
 export * from './models';
+export { sessionPhase, isUpcomingSession, isPastSession, canReportNoShow } from './sessionTiming';
 export { tutorEarnedAmount, studentPaidAmount, type StudentPayment } from './earnings';
 export * from './campusTime';
 export {
@@ -29,6 +30,7 @@ export {
   studentFeeFor,
   feeRateFor,
   tutorPayoutFor,
+  tutorHourlyEstimate,
   creditToApply,
   MIN_CHARGE_CENTS,
   MIN_HOURLY_RATE,

@@ -19,6 +19,7 @@ import { NotificationBell } from '../lib/NotificationBell';
 import { VerifiedBadge, VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 import { nudgeCourse } from '../lib/browse';
 import { CountdownPills } from '../lib/CountdownPills';
+import { useSessionClock } from '../lib/useSessionClock';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
 function formatWhen(iso: string): string {
@@ -96,6 +97,7 @@ function TutorRow({
 }
 
 export default function Home() {
+  const now = useSessionClock();
   const large = useLargeText();
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
@@ -105,7 +107,7 @@ export default function Home() {
   const multiRole = (me?.roles ?? []).filter((r) => r === 'student' || r === 'tutor' || r === 'ambassador').length > 1;
 
   // Next session: the soonest real upcoming booking, or null → a "find a tutor" CTA.
-  const [next, setNext] = useState<{ course: string; when: string; where: string; tutorName: string; tutor: Tutor | null; at: number } | null>(null);
+  const [next, setNext] = useState<{ course: string; when: string; where: string; tutorName: string; tutor: Tutor | null; at: number; endsAt: number } | null>(null);
   const [nextLoading, setNextLoading] = useState(true);
   useEffect(() => {
     let active = true;
@@ -124,12 +126,13 @@ export default function Home() {
           tutorName: tutor?.name ?? 'Your tutor',
           tutor,
           at: new Date(b.scheduledAt).getTime(),
+          endsAt: new Date(b.scheduledAt).getTime() + b.durationMinutes * 60_000,
         });
       })
       .catch(() => { if (active) setNext(null); })
       .finally(() => { if (active) setNextLoading(false); });
     return () => { active = false; };
-  }, [reloadKey]);
+  }, [reloadKey, now]);
 
   // "Pick up where you left off" — real tutors from search (student's courses drive it).
   const [tutors, setTutors] = useState<Tutor[]>([]);
@@ -206,7 +209,7 @@ export default function Home() {
           <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
             <GeckoLogo style={styles.geckoDeco} />
             <View style={styles.rowBetween}>
-              <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>YOUR NEXT SESSION</Text>
+              <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>{next.at <= now && now < next.endsAt ? 'SESSION IN PROGRESS' : 'YOUR NEXT SESSION'}</Text>
               <Badge label={next.course} tone="ink" />
             </View>
             <AdaptiveRow style={styles.nextTutorRow}>
@@ -218,7 +221,7 @@ export default function Home() {
                 </Text>
               </View>
             </AdaptiveRow>
-            <CountdownPills target={next.at} />
+            <CountdownPills target={next.at} endsAt={next.endsAt} now={now} />
             <AdaptiveRow style={styles.nextActions}>
               <Pressable onPress={openChat} style={[styles.nextBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
                 <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />
