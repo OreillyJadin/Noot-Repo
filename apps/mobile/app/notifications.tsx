@@ -4,7 +4,7 @@
 // Above the feed sits the phone's own notification permission (ERR-031): asked for here,
 // with the reason in view, rather than by a cold system prompt at launch.
 import React, { useEffect, useState } from 'react';
-import { View, Text, AppState, StyleSheet, Switch, Alert } from 'react-native';
+import { View, Text, AppState, StyleSheet, Switch, Alert, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Button, Card, Chip, Ic, EmptyState, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api, REMINDER_CHOICES, type Notification } from '@noot/core';
@@ -96,6 +96,7 @@ export default function Notifications() {
   const [reminderSettings, setReminderSettings] = useState<{ minutesBefore: number[]; morningOf: boolean } | null>(null);
   const [savingReminders, setSavingReminders] = useState(false);
   const [tooManyReminders, setTooManyReminders] = useState(false);
+  const [clearing, setClearing] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -157,6 +158,39 @@ export default function Notifications() {
       { fromPush: false },
     );
 
+  const clear = async (id: string) => {
+    if (clearing) return;
+    setClearing(id);
+    try {
+      await api.notifications.clear(id);
+      setItems((current) => current?.filter((n) => n.id !== id) ?? null);
+    } catch (e) {
+      Alert.alert("Couldn't clear notification", errText(e, 'Please try again.'));
+    } finally {
+      setClearing(null);
+    }
+  };
+
+  const clearAll = () => Alert.alert(
+    'Clear all notifications?',
+    'This clears your inbox, including older notifications. Your messages and sessions are not deleted.',
+    [
+      { text: 'Keep notifications', style: 'cancel' },
+      { text: 'Clear all', style: 'destructive', onPress: async () => {
+        const through = new Date().toISOString();
+        setClearing('all');
+        try {
+          await api.notifications.clearAll(through);
+          setItems((current) => current?.filter((n) => new Date(n.createdAt) > new Date(through)) ?? null);
+        } catch (e) {
+          Alert.alert("Couldn't clear notifications", errText(e, 'Please try again.'));
+        } finally {
+          setClearing(null);
+        }
+      } },
+    ],
+  );
+
   return (
     <Screen>
       <NavTop title="Notifications" onBack={() => router.back()} />
@@ -210,10 +244,12 @@ export default function Notifications() {
           <EmptyState icon="bell" title="No notifications yet" subtitle="Messages and new bookings will show up here." />
         ) : (
           <View style={{ gap: 10 }}>
+            <Button label={clearing === 'all' ? 'Clearing…' : 'Clear all'} size="sm" disabled={clearing !== null} onPress={clearAll} />
             {items.map((n) => {
               const unread = !n.readAt;
               return (
-                <Card key={n.id} onPress={() => open(n)} style={styles.row}>
+                <Card key={n.id} style={styles.row}>
+                  <Pressable onPress={() => open(n)} accessibilityRole="button" style={styles.openRow}>
                   <View style={[styles.iconBox, { backgroundColor: unread ? t.accentWeak : t.surface2 }]}>
                     <Ic name={ICON[n.type]} size={18} color={unread ? t.accent : t.text3} strokeWidth={1.8} />
                   </View>
@@ -231,6 +267,17 @@ export default function Notifications() {
                     ) : null}
                     <Text style={[styles.time, { color: t.text3 }]}>{timeAgo(n.createdAt)}</Text>
                   </View>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void clear(n.id)}
+                    disabled={clearing !== null}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Clear notification: ${n.title}`}
+                    accessibilityState={{ disabled: clearing !== null }}
+                    style={styles.clearButton}
+                  >
+                    <Ic name="x" size={18} color={t.text3} />
+                  </Pressable>
                 </Card>
               );
             })}
@@ -243,6 +290,8 @@ export default function Notifications() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  openRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  clearButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   reminderCard: { gap: 12, marginBottom: 12 },
   reminderTitle: { fontSize: 16, fontWeight: '700' },
   reminderSub: { fontSize: 13, lineHeight: 18 },

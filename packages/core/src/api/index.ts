@@ -2817,6 +2817,28 @@ export const api = {
       if (error) throw error;
     },
 
+    /** Remove one notification from the signed-in user's inbox. */
+    async clear(id: string): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('notifications')
+        .delete()
+        .eq('user_id', uid)
+        .eq('id', id);
+      if (error) throw error;
+    },
+
+    /** Clear the entire inbox, including older pages, but preserve later arrivals. */
+    async clearAll(through = new Date().toISOString()): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('notifications')
+        .delete()
+        .eq('user_id', uid)
+        .lte('created_at', through);
+      if (error) throw error;
+    },
+
     /** Mark unread notifications sharing these route hints as read (e.g. a tapped push). */
     async markReadFor(type: NotificationType, data: Record<string, unknown>): Promise<void> {
       const uid = await requireUid();
