@@ -136,12 +136,8 @@ export async function reverseTutorTransfers(args: {
     });
   }
 
-  const shares = args.dispute ? reversalShares(
-    [{ id: args.dispute.id, amount: args.dispute.amount, created: 0, status: 'succeeded' }],
-    charge.amount_captured ?? 0,
-    transfers.reduce((sum, transfer) => sum + transfer.amount, 0),
-  ) : reversalShares(
-    stripeSideRefunds(refunds),
+  const shares = reversalShares(
+    stripeSideRefunds(refunds).filter((refund) => refund.status === 'succeeded'),
     charge.amount_captured ?? 0,
     transfers.reduce((sum, transfer) => sum + transfer.amount, 0),
   );

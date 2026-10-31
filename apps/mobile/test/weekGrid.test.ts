@@ -1,7 +1,16 @@
 // Run: pnpm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { emptyGrid, totalHours, windowsFromGrid, gridFromWindows, type Day } from '../lib/weekGrid.ts';
+import { emptyGrid, totalHours, windowsFromGrid, gridFromWindows, availabilityHourLabel, type Day } from '../lib/weekGrid.ts';
+
+test('availability labels distinguish start hours from the end of evening and late slots', () => {
+  assert.equal(availabilityHourLabel(17), '5 PM');
+  assert.equal(availabilityHourLabel(21), '9 PM');
+  assert.equal(availabilityHourLabel(22), '10 PM');
+  assert.equal(availabilityHourLabel(23), '11 PM');
+  assert.equal(availabilityHourLabel(12), '12 PM');
+  assert.equal(availabilityHourLabel(24), '12 AM');
+});
 
 const paint = (cells: [day: Day, hour: number][]) => {
   const g = emptyGrid();

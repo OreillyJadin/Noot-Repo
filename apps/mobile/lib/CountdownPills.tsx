@@ -3,23 +3,27 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from '@noot/ui';
 import { countdownParts } from './countdown';
 
-function useCountdown(target: number) {
+function useCountdownClock(externalNow?: number) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
+    if (externalNow != null) return;
     const id = setInterval(() => setNow(Date.now()), 15000);
     return () => clearInterval(id);
-  }, []);
-  return countdownParts(target, now);
+  }, [externalNow]);
+  return externalNow ?? now;
 }
 
-export function CountdownPills({ target }: { target: number }) {
+export function CountdownPills({ target, endsAt, now: externalNow }: { target: number; endsAt?: number; now?: number }) {
   const t = useTheme();
-  const { d, h, m, started } = useCountdown(target);
+  const now = useCountdownClock(externalNow);
+  const { d, h, m, started } = countdownParts(target, now);
   if (started) {
     return (
       <View style={styles.pillsRow}>
         <View style={styles.pill}>
-          <Text style={[styles.pillValue, { color: t.onAccent }]}>Starting now</Text>
+          <Text style={[styles.pillValue, { color: t.onAccent }]}>
+            {endsAt == null ? 'Starting now' : now < endsAt ? `${Math.ceil((endsAt - now) / 60_000)} min remaining` : 'Scheduled time ended'}
+          </Text>
         </View>
       </View>
     );
