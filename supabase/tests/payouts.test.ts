@@ -24,7 +24,7 @@ test('charge funding excludes released authorization but includes captured refun
 
 test('late-cancel payout uses its partially captured charge, not the platform balance', async () => {
   const calls: unknown[] = [];
-  const stripe = { refunds: { async *list() {
+  const stripe = { disputes: { async *list() {} }, refunds: { async *list() {
     yield { amount: 1755, status: 'succeeded', balance_transaction: { reporting_category: 'partial_capture_reversal' } };
   } }, transfers: { create: async (params: unknown) => {
     calls.push(params);
@@ -45,7 +45,7 @@ test('late-cancel payout uses its partially captured charge, not the platform ba
 test('partial-capture payouts subtract actual refunds with or without a released-hold record', async () => {
   for (const includeRelease of [false, true]) {
     const calls: { amount: number; source_transaction?: string }[] = [];
-    const stripe = { refunds: { async *list() {
+    const stripe = { disputes: { async *list() {} }, refunds: { async *list() {
       if (includeRelease) yield { amount: 1755, status: 'succeeded', balance_transaction: { reporting_category: 'partial_capture_reversal' } };
       yield { amount: 1000, status: 'succeeded', balance_transaction: { reporting_category: 'refund' } };
     } }, transfers: { create: async (params: { amount: number; source_transaction?: string }) => {
@@ -61,7 +61,7 @@ test('partial-capture payouts subtract actual refunds with or without a released
 });
 
 test('refund lookup failure records the full payout shortfall without transferring', async () => {
-  const stripe = { refunds: { list() { throw new Error('Stripe unavailable'); } },
+  const stripe = { disputes: { async *list() {} }, refunds: { list() { throw new Error('Stripe unavailable'); } },
     transfers: { create() { assert.fail('must not transfer without classified refunds'); } },
   } as unknown as Parameters<typeof payTutor>[0]['stripe'];
   const result = await payTutor({ stripe, bookingId: 'booking', destination: 'acct_test', payoutCents: 1013,

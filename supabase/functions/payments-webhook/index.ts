@@ -18,6 +18,7 @@ import { capturedRefundCents, chargeRefundedCents, chargeRefundPercent } from '.
 import { verifyWithAnySecret, webhookSecrets } from '../_shared/webhook.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 import { settleTutorReversals } from '../_shared/reversals.ts';
+import { reconcileDispute } from '../_shared/disputes.ts';
 
 type Db = ReturnType<typeof createClient>;
 
@@ -134,15 +135,13 @@ serveWithErrorReporting('payments-webhook', async (req: Request) => {
       }
       case 'charge.dispute.created':
       case 'charge.dispute.closed': {
-        const dispute = event.data.object as Stripe.Dispute;
-        const pi = typeof dispute.payment_intent === 'string' ? dispute.payment_intent : dispute.payment_intent?.id;
-        const bookingId = pi ? await bookingFor(db, pi) : null;
-        if (!bookingId) break;
-        if (event.type === 'charge.dispute.created') {
-          // The inviter's $5 comes back now; the student's credit only if we lose.
-          await creditRpc(db, 'reverse_invite_rewards', { p_booking: bookingId });
-        } else if (dispute.status === 'lost') {
-          await creditRpc(db, 'return_booking_credit', { p_booking: bookingId, p_percent: 100 });
+        const result = await reconcileDispute(db, stripe, (event.data.object as Stripe.Dispute).id);
+        if (result) {
+          if (result.status === 'lost') {
+            await creditRpc(db, 'return_booking_credit', { p_booking: result.bookingId, p_percent: 100 });
+          } else if (result.status !== 'won' && result.status !== 'warning_closed') {
+            await creditRpc(db, 'reverse_invite_rewards', { p_booking: result.bookingId });
+          }
         }
         break;
       }

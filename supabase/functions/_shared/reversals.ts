@@ -102,6 +102,7 @@ export async function reverseTutorTransfers(args: {
   bookingId: string;
   chargeId: string;
   fallbackTransferId: string | null;
+  dispute?: { id: string; amount: number };
 }): Promise<ReversalAttempt[]> {
   const { stripe, bookingId, chargeId, fallbackTransferId } = args;
   const charge = await stripe.charges.retrieve(chargeId);
@@ -135,12 +136,23 @@ export async function reverseTutorTransfers(args: {
     });
   }
 
-  const shares = reversalShares(
+  const shares = args.dispute ? reversalShares(
+    [{ id: args.dispute.id, amount: args.dispute.amount, created: 0, status: 'succeeded' }],
+    charge.amount_captured ?? 0,
+    transfers.reduce((sum, transfer) => sum + transfer.amount, 0),
+  ) : reversalShares(
     stripeSideRefunds(refunds),
     charge.amount_captured ?? 0,
     transfers.reduce((sum, transfer) => sum + transfer.amount, 0),
   );
-  const planned = planReversals(shares, transfers);
+  const planned = args.dispute ? transfers.flatMap((transfer) => {
+    const source = stripeTransfers.find((item) => item.id === transfer.id)!;
+    const baseline = Number(source.metadata?.refund_baseline_cents ?? 0);
+    const basis = Math.max(0, (charge.amount_captured ?? 0) - (Number.isFinite(baseline) ? baseline : 0));
+    return planReversals([{ refundId: args.dispute!.id,
+      cents: basis > 0 ? Math.min(transfer.amount, Math.round(transfer.amount * args.dispute!.amount / basis)) : 0,
+    }], [transfer]);
+  }) : planReversals(shares, transfers);
   const attempts: ReversalAttempt[] = [];
 
   for (const item of planned) {
@@ -153,7 +165,7 @@ export async function reverseTutorTransfers(args: {
             booking_id: bookingId,
             refund_id: item.refundId,
             charge_id: chargeId,
-            reason: 'stripe_refund',
+            reason: args.dispute ? 'stripe_dispute' : 'stripe_refund',
           },
         },
         { idempotencyKey: `reversal_${item.refundId}_${item.transferId}` },
@@ -179,6 +191,7 @@ export async function settleTutorReversals(
   stripe: Stripe,
   bookingId: string,
   chargeId: string,
+  dispute?: { id: string; amount: number },
 ): Promise<void> {
   const { data: booking, error: transferLookupError } = await db
     .from('bookings')
@@ -188,7 +201,7 @@ export async function settleTutorReversals(
   if (transferLookupError) throw new Error('booking transfer lookup failed');
 
   const fallbackTransferId = (booking?.stripe_transfer_id as string | null | undefined) ?? null;
-  if (!fallbackTransferId) return;
+  if (!fallbackTransferId && !dispute) return;
 
   let attempts: ReversalAttempt[];
   try {
@@ -197,6 +210,7 @@ export async function settleTutorReversals(
       bookingId,
       chargeId,
       fallbackTransferId,
+      dispute,
     });
   } catch {
     throw new Error('transfer reversal lookup failed');
