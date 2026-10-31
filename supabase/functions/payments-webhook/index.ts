@@ -24,13 +24,6 @@ type Db = ReturnType<typeof createClient>;
 /** A handler failure: answered with 500 so Stripe redelivers the event. */
 class RetryableError extends Error {}
 
-/** The booking behind a PaymentIntent, if any. */
-async function bookingFor(db: Db, paymentIntentId: string): Promise<string | null> {
-  const { data, error } = await db.from('bookings').select('id').eq('stripe_payment_intent_id', paymentIntentId).maybeSingle();
-  if (error) throw new RetryableError('booking lookup failed');
-  return (data?.id as string | undefined) ?? null;
-}
-
 /** Run a credit RPC; throws so the handler answers 500 and Stripe retries. */
 async function creditRpc(db: Db, fn: string, args: Record<string, unknown>): Promise<void> {
   const { error } = await db.rpc(fn, args);
