@@ -9,6 +9,7 @@ import { bookingTime } from './_booking_test.mts';
 const screen = readFileSync(new URL('../apps/mobile/app/xsc.tsx', import.meta.url), 'utf8');
 assert.match(screen, /import\s*\{[^}]*\btutorEarnedAmount\b[^}]*\}\s*from '@noot\/core'/);
 assert.match(screen, /const tutorPayout = tobj && booking\.tutorPayoutAmount != null\s*\? tutorEarnedAmount\(\{\s*status: 'cancelled',\s*tutorPayoutAmount: booking\.tutorPayoutAmount,\s*refundPercent: Math\.round\(tobj\.refundPct \* 100\),/);
+assert.match(screen, /refundPercent: Math\.round\(tobj\.refundPct \* 100\),\s*refundStatus: 'not_applicable',/);
 assert.match(screen, /Paid to tutor[\s\S]*?\{tutorPayout == null \? '—' : money\(tutorPayout\)\}/);
 assert.doesNotMatch(screen, /sessionPrice\s*\*\s*tobj\.tutorPct|@supabase\//);
 assert.match(screen, /booking\.status === 'pending' \? 'early'/);
@@ -19,7 +20,7 @@ assert.match(cancelSession, /if \(!bookingId\) \{\s*patchBooking\(\{[^}]*tutorPa
 
 for (const payout of [20.25, 0]) {
   for (const [refundPercent, expected] of [[0, payout], [50, payout === 0 ? 0 : 10.13], [100, 0]] as const) {
-    const displayed = tutorEarnedAmount({ status: 'cancelled', tutorPayoutAmount: payout, refundPercent });
+    const displayed = tutorEarnedAmount({ status: 'cancelled', tutorPayoutAmount: payout, refundPercent, refundStatus: 'not_applicable' });
     assert.equal(displayed, expected);
     assert.equal(Math.round(displayed * 100), lateCancelTutorPayoutCents(payout, refundPercent));
   }
