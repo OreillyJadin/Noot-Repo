@@ -5,7 +5,7 @@ import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Body, TabBar, Button, Badge, Card, Avatar, Ic, H2, EmptyState, Skeleton, AdaptiveRow, useTheme, TEXT_CAPS } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, tutorEarnedAmount } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
@@ -48,7 +48,7 @@ export default function TutorSessions() {
         when: formatSessionTime(b.scheduledAt),
         // Plain "Online" — see the note in tutor_calendar.tsx (T14).
         where: b.sessionType === 'video' ? 'Online' : b.location ?? 'In person',
-        pay: `$${b.tutorPayoutAmount.toFixed(2)}`,
+        pay: `$${tutorEarnedAmount(b).toFixed(2)}`,
         status: b.status,
       };
     };

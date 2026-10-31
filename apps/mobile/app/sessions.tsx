@@ -171,7 +171,7 @@ export default function Sessions() {
   const cancelSession = (tutor: Tutor | null, bookingId?: string, scheduledAt?: string) => {
     try {
       if (!bookingId) {
-        patchBooking({ tutor: tutor ?? undefined });
+        patchBooking({ tutor: tutor ?? undefined, tutorPayoutAmount: undefined });
         router.push('/xsc');
         return;
       }
@@ -185,6 +185,7 @@ export default function Sessions() {
         price: realBooking?.price,
         studentFee: realBooking?.studentFee,
         creditApplied: realBooking?.creditApplied,
+        tutorPayoutAmount: realBooking?.tutorPayoutAmount,
         course: realBooking?.subject,
         lengthMin: realBooking?.durationMinutes,
       });
