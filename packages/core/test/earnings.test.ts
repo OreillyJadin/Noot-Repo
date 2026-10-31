@@ -42,8 +42,20 @@ test('Stripe-refunded completed bookings earn only the share not refunded', () =
 });
 
 const paid = {
-  price: 30, studentFee: 5.1, creditApplied: 0, refundPercent: 0, refundStatus: 'not_applicable' as const,
+  price: 30, studentFee: 5.1, creditApplied: 0, refundPercent: 0, refundedCents: null, refundStatus: 'not_applicable' as const,
 };
+
+test('exact cents take precedence when applicable, capped at the card amount', () => {
+  const b = { ...paid, status: 'completed' as const, refundStatus: 'refunded' as const, refundPercent: 28, refundedCents: 1000, tutorPayoutAmount: 20.25 };
+  assert.deepEqual(studentPaidAmount(b), { charged: 35.1, net: 25.1, refundedToCard: 10, creditReturned: 0 });
+  assert.equal(tutorEarnedAmount(b), 14.48);
+  assert.deepEqual(studentPaidAmount({ ...b, refundedCents: null }), { charged: 35.1, net: 25.27, refundedToCard: 9.83, creditReturned: 0 });
+  assert.equal(studentPaidAmount({ ...b, refundedCents: 9000 }).net, 0);
+  assert.equal(studentPaidAmount({ ...b, refundStatus: 'not_applicable' }).net, 35.1);
+  assert.equal(studentPaidAmount({ ...b, price: 40, creditApplied: 10 }).creditReturned, 2.85);
+  assert.deepEqual(studentPaidAmount({ ...b, creditApplied: 35.1, refundPercent: 50 }), { charged: 0, net: 0, refundedToCard: 0, creditReturned: 17.55 });
+  assert.equal(tutorEarnedAmount({ ...b, creditApplied: 35.1, refundPercent: 50 }), 10.13);
+});
 
 test('completed bookings: the student paid the full card amount', () => {
   assert.deepEqual(studentPaidAmount({ ...paid, status: 'completed' }), {
