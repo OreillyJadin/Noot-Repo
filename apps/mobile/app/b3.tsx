@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, TextInput, Pressable, Modal, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import {
   Screen,
   NavTop,
@@ -629,6 +630,7 @@ function Sheet({
   const t = useTheme();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <Pressable style={styles.sheetBackdrop} onPress={onClose} />
       <View style={[styles.sheetBody, tall ? styles.sheetBodyTall : null, { backgroundColor: t.bg }]}>
         <Text style={[styles.sheetTitle, { color: t.text }]}>{title}</Text>
@@ -637,10 +639,12 @@ function Sheet({
           style={styles.sheetScroll}
           contentContainerStyle={[{ gap: 8, paddingBottom: 24 }, contentStyle]}
           keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+          keyboardDismissMode="on-drag"
         >
           {children}
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

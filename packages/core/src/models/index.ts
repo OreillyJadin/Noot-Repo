@@ -229,6 +229,7 @@ export interface Booking {
   refundStatus: RefundStatus;
   /** Share of the student's payment refunded, from 0 to 100. */
   refundPercent: number;
+  refundedCents: number | null;
   stripePaymentIntentId: string | null; // charged upfront
   createdAt: Timestamp;
   updatedAt: Timestamp;
