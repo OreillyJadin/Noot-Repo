@@ -2,8 +2,7 @@
 // A party reports that the OTHER party did not show up for a booked session.
 // Body: { bookingId, party: 'student'|'tutor' } where `party` = who DID NOT show.
 // The caller must be the OTHER party to the booking.
-//  - tutor no-show  -> student refunded  (refund_percent=100, refund_status='refunded')
-//  - student no-show -> tutor still paid  (refund_percent=0,   refund_status='not_refunded')
+// Refund percentages only rise and include funds already returned by Stripe.
 // Self-contained; SUPABASE_* env vars are auto-injected by the runtime.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
@@ -15,6 +14,8 @@ import {
   assertPayoutReady,
   assertSessionElapsed,
 } from '../_shared/booking.ts';
+import { capturedRefundCents, chargeRefundPercent, refundOwedCents } from '../_shared/refunds.ts';
+import { updateConfirmedBookingRaiseOnly } from '../_shared/refundWrite.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -88,12 +89,9 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
 
     // Determine refund outcome.
     const tutorNoShow = party === 'tutor';
-    const refundPercent = tutorNoShow ? 100 : 0;
-    const refundStatus = tutorNoShow ? 'refunded' : 'not_refunded';
+    let refundPercent = tutorNoShow ? 100 : 0;
 
-    // Real money movement on the held PaymentIntent:
-    //   tutor no-show  → cancel the authorization (student charged $0);
-    //   student no-show → capture the full charge + transfer the payout to the tutor.
+    // Reconcile Stripe's PaymentIntent before applying the no-show outcome.
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
     const pi = booking.stripe_payment_intent_id as string | null;
     let transferId: string | null = null;
@@ -102,7 +100,90 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
       const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
       const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
       try {
-        if (tutorNoShow) {
+        const current = await stripe.paymentIntents.retrieve(pi, { expand: ['latest_charge'] });
+        const payNoShowTutor = async (
+          charge: Parameters<typeof payTutor>[0]['charge'],
+          connectId: string,
+        ) => {
+          const payout = await payTutor({
+            stripe,
+            bookingId,
+            destination: connectId,
+            payoutCents: Math.round(Number(booking.tutor_payout_amount) * 100),
+            charge,
+            idempotencyKey: `noshow_transfer_${bookingId}`,
+            metadata: { booking_id: bookingId, reason: 'student_no_show' },
+          });
+          transferId = payout.transferId;
+          if (!payout.complete) {
+            // Captured but not (fully) paid out — record it and flag for a manual payout
+            // rather than returning an error that makes the row look untouched.
+            const failedAt = new Date().toISOString();
+            const base = {
+              status: 'no_show',
+              no_show_party: party,
+              stripe_charge_id: chargeId,
+              stripe_transfer_id: transferId,
+              payout_failed_at: failedAt,
+            };
+            const { data: flagged, error: flagError } =
+              await updateConfirmedBookingRaiseOnly(db, bookingId, base, refundPercent);
+            if (flagError) {
+              console.error('report-no-show: payout failure status update failed', bookingId, flagError.message);
+            }
+            // Another outcome won meanwhile: keep it, but still flag the captured charge.
+            if (!flagged) {
+              await db.from('bookings').update({ payout_failed_at: failedAt }).eq('id', bookingId);
+              console.error('report-no-show: captured, transfer failed and the booking left confirmed meanwhile', bookingId, chargeId);
+            }
+            console.error('report-no-show: captured but transfer failed', bookingId, `owed ${payout.shortfallCents}c`, String(payout.error));
+            return Response.json(
+              {
+                error: 'The charge went through but the payout failed. Our team has been notified and will complete it.',
+                captured: true,
+                payoutFailed: true,
+              },
+              { status: 502, headers: cors },
+            );
+          }
+          return null;
+        };
+
+        if (current.status === 'canceled') {
+          refundPercent = 100;
+        } else if (current.status === 'succeeded') {
+          const charge = current.latest_charge;
+          if (!charge || typeof charge === 'string') throw new Error('Captured charge was not expanded');
+          const refunded = await capturedRefundCents(stripe, charge);
+          const targetPercent = tutorNoShow ? 100 : 0;
+          let owed = 0;
+          if (tutorNoShow) {
+            owed = refundOwedCents(charge, refunded, targetPercent);
+            if (owed > 0) {
+              await stripe.refunds.create(
+                {
+                  charge: charge.id,
+                  amount: owed,
+                  metadata: { booking_id: bookingId, reason: 'tutor_no_show' },
+                },
+                { idempotencyKey: `noshow_refund_${bookingId}` },
+              );
+            }
+          }
+          refundPercent = Math.max(targetPercent, chargeRefundPercent(charge, refunded + owed));
+          chargeId = charge.id;
+          if (refundPercent < 100 && !tutorNoShow) {
+            const { data: prof } = await db
+              .from('tutor_profiles')
+              .select('stripe_connect_account_id')
+              .eq('user_id', booking.tutor_id)
+              .maybeSingle();
+            const connectId = (prof?.stripe_connect_account_id as string | null | undefined) ?? null;
+            await assertPayoutReady(stripeKey, connectId);
+            const payoutFailure = await payNoShowTutor(charge, connectId!);
+            if (payoutFailure) return payoutFailure;
+          }
+        } else if (tutorNoShow) {
           await stripe.paymentIntents.cancel(pi, {}, { idempotencyKey: `noshow_cancel_${bookingId}` });
         } else {
           const { data: prof } = await db
@@ -120,50 +201,8 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
           );
           const charge = typeof capped.latest_charge === 'string' ? null : capped.latest_charge;
           chargeId = typeof capped.latest_charge === 'string' ? capped.latest_charge : (charge?.id ?? null);
-          // Funded from this booking's charge, remainder (Noot credit) from the balance.
-          const payout = await payTutor({
-            stripe,
-            bookingId,
-            destination: connectId!,
-            payoutCents: Math.round(Number(booking.tutor_payout_amount) * 100),
-            charge,
-            idempotencyKey: `noshow_transfer_${bookingId}`,
-            metadata: { booking_id: bookingId, reason: 'student_no_show' },
-          });
-          transferId = payout.transferId;
-          if (!payout.complete) {
-            // Captured but not (fully) paid out — record it and flag for a manual payout
-            // rather than returning an error that makes the row look untouched.
-            const failedAt = new Date().toISOString();
-            const { data: flagged } = await db
-              .from('bookings')
-              .update({
-                status: 'no_show',
-                no_show_party: tutorNoShow ? 'tutor' : 'student',
-                refund_percent: refundPercent,
-                refund_status: refundStatus,
-                stripe_charge_id: chargeId,
-                stripe_transfer_id: transferId,
-                payout_failed_at: failedAt,
-              })
-              .eq('id', bookingId)
-              .eq('status', 'confirmed')
-              .select('id');
-            // Another outcome won meanwhile: keep it, but still flag the captured charge.
-            if (!flagged?.length) {
-              await db.from('bookings').update({ payout_failed_at: failedAt }).eq('id', bookingId);
-              console.error('report-no-show: captured, transfer failed and the booking left confirmed meanwhile', bookingId, chargeId);
-            }
-            console.error('report-no-show: captured but transfer failed', bookingId, `owed ${payout.shortfallCents}c`, String(payout.error));
-            return Response.json(
-              {
-                error: 'The charge went through but the payout failed. Our team has been notified and will complete it.',
-                captured: true,
-                payoutFailed: true,
-              },
-              { status: 502, headers: cors },
-            );
-          }
+          const payoutFailure = await payNoShowTutor(charge, connectId!);
+          if (payoutFailure) return payoutFailure;
         }
       } catch (stripeErr) {
         if (stripeErr instanceof BookingError) {
@@ -178,32 +217,36 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
       }
     }
 
-    const { data: noShowRows, error: updateErr } = await db
-      .from('bookings')
-      .update({
-        status: 'no_show',
-        no_show_party: tutorNoShow ? 'tutor' : 'student',
-        refund_percent: refundPercent,
-        refund_status: refundStatus,
-        stripe_charge_id: chargeId,
-        stripe_transfer_id: transferId,
-      })
-      .eq('id', bookingId)
-      .eq('status', 'confirmed')
-      .select('id');
+    const refundStatus = refundPercent > 0 ? 'refunded' : 'not_refunded';
+    const base = {
+      status: 'no_show',
+      no_show_party: party,
+      stripe_charge_id: chargeId,
+      stripe_transfer_id: transferId,
+    };
+    const { data: noShowRow, error: updateErr } =
+      await updateConfirmedBookingRaiseOnly(db, bookingId, base, refundPercent);
     if (updateErr) return Response.json({ error: updateErr.message }, { status: 400, headers: cors });
     // Completed or cancelled while we worked: that outcome stands, and no credit comes back.
-    if (!noShowRows?.length) {
+    if (!noShowRow) {
       return Response.json({ error: 'This session was already completed or cancelled.' }, { status: 409, headers: cors });
     }
 
-    // The tutor didn't show: the student gets their Noot credit back too (0040).
-    if (tutorNoShow && Number(booking.credit_applied ?? 0) > 0) {
-      const { error: creditErr } = await db.rpc('return_booking_credit', { p_booking: bookingId, p_percent: 100 });
+    const actualRefundPercent = Number(noShowRow.refund_percent);
+    const actualRefundStatus = noShowRow.refund_status || refundStatus;
+    if (actualRefundPercent > 0 && Number(booking.credit_applied ?? 0) > 0) {
+      const { error: creditErr } = await db.rpc('return_booking_credit', {
+        p_booking: bookingId,
+        p_percent: actualRefundPercent,
+      });
       if (creditErr) console.error('report-no-show: credit return failed', bookingId, creditErr.message);
     }
 
-    return Response.json({ status: 'no_show', refundPercent }, { headers: cors });
+    return Response.json({
+      status: 'no_show',
+      refundPercent: actualRefundPercent,
+      refundStatus: actualRefundStatus,
+    }, { headers: cors });
   } catch (e) {
     if (e instanceof BookingError) {
       return Response.json({ error: e.message }, { status: e.status, headers: cors });

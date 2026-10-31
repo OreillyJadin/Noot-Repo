@@ -13,6 +13,7 @@ import { lateCancelTutorPayoutCents, studentCancelRefundPercent } from '../_shar
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 import { payTutor } from '../_shared/payouts.ts';
 import { capturedRefundCents, chargeRefundPercent, refundOwedCents } from '../_shared/refunds.ts';
+import { updateConfirmedBookingRaiseOnly } from '../_shared/refundWrite.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -285,7 +286,6 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
       }
     }
 
-    const refundStatus = refundPercent > 0 ? 'refunded' : 'not_refunded';
     const base = {
       status: 'cancelled',
       cancelled_by_role: isStudent ? 'student' : 'tutor',
@@ -295,55 +295,8 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
       stripe_transfer_id: transferId,
       ...(payoutFailedAt ? { payout_failed_at: payoutFailedAt } : {}),
     };
-    let updated: { id: string; refund_percent: number; refund_status: string } | null = null;
-    let updateError: { message: string } | null = null;
-    if (refundPercent > 0) {
-      const first = await db.from('bookings')
-        .update({ ...base, refund_percent: refundPercent, refund_status: refundStatus })
-        .eq('id', bookingId)
-        .eq('status', 'confirmed')
-        .lt('refund_percent', refundPercent)
-        .select('id, refund_percent, refund_status')
-        .maybeSingle();
-      updated = first.data;
-      updateError = first.error;
-      if (updateError) {
-        return Response.json({ error: updateError.message }, { status: 400, headers: cors });
-      }
-      if (!updated) {
-        const second = await db.from('bookings')
-          .update({ ...base, refund_status: refundStatus })
-          .eq('id', bookingId)
-          .eq('status', 'confirmed')
-          .select('id, refund_percent, refund_status')
-          .maybeSingle();
-        updated = second.data;
-        updateError = second.error;
-      }
-    } else {
-      const first = await db.from('bookings')
-        .update({ ...base, refund_status: refundStatus })
-        .eq('id', bookingId)
-        .eq('status', 'confirmed')
-        .neq('refund_status', 'refunded')
-        .select('id, refund_percent, refund_status')
-        .maybeSingle();
-      updated = first.data;
-      updateError = first.error;
-      if (updateError) {
-        return Response.json({ error: updateError.message }, { status: 400, headers: cors });
-      }
-      if (!updated) {
-        const second = await db.from('bookings')
-          .update(base)
-          .eq('id', bookingId)
-          .eq('status', 'confirmed')
-          .select('id, refund_percent, refund_status')
-          .maybeSingle();
-        updated = second.data;
-        updateError = second.error;
-      }
-    }
+    const { data: updated, error: updateError } =
+      await updateConfirmedBookingRaiseOnly(db, bookingId, base, refundPercent);
 
     if (updateError) {
       return Response.json({ error: updateError.message }, { status: 400, headers: cors });
