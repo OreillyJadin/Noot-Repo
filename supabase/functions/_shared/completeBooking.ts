@@ -113,6 +113,7 @@ export async function completeBooking(
       bookingId,
       destination: connectId!,
       payoutCents: Math.round(Number(booking.tutor_payout_amount) * 100),
+      originalPayoutCents: Math.round(Number(booking.tutor_payout_amount) * 100),
       charge,
       idempotencyKey: `transfer_${bookingId}`,
       metadata: { booking_id: bookingId },

@@ -24,34 +24,34 @@ test('charge funding excludes released authorization but includes captured refun
 
 test('late-cancel payout uses its partially captured charge, not the platform balance', async () => {
   const calls: unknown[] = [];
-  const stripe = { disputes: { async *list() {} }, refunds: { async *list() {
+  const stripe = { disputes: { async *list() {} }, charges: { retrieve: async () => ({ id: 'ch_test', amount: 3510, amount_captured: 1755, amount_refunded: 1755 }) }, refunds: { async *list() {
     yield { amount: 1755, status: 'succeeded', balance_transaction: { reporting_category: 'partial_capture_reversal' } };
-  } }, transfers: { create: async (params: unknown) => {
+  } }, transfers: { async *list() {}, create: async (params: unknown) => {
     calls.push(params);
     return { id: 'tr_test' };
   } } } as unknown as Parameters<typeof payTutor>[0]['stripe'];
   const result = await payTutor({
-    stripe, bookingId: 'booking', destination: 'acct_test', payoutCents: 1013,
+    stripe, bookingId: 'booking', destination: 'acct_test', payoutCents: 1013, originalPayoutCents: 2026,
     charge: { id: 'ch_test', amount: 3510, amount_captured: 1755, amount_refunded: 1755 },
     idempotencyKey: 'payout_test', metadata: {},
   });
   assert.deepEqual(result, { transferId: 'tr_test', complete: true, shortfallCents: 0, error: null });
   assert.deepEqual(calls, [{ currency: 'usd', destination: 'acct_test', transfer_group: 'booking',
     amount: 1013, source_transaction: 'ch_test',
-    metadata: { funding: 'session_charge', charge_id: 'ch_test' },
+    metadata: { funding: 'session_charge', charge_id: 'ch_test', payout_target_cents: '1013', refund_baseline_cents: '0' },
   }]);
 });
 
 test('partial-capture payouts subtract actual refunds with or without a released-hold record', async () => {
   for (const includeRelease of [false, true]) {
     const calls: { amount: number; source_transaction?: string }[] = [];
-    const stripe = { disputes: { async *list() {} }, refunds: { async *list() {
+    const stripe = { disputes: { async *list() {} }, charges: { retrieve: async () => ({ id: 'ch_test', amount: 3510, amount_captured: 1755, amount_refunded: 1755 }) }, refunds: { async *list() {
       if (includeRelease) yield { amount: 1755, status: 'succeeded', balance_transaction: { reporting_category: 'partial_capture_reversal' } };
       yield { amount: 1000, status: 'succeeded', balance_transaction: { reporting_category: 'refund' } };
-    } }, transfers: { create: async (params: { amount: number; source_transaction?: string }) => {
+    } }, transfers: { async *list() {}, create: async (params: { amount: number; source_transaction?: string }) => {
       calls.push(params); return { id: 'tr_test' };
     } } } as unknown as Parameters<typeof payTutor>[0]['stripe'];
-    const result = await payTutor({ stripe, bookingId: 'booking', destination: 'acct_test', payoutCents: 755,
+    const result = await payTutor({ stripe, bookingId: 'booking', destination: 'acct_test', payoutCents: 755, originalPayoutCents: 3510,
       charge: { id: 'ch_test', amount: 3510, amount_captured: 1755, amount_refunded: includeRelease ? 2755 : 1000 },
       idempotencyKey: 'payout_test', metadata: {} });
     assert.equal(result.complete, true);
@@ -61,10 +61,10 @@ test('partial-capture payouts subtract actual refunds with or without a released
 });
 
 test('refund lookup failure records the full payout shortfall without transferring', async () => {
-  const stripe = { disputes: { async *list() {} }, refunds: { list() { throw new Error('Stripe unavailable'); } },
-    transfers: { create() { assert.fail('must not transfer without classified refunds'); } },
+  const stripe = { disputes: { async *list() {} }, charges: { retrieve: async () => ({ id: 'ch_test', amount: 3510, amount_captured: 1755, amount_refunded: 1755 }) }, refunds: { list() { throw new Error('Stripe unavailable'); } },
+    transfers: { async *list() {}, create() { assert.fail('must not transfer without classified refunds'); } },
   } as unknown as Parameters<typeof payTutor>[0]['stripe'];
-  const result = await payTutor({ stripe, bookingId: 'booking', destination: 'acct_test', payoutCents: 1013,
+  const result = await payTutor({ stripe, bookingId: 'booking', destination: 'acct_test', payoutCents: 1013, originalPayoutCents: 2026,
     charge: { id: 'ch_test', amount: 3510, amount_captured: 1755, amount_refunded: 1755 },
     idempotencyKey: 'payout_test', metadata: {} });
   assert.equal(result.complete, false);

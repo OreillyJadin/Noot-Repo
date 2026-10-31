@@ -67,6 +67,7 @@ export type PayoutArgs = {
   bookingId: string;
   destination: string;
   payoutCents: number;
+  originalPayoutCents: number;
   /** The captured charge, expanded from the PaymentIntent's `latest_charge`. */
   charge: (ChargeFunds & Pick<Stripe.Charge, 'id'>) | null;
   /** Idempotency key for the main transfer; the balance remainder appends `_balance`. */
@@ -74,24 +75,45 @@ export type PayoutArgs = {
   metadata: Record<string, string>;
 };
 
+export function refundAdjustedPayout(requested: number, original: number, charge: ChargeFunds | null, refunded: number): number {
+  if (!charge) return Math.max(0, Math.round(requested));
+  const total = charge.amount ?? charge.amount_captured ?? 0;
+  const remaining = chargeAvailableCents(charge, refunded);
+  return Math.max(0, Math.min(Math.round(requested), total > 0 ? Math.round(original * remaining / total) : 0));
+}
+
 /**
  * Pay the tutor: first from the charge (source_transaction), then any remainder from the
  * platform balance. Never throws — the caller already captured the money and must record
  * the outcome either way.
  */
 export async function payTutor(args: PayoutArgs): Promise<PayoutResult> {
-  const { stripe, bookingId, destination, payoutCents, charge, idempotencyKey, metadata } = args;
+  const { stripe, bookingId, destination, payoutCents, idempotencyKey } = args;
+  let { charge, metadata } = args;
   const base = { currency: 'usd', destination, transfer_group: bookingId } as const;
   let transferId: string | null = null;
   let owed = Math.max(0, Math.round(payoutCents));
   try {
+    if (charge) charge = await stripe.charges.retrieve(charge.id);
     if (charge) {
       for await (const dispute of stripe.disputes.list({ charge: charge.id, limit: 100 })) {
         if (disputeHoldsPayout(dispute.status)) throw new Error(`Tutor payout held for dispute ${dispute.id}`);
       }
     }
     const refunded = charge ? await capturedRefundCents(stripe, charge) : 0;
-    const { fromCharge, fromBalance } = splitPayoutFunding(payoutCents, chargeAvailableCents(charge, refunded));
+    let target = refundAdjustedPayout(payoutCents, args.originalPayoutCents, charge, refunded);
+    let baseline = refunded;
+    for await (const transfer of stripe.transfers.list({ transfer_group: bookingId, limit: 100 })) {
+      if ((transfer.metadata?.reason ?? '') !== (metadata.reason ?? '')) continue;
+      if (transfer.metadata?.payout_target_cents !== undefined) {
+        target = Number(transfer.metadata.payout_target_cents);
+        baseline = Number(transfer.metadata.refund_baseline_cents ?? 0);
+        break;
+      }
+    }
+    metadata = { ...metadata, payout_target_cents: String(target), refund_baseline_cents: String(baseline) };
+    owed = target;
+    const { fromCharge, fromBalance } = splitPayoutFunding(target, chargeAvailableCents(charge, baseline));
     if (fromCharge > 0) {
       const t = await stripe.transfers.create(
         {

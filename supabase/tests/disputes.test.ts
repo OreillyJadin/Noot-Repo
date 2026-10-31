@@ -24,10 +24,10 @@ test('open, lost, and unknown disputes hold payouts; won and closed inquiries re
   for (const status of ['won', 'warning_closed']) assert(!disputeHoldsPayout(status));
 });
 test('payout reads Stripe disputes and fails closed before creating any transfer', async () => {
-  const stripe = { disputes: { async *list() { yield { id: 'dp_test', status: 'needs_response' }; } },
+  const stripe = { charges: { retrieve: async () => ({ id: 'ch' }) }, disputes: { async *list() { yield { id: 'dp_test', status: 'needs_response' }; } },
     transfers: { create() { assert.fail('must not pay during dispute'); } },
   } as unknown as Parameters<typeof payTutor>[0]['stripe'];
-  const result = await payTutor({ stripe, bookingId: 'booking', destination: 'acct', payoutCents: 1800,
+  const result = await payTutor({ stripe, bookingId: 'booking', destination: 'acct', payoutCents: 1800, originalPayoutCents: 1800,
     charge: { id: 'ch', amount: 2000, amount_captured: 2000, amount_refunded: 0 }, idempotencyKey: 'key', metadata: {} });
   assert.equal(result.complete, false);
   assert.equal(result.transferId, null);

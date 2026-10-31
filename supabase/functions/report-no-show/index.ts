@@ -111,6 +111,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
             bookingId,
             destination: connectId,
             payoutCents: Math.round(Number(booking.tutor_payout_amount) * 100),
+            originalPayoutCents: Math.round(Number(booking.tutor_payout_amount) * 100),
             charge,
             idempotencyKey: `noshow_transfer_${bookingId}`,
             metadata: { booking_id: bookingId, reason: 'student_no_show' },

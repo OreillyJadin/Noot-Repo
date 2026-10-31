@@ -10,7 +10,8 @@ const publishedAnon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 const db = createClient(url, service, { auth: { persistSession: false } });
 const key = process.env.STRIPE_SECRET_KEY;
 const secret = process.env.STRIPE_WEBHOOK_SECRET;
-async function request(path: string, body?: Record<string, string>, idempotencyKey?: string): Promise<any> {
+async function request(path: string, body?: Record<string, string>, idempotencyKey?: string, retry = 0): Promise<any> {
+  if (body) idempotencyKey ??= `verify_${randomUUID()}`;
   assert(key?.startsWith('sk_test_'), 'test mode only');
   const response = await fetch(`https://api.stripe.com/v1/${path}`, {
     method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${key}`,
@@ -19,6 +20,10 @@ async function request(path: string, body?: Record<string, string>, idempotencyK
     ...(body ? { body: new URLSearchParams(body) } : {}),
   });
   const result = await response.json();
+  if (result.error?.code === 'lock_timeout' && retry < 5) {
+    await new Promise(resolve => setTimeout(resolve, 1000 * (retry + 1)));
+    return request(path, body, idempotencyKey, retry + 1);
+  }
   assert(response.ok, result.error?.message);
   return result;
 }
@@ -77,8 +82,10 @@ try {
       }
       assert(dispute, 'Stripe must create a real test dispute');
       const stripe = {
+        charges: { retrieve: async () => request(`charges/${pi.latest_charge}`) },
         disputes: { async *list() { yield* (await request(`disputes?charge=${pi.latest_charge}`)).data; } },
-        transfers: { create: async (params: any, options: any) => {
+        refunds: { async *list() { yield* (await request(`refunds?charge=${pi.latest_charge}&expand[]=data.balance_transaction`)).data; } },
+        transfers: { async *list() { yield* (await request(`transfers?transfer_group=${id}`)).data; }, create: async (params: any, options: any) => {
           const body: Record<string, string> = {};
           for (const [k, v] of Object.entries(params)) {
             if (k === 'metadata') for (const [mk, mv] of Object.entries(v as Record<string, string>)) body[`metadata[${mk}]`] = mv;
@@ -87,7 +94,7 @@ try {
           return request('transfers', body, options.idempotencyKey);
         } },
       } as unknown as Parameters<typeof payTutor>[0]['stripe'];
-      const args = { stripe, bookingId: id, destination, payoutCents: 1800,
+      const args = { stripe, bookingId: id, destination, payoutCents: 1800, originalPayoutCents: 1800,
         charge: { id: pi.latest_charge, amount: 2000, amount_captured: 2000, amount_refunded: 0 },
         idempotencyKey: `verify_${id}`, metadata: { booking_id: id } };
       assert.equal((await payTutor(args)).complete, false, 'hold must work even before created webhook');
