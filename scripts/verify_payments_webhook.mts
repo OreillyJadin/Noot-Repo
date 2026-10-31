@@ -156,11 +156,19 @@ async function readRefundPercent(bookingId: string): Promise<number> {
   return Number(data.refund_percent);
 }
 
+async function readRefundedCents(bookingId: string): Promise<number | null> {
+  const { data, error } = await admin.from('bookings').select('refunded_cents').eq('id', bookingId).single();
+  if (error || !data) throw error ?? new Error('booking refunded cents missing');
+  return data.refunded_cents;
+}
+
 const dropFailureTriggers = () => runSql(`
   DROP TRIGGER IF EXISTS verify_payments_webhook_fail_tutor_update ON public.tutor_profiles;
   DROP FUNCTION IF EXISTS public.verify_payments_webhook_fail_tutor_update();
   DROP TRIGGER IF EXISTS verify_payments_webhook_fail_booking_update ON public.bookings;
   DROP FUNCTION IF EXISTS public.verify_payments_webhook_fail_booking_update();
+  DROP TRIGGER IF EXISTS verify_payments_webhook_fail_cents_update ON public.bookings;
+  DROP FUNCTION IF EXISTS public.verify_payments_webhook_fail_cents_update();
 `);
 
 const profileTrigger = `
@@ -378,14 +386,15 @@ try {
   const refundTwo = await postPayload(refundedEvent, platformSecret);
   const { data: refundCache, error: refundCacheError } = await admin
     .from('bookings')
-    .select('refund_status, refund_percent')
+    .select('refund_status, refund_percent, refunded_cents')
     .eq('id', bookingId)
     .single();
   step(8, refundOne.status === 200 && refundTwo.status === 200 &&
-    !refundCacheError && refundCache?.refund_status === 'refunded' && refundCache.refund_percent === 100,
+    !refundCacheError && refundCache?.refund_status === 'refunded' && refundCache.refund_percent === 100 && refundCache.refunded_cents === 1000,
   `charge.refunded delivered twice → ${refundOne.status}, ${refundTwo.status}; status=${refundCache?.refund_status}, percent=${refundCache?.refund_percent}`);
 
   await setRefundPercent(bookingId, 0);
+  await admin.from('bookings').update({ refunded_cents: null }).eq('id', bookingId).throwOnError();
   let fullCharge = await capturedCharge(2000, 2000);
   await admin.from('bookings').update({ stripe_payment_intent_id: fullCharge.payment_intent }).eq('id', bookingId).throwOnError();
   fullCharge = await refundCharge(fullCharge, 500);
@@ -393,19 +402,19 @@ try {
   const partialOne = await postPayload(partialRefundEvent, platformSecret);
   const partialTwo = await postPayload(partialRefundEvent, platformSecret);
   let refundPercent = await readRefundPercent(bookingId);
-  step('9a', partialOne.status === 200 && partialTwo.status === 200 && refundPercent === 25,
+  step('9a', partialOne.status === 200 && partialTwo.status === 200 && refundPercent === 25 && await readRefundedCents(bookingId) === 500,
     `500 of 2000 refunded, delivered twice → ${partialOne.status}, ${partialTwo.status}; percent=${refundPercent}`);
 
   fullCharge = await refundCharge(fullCharge, 500);
   const cumulativeRefundEvent = eventPayload('charge.refunded', fullCharge);
   const cumulativeRefund = await postPayload(cumulativeRefundEvent, platformSecret);
   refundPercent = await readRefundPercent(bookingId);
-  step('9b', cumulativeRefund.status === 200 && refundPercent === 50,
+  step('9b', cumulativeRefund.status === 200 && refundPercent === 50 && await readRefundedCents(bookingId) === 1000,
     `cumulative refund of 1000 → ${cumulativeRefund.status}; percent=${refundPercent}`);
 
   const staleRefund = await postPayload(partialRefundEvent, platformSecret);
   refundPercent = await readRefundPercent(bookingId);
-  step('9c', staleRefund.status === 200 && refundPercent === 50,
+  step('9c', staleRefund.status === 200 && refundPercent === 50 && await readRefundedCents(bookingId) === 1000,
     `stale 500 refund redelivery → ${staleRefund.status}; percent=${refundPercent}`);
 
   await setRefundPercent(bookingId, 100);
@@ -413,6 +422,15 @@ try {
   refundPercent = await readRefundPercent(bookingId);
   step('9d', higherRefund.status === 200 && refundPercent === 100,
     `cumulative refund after app-set 100% → ${higherRefund.status}; percent=${refundPercent}`);
+
+  await admin.from('bookings').update({ refunded_cents: null }).eq('id', bookingId).throwOnError();
+  let oddCharge = await capturedCharge(3510, 3510);
+  await admin.from('bookings').update({ stripe_payment_intent_id: oddCharge.payment_intent }).eq('id', bookingId).throwOnError();
+  oddCharge = await refundCharge(oddCharge, 1000);
+  const oddRefund = await postEvent('charge.refunded', oddCharge, platformSecret);
+  const oddCents = await readRefundedCents(bookingId);
+  step('9d exact cents', oddRefund.status === 200 && oddCents === 1000,
+    `1000 of 3510 → ${oddRefund.status}; refunded cents=${oddCents}`);
 
   await setRefundPercent(bookingId, 50);
   const { error: creditSpendError } = await admin.from('credit_ledger').insert({
@@ -435,7 +453,7 @@ try {
     .eq('booking_id', bookingId)
     .eq('kind', 'booking_return');
   const partialCreditReturned = (partialReturns ?? []).reduce((sum, row) => sum + Number(row.amount_cents), 0);
-  step('9e', partialCaptureRefund.status === 200 && refundPercent === 78 &&
+  step('9e', partialCaptureRefund.status === 200 && refundPercent === 78 && await readRefundedCents(bookingId) === 2755 &&
     !partialReturnsError && partialCreditReturned === 780,
   `partial capture/refund → ${partialCaptureRefund.status}; percent=${refundPercent}, credit=${partialCreditReturned}`);
   step('9f partial credit', !partialReturnsError && partialCreditReturned === 780,
@@ -443,7 +461,7 @@ try {
 
   for (const amount_refunded of [1000, 2755]) {
     const response = await postEvent('charge.refunded', { ...halfCharge, amount_refunded }, platformSecret);
-    step('9e both shapes', response.status === 200 && await readRefundPercent(bookingId) === 78,
+    step('9e both shapes', response.status === 200 && await readRefundPercent(bookingId) === 78 && await readRefundedCents(bookingId) === 2755,
       `3510 authorized / 1755 captured / 1000 actual refund; amount_refunded=${amount_refunded} → 78%`);
   }
 
@@ -461,9 +479,25 @@ try {
     .eq('booking_id', bookingId)
     .eq('kind', 'booking_return');
   const fullCreditReturned = (fullReturns ?? []).reduce((sum, row) => sum + Number(row.amount_cents), 0);
-  step('9f full credit', fullPartialCaptureRefund.status === 200 && refundPercent === 100 &&
+  step('9f full credit', fullPartialCaptureRefund.status === 200 && refundPercent === 100 && await readRefundedCents(bookingId) === 3510 &&
     !fullReturnsError && fullCreditReturned === 1000,
   `full cumulative refund → ${fullPartialCaptureRefund.status}; percent=${refundPercent}, credit=${fullCreditReturned}`);
+
+  await admin.from('bookings').update({ refunded_cents: null }).eq('id', bookingId).throwOnError();
+  runSql(`
+    CREATE FUNCTION public.verify_payments_webhook_fail_cents_update() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN RAISE EXCEPTION 'forced cents update failure'; END;
+    $$;
+    CREATE TRIGGER verify_payments_webhook_fail_cents_update BEFORE UPDATE OF refunded_cents ON public.bookings
+    FOR EACH ROW EXECUTE FUNCTION public.verify_payments_webhook_fail_cents_update();
+  `);
+  const forcedCentsFailure = await postPayload(fullPartialCaptureEvent, platformSecret);
+  step('9g cents failure', forcedCentsFailure.status === 500 && await readRefundedCents(bookingId) === null,
+    `forced cents UPDATE failure → ${forcedCentsFailure.status}`);
+  dropFailureTriggers();
+  const centsRetry = await postPayload(fullPartialCaptureEvent, platformSecret);
+  step('9g cents retry', centsRetry.status === 200 && await readRefundedCents(bookingId) === 3510,
+    `redelivery after cents failure → ${centsRetry.status}`);
 
   runSql(bookingTrigger);
   const forcedBookingFailure = await postPayload(fullPartialCaptureEvent, platformSecret);

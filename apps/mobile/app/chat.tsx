@@ -222,6 +222,7 @@ function ChatInner() {
           contentContainerStyle={styles.thread}
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
           <Text style={[styles.threadHint, { color: t.text3 }]}>
             This is your full conversation with {other.split(' ')[0]}.

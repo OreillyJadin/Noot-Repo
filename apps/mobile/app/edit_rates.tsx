@@ -13,6 +13,7 @@ import { Screen, NavTop, Body, ActionBar, Button, Card, Ic, useTheme } from '@no
 import { api, MIN_HOURLY_RATE, MAX_HOURLY_RATE } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { SUPPORT_EMAIL } from '../lib/legal';
+import { RateViewToggle, TutorRatePreview } from '../lib/TutorRatePreview';
 
 // The server's own sentence when it refuses a save (e.g. the verified lock, 0048) — without
 // the SQLSTATE that errText appends, which means nothing to a tutor.
@@ -36,6 +37,7 @@ export default function EditRates() {
   const [rates, setRates] = useState<Rate[]>([]);
   const [, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showNet, setShowNet] = useState(true);
 
   // On focus, not just mount: "Add a course" goes to step 3 and comes back here, and the
   // new course has to show up with its rate still to set (tracker T1).
@@ -119,6 +121,7 @@ export default function EditRates() {
           student paid.
         </Text>
 
+        <RateViewToggle showNet={showNet} onChange={setShowNet} />
         <View style={{ gap: 10 }}>
           {rates.map((r, i) => (
             <Card key={r.code} style={{ padding: 14 }}>
@@ -161,6 +164,7 @@ export default function EditRates() {
                   </Pressable>
                 ) : null}
               </View>
+              <TutorRatePreview rate={r.rate} gradesVerified={gradesVerified} currentlyTaking={r.currentlyTaking} showNet={showNet} />
             </Card>
           ))}
         </View>

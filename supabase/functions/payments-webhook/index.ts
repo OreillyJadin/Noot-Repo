@@ -6,6 +6,7 @@
 //   - charge.refunded   → mark the booking refunded, record refund_percent as the raise-only
 //                         share of the charge returned to the student, give back the same share
 //                         of Noot credit, and on a FULL refund take back the invite reward (0040)
+//   - charge.refunded also proportionally reverses tutor transfers (_shared/reversals.ts)
 //   - charge.dispute.created → take back the invite reward the session earned
 //   - charge.dispute.closed (lost) → give the student back the credit they used
 // Every handler failure returns 500 so Stripe redelivers; all handlers are idempotent.
@@ -13,9 +14,10 @@
 import Stripe from 'https://esm.sh/stripe@16?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getPayoutStatus } from '../_shared/connect.ts';
-import { capturedRefundCents, chargeRefundPercent } from '../_shared/refunds.ts';
+import { capturedRefundCents, chargeRefundedCents, chargeRefundPercent } from '../_shared/refunds.ts';
 import { verifyWithAnySecret, webhookSecrets } from '../_shared/webhook.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
+import { settleTutorReversals } from '../_shared/reversals.ts';
 
 type Db = ReturnType<typeof createClient>;
 
@@ -112,12 +114,20 @@ serveWithErrorReporting('payments-webhook', async (req: Request) => {
             .eq('stripe_payment_intent_id', pi)
             .lt('refund_percent', pct);
           if (percentError) throw new RetryableError('booking refund percent update failed');
+          const back = chargeRefundedCents(charge, refundedCents);
+          const { error: centsError } = await db
+            .from('bookings')
+            .update({ refunded_cents: back })
+            .eq('stripe_payment_intent_id', pi)
+            .or(`refunded_cents.is.null,refunded_cents.lt.${back}`);
+          if (centsError) throw new RetryableError('booking refunded cents update failed');
           const bookingId = await bookingFor(db, pi);
           if (bookingId) {
             // Same share of credit as of cash. A cancelled hold that never captured counts as 100%.
             await creditRpc(db, 'return_booking_credit', { p_booking: bookingId, p_percent: pct });
             // `refunded` is true only for a full refund.
             if (charge.refunded) await creditRpc(db, 'reverse_invite_rewards', { p_booking: bookingId });
+            await settleTutorReversals(db, stripe, bookingId, charge.id).catch((error) => { throw new RetryableError(error instanceof Error ? error.message : 'transfer reversal failed'); });
           }
         }
         break;

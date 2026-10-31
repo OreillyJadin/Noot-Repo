@@ -232,6 +232,7 @@ function AdminChatInner() {
           contentContainerStyle={styles.thread}
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
           {error ? (
             <Text style={[styles.threadHint, { color: t.text3 }]}>{error}</Text>

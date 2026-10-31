@@ -460,6 +460,7 @@ function mapBooking(row: any): Booking {
     cancelledAt: row.cancelled_at ?? null,
     refundStatus: row.refund_status,
     refundPercent: num(row.refund_percent),
+    refundedCents: row.refunded_cents == null ? null : Number(row.refunded_cents),
     stripePaymentIntentId: row.stripe_payment_intent_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -1418,7 +1419,7 @@ export const api = {
     const sb = getSupabase();
     const { data, error } = await sb
       .from('bookings')
-      .select('status, refund_status, cancelled_by_role, cancelled_from_status, no_show_party, scheduled_at, tutor_payout_amount, refund_percent, duration_minutes')
+      .select('status, refund_status, cancelled_by_role, cancelled_from_status, no_show_party, scheduled_at, tutor_payout_amount, refund_percent, refunded_cents, price, student_fee, credit_applied, duration_minutes')
       .eq('tutor_id', uid);
     if (error) throw error;
     const rows = data ?? [];
@@ -1439,6 +1440,10 @@ export const api = {
           refundStatus: r.refund_status as RefundStatus,
           tutorPayoutAmount: num(r.tutor_payout_amount),
           refundPercent: num(r.refund_percent),
+          refundedCents: r.refunded_cents == null ? null : Number(r.refunded_cents),
+          price: num(r.price),
+          studentFee: num(r.student_fee),
+          creditApplied: num(r.credit_applied),
         }) * 100),
       }));
     const earnedTotal = earnings.reduce((s, r) => s + r.cents, 0) / 100;
@@ -2815,6 +2820,28 @@ export const api = {
         .update({ read_at: new Date().toISOString() })
         .eq('user_id', uid)
         .is('read_at', null);
+      if (error) throw error;
+    },
+
+    /** Remove one notification from the signed-in user's inbox. */
+    async clear(id: string): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('notifications')
+        .delete()
+        .eq('user_id', uid)
+        .eq('id', id);
+      if (error) throw error;
+    },
+
+    /** Clear the entire inbox, including older pages, but preserve later arrivals. */
+    async clearAll(through: string): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase()
+        .from('notifications')
+        .delete()
+        .eq('user_id', uid)
+        .lte('created_at', through);
       if (error) throw error;
     },
 
