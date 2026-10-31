@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { capturedRefundCents, chargeRefundedCents, chargeRefundPercent, type RefundReader } from '../functions/_shared/refunds.ts';
+import { capturedRefundCents, chargeRefundedCents, chargeRefundPercent, refundOwedCents, type RefundReader } from '../functions/_shared/refunds.ts';
 
 test('exact returned cents include release and captured refunds, capped at the charge', () => {
   assert.equal(chargeRefundedCents({ amount: 3510, amount_captured: 3510 }, 1000), 1000);
@@ -34,6 +34,20 @@ test('released holds and missing totals count as fully returned', () => {
 test('near-full partial refunds never round up to 100%', () => {
   assert.equal(chargeRefundPercent({ amount: 2000, amount_captured: 2000 }, 1995), 99);
   assert.equal(chargeRefundPercent({ amount: 2000, amount_captured: 1000 }, 5000), 100);
+});
+
+test('refund owed only covers the remaining amount needed for the target', () => {
+  const fullCapture = { amount: 2000, amount_captured: 2000 };
+  assert.equal(refundOwedCents(fullCapture, 800, 100), 1200);
+  assert.equal(refundOwedCents(fullCapture, 800, 50), 200);
+  assert.equal(refundOwedCents(fullCapture, 1200, 50), 0);
+
+  const partialCapture = { amount: 2000, amount_captured: 1000 };
+  assert.equal(refundOwedCents(partialCapture, 0, 50), 0);
+  assert.equal(refundOwedCents(partialCapture, 0, 100), 1000);
+  assert.equal(refundOwedCents(partialCapture, 1000, 100), 0);
+  assert.equal(refundOwedCents(partialCapture, 1500, 100), 0);
+  assert.equal(refundOwedCents({ amount_captured: 1000 }, 0, 100), 1000);
 });
 
 test('reads all refunds and excludes released holds and failed refunds in either Stripe shape', async () => {
