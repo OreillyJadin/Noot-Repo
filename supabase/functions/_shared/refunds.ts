@@ -54,3 +54,17 @@ export function chargeRefundPercent(charge: ChargeTotals, capturedRefundedCents:
   const pct = Math.min(100, Math.max(0, Math.round((back * 100) / total)));
   return back < total ? Math.min(pct, 99) : pct;
 }
+
+/**
+ * Cents still to refund so the student has targetPercent of the charge back (uncaptured share and
+ * refunds count as back). Never more than the captured funds left.
+ */
+export function refundOwedCents(charge: ChargeTotals, capturedRefundedCents: number, targetPercent: number): number {
+  const captured = Math.max(0, charge.amount_captured ?? 0);
+  const total = (charge.amount ?? 0) > 0 ? (charge.amount as number) : captured;
+  const capturedTotal = Math.min(captured, total);
+  const refunded = Math.min(capturedTotal, Math.max(0, capturedRefundedCents));
+  const back = total - capturedTotal + refunded;
+  const target = Math.round(total * targetPercent / 100);
+  return Math.max(0, Math.min(capturedTotal - refunded, target - back));
+}
