@@ -13,7 +13,9 @@ assert.match(screen, /Paid to tutor[\s\S]*?\{tutorPayout == null \? '—' : mone
 assert.doesNotMatch(screen, /sessionPrice\s*\*\s*tobj\.tutorPct|@supabase\//);
 assert.match(screen, /booking\.status === 'pending' \? 'early'/);
 const sessions = readFileSync(new URL('../apps/mobile/app/sessions.tsx', import.meta.url), 'utf8');
-assert.match(sessions, /tutorPayoutAmount: realBooking\?\.tutorPayoutAmount/);
+const cancelSession = sessions.slice(sessions.indexOf('const cancelSession ='), sessions.indexOf('const reportNoShow ='));
+assert.match(cancelSession, /tutorPayoutAmount: realBooking\?\.tutorPayoutAmount/);
+assert.match(cancelSession, /if \(!bookingId\) \{\s*patchBooking\(\{[^}]*tutorPayoutAmount: undefined/);
 
 for (const payout of [20.25, 0]) {
   for (const [refundPercent, expected] of [[0, payout], [50, payout === 0 ? 0 : 10.13], [100, 0]] as const) {

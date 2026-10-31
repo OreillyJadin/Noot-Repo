@@ -51,38 +51,39 @@ await svc.from('users').update({
 const signIn = await auth.signInWithPassword(email, PASSWORD);
 if (!signIn.ok) throw new Error(String(signIn.error));
 
-const tutorFixture = await createBookingTutor(svc, 'credit-tutor');
-const tutorId = tutorFixture.id;
-const courseCode = tutorFixture.courseCode;
-const sessionCents = Math.round(tutorFixture.hourlyRate * 100);
-const expectedFeeCents = Math.round(tutorFixture.hourlyRate * 0.17 * 100);
-const expectedTotalCents = sessionCents + expectedFeeCents;
-
-const grant = (cents: number) => svc.from('credit_ledger').insert({ user_id: uid, amount_cents: cents, kind: 'adjustment' });
 const holds: string[] = [];
 const bookings: string[] = [];
-// Distinct times so each test booking is its own slot.
-const at = (hoursAhead: number) => bookingTime(hoursAhead);
-
-async function hold(scheduledAt: string) {
-  const pi = await api.createPaymentIntent({ tutorId, courseCode, durationMinutes: 60, scheduledAt });
-  holds.push(pi.paymentIntentId);
-  await authorizeHold(pi.paymentIntentId);
-  return pi;
-}
-async function confirm(paymentIntentId: string, scheduledAt: string) {
-  const r = await api.bookings.confirm({ tutorId, courseCode, scheduledAt, durationMinutes: 60, sessionType: 'in_person', paymentIntentId });
-  bookings.push(r.bookingId);
-  return r.bookingId;
-}
-async function accept(bookingId: string) {
-  const { data: tutor } = await svc.from('users').select('email').eq('id', tutorId).single();
-  await auth.signInWithPassword(tutor!.email as string, PASSWORD);
-  await api.bookings.respond({ bookingId, action: 'accept' });
-  await auth.signInWithPassword(email, PASSWORD);
-}
+let tutorFixture: Awaited<ReturnType<typeof createBookingTutor>> | undefined;
 
 try {
+  tutorFixture = await createBookingTutor(svc, 'credit-tutor');
+  const tutorId = tutorFixture.id;
+  const courseCode = tutorFixture.courseCode;
+  const sessionCents = Math.round(tutorFixture.hourlyRate * 100);
+  const expectedFeeCents = Math.round(tutorFixture.hourlyRate * 0.17 * 100);
+  const expectedTotalCents = sessionCents + expectedFeeCents;
+
+  const grant = (cents: number) => svc.from('credit_ledger').insert({ user_id: uid, amount_cents: cents, kind: 'adjustment' });
+  // Distinct hours so each test booking is its own slot.
+  const at = (hoursAhead: number) => bookingTime(hoursAhead);
+
+  async function hold(scheduledAt: string) {
+    const pi = await api.createPaymentIntent({ tutorId, courseCode, durationMinutes: 60, scheduledAt });
+    holds.push(pi.paymentIntentId);
+    await authorizeHold(pi.paymentIntentId);
+    return pi;
+  }
+  async function confirm(paymentIntentId: string, scheduledAt: string) {
+    const r = await api.bookings.confirm({ tutorId, courseCode, scheduledAt, durationMinutes: 60, sessionType: 'in_person', paymentIntentId });
+    bookings.push(r.bookingId);
+    return r.bookingId;
+  }
+  async function accept(bookingId: string) {
+    await auth.signInWithPassword(tutorFixture!.email, PASSWORD);
+    await api.bookings.respond({ bookingId, action: 'accept' });
+    await auth.signInWithPassword(email, PASSWORD);
+  }
+
   console.log('— credit comes off the hold —');
   await grant(500);
   const t1 = at(30);
@@ -228,8 +229,7 @@ try {
     cancellation_deadline: new Date(Date.now() - 2 * 864e5).toISOString(),
   }).select('id').single();
   const tutorClient = createClient(URL, ANON, { auth: { persistSession: false } });
-  const { data: tutorUser } = await svc.from('users').select('email').eq('id', tutorId).single(); // seeded, DEV_PASSWORD
-  await tutorClient.auth.signInWithPassword({ email: tutorUser!.email as string, password: PASSWORD });
+  await tutorClient.auth.signInWithPassword({ email: tutorFixture.email, password: PASSWORD });
   const { data: { session: ts } } = await tutorClient.auth.getSession();
   const retry = await fetch(`${URL}/functions/v1/complete-session`, {
     method: 'POST', headers: { Authorization: `Bearer ${ts!.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ bookingId: done2!.id }),
@@ -342,11 +342,14 @@ try {
     await svc.auth.admin.deleteUser(x.userId);
   }
 } finally {
-  for (const pi of holds) await cancelHold(pi).catch(() => {});
-  await svc.from('credit_ledger').delete().eq('user_id', uid);
-  for (const b of bookings) await svc.from('bookings').delete().eq('id', b);
-  await svc.auth.admin.deleteUser(uid);
-  await tutorFixture.cleanup();
+  try {
+    for (const pi of holds) await cancelHold(pi).catch(() => {});
+    await svc.from('credit_ledger').delete().eq('user_id', uid);
+    for (const b of bookings) await svc.from('bookings').delete().eq('id', b);
+    await svc.auth.admin.deleteUser(uid);
+  } finally {
+    await tutorFixture?.cleanup();
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

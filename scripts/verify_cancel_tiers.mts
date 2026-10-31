@@ -208,11 +208,14 @@ try {
     const { error } = await admin.auth.admin.deleteUser(feeStudentId);
     if (error) console.error(`Test student cleanup failed: ${error.message}`);
   }
-  if (feePaymentIntentId.startsWith('pi_')) {
-    const payment = await getPaymentIntent(feePaymentIntentId);
-    if (payment.status === 'requires_capture') await cancelHold(feePaymentIntentId);
+  try {
+    if (feePaymentIntentId.startsWith('pi_')) {
+      const payment = await getPaymentIntent(feePaymentIntentId);
+      if (payment.status === 'requires_capture') await cancelHold(feePaymentIntentId);
+    }
+  } finally {
+    await tutorFixture?.cleanup();
   }
-  await tutorFixture?.cleanup();
 }
 
 const failed = results.filter((result) => !result.ok);
