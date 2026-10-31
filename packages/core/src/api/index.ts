@@ -36,6 +36,7 @@ import type {
   OutgoingAttachment,
   Notification,
   NotificationType,
+  RefundStatus,
   ReviewSummary,
   TutorAvailability,
   TutorInterview,
@@ -1418,7 +1419,7 @@ export const api = {
     const sb = getSupabase();
     const { data, error } = await sb
       .from('bookings')
-      .select('status, cancelled_by_role, cancelled_from_status, no_show_party, scheduled_at, tutor_payout_amount, refund_percent, duration_minutes')
+      .select('status, refund_status, cancelled_by_role, cancelled_from_status, no_show_party, scheduled_at, tutor_payout_amount, refund_percent, duration_minutes')
       .eq('tutor_id', uid);
     if (error) throw error;
     const rows = data ?? [];
@@ -1436,6 +1437,7 @@ export const api = {
         scheduledAt: r.scheduled_at as string,
         cents: Math.round(tutorEarnedAmount({
           status: r.status,
+          refundStatus: r.refund_status as RefundStatus,
           tutorPayoutAmount: num(r.tutor_payout_amount),
           refundPercent: num(r.refund_percent),
         }) * 100),
