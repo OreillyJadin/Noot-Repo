@@ -32,6 +32,11 @@ test('a transfer without a reason belongs to another outcome', async () => {
   assert.equal(await otherOutcomeTransferExists(stripeWithTransfers([{}]), bookingId, ownReason), true);
 });
 
+test('a null reason treats every transfer as a conflict', async () => {
+  const stripe = stripeWithTransfers([{ metadata: { reason: ownReason } }]);
+  assert.equal(await otherOutcomeTransferExists(stripe, bookingId, null), true);
+});
+
 test('a transfer with a different reason belongs to another outcome', async () => {
   const stripe = stripeWithTransfers([
     { metadata: { reason: ownReason } },

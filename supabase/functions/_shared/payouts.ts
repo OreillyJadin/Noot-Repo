@@ -27,10 +27,10 @@ export type ChargeFunds = Pick<Stripe.Charge, 'amount' | 'amount_captured' | 'am
 export async function otherOutcomeTransferExists(
   stripe: TransferReader,
   bookingId: string,
-  ownReason: string,
+  ownReason: string | null,
 ): Promise<boolean> {
   for await (const transfer of stripe.transfers.list({ transfer_group: bookingId, limit: 100 })) {
-    if (transfer.metadata?.reason !== ownReason) return true;
+    if (ownReason === null || transfer.metadata?.reason !== ownReason) return true;
   }
   return false;
 }

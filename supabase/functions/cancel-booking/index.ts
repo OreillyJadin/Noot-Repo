@@ -239,7 +239,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
         if (current.status === 'canceled') {
           refundPercent = 100;
         } else if (current.status === 'succeeded') {
-          if (await otherOutcomeTransferExists(stripe, bookingId, 'late_cancel')) {
+          if (await otherOutcomeTransferExists(stripe, bookingId, refundPercent < 100 ? 'late_cancel' : null)) {
             return Response.json({ error: 'This session was already completed or cancelled.' }, { status: 409, headers: cors });
           }
           const charge = current.latest_charge;

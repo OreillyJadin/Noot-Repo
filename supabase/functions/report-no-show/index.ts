@@ -152,7 +152,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
         if (current.status === 'canceled') {
           refundPercent = 100;
         } else if (current.status === 'succeeded') {
-          if (await otherOutcomeTransferExists(stripe, bookingId, 'student_no_show')) {
+          if (await otherOutcomeTransferExists(stripe, bookingId, tutorNoShow ? null : 'student_no_show')) {
             return Response.json({ error: 'This session was already completed or cancelled.' }, { status: 409, headers: cors });
           }
           const charge = current.latest_charge;
