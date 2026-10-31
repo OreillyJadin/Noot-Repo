@@ -136,6 +136,7 @@ jobs:
             verify_tutor_earned_totals
             verify_student_history_refunds
             verify_refunded_cents
+            verify_refund_before_payout
             verify_filter
             verify_guidelines
             verify_guidelines_all_roles

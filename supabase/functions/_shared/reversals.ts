@@ -22,6 +22,7 @@ export type TransferLike = {
   amount_reversed: number;
   created: number;
   reversals: ReversalLike[];
+  refundBaselineCents?: number;
 };
 
 export type RefundShare = { refundId: string; cents: number };
@@ -49,6 +50,7 @@ export function reversalShares(
   refunds: RefundLike[],
   capturedCents: number,
   transferredCents: number,
+  baselineCents = 0,
 ): RefundShare[] {
   if (capturedCents <= 0 || transferredCents <= 0) return [];
 
@@ -58,7 +60,8 @@ export function reversalShares(
   let previousTarget = 0;
   for (const refund of ordered) {
     refundedCents = Math.min(capturedCents, refundedCents + Math.max(0, refund.amount));
-    const target = Math.round(transferredCents * refundedCents / capturedCents);
+    const basis = capturedCents - baselineCents;
+    const target = basis > 0 ? Math.round(transferredCents * Math.max(0, refundedCents - baselineCents) / basis) : 0;
     const cents = target - previousTarget;
     if (cents > 0) shares.push({ refundId: refund.id, cents });
     previousTarget = target;
@@ -128,6 +131,8 @@ export async function reverseTutorTransfers(args: {
       amount: transfer.amount,
       amount_reversed: transfer.amount_reversed,
       created: transfer.created,
+      refundBaselineCents: transfer.metadata?.refund_baseline_cents === undefined
+        ? undefined : Number(transfer.metadata.refund_baseline_cents),
       reversals: reversals.data.map((reversal) => ({
         amount: reversal.amount,
         metadata: reversal.metadata,
@@ -138,9 +143,14 @@ export async function reverseTutorTransfers(args: {
   const shares = reversalShares(
     stripeSideRefunds(refunds),
     charge.amount_captured ?? 0,
-    transfers.reduce((sum, transfer) => sum + transfer.amount, 0),
+    transfers.filter((transfer) => transfer.refundBaselineCents === undefined).reduce((sum, transfer) => sum + transfer.amount, 0),
   );
-  const planned = planReversals(shares, transfers);
+  const planned = planReversals(shares, transfers.filter((transfer) => transfer.refundBaselineCents === undefined));
+  for (const transfer of transfers.filter((item) => item.refundBaselineCents !== undefined)) {
+    planned.push(...planReversals(reversalShares(
+      stripeSideRefunds(refunds), charge.amount_captured ?? 0, transfer.amount, transfer.refundBaselineCents,
+    ), [transfer]));
+  }
   const attempts: ReversalAttempt[] = [];
 
   for (const item of planned) {

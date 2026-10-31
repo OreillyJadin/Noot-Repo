@@ -221,6 +221,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
                   bookingId,
                   destination: connectId!,
                   payoutCents: amount,
+                  originalPayoutCents: Math.round(Number(booking.tutor_payout_amount) * 100),
                   charge,
                   idempotencyKey: `cancel_transfer_${bookingId}`,
                   metadata: {
