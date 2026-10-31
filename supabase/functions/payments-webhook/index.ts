@@ -13,7 +13,7 @@
 import Stripe from 'https://esm.sh/stripe@16?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getPayoutStatus } from '../_shared/connect.ts';
-import { chargeRefundPercent } from '../_shared/refunds.ts';
+import { capturedRefundCents, chargeRefundPercent } from '../_shared/refunds.ts';
 import { verifyWithAnySecret, webhookSecrets } from '../_shared/webhook.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
@@ -94,7 +94,13 @@ serveWithErrorReporting('payments-webhook', async (req: Request) => {
         const charge = event.data.object as Stripe.Charge;
         const pi = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
         if (pi) {
-          const pct = chargeRefundPercent(charge);
+          let refundedCents: number;
+          try {
+            refundedCents = await capturedRefundCents(stripe, charge);
+          } catch {
+            throw new RetryableError('charge refunds lookup failed');
+          }
+          const pct = chargeRefundPercent(charge, refundedCents);
           const { error: updateError } = await db
             .from('bookings')
             .update({ refund_status: 'refunded', stripe_refund_id: charge.refunds?.data?.[0]?.id ?? null })
