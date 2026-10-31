@@ -2,6 +2,9 @@
 // proportionally across both from the captured charge; released authorizations are excluded.
 // Reversal metadata makes retries idempotent beyond Stripe's 24-hour idempotency-key window.
 import type Stripe from 'https://esm.sh/stripe@16?target=deno';
+import type { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+type Db = ReturnType<typeof createClient>;
 
 export type RefundLike = {
   id: string;
@@ -169,4 +172,59 @@ export async function reverseTutorTransfers(args: {
   }
 
   return attempts;
+}
+
+export async function settleTutorReversals(
+  db: Db,
+  stripe: Stripe,
+  bookingId: string,
+  chargeId: string,
+): Promise<void> {
+  const { data: booking, error: transferLookupError } = await db
+    .from('bookings')
+    .select('stripe_transfer_id')
+    .eq('id', bookingId)
+    .maybeSingle();
+  if (transferLookupError) throw new Error('booking transfer lookup failed');
+
+  const fallbackTransferId = (booking?.stripe_transfer_id as string | null | undefined) ?? null;
+  if (!fallbackTransferId) return;
+
+  let attempts: ReversalAttempt[];
+  try {
+    attempts = await reverseTutorTransfers({
+      stripe,
+      bookingId,
+      chargeId,
+      fallbackTransferId,
+    });
+  } catch {
+    throw new Error('transfer reversal lookup failed');
+  }
+
+  for (const attempt of attempts) {
+    const { error: recordError } = await db
+      .from('tutor_transfer_reversals')
+      .upsert({
+        booking_id: bookingId,
+        stripe_charge_id: chargeId,
+        stripe_refund_id: attempt.refundId,
+        stripe_transfer_id: attempt.transferId,
+        amount_cents: attempt.cents,
+        status: attempt.error ? 'failed' : 'reversed',
+        stripe_reversal_id: attempt.reversalId,
+        last_error: attempt.error,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'stripe_refund_id,stripe_transfer_id' });
+    if (recordError) throw new Error('transfer reversal record failed');
+    if (attempt.error) {
+      console.error(
+        'payments-webhook: transfer reversal failed',
+        bookingId,
+        attempt.refundId,
+        attempt.transferId,
+        attempt.error,
+      );
+    }
+  }
 }

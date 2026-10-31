@@ -5,8 +5,8 @@
 //   - account.updated   → cache Accounts v2 transfer/payout capability readiness
 //   - charge.refunded   → mark the booking refunded, record refund_percent as the raise-only
 //                         share of the charge returned to the student, give back the same share
-//                         of Noot credit, take back the invite reward on a FULL refund (0040),
-//                         and proportionally reverse tutor transfers
+//                         of Noot credit, and on a FULL refund take back the invite reward (0040)
+//   - charge.refunded also proportionally reverses tutor transfers (_shared/reversals.ts)
 //   - charge.dispute.created → take back the invite reward the session earned
 //   - charge.dispute.closed (lost) → give the student back the credit they used
 // Every handler failure returns 500 so Stripe redelivers; all handlers are idempotent.
@@ -15,9 +15,9 @@ import Stripe from 'https://esm.sh/stripe@16?target=deno';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { getPayoutStatus } from '../_shared/connect.ts';
 import { capturedRefundCents, chargeRefundPercent } from '../_shared/refunds.ts';
-import { reverseTutorTransfers } from '../_shared/reversals.ts';
 import { verifyWithAnySecret, webhookSecrets } from '../_shared/webhook.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
+import { settleTutorReversals } from '../_shared/reversals.ts';
 
 type Db = ReturnType<typeof createClient>;
 
@@ -120,52 +120,7 @@ serveWithErrorReporting('payments-webhook', async (req: Request) => {
             await creditRpc(db, 'return_booking_credit', { p_booking: bookingId, p_percent: pct });
             // `refunded` is true only for a full refund.
             if (charge.refunded) await creditRpc(db, 'reverse_invite_rewards', { p_booking: bookingId });
-
-            const { data: booking, error: transferLookupError } = await db
-              .from('bookings')
-              .select('stripe_transfer_id')
-              .eq('id', bookingId)
-              .maybeSingle();
-            if (transferLookupError) throw new RetryableError('booking transfer lookup failed');
-            const fallbackTransferId = (booking?.stripe_transfer_id as string | null | undefined) ?? null;
-            if (fallbackTransferId) {
-              let attempts;
-              try {
-                attempts = await reverseTutorTransfers({
-                  stripe,
-                  bookingId,
-                  chargeId: charge.id,
-                  fallbackTransferId,
-                });
-              } catch {
-                throw new RetryableError('transfer reversal lookup failed');
-              }
-              for (const attempt of attempts) {
-                const { error: recordError } = await db
-                  .from('tutor_transfer_reversals')
-                  .upsert({
-                    booking_id: bookingId,
-                    stripe_charge_id: charge.id,
-                    stripe_refund_id: attempt.refundId,
-                    stripe_transfer_id: attempt.transferId,
-                    amount_cents: attempt.cents,
-                    status: attempt.error ? 'failed' : 'reversed',
-                    stripe_reversal_id: attempt.reversalId,
-                    last_error: attempt.error,
-                    updated_at: new Date().toISOString(),
-                  }, { onConflict: 'stripe_refund_id,stripe_transfer_id' });
-                if (recordError) throw new RetryableError('transfer reversal record failed');
-                if (attempt.error) {
-                  console.error(
-                    'payments-webhook: transfer reversal failed',
-                    bookingId,
-                    attempt.refundId,
-                    attempt.transferId,
-                    attempt.error,
-                  );
-                }
-              }
-            }
+            await settleTutorReversals(db, stripe, bookingId, charge.id).catch((error) => { throw new RetryableError(error instanceof Error ? error.message : 'transfer reversal failed'); });
           }
         }
         break;
