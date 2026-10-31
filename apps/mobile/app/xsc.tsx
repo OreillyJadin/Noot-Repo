@@ -26,7 +26,7 @@ import {
   HeroIcon,
   useTheme,
 } from '@noot/ui';
-import { api, studentFeeFor } from '@noot/core';
+import { api, studentFeeFor, tutorEarnedAmount } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
 import { DAYS, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
@@ -55,14 +55,13 @@ interface Tier {
   id: TierId;
   label: string;
   refundPct: number;
-  tutorPct: number;
   note: string;
 }
 
 const TIERS: Tier[] = [
-  { id: 'early', label: '12+ hrs', refundPct: 1.0, tutorPct: 0, note: 'Full refund — no charge.' },
-  { id: 'mid', label: '2–12 hrs', refundPct: 0.5, tutorPct: 0.5, note: 'Half refund — your tutor is paid for half the reserved slot.' },
-  { id: 'late', label: '< 2 hrs', refundPct: 0, tutorPct: 1.0, note: 'No refund — your tutor is paid for the held time.' },
+  { id: 'early', label: '12+ hrs', refundPct: 1.0, note: 'Full refund — no charge.' },
+  { id: 'mid', label: '2–12 hrs', refundPct: 0.5, note: 'Half refund — your tutor is paid for half the reserved slot.' },
+  { id: 'late', label: '< 2 hrs', refundPct: 0, note: 'No refund — your tutor is paid for the held time.' },
 ];
 
 // Recap strip — student-side cancel always shows the tutor being cancelled on.
@@ -119,6 +118,13 @@ function XStudentCancelInner() {
   // When a real booking is cancelled, the server decides the refund %; prefer it.
   const [serverRefund, setServerRefund] = useState<number | null>(null);
   const tobj = TIERS.find((x) => x.id === tier) ?? null;
+  const tutorPayout = tobj && booking.tutorPayoutAmount != null
+    ? tutorEarnedAmount({
+        status: 'cancelled',
+        tutorPayoutAmount: booking.tutorPayoutAmount,
+        refundPercent: Math.round(tobj.refundPct * 100),
+      })
+    : null;
   const tierRefund = tobj ? refundCentsFor(Math.round(tobj.refundPct * 100)) / 100 : null;
   const refund = serverRefund ?? (booking.status === 'pending' ? paidCents / 100 : tierRefund);
 
@@ -218,7 +224,7 @@ function XStudentCancelInner() {
             <View style={styles.rowBetween}>
               <Text style={{ fontSize: 14, color: t.text2 }}>Paid to tutor</Text>
               <Text style={{ fontSize: 14, fontWeight: '600', color: t.text3 }}>
-                {tobj ? money(sessionPrice * tobj.tutorPct) : '—'}
+                {tutorPayout == null ? '—' : money(tutorPayout)}
               </Text>
             </View>
           </View>
