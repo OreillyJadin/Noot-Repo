@@ -73,6 +73,10 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     }
 
     const now = new Date();
+    const chargedCents = Math.round(Number(booking.price) * 100) +
+      Math.round(Number(booking.student_fee) * 100) -
+      Math.round(Number(booking.credit_applied ?? 0) * 100);
+    const hasCardAmount = chargedCents > 0 && (booking.stripe_payment_intent_id as string | null)?.startsWith('pi_');
     if (booking.status === 'pending') {
       const paymentIntentId = booking.stripe_payment_intent_id as string | null;
       const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
@@ -85,6 +89,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
           cancelled_from_status: 'pending',
           cancelled_at: now.toISOString(),
           refund_percent: 100,
+          refunded_cents: hasCardAmount ? chargedCents : null,
           refund_status: 'refunded',
           stripe_charge_id: null,
           stripe_transfer_id: null,
@@ -196,10 +201,6 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
           await stripe.paymentIntents.cancel(pi, {}, { idempotencyKey: `cancel_${bookingId}` });
         } else {
           // The card was held for session price plus service fee, minus any Noot credit.
-          const chargedCents =
-            Math.round(Number(booking.price) * 100) +
-            Math.round(Number(booking.student_fee) * 100) -
-            Math.round(Number(booking.credit_applied ?? 0) * 100);
           const captureCents = Math.round((chargedCents * (100 - refundPercent)) / 100);
           const capturedPi = await stripe.paymentIntents.capture(
             pi,
@@ -267,6 +268,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
         cancelled_from_status: 'confirmed',
         cancelled_at: now.toISOString(),
         refund_percent: refundPercent,
+        refunded_cents: hasCardAmount ? chargedCents - Math.round((chargedCents * (100 - refundPercent)) / 100) : null,
         refund_status: refundStatus,
         stripe_charge_id: chargeId,
         stripe_transfer_id: transferId,

@@ -124,6 +124,10 @@ function XStudentCancelInner() {
         tutorPayoutAmount: booking.tutorPayoutAmount,
         refundPercent: Math.round(tobj.refundPct * 100),
         refundStatus: 'not_applicable',
+        refundedCents: null,
+        price: 0,
+        studentFee: 0,
+        creditApplied: 0,
       })
     : null;
   const tierRefund = tobj ? refundCentsFor(Math.round(tobj.refundPct * 100)) / 100 : null;
