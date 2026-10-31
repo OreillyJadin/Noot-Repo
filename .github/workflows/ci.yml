@@ -126,6 +126,7 @@ jobs:
             verify_age_required_ui
             verify_rate_session_ui
             verify_rating_prompt_ui
+            verify_rating_header_ui
             verify_rating_notifications
             verify_email_code
             verify_tutor_history_refunds
