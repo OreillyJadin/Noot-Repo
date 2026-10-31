@@ -1,14 +1,30 @@
 import type { Booking } from './models';
 
-/**
- * What the tutor earns from a booking, in dollars. Cancelled and no-show bookings pay the
- * tutor only the share the student wasn't refunded (cancel-booking / report-no-show, see
- * lateCancelTutorPayoutCents in supabase/functions/_shared/cancellation.ts), so a full
- * refund earns $0. Other statuses earn the booking's payout.
- */
-export function tutorEarnedAmount(b: Pick<Booking, 'status' | 'tutorPayoutAmount' | 'refundPercent'>): number {
-  if (b.status !== 'cancelled' && b.status !== 'no_show') return b.tutorPayoutAmount;
-  const refunded = Math.min(100, Math.max(0, b.refundPercent));
+type RefundInput = Pick<Booking, 'status' | 'refundStatus' | 'refundPercent' | 'price' | 'studentFee' | 'creditApplied' | 'refundedCents'>;
+
+function chargedCents(b: Pick<Booking, 'price' | 'studentFee' | 'creditApplied'>): number {
+  return Math.max(0, Math.round(b.price * 100) + Math.round(b.studentFee * 100) - Math.round(b.creditApplied * 100));
+}
+
+function exactRefund(b: RefundInput, charged: number): number | null {
+  const applies = b.status === 'cancelled' || b.status === 'no_show' || b.refundStatus === 'refunded';
+  return applies && b.refundedCents != null && charged > 0 ? Math.min(charged, Math.max(0, b.refundedCents)) : null;
+}
+
+/** refundPercent applies to cancels, no-shows, and any booking refunded in Stripe. */
+function refundedPercent(b: Pick<Booking, 'status' | 'refundStatus' | 'refundPercent'>): number {
+  const applies = b.status === 'cancelled' || b.status === 'no_show' || b.refundStatus === 'refunded';
+  return applies ? Math.min(100, Math.max(0, b.refundPercent)) : 0;
+}
+
+/** Tutor payout after applicable cancellation, no-show, or Stripe refunds. */
+export function tutorEarnedAmount(
+  b: RefundInput & Pick<Booking, 'tutorPayoutAmount'>,
+): number {
+  const charged = chargedCents(b);
+  const exact = exactRefund(b, charged);
+  if (exact != null) return Math.round((Math.round(b.tutorPayoutAmount * 100) * (charged - exact)) / charged) / 100;
+  const refunded = refundedPercent(b);
   return Math.round((Math.round(b.tutorPayoutAmount * 100) * (100 - refunded)) / 100) / 100;
 }
 
@@ -24,25 +40,20 @@ export interface StudentPayment {
   creditReturned: number;
 }
 
-/**
- * What the student paid for a booking. Cancelled and no-show bookings refund refundPercent of
- * both the session price and the service fee: the card share goes back to the card (cancel-booking
- * captures only the non-refunded share, a full refund releases the hold) and the Noot-credit share
- * comes back as credit in the same proportion (return_booking_credit). Other statuses are unrefunded.
- */
+/** Student payment net of applicable cancellation, no-show, or Stripe refunds. */
 export function studentPaidAmount(
-  b: Pick<Booking, 'status' | 'price' | 'studentFee' | 'creditApplied' | 'refundPercent'>,
+  b: RefundInput,
 ): StudentPayment {
   const creditCents = Math.round(b.creditApplied * 100);
-  const chargedCents = Math.max(0, Math.round(b.price * 100) + Math.round(b.studentFee * 100) - creditCents);
-  const refunded =
-    b.status === 'cancelled' || b.status === 'no_show' ? Math.min(100, Math.max(0, b.refundPercent)) : 0;
-  const netCents = Math.round((chargedCents * (100 - refunded)) / 100);
-  const creditReturnedCents = Math.round((creditCents * refunded) / 100);
+  const charged = chargedCents(b);
+  const exact = exactRefund(b, charged);
+  const refunded = refundedPercent(b);
+  const netCents = exact == null ? Math.round((charged * (100 - refunded)) / 100) : charged - exact;
+  const creditReturnedCents = exact == null ? Math.round((creditCents * refunded) / 100) : Math.round((creditCents * exact) / charged);
   return {
-    charged: chargedCents / 100,
+    charged: charged / 100,
     net: netCents / 100,
-    refundedToCard: (chargedCents - netCents) / 100,
+    refundedToCard: (charged - netCents) / 100,
     creditReturned: creditReturnedCents / 100,
   };
 }

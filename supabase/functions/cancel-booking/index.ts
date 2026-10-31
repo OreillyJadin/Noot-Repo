@@ -1,6 +1,6 @@
 // Edge Function: cancel-booking.
-// Cancels a booking and records the intended refund state per the cancellation
-// policy. Either party to the booking may cancel:
+// Cancels a booking and records a raise-only refund share, accounting for refunds
+// already made in Stripe. Either party to the booking may cancel:
 //   - Student cancels: refund tiered by lead time (12h+ → 100%, >=2h → 50%, else 0%).
 //     On late cancellations, the tutor is paid their non-refunded share of the stored payout.
 //   - Tutor cancels: student is always refunded 100%.
@@ -11,7 +11,9 @@ import { requireActiveUser } from '../_shared/auth.ts';
 import { assertPayoutReady } from '../_shared/booking.ts';
 import { lateCancelTutorPayoutCents, studentCancelRefundPercent } from '../_shared/cancellation.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
-import { payTutor } from '../_shared/payouts.ts';
+import { otherOutcomeTransferExists, payTutor } from '../_shared/payouts.ts';
+import { capturedRefundCents, chargeRefundedCents, chargeRefundPercent, refundOwedCents } from '../_shared/refunds.ts';
+import { raiseRefundedCents, updateConfirmedBookingRaiseOnly } from '../_shared/refundWrite.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -73,6 +75,10 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     }
 
     const now = new Date();
+    const chargedCents = Math.round(Number(booking.price) * 100) +
+      Math.round(Number(booking.student_fee) * 100) -
+      Math.round(Number(booking.credit_applied ?? 0) * 100);
+    const hasCardAmount = chargedCents > 0 && (booking.stripe_payment_intent_id as string | null)?.startsWith('pi_');
     if (booking.status === 'pending') {
       const paymentIntentId = booking.stripe_payment_intent_id as string | null;
       const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
@@ -98,6 +104,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
       if (!cancelled) {
         return Response.json({ error: 'This request is no longer pending' }, { status: 409, headers: cors });
       }
+      if (hasCardAmount) await raiseRefundedCents(db, bookingId, chargedCents);
 
       const { error: creditError } = await db.rpc('return_booking_credit', {
         p_booking: bookingId,
@@ -177,8 +184,6 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
       // TODO: increment tutor cancellation-rate tracking when tutor cancels.
     }
 
-    const refundStatus = refundPercent > 0 ? 'refunded' : 'not_refunded';
-
     // Real money movement on the held (manual-capture) PaymentIntent:
     //   100% refund → cancel the authorization (nothing captured);
     //   partial     → capture only the non-refunded portion (the rest auto-releases);
@@ -188,27 +193,13 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     let chargeId: string | null = null;
     let transferId: string | null = null;
     let payoutFailedAt: string | null = null;
+    let refundedCents: number | null = null;
     if (stripeKey && pi && pi.startsWith('pi_')) {
       const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
       const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
       try {
-        if (refundPercent === 100) {
-          await stripe.paymentIntents.cancel(pi, {}, { idempotencyKey: `cancel_${bookingId}` });
-        } else {
-          // The card was held for session price plus service fee, minus any Noot credit.
-          const chargedCents =
-            Math.round(Number(booking.price) * 100) +
-            Math.round(Number(booking.student_fee) * 100) -
-            Math.round(Number(booking.credit_applied ?? 0) * 100);
-          const captureCents = Math.round((chargedCents * (100 - refundPercent)) / 100);
-          const capturedPi = await stripe.paymentIntents.capture(
-            pi,
-            { amount_to_capture: captureCents, expand: ['latest_charge'] },
-            { idempotencyKey: `cancelcap_${bookingId}` },
-          );
-          const charge = typeof capturedPi.latest_charge === 'string' ? null : capturedPi.latest_charge;
-          chargeId = typeof capturedPi.latest_charge === 'string' ? capturedPi.latest_charge : (charge?.id ?? null);
-
+        const current = await stripe.paymentIntents.retrieve(pi, { expand: ['latest_charge'] });
+        const payLateCancelTutor = async (charge: Parameters<typeof payTutor>[0]['charge']) => {
           if (booking.tutor_payout_amount == null) {
             payoutFailedAt = now.toISOString();
           } else {
@@ -249,6 +240,48 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
               }
             }
           }
+        };
+
+        if (current.status === 'canceled') {
+          refundPercent = 100;
+        } else if (current.status === 'succeeded') {
+          if (await otherOutcomeTransferExists(stripe, bookingId, refundPercent < 100 ? 'late_cancel' : null)) {
+            return Response.json({ error: 'This session was already completed or cancelled.' }, { status: 409, headers: cors });
+          }
+          const charge = current.latest_charge;
+          if (!charge || typeof charge === 'string') throw new Error('Captured charge was not expanded');
+          const refunded = await capturedRefundCents(stripe, charge);
+          const owed = refundOwedCents(charge, refunded, refundPercent);
+          const refundedAfter = refunded + owed;
+          if (owed > 0) {
+            await stripe.refunds.create(
+              {
+                charge: charge.id,
+                amount: owed,
+                metadata: { booking_id: bookingId, reason: 'cancel' },
+              },
+              { idempotencyKey: `cancelrefund_${bookingId}` },
+            );
+          }
+          refundPercent = Math.max(refundPercent, chargeRefundPercent(charge, refundedAfter));
+          refundedCents = chargeRefundedCents(charge, refundedAfter);
+          chargeId = charge.id;
+          if (refundPercent < 100) await payLateCancelTutor(charge);
+        } else {
+          if (refundPercent === 100) {
+            await stripe.paymentIntents.cancel(pi, {}, { idempotencyKey: `cancel_${bookingId}` });
+          } else {
+            // The card was held for session price plus service fee, minus any Noot credit.
+            const captureCents = Math.round((chargedCents * (100 - refundPercent)) / 100);
+            const capturedPi = await stripe.paymentIntents.capture(
+              pi,
+              { amount_to_capture: captureCents, expand: ['latest_charge'] },
+              { idempotencyKey: `cancelcap_${bookingId}` },
+            );
+            const charge = typeof capturedPi.latest_charge === 'string' ? null : capturedPi.latest_charge;
+            chargeId = typeof capturedPi.latest_charge === 'string' ? capturedPi.latest_charge : (charge?.id ?? null);
+            await payLateCancelTutor(charge);
+          }
         }
       } catch (stripeErr) {
         console.error('cancel-booking: payment step failed', bookingId, String(stripeErr));
@@ -259,23 +292,20 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
       }
     }
 
-    const { data: updated, error: updateError } = await db
-      .from('bookings')
-      .update({
-        status: 'cancelled',
-        cancelled_by_role: isStudent ? 'student' : 'tutor',
-        cancelled_from_status: 'confirmed',
-        cancelled_at: now.toISOString(),
-        refund_percent: refundPercent,
-        refund_status: refundStatus,
-        stripe_charge_id: chargeId,
-        stripe_transfer_id: transferId,
-        ...(payoutFailedAt ? { payout_failed_at: payoutFailedAt } : {}),
-      })
-      .eq('id', bookingId)
-      .eq('status', booking.status)
-      .select('id')
-      .maybeSingle();
+    if (refundedCents === null && hasCardAmount) {
+      refundedCents = chargedCents - Math.round((chargedCents * (100 - refundPercent)) / 100);
+    }
+    const base = {
+      status: 'cancelled',
+      cancelled_by_role: isStudent ? 'student' : 'tutor',
+      cancelled_from_status: 'confirmed',
+      cancelled_at: now.toISOString(),
+      stripe_charge_id: chargeId,
+      stripe_transfer_id: transferId,
+      ...(payoutFailedAt ? { payout_failed_at: payoutFailedAt } : {}),
+    };
+    const { data: updated, error: updateError } =
+      await updateConfirmedBookingRaiseOnly(db, bookingId, base, refundPercent, refundedCents);
 
     if (updateError) {
       return Response.json({ error: updateError.message }, { status: 400, headers: cors });
@@ -283,11 +313,13 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     if (!updated) {
       return Response.json({ error: 'This booking is no longer cancellable' }, { status: 409, headers: cors });
     }
+    const actualRefundPercent = Number(updated.refund_percent);
+    const actualRefundStatus = updated.refund_status;
 
     // Noot credit comes back in the same proportion as the cash refund (cumulative, so a
     // later full refund in Stripe tops it up; repeating changes nothing).
     if (Number(booking.credit_applied ?? 0) > 0) {
-      const { error: creditErr } = await db.rpc('return_booking_credit', { p_booking: bookingId, p_percent: refundPercent });
+      const { error: creditErr } = await db.rpc('return_booking_credit', { p_booking: bookingId, p_percent: actualRefundPercent });
       if (creditErr) console.error('cancel-booking: credit return failed', bookingId, creditErr.message);
     }
 
@@ -304,7 +336,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     if (notificationError) console.error('cancel-booking: counterpart notification failed', bookingId);
 
     return Response.json(
-      { status: 'cancelled', refundPercent, refundStatus, payoutFailed: !!payoutFailedAt },
+      { status: 'cancelled', refundPercent: actualRefundPercent, refundStatus: actualRefundStatus, payoutFailed: !!payoutFailedAt },
       { headers: cors },
     );
   } catch (e) {
