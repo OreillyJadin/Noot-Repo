@@ -10,6 +10,7 @@
 // retry resumes rather than paying twice.
 import type Stripe from 'https://esm.sh/stripe@16?target=deno';
 import { capturedRefundCents } from './refunds.ts';
+import { disputeHoldsPayout } from './disputes.ts';
 
 interface TransferRecord {
   metadata?: Record<string, string> | null;
@@ -94,6 +95,11 @@ export async function payTutor(args: PayoutArgs): Promise<PayoutResult> {
   let owed = Math.max(0, Math.round(payoutCents));
   try {
     if (charge) charge = await stripe.charges.retrieve(charge.id);
+    if (charge) {
+      for await (const dispute of stripe.disputes.list({ charge: charge.id, limit: 100 })) {
+        if (disputeHoldsPayout(dispute.status)) throw new Error(`Tutor payout held for dispute ${dispute.id}`);
+      }
+    }
     const refunded = charge ? await capturedRefundCents(stripe, charge) : 0;
     let target = refundAdjustedPayout(payoutCents, args.originalPayoutCents, charge, refunded);
     let baseline = refunded;

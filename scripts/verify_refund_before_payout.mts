@@ -50,6 +50,7 @@ if (key) {
   try {
     await request('refunds', { charge: chargeId, amount: '1000' });
     const stripe = {
+      disputes: { async *list() { yield* (await request(`disputes?charge=${chargeId}`)).data; } },
       charges: { retrieve: (id: string) => request(`charges/${id}`) },
       refunds: { async *list() { yield* (await request(`refunds?charge=${chargeId}&expand[]=data.balance_transaction`)).data; } },
       transfers: {
