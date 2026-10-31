@@ -31,7 +31,7 @@ async function createUser(role: 'student' | 'tutor') {
 try {
   for (const refundPercent of [0, 50, 100]) {
     assert.equal(
-      Math.round(tutorEarnedAmount({ status: 'cancelled', tutorPayoutAmount: 20.25, refundPercent }) * 100),
+      Math.round(tutorEarnedAmount({ status: 'cancelled', refundStatus: 'not_applicable', tutorPayoutAmount: 20.25, refundPercent }) * 100),
       lateCancelTutorPayoutCents(20.25, refundPercent),
       `displayed cancellation earnings match the server's cent rounding at ${refundPercent}%`,
     );

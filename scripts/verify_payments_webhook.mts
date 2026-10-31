@@ -57,6 +57,46 @@ async function postEvent(
   return postPayload(eventPayload(type, object, account), secret);
 }
 
+type TestCharge = {
+  id: string; payment_intent: string; amount: number; amount_captured: number;
+  amount_refunded: number; refunded: boolean;
+};
+const chargeRemainders = new Map<string, number>();
+
+async function stripeRequest<T>(path: string, params?: Record<string, string>): Promise<T> {
+  if (!stripeKey.startsWith('sk_test_')) throw new Error('Stripe test key required');
+  const response = await fetch(`https://api.stripe.com/v1/${path}`, {
+    method: params ? 'POST' : 'GET',
+    headers: {
+      Authorization: `Bearer ${stripeKey}`, 'Stripe-Version': '2024-06-20',
+      ...(params ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}),
+    },
+    ...(params ? { body: new URLSearchParams(params) } : {}),
+  });
+  if (!response.ok) throw new Error(`Stripe test request failed (${response.status})`);
+  return await response.json() as T;
+}
+
+async function capturedCharge(amount: number, captured: number): Promise<TestCharge> {
+  const pi = await stripeRequest<{ id: string }>('payment_intents', {
+    amount: String(amount), currency: 'usd', capture_method: 'manual',
+    payment_method: 'pm_card_visa', confirm: 'true',
+    'automatic_payment_methods[enabled]': 'true', 'automatic_payment_methods[allow_redirects]': 'never',
+    'metadata[purpose]': 'verify_payments_webhook',
+  });
+  const result = await stripeRequest<{ latest_charge: TestCharge }>(`payment_intents/${pi.id}/capture`, {
+    amount_to_capture: String(captured), 'expand[]': 'latest_charge',
+  });
+  chargeRemainders.set(result.latest_charge.id, captured);
+  return result.latest_charge;
+}
+
+async function refundCharge(charge: TestCharge, amount: number): Promise<TestCharge> {
+  await stripeRequest('refunds', { charge: charge.id, amount: String(amount) });
+  chargeRemainders.set(charge.id, chargeRemainders.get(charge.id)! - amount);
+  return stripeRequest<TestCharge>(`charges/${charge.id}`);
+}
+
 async function createRecipientAccount(userId: string): Promise<string> {
   const response = await fetch('https://api.stripe.com/v2/core/accounts', {
     method: 'POST',
@@ -103,6 +143,17 @@ function runSql(sql: string) {
   if (result.status !== 0) {
     throw new Error(`local trigger SQL failed: ${result.stderr.trim() || result.error?.message || result.status}`);
   }
+}
+
+async function setRefundPercent(bookingId: string, refundPercent: number) {
+  const { error } = await admin.from('bookings').update({ refund_percent: refundPercent }).eq('id', bookingId);
+  if (error) throw error;
+}
+
+async function readRefundPercent(bookingId: string): Promise<number> {
+  const { data, error } = await admin.from('bookings').select('refund_percent').eq('id', bookingId).single();
+  if (error || !data) throw error ?? new Error('booking refund percent missing');
+  return Number(data.refund_percent);
 }
 
 const dropFailureTriggers = () => runSql(`
@@ -317,6 +368,7 @@ try {
     id: `ch_verify_${randomBytes(8).toString('hex')}`,
     object: 'charge',
     payment_intent: verifyPi,
+    amount: 1000,
     amount_captured: 1000,
     amount_refunded: 1000,
     refunded: true,
@@ -326,15 +378,95 @@ try {
   const refundTwo = await postPayload(refundedEvent, platformSecret);
   const { data: refundCache, error: refundCacheError } = await admin
     .from('bookings')
-    .select('refund_status')
+    .select('refund_status, refund_percent')
     .eq('id', bookingId)
     .single();
   step(8, refundOne.status === 200 && refundTwo.status === 200 &&
-    !refundCacheError && refundCache?.refund_status === 'refunded',
-  `charge.refunded delivered twice → ${refundOne.status}, ${refundTwo.status}; status=${refundCache?.refund_status}`);
+    !refundCacheError && refundCache?.refund_status === 'refunded' && refundCache.refund_percent === 100,
+  `charge.refunded delivered twice → ${refundOne.status}, ${refundTwo.status}; status=${refundCache?.refund_status}, percent=${refundCache?.refund_percent}`);
+
+  await setRefundPercent(bookingId, 0);
+  let fullCharge = await capturedCharge(2000, 2000);
+  await admin.from('bookings').update({ stripe_payment_intent_id: fullCharge.payment_intent }).eq('id', bookingId).throwOnError();
+  fullCharge = await refundCharge(fullCharge, 500);
+  const partialRefundEvent = eventPayload('charge.refunded', fullCharge);
+  const partialOne = await postPayload(partialRefundEvent, platformSecret);
+  const partialTwo = await postPayload(partialRefundEvent, platformSecret);
+  let refundPercent = await readRefundPercent(bookingId);
+  step('9a', partialOne.status === 200 && partialTwo.status === 200 && refundPercent === 25,
+    `500 of 2000 refunded, delivered twice → ${partialOne.status}, ${partialTwo.status}; percent=${refundPercent}`);
+
+  fullCharge = await refundCharge(fullCharge, 500);
+  const cumulativeRefundEvent = eventPayload('charge.refunded', fullCharge);
+  const cumulativeRefund = await postPayload(cumulativeRefundEvent, platformSecret);
+  refundPercent = await readRefundPercent(bookingId);
+  step('9b', cumulativeRefund.status === 200 && refundPercent === 50,
+    `cumulative refund of 1000 → ${cumulativeRefund.status}; percent=${refundPercent}`);
+
+  const staleRefund = await postPayload(partialRefundEvent, platformSecret);
+  refundPercent = await readRefundPercent(bookingId);
+  step('9c', staleRefund.status === 200 && refundPercent === 50,
+    `stale 500 refund redelivery → ${staleRefund.status}; percent=${refundPercent}`);
+
+  await setRefundPercent(bookingId, 100);
+  const higherRefund = await postPayload(cumulativeRefundEvent, platformSecret);
+  refundPercent = await readRefundPercent(bookingId);
+  step('9d', higherRefund.status === 200 && refundPercent === 100,
+    `cumulative refund after app-set 100% → ${higherRefund.status}; percent=${refundPercent}`);
+
+  await setRefundPercent(bookingId, 50);
+  const { error: creditSpendError } = await admin.from('credit_ledger').insert({
+    user_id: student.id,
+    amount_cents: -1000,
+    kind: 'booking_spend',
+    booking_id: bookingId,
+  });
+  if (creditSpendError) throw new Error(`could not create booking credit spend: ${creditSpendError.message}`);
+
+  let halfCharge = await capturedCharge(3510, 1755);
+  await admin.from('bookings').update({ stripe_payment_intent_id: halfCharge.payment_intent }).eq('id', bookingId).throwOnError();
+  halfCharge = await refundCharge(halfCharge, 1000);
+  const partialCaptureEvent = eventPayload('charge.refunded', halfCharge);
+  const partialCaptureRefund = await postPayload(partialCaptureEvent, platformSecret);
+  refundPercent = await readRefundPercent(bookingId);
+  const { data: partialReturns, error: partialReturnsError } = await admin
+    .from('credit_ledger')
+    .select('amount_cents')
+    .eq('booking_id', bookingId)
+    .eq('kind', 'booking_return');
+  const partialCreditReturned = (partialReturns ?? []).reduce((sum, row) => sum + Number(row.amount_cents), 0);
+  step('9e', partialCaptureRefund.status === 200 && refundPercent === 78 &&
+    !partialReturnsError && partialCreditReturned === 780,
+  `partial capture/refund → ${partialCaptureRefund.status}; percent=${refundPercent}, credit=${partialCreditReturned}`);
+  step('9f partial credit', !partialReturnsError && partialCreditReturned === 780,
+    `78% refund returned ${partialCreditReturned} of 1000 Noot credit cents`);
+
+  for (const amount_refunded of [1000, 2755]) {
+    const response = await postEvent('charge.refunded', { ...halfCharge, amount_refunded }, platformSecret);
+    step('9e both shapes', response.status === 200 && await readRefundPercent(bookingId) === 78,
+      `3510 authorized / 1755 captured / 1000 actual refund; amount_refunded=${amount_refunded} → 78%`);
+  }
+
+  const lookupFailure = await postEvent('charge.refunded', { ...halfCharge, id: 'ch_verify_missing' }, platformSecret);
+  step('9e retryable lookup', lookupFailure.status === 500 && await readRefundPercent(bookingId) === 78,
+    `missing charge refund lookup → ${lookupFailure.status}, refund share unchanged`);
+
+  halfCharge = await refundCharge(halfCharge, 755);
+  const fullPartialCaptureEvent = eventPayload('charge.refunded', halfCharge);
+  const fullPartialCaptureRefund = await postPayload(fullPartialCaptureEvent, platformSecret);
+  refundPercent = await readRefundPercent(bookingId);
+  const { data: fullReturns, error: fullReturnsError } = await admin
+    .from('credit_ledger')
+    .select('amount_cents')
+    .eq('booking_id', bookingId)
+    .eq('kind', 'booking_return');
+  const fullCreditReturned = (fullReturns ?? []).reduce((sum, row) => sum + Number(row.amount_cents), 0);
+  step('9f full credit', fullPartialCaptureRefund.status === 200 && refundPercent === 100 &&
+    !fullReturnsError && fullCreditReturned === 1000,
+  `full cumulative refund → ${fullPartialCaptureRefund.status}; percent=${refundPercent}, credit=${fullCreditReturned}`);
 
   runSql(bookingTrigger);
-  const forcedBookingFailure = await postPayload(refundedEvent, platformSecret);
+  const forcedBookingFailure = await postPayload(fullPartialCaptureEvent, platformSecret);
   step('8 retryable failure', forcedBookingFailure.status === 500,
     `forced bookings UPDATE failure → ${forcedBookingFailure.status}`);
 } catch (error) {
@@ -361,6 +493,8 @@ try {
   }
 
   if (bookingId) {
+    const { error: ledgerError } = await admin.from('credit_ledger').delete().eq('booking_id', bookingId);
+    step('cleanup ledger', !ledgerError, ledgerError ? 'could not remove temporary credit ledger rows' : 'removed temporary credit ledger rows');
     const { error } = await admin.from('bookings').delete().eq('id', bookingId);
     step('cleanup booking', !error, error ? 'could not remove temporary booking' : 'removed temporary booking');
   }
@@ -372,6 +506,16 @@ try {
     });
     step('cleanup Stripe account', response.ok,
       response.ok ? 'deleted test recipient account' : `Stripe returned ${response.status}`);
+  }
+
+  for (const [id, remaining] of chargeRemainders) {
+    if (remaining <= 0) continue;
+    try {
+      await stripeRequest('refunds', { charge: id, amount: String(remaining) });
+      step('cleanup charge', true, 'refunded remaining test capture');
+    } catch {
+      step('cleanup charge', false, `could not refund remaining test capture ${id}`);
+    }
   }
 }
 
