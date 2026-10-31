@@ -29,6 +29,7 @@ export {
   studentFeeFor,
   feeRateFor,
   tutorPayoutFor,
+  tutorHourlyEstimate,
   creditToApply,
   MIN_CHARGE_CENTS,
   MIN_HOURLY_RATE,

@@ -1,8 +1,9 @@
 // Run: pnpm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bookingQuote, creditToApply, MIN_CHARGE_CENTS, MIN_HOURLY_RATE } from '../src/pricing.ts';
+import { bookingQuote, creditToApply, MIN_CHARGE_CENTS, MIN_HOURLY_RATE, tutorHourlyEstimate } from '../src/pricing.ts';
 import * as server from '../../../supabase/functions/_shared/credits.ts';
+import { splitPrice, feeRateFor } from '../../../supabase/functions/_shared/fees.ts';
 
 test('the card is always charged at least $1', () => {
   assert.equal(MIN_CHARGE_CENTS, 100);
@@ -50,4 +51,27 @@ test('an admin booking is quoted at $0 with no fee, credit or charge', () => {
 
 test('the rate floor the server enforces is the one the app shows', () => {
   assert.equal(MIN_HOURLY_RATE, 10);
+});
+
+test('hourly take-home mirrors server fees for every verification/course combination', () => {
+  for (const rate of [10, 17, 28, 37, 120]) {
+    for (const verified of [false, true]) {
+      for (const taking of [false, true]) {
+        assert.deepEqual(tutorHourlyEstimate(rate, verified, taking), {
+          gross: rate,
+          net: splitPrice(rate, verified && !taking).tutorPayout,
+          feeRate: feeRateFor(verified && !taking),
+        });
+      }
+    }
+  }
+});
+
+test('taking a course still uses the higher fee even when the tutor is verified', () => {
+  assert.deepEqual(tutorHourlyEstimate(28, true, false), { gross: 28, net: 23.1, feeRate: 0.175 });
+  assert.deepEqual(tutorHourlyEstimate(28, true, true), { gross: 28, net: 18.9, feeRate: 0.325 });
+});
+
+test('unset and invalid rates do not show misleading take-home estimates', () => {
+  for (const rate of [0, -1, 9, 121, NaN, Infinity]) assert.equal(tutorHourlyEstimate(rate, false, false), null);
 });
