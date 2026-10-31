@@ -171,17 +171,19 @@ export default function Notifications() {
     }
   };
 
-  const clearAll = () => Alert.alert(
+  const clearAll = () => {
+    const through = items?.[0]?.createdAt;
+    if (!through || clearing) return;
+    Alert.alert(
     'Clear all notifications?',
     'This clears your inbox, including older notifications. Your messages and sessions are not deleted.',
     [
       { text: 'Keep notifications', style: 'cancel' },
       { text: 'Clear all', style: 'destructive', onPress: async () => {
-        const through = new Date().toISOString();
         setClearing('all');
         try {
           await api.notifications.clearAll(through);
-          setItems((current) => current?.filter((n) => new Date(n.createdAt) > new Date(through)) ?? null);
+          setItems([]);
         } catch (e) {
           Alert.alert("Couldn't clear notifications", errText(e, 'Please try again.'));
         } finally {
@@ -189,7 +191,8 @@ export default function Notifications() {
         }
       } },
     ],
-  );
+    );
+  };
 
   return (
     <Screen>

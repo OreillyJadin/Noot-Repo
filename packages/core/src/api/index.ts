@@ -2829,7 +2829,7 @@ export const api = {
     },
 
     /** Clear the entire inbox, including older pages, but preserve later arrivals. */
-    async clearAll(through = new Date().toISOString()): Promise<void> {
+    async clearAll(through: string): Promise<void> {
       const uid = await requireUid();
       const { error } = await getSupabase()
         .from('notifications')

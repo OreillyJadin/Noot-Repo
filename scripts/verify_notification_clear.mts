@@ -32,7 +32,8 @@ try {
   const { data: notes, error } = await admin.from('notifications').insert([
     ...Array.from({ length: 105 }, (_, i) => ({ user_id: owner.id, type: 'system', title: `Clear ${i}`, created_at: '2020-01-01T00:00:00Z' })),
     { user_id: other.id, type: 'system', title: 'Other inbox', created_at: '2020-01-01T00:00:00Z' },
-    { user_id: owner.id, type: 'system', title: 'Later arrival', created_at: '2099-01-01T00:00:00Z' },
+    { user_id: owner.id, type: 'system', title: 'Visible latest', created_at: '2020-01-02T00:00:00.123456Z' },
+    { user_id: owner.id, type: 'system', title: 'Later arrival', created_at: '2020-01-02T00:00:00.123457Z' },
   ]).select('id, user_id, title');
   if (error) throw error;
   const own = notes!.find((n) => n.title === 'Clear 0')!;
@@ -51,7 +52,10 @@ try {
   assert.equal(await exists(own.id), false, 'owner clears one');
   await api.notifications.clear(own.id);
   assert.equal((await api.notifications.list()).length, 100, 'list is capped, clear-all must not be');
-  await api.notifications.clearAll('2025-01-01T00:00:00Z');
+  const snapshot = notes!.find((n) => n.title === 'Visible latest')!;
+  const { data: cutoff, error: cutoffError } = await admin.from('notifications').select('created_at').eq('id', snapshot.id).single();
+  assert.ifError(cutoffError);
+  await api.notifications.clearAll(cutoff!.created_at);
   assert.deepEqual((await api.notifications.list()).map((n) => n.id), [later.id], 'clears older pages, preserves arrivals after cutoff');
   assert.equal(await api.notifications.unreadCount(), 1, 'unread count excludes cleared notifications');
   assert.equal(await exists(foreign.id), true, 'clear-all preserves other inboxes');
