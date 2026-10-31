@@ -11,7 +11,7 @@ import { requireActiveUser } from '../_shared/auth.ts';
 import { assertPayoutReady } from '../_shared/booking.ts';
 import { lateCancelTutorPayoutCents, studentCancelRefundPercent } from '../_shared/cancellation.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
-import { payTutor } from '../_shared/payouts.ts';
+import { otherOutcomeTransferExists, payTutor } from '../_shared/payouts.ts';
 import { capturedRefundCents, chargeRefundPercent, refundOwedCents } from '../_shared/refunds.ts';
 import { updateConfirmedBookingRaiseOnly } from '../_shared/refundWrite.ts';
 
@@ -239,6 +239,9 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
         if (current.status === 'canceled') {
           refundPercent = 100;
         } else if (current.status === 'succeeded') {
+          if (await otherOutcomeTransferExists(stripe, bookingId, 'late_cancel')) {
+            return Response.json({ error: 'This session was already completed or cancelled.' }, { status: 409, headers: cors });
+          }
           const charge = current.latest_charge;
           if (!charge || typeof charge === 'string') throw new Error('Captured charge was not expanded');
           const refunded = await capturedRefundCents(stripe, charge);

@@ -11,7 +11,29 @@
 import type Stripe from 'https://esm.sh/stripe@16?target=deno';
 import { capturedRefundCents } from './refunds.ts';
 
+interface TransferRecord {
+  metadata?: Record<string, string> | null;
+}
+
+export interface TransferReader {
+  transfers: {
+    list(params: { transfer_group: string; limit: number }): AsyncIterable<TransferRecord>;
+  };
+}
+
 export type ChargeFunds = Pick<Stripe.Charge, 'amount' | 'amount_captured' | 'amount_refunded'>;
+
+/** Whether a different outcome has already paid the tutor for this booking. */
+export async function otherOutcomeTransferExists(
+  stripe: TransferReader,
+  bookingId: string,
+  ownReason: string,
+): Promise<boolean> {
+  for await (const transfer of stripe.transfers.list({ transfer_group: bookingId, limit: 100 })) {
+    if (transfer.metadata?.reason !== ownReason) return true;
+  }
+  return false;
+}
 
 /** Cents of a captured charge still available to back a source_transaction transfer. */
 export function chargeAvailableCents(charge: ChargeFunds | null, capturedRefundedCents: number): number {
