@@ -20,6 +20,11 @@ const FIRST_HOUR = 8;
 const LAST_HOUR = 22;
 export const HOURS: number[] = Array.from({ length: LAST_HOUR - FIRST_HOUR + 1 }, (_, i) => FIRST_HOUR + i);
 
+export function availabilityHourLabel(hour: number): string {
+  const h = hour % 24;
+  return `${h % 12 || 12} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
 /** 9 → "09:00" */
 function hhmm(h: number): string {
   return `${String(h).padStart(2, '0')}:00`;

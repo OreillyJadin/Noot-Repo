@@ -5,7 +5,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Ic, useTheme } from '@noot/ui';
-import { AV_DAYS, WEEKDAYS, HOURS, totalHours, type Day, type WeekGrid } from './weekGrid';
+import { AV_DAYS, WEEKDAYS, HOURS, totalHours, availabilityHourLabel as hourLabel, type Day, type WeekGrid } from './weekGrid';
 
 // Quick presets — a fast way to fill hours, not the only granularity on offer.
 const PRESETS: { label: string; hours: number[] }[] = [
@@ -13,13 +13,6 @@ const PRESETS: { label: string; hours: number[] }[] = [
   { label: 'Afternoon', hours: [12, 13, 14, 15, 16] },
   { label: 'Evening', hours: [17, 18, 19, 20, 21] },
 ];
-
-/** 14 → "2 PM", 8 → "8 AM". */
-function hourLabel(h: number): string {
-  const ampm = h < 12 ? 'AM' : 'PM';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12} ${ampm}`;
-}
 
 export function AvailabilityEditor({ value, onChange }: { value: WeekGrid; onChange: (next: WeekGrid) => void }) {
   const t = useTheme();
@@ -92,9 +85,14 @@ export function AvailabilityEditor({ value, onChange }: { value: WeekGrid; onCha
           <Pressable
             key={p.label}
             onPress={() => applyPreset(p.hours)}
+            accessibilityRole="button"
+            accessibilityLabel={`${p.label}, ${hourLabel(p.hours[0]!)} to ${hourLabel(p.hours[p.hours.length - 1]! + 1)}`}
             style={[styles.preset, { borderColor: t.borderStrong }]}
           >
             <Text style={[styles.presetLabel, { color: t.text2 }]}>{p.label}</Text>
+            <Text style={[styles.presetRange, { color: t.text3 }]}>
+              {hourLabel(p.hours[0]!)}–{hourLabel(p.hours[p.hours.length - 1]! + 1)}
+            </Text>
           </Pressable>
         ))}
         <Pressable onPress={clearDay} style={[styles.preset, { borderColor: t.borderStrong }]}>
@@ -118,6 +116,7 @@ export function AvailabilityEditor({ value, onChange }: { value: WeekGrid; onCha
               ]}
             >
               <Text style={[styles.hourLabel, { color: sel ? t.onAccent : t.text2 }]}>{hourLabel(h)}</Text>
+              <Text style={[styles.hourEnd, { color: sel ? t.onAccent : t.text3 }]}>to {hourLabel(h + 1)}</Text>
             </Pressable>
           );
         })}
@@ -149,9 +148,11 @@ const styles = StyleSheet.create({
   presetRow: { flexDirection: 'row', gap: 6 },
   preset: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
   presetLabel: { fontSize: 12, fontWeight: '600' },
+  presetRange: { fontSize: 10, textAlign: 'center', marginTop: 2 },
   hourWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   hour: { width: '23.2%', paddingVertical: 10, borderRadius: 11, alignItems: 'center', borderWidth: 1.5 },
   hourLabel: { fontSize: 12.5, fontWeight: '600' },
+  hourEnd: { fontSize: 11, marginTop: 2 },
   copyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
   copyLabel: { fontSize: 13, fontWeight: '600' },
   footNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 2, paddingHorizontal: 2 },
