@@ -90,7 +90,7 @@ export function AvailabilityEditor({ value, onChange }: { value: WeekGrid; onCha
             style={[styles.preset, { borderColor: t.borderStrong }]}
           >
             <Text style={[styles.presetLabel, { color: t.text2 }]}>{p.label}</Text>
-            <Text style={[styles.presetRange, { color: t.text3 }]}>
+            <Text style={[styles.presetRange, { color: t.text2 }]}>
               {hourLabel(p.hours[0]!)}–{hourLabel(p.hours[p.hours.length - 1]! + 1)}
             </Text>
           </Pressable>
@@ -116,7 +116,7 @@ export function AvailabilityEditor({ value, onChange }: { value: WeekGrid; onCha
               ]}
             >
               <Text style={[styles.hourLabel, { color: sel ? t.onAccent : t.text2 }]}>{hourLabel(h)}</Text>
-              <Text style={[styles.hourEnd, { color: sel ? t.onAccent : t.text3 }]}>to {hourLabel(h + 1)}</Text>
+              <Text style={[styles.hourEnd, { color: sel ? t.onAccent : t.text2 }]}>to {hourLabel(h + 1)}</Text>
             </Pressable>
           );
         })}
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   presetRow: { flexDirection: 'row', gap: 6 },
   preset: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
   presetLabel: { fontSize: 12, fontWeight: '600' },
-  presetRange: { fontSize: 10, textAlign: 'center', marginTop: 2 },
+  presetRange: { fontSize: 11, textAlign: 'center', marginTop: 2 },
   hourWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   hour: { width: '23.2%', paddingVertical: 10, borderRadius: 11, alignItems: 'center', borderWidth: 1.5 },
   hourLabel: { fontSize: 12.5, fontWeight: '600' },
