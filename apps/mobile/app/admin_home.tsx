@@ -74,7 +74,7 @@ function AdminHomeScreen() {
 
   const knownCounts = counts ?? EMPTY_COUNTS;
   const needsLook = counts ? attentionTotal(counts) : null;
-  const dateSubtitle = formatCampusDate(today, { weekday: 'long', month: 'long', day: 'numeric' });
+  const dateSubtitle = `${formatCampusDate(today, { weekday: 'long', month: 'long', day: 'numeric' })} · CT`;
 
   const ambassadorWork = (counts?.ambassadorApplications ?? 0) + (counts?.cashouts ?? 0);
 
@@ -193,7 +193,7 @@ function AdminHomeScreen() {
               />
             ))
           ) : (
-            <AdminRow title="Nothing else today" muted />
+            <AdminRow title="Nothing else scheduled" subtitle={dateSubtitle} muted />
           )}
         </AdminSection>
 
