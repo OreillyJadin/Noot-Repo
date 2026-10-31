@@ -11,6 +11,8 @@ import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, ProgressDots, H1, Sub, Skeleton, useTheme, Ic } from '@noot/ui';
 import { api, MIN_HOURLY_RATE, MAX_HOURLY_RATE } from '@noot/core';
 import { useStepBack } from '../lib/useStepBack';
+import { useMe } from '../lib/useMe';
+import { RateViewToggle, TutorRatePreview } from '../lib/TutorRatePreview';
 
 /** One course from step 3 with the rate being edited here (a string while typing). */
 interface RateRow {
@@ -59,10 +61,12 @@ export default function T4() {
   const t = useTheme();
   const router = useRouter();
   const stepBack = useStepBack(4);
+  const { gradesVerified } = useMe();
   // The courses the tutor saved on step 3 — never a template. Empty until loaded.
   const [rates, setRates] = useState<RateRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showNet, setShowNet] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -148,6 +152,7 @@ export default function T4() {
         onExit={saveAndExit}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
+        <RateViewToggle showNet={showNet} onChange={setShowNet} />
         {loading ? (
           <View style={{ gap: 10 }}>
             <Skeleton height={62} radius={14} />
@@ -160,30 +165,33 @@ export default function T4() {
         ) : (
           <View style={{ gap: 10 }}>
             {rates.map((r, i) => (
-              <Card key={r.courseCode} style={styles.rateCard}>
-                <View style={[styles.gradeChip, { backgroundColor: t.surface2 }]}>
-                  <Text style={[styles.gradeChipText, { color: t.text2 }]}>
-                    {r.currentlyTaking ? 'Now' : r.grade || '—'}
-                  </Text>
+              <Card key={r.courseCode} style={{ padding: 14 }}>
+                <View style={styles.rateCard}>
+                  <View style={[styles.gradeChip, { backgroundColor: t.surface2 }]}>
+                    <Text style={[styles.gradeChipText, { color: t.text2 }]}>
+                      {r.currentlyTaking ? 'Now' : r.grade || '—'}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.courseCode, { color: t.text }]}>{r.courseCode}</Text>
+                    <Text style={[styles.perHour, { color: t.text3 }]}>before fees</Text>
+                  </View>
+                  <View style={[styles.rateBox, { borderColor: t.borderStrong, backgroundColor: t.surface }]}>
+                    <Text style={{ color: t.text3, fontSize: 15 }}>$</Text>
+                    <TextInput
+                      value={r.rate}
+                      onChangeText={(v) => setRate(i, v)}
+                      keyboardType="number-pad"
+                      placeholder="—"
+                      placeholderTextColor={t.text3}
+                      maxLength={3}
+                      accessibilityLabel={`Hourly rate for ${r.courseCode}`}
+                      style={[styles.rateInput, { color: t.text }]}
+                    />
+                    <Text style={{ color: t.text3, fontSize: 12 }}>/hr</Text>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.courseCode, { color: t.text }]}>{r.courseCode}</Text>
-                  <Text style={[styles.perHour, { color: t.text3 }]}>per hour</Text>
-                </View>
-                <View style={[styles.rateBox, { borderColor: t.borderStrong, backgroundColor: t.surface }]}>
-                  <Text style={{ color: t.text3, fontSize: 15 }}>$</Text>
-                  <TextInput
-                    value={r.rate}
-                    onChangeText={(v) => setRate(i, v)}
-                    keyboardType="number-pad"
-                    placeholder="—"
-                    placeholderTextColor={t.text3}
-                    maxLength={3}
-                    accessibilityLabel={`Hourly rate for ${r.courseCode}`}
-                    style={[styles.rateInput, { color: t.text }]}
-                  />
-                  <Text style={{ color: t.text3, fontSize: 12 }}>/hr</Text>
-                </View>
+                <TutorRatePreview rate={Number(r.rate)} gradesVerified={gradesVerified} currentlyTaking={r.currentlyTaking} showNet={showNet} />
               </Card>
             ))}
           </View>
@@ -217,7 +225,7 @@ const styles = StyleSheet.create({
   stepBody: { paddingHorizontal: 20, paddingTop: 8 },
   stepTitle: { fontSize: 24, marginTop: 14 },
   stepSub: { marginTop: 6, fontSize: 14 },
-  rateCard: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
+  rateCard: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   gradeChip: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   gradeChipText: { fontWeight: '700', fontSize: 13 },
   courseCode: { fontSize: 16, fontWeight: '600' },

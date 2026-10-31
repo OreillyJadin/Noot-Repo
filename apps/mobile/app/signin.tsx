@@ -92,6 +92,7 @@ export default function SignIn() {
       <KeyboardAwareScrollView
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         bottomOffset={24}
       >
         <Text style={[styles.h1, { color: t.text }]}>Welcome back</Text>
