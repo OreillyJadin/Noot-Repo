@@ -48,6 +48,7 @@ export default function ForgotPassword() {
       <KeyboardAwareScrollView
         contentContainerStyle={styles.body}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         bottomOffset={24}
       >
         {!sent ? (
