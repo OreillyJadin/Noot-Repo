@@ -18,6 +18,7 @@ import { initSupabase, auth } from '../packages/core/src/index.ts';
 import { createClient } from '@supabase/supabase-js';
 import { authorizeHold, getPaymentIntent, stripeTestMode } from './_stripe_test.mts';
 import { chargeAvailableCents, splitPayoutFunding } from '../supabase/functions/_shared/payouts.ts';
+import { capturedRefundCents, type RefundReader } from '../supabase/functions/_shared/refunds.ts';
 import { lateCancelTutorPayoutCents } from '../supabase/functions/_shared/cancellation.ts';
 import { bookingTime } from './_booking_test.mts';
 
@@ -56,6 +57,18 @@ async function stripe(path: string, body?: Record<string, string>): Promise<Json
 const transfersFor = async (bookingId: string): Promise<Json[]> =>
   ((await stripe(`transfers?transfer_group=${bookingId}&limit=10`)).data ?? []) as Json[];
 
+const refundReader: RefundReader = { refunds: { async *list({ charge, limit }) {
+  let after = '';
+  do {
+    const params = new URLSearchParams({ charge, limit: String(limit), 'expand[]': 'data.balance_transaction' });
+    if (after) params.set('starting_after', after);
+    const page = await stripe(`refunds?${params}`);
+    if (page.error) throw new Error(page.error.message);
+    yield* page.data;
+    after = page.has_more ? page.data.at(-1).id : '';
+  } while (after);
+} } };
+
 console.log('— pure split rules —');
 check('payout fully covered by the charge → one source-linked transfer',
   JSON.stringify(splitPayoutFunding(2310, 3276)) === JSON.stringify({ fromCharge: 2310, fromBalance: 0 }));
@@ -66,12 +79,36 @@ check('a fully refunded charge funds nothing; everything from the balance',
 check('a zero payout moves nothing',
   JSON.stringify(splitPayoutFunding(0, 5000)) === JSON.stringify({ fromCharge: 0, fromBalance: 0 }));
 check('a full capture with no refunds is all available',
-  chargeAvailableCents({ amount: 3276, amount_captured: 3276, amount_refunded: 0 }) === 3276 && chargeAvailableCents(null) === 0);
+  chargeAvailableCents({ amount: 3276, amount_captured: 3276, amount_refunded: 0 }, 0) === 3276 && chargeAvailableCents(null, 0) === 0);
 check('a partial capture counts only what was captured, not the authorized total',
-  chargeAvailableCents({ amount: 4000, amount_captured: 2000, amount_refunded: 0 }) === 2000);
+  chargeAvailableCents({ amount: 4000, amount_captured: 2000, amount_refunded: 0 }, 0) === 2000);
 check('refunds since the capture come off the available amount',
-  chargeAvailableCents({ amount: 3276, amount_captured: 3276, amount_refunded: 500 }) === 2776 &&
-    chargeAvailableCents({ amount: 4000, amount_captured: 2000, amount_refunded: 2500 }) === 1500);
+  chargeAvailableCents({ amount: 3276, amount_captured: 3276, amount_refunded: 500 }, 500) === 2776 &&
+    [500, 2500].every((amount_refunded) => chargeAvailableCents({ amount: 4000, amount_captured: 2000, amount_refunded }, 500) === 1500));
+
+console.log('\n— real captured-fund refund regressions —');
+for (const captured of [1755, 3510]) {
+  const pi = await stripe('payment_intents', {
+    amount: '3510', currency: 'usd', capture_method: 'manual', payment_method: 'pm_card_visa', confirm: 'true',
+    'automatic_payment_methods[enabled]': 'true', 'automatic_payment_methods[allow_redirects]': 'never',
+    'metadata[purpose]': 'verify_payout_source refund regression',
+  });
+  const capture = await stripe(`payment_intents/${pi.id}/capture`, { amount_to_capture: String(captured), 'expand[]': 'latest_charge' });
+  const id = capture.latest_charge.id;
+  try {
+    const refund = await stripe('refunds', { charge: id, amount: '1000' });
+    if (refund.error) throw new Error(refund.error.message);
+    const charge = await stripe(`charges/${id}`);
+    const actualRefunds = await capturedRefundCents(refundReader, charge);
+    const available = chargeAvailableCents(charge, actualRefunds);
+    check(`${captured} captured of 3510, 1000 actually refunded → ${captured - 1000} available`,
+      actualRefunds === 1000 && available === captured - 1000,
+      `Stripe amount_refunded=${charge.amount_refunded}, actual=${actualRefunds}, available=${available}`);
+  } finally {
+    const cleanup = await stripe('refunds', { charge: id });
+    check('regression charge cleanup refunded the remaining capture', !cleanup.error, cleanup.error?.message);
+  }
+}
 
 // --- a connected account that can receive transfers --------------------------------------
 let acct = process.env.NOOT_VERIFY_CONNECT_ACCOUNT ?? '';
@@ -249,15 +286,16 @@ try {
     const bk = await row(b.bookingId);
     const ts = await transfersFor(b.bookingId);
     const charge = await stripe(`charges/${bk.stripe_charge_id}`);
+    const available = chargeAvailableCents(charge, await capturedRefundCents(refundReader, charge));
     const expected = lateCancelTutorPayoutCents(Number(bk.tutor_payout_amount), 50);
     check('student cancels 10h out → 50% refund, booking cancelled', r.status === 200 && r.body.refundPercent === 50 && bk.status === 'cancelled' && !bk.payout_failed_at,
       `${r.status} ${JSON.stringify(r.body)}`);
-    check('half the card hold was captured; the rest released', charge.amount_captured === Math.round(b.chargeCents / 2) && chargeAvailableCents(charge) === charge.amount_captured,
+    check('half the card hold was captured; the rest released', charge.amount_captured === Math.round(b.chargeCents / 2) && available === charge.amount_captured,
       `amount=${charge.amount} captured=${charge.amount_captured} refunded=${charge.amount_refunded}`);
     check('one transfer for half the payout, with source_transaction = the partial capture',
       ts.length === 1 && ts[0]!.amount === expected && ts[0]!.source_transaction === bk.stripe_charge_id && ts[0]!.metadata?.reason === 'late_cancel',
       JSON.stringify(ts.map((t) => [t.amount, t.source_transaction])));
-    check('…and it fits inside what was kept from the charge', expected <= chargeAvailableCents(charge), `${expected}c ≤ ${chargeAvailableCents(charge)}c`);
+    check('…and it fits inside what was kept from the charge', expected <= available, `${expected}c ≤ ${available}c`);
   }
 
   console.log('\n— cancel-booking 0% tier with credit: $1 charge + credit-funded remainder —');
