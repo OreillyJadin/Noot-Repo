@@ -6,13 +6,14 @@ import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Field, Select, Avatar, Divider, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, ACADEMIC_YEAR_OPTIONS, academicYearLabel } from '@noot/core';
+import { GraduationYearField } from '../lib/GraduationYearField';
 import { useMe } from '../lib/useMe';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import { MajorPicker } from '../lib/MajorPicker';
 import { useStepBack } from '../lib/useStepBack';
+import { validateExpectedGraduationYear } from '../lib/profileValidation';
 
-const YEAR_OPTIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate Student'];
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -57,6 +58,7 @@ export default function T2() {
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
   const [year, setYear] = useState('');
+  const [expectedYear, setExpectedYear] = useState('');
   const [major, setMajor] = useState('');
   const [bio, setBio] = useState('');
   const [prefilled, setPrefilled] = useState(false);
@@ -64,7 +66,8 @@ export default function T2() {
     if (!me || prefilled) return;
     setFirst(me.firstName ?? '');
     setLast(me.lastName ?? '');
-    setYear(me.year ?? '');
+    setYear(academicYearLabel(me.year));
+    setExpectedYear(me.expectedGraduationYear?.toString() ?? '');
     setMajor(me.major ?? '');
     setPrefilled(true);
   }, [me, prefilled]);
@@ -82,11 +85,17 @@ export default function T2() {
   // step 9 and the public profile never showed it (tracker T1).
   const [saving, setSaving] = useState(false);
   const persist = async (): Promise<boolean> => {
+    const graduationError = validateExpectedGraduationYear(expectedYear, year);
+    if (graduationError) {
+      Alert.alert('Check your graduation year', graduationError);
+      return false;
+    }
     try {
       await api.profile.updatePersonal({
         firstName: first.trim(),
         lastName: last.trim(),
         year: year || null,
+        expectedGraduationYear: year === 'Post Grad' || !expectedYear ? null : Number(expectedYear),
         major: major || null,
       });
       await api.profile.updateTutorProfile({ bio: bio.trim() });
@@ -113,7 +122,7 @@ export default function T2() {
     if (ok) router.push('/t3');
   };
   const saveAndExit = async () => {
-    if (first.trim() && last.trim()) await persist();
+    if (first.trim() && last.trim() && !(await persist())) return;
     router.replace('/');
   };
 
@@ -162,7 +171,8 @@ export default function T2() {
         </View>
 
         <View style={{ marginTop: 14 }}>
-          <Select label="Year" value={year} options={YEAR_OPTIONS} onChange={setYear} />
+          <Select label="Academic status" value={year} options={ACADEMIC_YEAR_OPTIONS} onChange={setYear} />
+          <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} />
         </View>
 
         <View style={{ marginTop: 14 }}>

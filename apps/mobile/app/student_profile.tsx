@@ -4,7 +4,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { api } from '@noot/core';
+import { api, ACADEMIC_YEAR_OPTIONS, academicYearLabel } from '@noot/core';
+import { GraduationYearField } from '../lib/GraduationYearField';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { routeAfterAuth } from '../lib/postAuth';
@@ -27,7 +28,6 @@ import {
   useTheme,
 } from '@noot/ui';
 
-const YEAR_OPTIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Grad'];
 
 // ── local helpers (used only by this screen) ───────────────────────────────
 function CourseChip({ label, onRemove }: { label: string; onRemove: () => void }) {
@@ -66,6 +66,7 @@ export default function StudentProfile() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [year, setYear] = useState('');
+  const [expectedYear, setExpectedYear] = useState('');
   const [major, setMajor] = useState('');
   const [courses, setCourses] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +81,8 @@ export default function StudentProfile() {
     setPrefilled(true);
     setFirstName(me.firstName);
     setLastName(me.lastName);
-    setYear(me.year ?? '');
+    setYear(academicYearLabel(me.year));
+    setExpectedYear(me.expectedGraduationYear?.toString() ?? '');
     setMajor(me.major ?? '');
     setCourses(me.courses);
   }, [me, prefilled]);
@@ -94,7 +96,7 @@ export default function StudentProfile() {
   const removeCourse = (code: string) => setCourses((cs) => cs.filter((c) => c !== code));
 
   const complete = async () => {
-    const validationError = validatePersonal({ firstName, lastName, year, major }, { requireYearMajor: true });
+    const validationError = validatePersonal({ firstName, lastName, year, major, expectedGraduationYear: expectedYear }, { requireYearMajor: true });
     if (validationError) {
       setError(validationError);
       return;
@@ -105,6 +107,7 @@ export default function StudentProfile() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         year: year.trim() || null,
+        expectedGraduationYear: year === 'Post Grad' || !expectedYear ? null : Number(expectedYear),
         major: major.trim() || null,
       });
       await api.profile.setCourses(courses);
@@ -140,7 +143,8 @@ export default function StudentProfile() {
         </View>
 
         <View style={styles.mt14}>
-          <Select label="Year" value={year} options={YEAR_OPTIONS} onChange={setYear} />
+          <Select label="Academic status" value={year} options={ACADEMIC_YEAR_OPTIONS} onChange={setYear} />
+          <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} />
         </View>
 
         <View style={styles.mt14}>

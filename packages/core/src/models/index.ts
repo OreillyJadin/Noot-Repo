@@ -28,6 +28,8 @@ export interface User {
   status: UserStatus;
   /** Academic/demographic profile (0004). Nullable — filled in after signup. */
   year: string | null;
+  /** Private projected graduation year; never changes account or tutoring eligibility. */
+  expectedGraduationYear: number | null;
   major: string | null;
   gender: 'f' | 'm' | null;
   /** Course codes the student is taking (drives home/search categories). */
