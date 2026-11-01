@@ -1,6 +1,6 @@
 // X2 Cancel Session (Tutor) — ported from screens-changes.jsx (XTutorCancel).
-// Student always gets a 100% refund; this screen surfaces the cancellation-rate
-// impact and nudges toward proposing a reschedule instead. "Propose a reschedule
+// Student always gets a 100% refund; this screen records the cancellation and
+// offers proposing a reschedule instead. "Propose a reschedule
 // instead" → Propose Reschedule (X3). "Cancel & refund" confirms, then Done → Home.
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
@@ -110,7 +110,7 @@ function XTutorCancelInner() {
             <HeroIcon name="check" size={72} />
             <H1 style={{ fontSize: 25, marginTop: 20 }}>Session cancelled</H1>
             <Sub style={{ marginTop: 10, maxWidth: 260, textAlign: 'center' }}>
-              {student.first} has been fully refunded {money(cost)}. This counts toward your cancellation rate.
+              {student.first} has been fully refunded {money(cost)}. The cancellation is recorded for admin review.
             </Sub>
           </View>
         </Body>
@@ -138,11 +138,10 @@ function XTutorCancelInner() {
           </View>
         </Card>
 
-        {/* cancellation-rate warning */}
         <Card flat style={{ marginTop: 12, padding: 14, backgroundColor: t.accentWeak, borderWidth: 1, borderColor: t.accentBorder }}>
           <View style={styles.warnHead}>
             <Ic name="alert" size={17} color={t.accent} strokeWidth={1.9} />
-            <Text style={{ fontSize: 14, fontWeight: '700', color: t.accent }}>This affects your cancellation rate</Text>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: t.accent }}>Cancellations are recorded</Text>
           </View>
           <Text style={{ fontSize: 13, color: t.text2, lineHeight: 19 }}>
             {cancelsThisMonth !== null ? (
@@ -154,8 +153,7 @@ function XTutorCancelInner() {
                 in the last 30 days.{' '}
               </>
             ) : null}
-            More than <Text style={{ color: t.text, fontWeight: '700' }}>2</Text> flags your account for review and can
-            affect your ranking.
+            Our team can review cancellations and no-shows. These counts do not automatically change your ranking or add penalties.
           </Text>
           <View style={styles.meterRow}>
             {[0, 1, 2].map((i) => (
