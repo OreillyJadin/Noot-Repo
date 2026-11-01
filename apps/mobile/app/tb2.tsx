@@ -57,12 +57,11 @@ export default function TB2() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { booking } = useApp();
+  const { booking, patchBooking } = useApp();
   // Session facts + earnings are derived from the booking draft (store). This is the
   // tutor's own screen, so when the draft doesn't carry a tutor, load the signed-in tutor's
   // own profile for the rates. (It used to take the first search result — always some other
   // tutor, since search excludes you — and show their rates as your earnings.)
-  const [fetchedTutor, setFetchedTutor] = useState<Tutor | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const { me, gradesVerified } = useMe();
   useEffect(() => {
@@ -70,10 +69,10 @@ export default function TB2() {
     let active = true;
     api.tutors
       .getById(me.id)
-      .then((own) => { if (active && own) setFetchedTutor(toTutor(own)); })
+      .then((own) => { if (active && own) patchBooking({ tutor: toTutor(own) }); })
       .catch(() => { /* offline → NoSession below */ });
     return () => { active = false; };
-  }, [booking.tutor, me?.id]);
+  }, [booking.tutor, me?.id, patchBooking]);
   const student = useCounterpart(booking.studentId);
   const studentMeta = [student.year, student.major].filter(Boolean).join(' · ');
   const studentProposed =
@@ -84,7 +83,7 @@ export default function TB2() {
     !!booking.rescheduleProposedAt &&
     !!booking.rescheduleProposedBy &&
     booking.rescheduleProposedBy === me?.id;
-  const tutor = booking.tutor ?? fetchedTutor;
+  const tutor = booking.tutor;
   if (!tutor || !booking.scheduledAt) return <NoSession />;
   // Fee follows the course's verification status: 17.5% verified, 32.5% otherwise.
   const f = sessionFacts(booking, booking.scheduledAt, tutor, gradesVerified);
@@ -223,7 +222,7 @@ export default function TB2() {
 
           <Card flat style={{ padding: 14, backgroundColor: t.surfaceAlt, marginBottom: 12 }}>
             <Text style={{ fontSize: 13, color: t.text2, lineHeight: 19 }}>
-              This booking is confirmed. Changing it affects {student.first} and may impact your reliability score.
+              This booking is confirmed. Changing it affects {student.first}. Cancellations are recorded for admin review.
             </Text>
           </Card>
 

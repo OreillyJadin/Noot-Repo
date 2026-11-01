@@ -5,10 +5,11 @@ import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Body, TabBar, Button, Badge, Card, Avatar, Ic, H2, EmptyState, Skeleton, AdaptiveRow, useTheme, TEXT_CAPS } from '@noot/ui';
-import { api, tutorEarnedAmount, sessionPhase } from '@noot/core';
+import { api, tutorEarnedAmount, sessionPhase, canReportNoShow } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
+import { toTutor } from '../lib/data';
 import { formatSessionTime } from '../lib/formatSessionTime';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
@@ -97,6 +98,22 @@ export default function TutorSessions() {
   const rate = (r: SessionRow) => {
     patchBooking(draftFromBooking(r.booking));
     router.push('/c3');
+  };
+
+  const reportNoShow = async (r: SessionRow) => {
+    if (busyId || !canReportNoShow(r.booking, now)) return;
+    setBusyId(r.id);
+    try {
+      const me = await api.getMe();
+      const tutor = me ? await api.tutors.getById(me.id) : null;
+      if (!tutor) throw new Error('Tutor profile not found. Please try again.');
+      patchBooking({ ...draftFromBooking(r.booking), tutor: toTutor(tutor) });
+      router.push('/xns');
+    } catch (e) {
+      Alert.alert('Could not open no-show report', e instanceof Error ? e.message : 'Please try again.');
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const acceptRequest = async (id: string) => {
@@ -291,6 +308,10 @@ export default function TutorSessions() {
                       />
                     </View>
                   )}
+                  {canReportNoShow(r.booking, now) ? (
+                    <Button label="Report a student no-show" kind="tint" size="md" full
+                      disabled={!!busyId} onPress={() => void reportNoShow(r)} style={{ marginTop: 12 }} />
+                  ) : null}
                   {canRateBooking(r.booking, ratedLookup) ? (
                     <Button
                       label="Rate student"
