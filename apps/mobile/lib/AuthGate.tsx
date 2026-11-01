@@ -16,6 +16,7 @@ import { auth } from '@noot/core';
 import { useApp } from './store';
 import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from './postAuth';
 import { getBiometricCapability, isBiometricEnabled, unlockWithBiometric } from './biometrics';
+import { GraduationPrompt } from './GraduationPrompt';
 
 type Phase = 'checking' | 'locked' | 'open';
 
@@ -84,6 +85,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   return (
     <View style={styles.flex}>
       {children}
+      {phase === 'open' ? <GraduationPrompt /> : null}
       {phase !== 'open' ? (
         <View style={[StyleSheet.absoluteFill, styles.overlay, { backgroundColor: t.bg }]}>
           <Text style={[styles.brand, { color: t.text }]}>noot</Text>

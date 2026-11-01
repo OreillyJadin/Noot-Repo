@@ -10,6 +10,8 @@ import { useRouter } from 'expo-router';
 import { Screen, Body, ActionBar, Button, Card, Badge, Avatar, H2, ProgressDots, H1, Sub, Ic, Skeleton, Field, Select, Label, Eyebrow, useTheme } from '@noot/ui';
 import {
   api,
+  ACADEMIC_YEAR_OPTIONS,
+  academicYearLabel,
   STEP_REQUIREMENTS,
   REQUIREMENT_LABEL,
   MIN_HOURLY_RATE,
@@ -24,6 +26,7 @@ import { useMe } from '../lib/useMe';
 import { MajorPicker } from '../lib/MajorPicker';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import { useStepBack } from '../lib/useStepBack';
+import { GraduationYearField } from '../lib/GraduationYearField';
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -59,7 +62,6 @@ function StepHead({
   );
 }
 
-const YEAR_OPTIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate Student'];
 
 /**
  * Final tweaks without leaving the review (tracker T5): name, year, major, bio, photo and
@@ -73,6 +75,7 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
   const [first, setFirst] = useState('');
   const [last, setLast] = useState('');
   const [year, setYear] = useState('');
+  const [expectedYear, setExpectedYear] = useState('');
   const [major, setMajor] = useState('');
   const [bio, setBio] = useState('');
   const [rates, setRates] = useState<Record<string, string>>({});
@@ -84,7 +87,8 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
     if (prefilled || !me) return;
     setFirst(me.firstName);
     setLast(me.lastName);
-    setYear(me.year ?? '');
+    setYear(academicYearLabel(me.year));
+    setExpectedYear(me.expectedGraduationYear?.toString() ?? '');
     setMajor(me.major ?? '');
     setBio(app.bio);
     setPrefilled(true);
@@ -104,6 +108,7 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
     (first.trim() !== me.firstName ||
       last.trim() !== me.lastName ||
       year !== (me.year ?? '') ||
+      expectedYear !== (me.expectedGraduationYear?.toString() ?? '') ||
       major !== (me.major ?? '') ||
       bio.trim() !== app.bio);
   const ratesDirty = app.courses.some((c) => (rates[c.courseCode] ?? '') !== (c.hourlyRate > 0 ? String(c.hourlyRate) : ''));
@@ -125,7 +130,8 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
     setSaving(true);
     try {
       if (profileDirty) {
-        await api.profile.updatePersonal({ firstName: first.trim(), lastName: last.trim(), year: year || null, major: major || null });
+        await api.profile.updatePersonal({ firstName: first.trim(), lastName: last.trim(), year: year || null, major: major || null,
+          expectedGraduationYear: year === 'Post Grad' || !expectedYear ? null : Number(expectedYear) });
         await api.profile.updateTutorProfile({ bio: bio.trim() });
       }
       if (ratesDirty) {
@@ -188,7 +194,8 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
           <Field label="Last" value={last} onChangeText={setLast} />
         </View>
       </View>
-      <Select label="Year" value={year} options={YEAR_OPTIONS} onChange={setYear} />
+      <Select label="Academic status" value={year} options={ACADEMIC_YEAR_OPTIONS} onChange={setYear} />
+      <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} />
       <MajorPicker value={major} onChange={setMajor} />
       <Field label="Bio" value={bio} onChangeText={setBio} multiline placeholder="Tell students why you're a great tutor…" />
 

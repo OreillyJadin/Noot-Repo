@@ -5,7 +5,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Field, Select, Label, Avatar, Ic, useTheme } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, ACADEMIC_YEAR_OPTIONS, academicYearLabel } from '@noot/core';
+import { GraduationYearField } from '../lib/GraduationYearField';
 import { SubjectField } from '../lib/SubjectField';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import { useMe } from '../lib/useMe';
@@ -17,6 +18,7 @@ export default function EditPersonal() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [year, setYear] = useState('');
+  const [expectedYear, setExpectedYear] = useState('');
   const [major, setMajor] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +33,8 @@ export default function EditPersonal() {
         if (active && me) {
           setFirstName(me.firstName);
           setLastName(me.lastName);
-          setYear(me.year ?? '');
+          setYear(academicYearLabel(me.year));
+          setExpectedYear(me.expectedGraduationYear?.toString() ?? '');
           setMajor(me.major ?? '');
           setEmail(me.email);
         }
@@ -57,6 +60,7 @@ export default function EditPersonal() {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         year: year.trim() || null,
+        expectedGraduationYear: year === 'Post Grad' || !expectedYear ? null : Number(expectedYear),
         major: major.trim() || null,
       });
       Alert.alert('Profile updated');
@@ -94,7 +98,8 @@ export default function EditPersonal() {
           </View>
         </View>
 
-        <Select label="Year" value={year} options={['Freshman', 'Sophomore', 'Junior', 'Senior', 'Grad']} onChange={setYear} />
+        <Select label="Academic status" value={year} options={ACADEMIC_YEAR_OPTIONS} onChange={setYear} />
+        <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} />
 
         <SubjectField value={major} onChange={setMajor} />
         {error ? <Text style={styles.error}>{error}</Text> : null}
