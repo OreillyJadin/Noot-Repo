@@ -1,5 +1,12 @@
+import { validGraduationYear } from '@noot/core';
+
+export function validateExpectedGraduationYear(value: string, year: string): string | null {
+  return year !== 'Post Grad' && value && !validGraduationYear(Number(value))
+    ? 'Enter a four-digit graduation year between 1900 and 2200.' : null;
+}
+
 export function validatePersonal(
-  { firstName, lastName, year, major }: { firstName: string; lastName: string; year: string; major: string },
+  { firstName, lastName, year, major, expectedGraduationYear = '' }: { firstName: string; lastName: string; year: string; major: string; expectedGraduationYear?: string },
   { requireYearMajor }: { requireYearMajor: boolean },
 ): string | null {
   const first = firstName.trim();
@@ -11,5 +18,5 @@ export function validatePersonal(
   if (requireYearMajor && !major.trim()) return 'Pick your major.';
   if (first.length > 50 || last.length > 50) return 'Names can be at most 50 characters.';
 
-  return null;
+  return validateExpectedGraduationYear(expectedGraduationYear, year);
 }

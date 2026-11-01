@@ -27,6 +27,7 @@ import { MajorPicker } from '../lib/MajorPicker';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import { useStepBack } from '../lib/useStepBack';
 import { GraduationYearField } from '../lib/GraduationYearField';
+import { validateExpectedGraduationYear } from '../lib/profileValidation';
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
 function StepHead({
@@ -107,7 +108,7 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
     !!me &&
     (first.trim() !== me.firstName ||
       last.trim() !== me.lastName ||
-      year !== (me.year ?? '') ||
+      year !== academicYearLabel(me.year) ||
       expectedYear !== (me.expectedGraduationYear?.toString() ?? '') ||
       major !== (me.major ?? '') ||
       bio.trim() !== app.bio);
@@ -117,6 +118,8 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
   const save = async () => {
     if (saving || !dirty) return;
     if (!first.trim() || !last.trim()) return Alert.alert('Add your name', 'Students see your first name and last initial.');
+    const graduationError = validateExpectedGraduationYear(expectedYear, year);
+    if (graduationError) return Alert.alert('Check your graduation year', graduationError);
     const bad = app.courses.filter((c) => {
       const n = Number(rates[c.courseCode]);
       return !n || n < MIN_HOURLY_RATE || n > MAX_HOURLY_RATE;

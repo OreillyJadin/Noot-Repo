@@ -12,6 +12,7 @@ import { useMe } from '../lib/useMe';
 import { pickAndUploadAvatar } from '../lib/avatar';
 import { MajorPicker } from '../lib/MajorPicker';
 import { useStepBack } from '../lib/useStepBack';
+import { validateExpectedGraduationYear } from '../lib/profileValidation';
 
 
 // Shared step header for T2–T9. Defined locally per-screen (no shared file).
@@ -84,6 +85,11 @@ export default function T2() {
   // step 9 and the public profile never showed it (tracker T1).
   const [saving, setSaving] = useState(false);
   const persist = async (): Promise<boolean> => {
+    const graduationError = validateExpectedGraduationYear(expectedYear, year);
+    if (graduationError) {
+      Alert.alert('Check your graduation year', graduationError);
+      return false;
+    }
     try {
       await api.profile.updatePersonal({
         firstName: first.trim(),
@@ -116,7 +122,7 @@ export default function T2() {
     if (ok) router.push('/t3');
   };
   const saveAndExit = async () => {
-    if (first.trim() && last.trim()) await persist();
+    if (first.trim() && last.trim() && !(await persist())) return;
     router.replace('/');
   };
 

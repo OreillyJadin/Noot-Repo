@@ -49,7 +49,7 @@ export default function EditPersonal() {
   };
 
   const save = async () => {
-    const validationError = validatePersonal({ firstName, lastName, year, major }, { requireYearMajor: false });
+    const validationError = validatePersonal({ firstName, lastName, year, major, expectedGraduationYear: expectedYear }, { requireYearMajor: false });
     if (validationError) {
       setError(validationError);
       return;

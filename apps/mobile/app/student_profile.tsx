@@ -96,7 +96,7 @@ export default function StudentProfile() {
   const removeCourse = (code: string) => setCourses((cs) => cs.filter((c) => c !== code));
 
   const complete = async () => {
-    const validationError = validatePersonal({ firstName, lastName, year, major }, { requireYearMajor: true });
+    const validationError = validatePersonal({ firstName, lastName, year, major, expectedGraduationYear: expectedYear }, { requireYearMajor: true });
     if (validationError) {
       setError(validationError);
       return;
