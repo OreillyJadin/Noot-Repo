@@ -4,6 +4,7 @@ import { canReportNoShow } from '../packages/core/src/sessionTiming.ts';
 const source = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const report = source('apps/mobile/app/xns.tsx');
 const tutorSessions = source('apps/mobile/app/tutor_sessions.tsx');
+const tutorDetail = source('apps/mobile/app/tb2.tsx');
 const cancel = source('apps/mobile/app/xtc.tsx');
 const standing = source('apps/mobile/app/standing.tsx');
 const backend = source('supabase/functions/report-no-show/index.ts');
@@ -27,6 +28,8 @@ check(report.includes("booking.status === 'confirmed' && canReportNoShow") && re
 check(tutorSessions.includes('canReportNoShow(r.booking, now)') && tutorSessions.includes('Report a student no-show') && tutorSessions.includes('...draftFromBooking(r.booking), tutor: toTutor(tutor)') && tutorSessions.includes("router.push('/xns')"), 'tutor Past can open a report with the full booking and own tutor profile');
 check(report.includes("persona === 'tutor' ? '/tutor_home' : '/home'"), 'report completion returns to the correct role home');
 check(cancel.includes('do not automatically change your ranking or add penalties') && !/affect your ranking|flags your account/.test(cancel), 'cancellation copy does not promise automatic ranking penalties');
+check(tutorDetail.includes('Cancellations are recorded for admin review') && !/reliability score/.test(tutorDetail), 'tutor details sheet describes manual review, not automatic score changes');
+check(tutorDetail.includes('patchBooking({ tutor: toTutor(own) })') && tutorDetail.includes('const tutor = booking.tutor;') && !tutorDetail.includes('fetchedTutor'), 'tutor detail stores the resolved profile for cold-start cancellation and reschedule routes');
 check(standing.includes('Counts do not automatically pause bookings') && !/Needs attention|Repeated no-shows can pause/.test(standing), 'session record no longer invents an automatic restriction');
 check(admin.includes('counts.tutorCancels30d') && admin.includes('counts.noShowsAsStudent + counts.noShowsAsTutor'), 'admin cancellation and no-show review counts remain available');
 check(backend.includes('let refundPercent = tutorNoShow ? 100 : 0') && backend.includes('payTutor('), 'existing refund and payout outcomes remain intact');
