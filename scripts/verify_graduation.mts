@@ -1,12 +1,20 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createClient } from '@supabase/supabase-js';
 import { api, auth, currentAcademicYear, graduationPromptDue, initSupabase } from '../packages/core/src/index.ts';
 import { DEV_PASSWORD } from './_devPassword.mjs';
 
 const url = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
 if (!['localhost', '127.0.0.1'].includes(new URL(url).hostname)) throw new Error('Local Supabase only');
-const anonKey = process.env.SUPABASE_ANON_KEY;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let anonKey = process.env.SUPABASE_ANON_KEY;
+let serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!anonKey || !serviceKey) {
+  const local = JSON.parse(execFileSync('supabase', ['status', '-o', 'json'], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+  }));
+  anonKey ??= local.ANON_KEY;
+  serviceKey ??= local.SERVICE_ROLE_KEY;
+}
 if (!anonKey || !serviceKey) throw new Error('Load local Supabase credentials');
 const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 const client = initSupabase({ url, anonKey });
