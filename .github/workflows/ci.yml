@@ -146,6 +146,7 @@ jobs:
             verify_launch_route
             verify_magiclink
             verify_moderation
+            verify_no_show_policy_ui
             verify_password_auth
             verify_push_tokens
             verify_reschedule_copy

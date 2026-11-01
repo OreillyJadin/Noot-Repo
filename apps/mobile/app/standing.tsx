@@ -16,19 +16,17 @@ export default function Standing() {
     return () => { active = false; };
   }, []);
 
-  const good = stats ? stats.cancelledCount === 0 && stats.noShowCount === 0 : true;
-
   return (
     <Screen>
       <NavTop title="Standing" onBack={() => router.back()} />
       <Body pad={16}>
         <Card style={{ padding: 16, alignItems: 'center', gap: 8 }}>
-          <View style={[styles.badge, { backgroundColor: good ? t.goodWeak : t.surface2 }]}>
-            <Ic name="shield" size={26} color={good ? t.good : t.text3} strokeWidth={1.8} />
+          <View style={[styles.badge, { backgroundColor: t.surface2 }]}>
+            <Ic name="shield" size={26} color={t.text3} strokeWidth={1.8} />
           </View>
-          <Text style={[styles.status, { color: t.text }]}>{good ? 'Good standing' : 'Needs attention'}</Text>
+          <Text style={[styles.status, { color: t.text }]}>Session record</Text>
           <Text style={[styles.statusSub, { color: t.text3 }]}>
-            {good ? 'Keep it up — complete your booked sessions.' : 'Cancellations you make and sessions you miss affect your standing.'}
+            Cancellations and no-shows are recorded for admin review.
           </Text>
         </Card>
 
@@ -47,12 +45,12 @@ export default function Standing() {
           </Card>
         </View>
 
-        <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>How standing works</Eyebrow>
+        <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>How records work</Eyebrow>
         <Card flat style={{ padding: 14, backgroundColor: t.surfaceAlt, gap: 10 }}>
           {[
-            'Complete your booked sessions to maintain good standing.',
-            'Cancellations you make after confirming and sessions you miss count toward your standing. Student cancellations do not.',
-            'Repeated no-shows can pause new bookings while our team reviews.',
+            'Complete your booked sessions and let students know if plans change.',
+            'Cancellations you make after confirming and sessions you miss are recorded. Student cancellations do not count against you.',
+            'Our team reviews these records. Counts do not automatically pause bookings, change your ranking, or add penalties.',
           ].map((line) => (
             <View key={line} style={styles.tipRow}>
               <Ic name="check" size={14} color={t.good} strokeWidth={2.4} />
