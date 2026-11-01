@@ -367,6 +367,7 @@ function mapUser(row: any): User {
     activeRole: row.active_role,
     status: row.status,
     year: row.year ?? null,
+    expectedGraduationYear: row.expected_graduation_year ?? null,
     major: row.major ?? null,
     gender: row.gender ?? null,
     courses: row.courses ?? [],
@@ -825,6 +826,7 @@ export const api = {
       firstName?: string;
       lastName?: string;
       year?: string | null;
+      expectedGraduationYear?: number | null;
       major?: string | null;
       gender?: 'f' | 'm' | null;
     }): Promise<void> {
@@ -833,10 +835,26 @@ export const api = {
       if (patch.firstName !== undefined) row.first_name = patch.firstName;
       if (patch.lastName !== undefined) row.last_name = patch.lastName;
       if (patch.year !== undefined) row.year = patch.year;
+      if (patch.expectedGraduationYear !== undefined) {
+        const year = patch.expectedGraduationYear;
+        if (year !== null && (!Number.isInteger(year) || year < 1900 || year > 2200)) {
+          throw new Error('Enter a graduation year between 1900 and 2200.');
+        }
+        row.expected_graduation_year = year;
+      }
+      if (patch.year === 'Post Grad') row.expected_graduation_year = null;
       if (patch.major !== undefined) row.major = patch.major;
       if (patch.gender !== undefined) row.gender = patch.gender;
       if (Object.keys(row).length === 0) return;
       const { error } = await getSupabase().from('users').update(row).eq('id', uid);
+      if (error) throw error;
+      notifyUserChanged();
+    },
+
+    async respondToGraduation(graduated: boolean, expectedYear: number | null = null): Promise<void> {
+      const { error } = await getSupabase().rpc('respond_to_graduation', {
+        p_graduated: graduated, p_expected_year: expectedYear,
+      });
       if (error) throw error;
       notifyUserChanged();
     },

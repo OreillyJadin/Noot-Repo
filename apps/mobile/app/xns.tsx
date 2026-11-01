@@ -7,13 +7,14 @@ import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, Ic, H1, Sub, HeroIcon, useTheme } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, canReportNoShow } from '@noot/core';
 import { useApp, type BookingDraft } from '../lib/store';
 import { DAYS, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
 import { sessionDayAndTime } from '../lib/formatSessionTime';
 import { noShowAmount } from '../lib/noShowAmount';
+import { useSessionClock } from '../lib/useSessionClock';
 
 function money(n: number): string {
   return '$' + n.toFixed(2).replace('.00', '');
@@ -62,6 +63,7 @@ export default function XNoShow() {
 }
 
 function XNoShowInner() {
+  const now = useSessionClock();
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -72,6 +74,10 @@ function XNoShowInner() {
   const persona: 'student' | 'tutor' = role === 'tutor' ? 'tutor' : 'student';
   const amount = noShowAmount(persona, booking, fallbackGross);
   const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const reportOpen = !!booking.bookingId && booking.status === 'confirmed' && canReportNoShow({
+    status: booking.status, scheduledAt: booking.scheduledAt ?? '', durationMinutes: booking.lengthMin ?? 0,
+  }, now);
 
   if (done) {
     const studentMarked = persona === 'student';
@@ -99,12 +105,12 @@ function XNoShowInner() {
 
           {!studentMarked ? (
             <Text style={{ marginTop: 22, fontSize: 13, lineHeight: 19, color: t.text3, textAlign: 'center' }}>
-              No-shows are recorded on {student.first}&apos;s account. Repeated no-shows can lead to restrictions.
+              No-shows are recorded on {student.first}&apos;s account for admin review.
             </Text>
           ) : null}
         </Body>
         <ActionBar>
-          <Button kind="secondary" full label="Done" onPress={() => router.replace('/home')} />
+          <Button kind="secondary" full label="Done" onPress={() => router.replace(persona === 'tutor' ? '/tutor_home' : '/home')} />
         </ActionBar>
       </Screen>
     );
@@ -115,16 +121,16 @@ function XNoShowInner() {
   // party = who didn't show. In the student view the tutor is the no-show; in the
   // tutor view the student is the no-show (mirrors the button labels below).
   const submit = async () => {
+    if (busy || !reportOpen) return;
     const party: 'student' | 'tutor' = studentView ? 'tutor' : 'student';
-    if (!booking.bookingId) {
-      setDone(true);
-      return;
-    }
+    setBusy(true);
     try {
-      await api.bookings.reportNoShow({ bookingId: booking.bookingId, party });
+      await api.bookings.reportNoShow({ bookingId: booking.bookingId!, party });
       setDone(true);
     } catch {
       Alert.alert('Something went wrong', "Couldn't report the no-show. Please try again.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -140,12 +146,12 @@ function XNoShowInner() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>
-              {studentView ? `${tutor.name.split(' ')[0]!} is 15+ minutes late` : `${student.first} hasn't shown up`}
+              {studentView ? `${tutor.name.split(' ')[0]!} didn't show up` : `${student.first} didn't show up`}
             </Text>
             <Text style={{ fontSize: 13, color: t.text2, marginTop: 4, lineHeight: 19 }}>
               {studentView
-                ? 'If your tutor is 15 minutes late with no message, you can mark them as a no-show for a full refund.'
-                : 'You can report a student no-show up to 1 hour after the scheduled start. Payment processes to you automatically.'}
+                ? 'If your tutor did not attend, report a no-show after the scheduled end, within 48 hours. You receive a full refund.'
+                : 'If your student did not attend, report a no-show after the scheduled end, within 48 hours. Your session payout is processed automatically.'}
             </Text>
           </View>
         </Card>
@@ -161,7 +167,9 @@ function XNoShowInner() {
           full
           label={studentView ? "Tutor didn't show" : "Student didn't show"}
           onPress={submit}
+          disabled={busy || !reportOpen}
         />
+        {!reportOpen ? <Text style={{ color: t.text3, textAlign: 'center' }}>No-show reports are available only for confirmed sessions after the scheduled end, within 48 hours.</Text> : null}
       </ActionBar>
     </Screen>
   );

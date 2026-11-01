@@ -36,9 +36,11 @@ async function createUser(role: 'student' | 'tutor') {
   return { id: data.user.id, email };
 }
 
-await check('Standing uses both counts and explains missed sessions', () => {
+await check('Standing keeps counts for admin review without automatic restrictions', () => {
   const source = readFileSync(new globalThis.URL('../apps/mobile/app/standing.tsx', import.meta.url), 'utf8');
-  assert.match(source, /const good = stats \? stats\.cancelledCount === 0 && stats\.noShowCount === 0/);
+  assert.match(source, /Cancellations and no-shows are recorded for admin review/);
+  assert.match(source, /\{stats\.cancelledCount\}/);
+  assert.doesNotMatch(source, /Needs attention|Repeated no-shows can pause/);
   assert.match(source, /\{stats\.noShowCount\}/);
   assert.match(source, /Sessions missed/);
   assert.match(source, /Student cancellations do not/);
