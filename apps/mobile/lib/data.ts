@@ -1,7 +1,7 @@
 // Shape + adapter layer between @noot/core and the ported UI. Live screens fetch via
 // @noot/core and map into the UI Tutor/Review shapes with the adapters at the bottom.
-// DAYS is a 14-day window from today (BOOKABLE_DAYS is the shorter slice a student may
-// actually book); per-tutor availability slots come
+// DAYS is a 14-day window from today; BOOKABLE_DAYS is the booking picker window.
+// Per-tutor availability slots come
 // from api.tutors.getAvailability(...) via lib/availability.ts (no more mock generator).
 import { campusDays, type ReviewSummary, type TutorSummary } from '@noot/core';
 
@@ -21,16 +21,15 @@ export interface Day {
 }
 
 /**
- * How far ahead a session may be *booked*, in days. Payment is a manual-capture hold and
- * card authorizations lapse after about 7 days, so a session booked further out than this
- * could not be captured and the tutor would go unpaid (APP_REVIEW_TICKETS.md T6).
+ * How far ahead a session may be booked. Later sessions save a card at checkout
+ * and confirm payment two days before the session.
  * Must stay in step with BOOKING_HORIZON_DAYS in supabase/functions/_shared/booking.ts,
  * which rejects anything beyond it server-side.
  *
  * This is deliberately NOT the length of DAYS: the tutor calendar shows two weeks of
  * their own sessions. Booking screens use BOOKABLE_DAYS instead.
  */
-export const BOOKING_HORIZON_DAYS = 6;
+export const BOOKING_HORIZON_DAYS = 14;
 
 export function buildDays(now = new Date()): Day[] {
   return campusDays(14, now).map((d, i) => ({
@@ -48,10 +47,10 @@ export const DAYS = buildDays();
  * payment; the server rejects anything past it.
  *
  * Note the slice length is BOOKING_HORIZON_DAYS, not +1: the server's check is
- * `scheduled_at <= now + 6 days` measured in real time, not calendar days. Offering the
- * 7th day (today + 6) would surface slots whose clock time is later in the day than
+ * `scheduled_at <= now + 14 days` measured in real time, not calendar days. Offering the
+ * 15th day (today + 14) would surface slots whose clock time is later in the day than
  * "now", which the server refuses only AFTER the student has filled in the whole form.
- * Six entries — today through today+5 — are always strictly inside the window.
+ * Fourteen entries — today through today+13 — are always strictly inside the window.
  */
 export const BOOKABLE_DAYS = DAYS.slice(0, BOOKING_HORIZON_DAYS);
 

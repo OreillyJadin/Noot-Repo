@@ -101,3 +101,6 @@ verify_jwt = false
 
 [functions.auto-complete-sessions]
 verify_jwt = false
+
+[functions.place-booking-holds]
+verify_jwt = false

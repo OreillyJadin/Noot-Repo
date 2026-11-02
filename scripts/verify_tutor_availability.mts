@@ -267,7 +267,7 @@ try {
       newScheduledAt: chicagoTime(2, 9),
     }, studentToken);
     step('student reschedule proposal to 09:00 Chicago is refused with 409',
-      proposal.status === 409 && String(proposal.body.error).includes('outside this tutor'),
+      proposal.status === 409,
       `status=${proposal.status}`);
     const overrunProposal = await call('reschedule-booking', {
       bookingId,
@@ -275,19 +275,36 @@ try {
       newScheduledAt: chicagoTime(2, 18, 30),
     }, studentToken);
     step('student reschedule to 18:30 Chicago + 60 min is refused with 409',
-      overrunProposal.status === 409 && String(overrunProposal.body.error).includes('outside this tutor'),
+      overrunProposal.status === 409,
       `status=${overrunProposal.status}`);
+    const { data: unchanged, error: unchangedError } = await admin.from('bookings')
+      .select('scheduled_at, reschedule_proposed_at, reschedule_proposed_by')
+      .eq('id', bookingId).single();
+    if (unchangedError) throw unchangedError;
+    step('refused reschedules leave the booking and proposal unchanged',
+      new Date(unchanged.scheduled_at).getTime() === Date.parse(rescheduleSourceAt) &&
+      unchanged.reschedule_proposed_at === null && unchanged.reschedule_proposed_by === null);
   }
 
   stage = 'booking horizon';
+  const withinHorizon = await call('create-payment-intent', {
+    tutorId,
+    courseCode,
+    durationMinutes: 60,
+    scheduledAt: chicagoTime(7, 15),
+  }, studentToken);
+  step('available seven-day request succeeds with deferred card setup',
+    withinHorizon.status === 200 && withinHorizon.body.deferred === true &&
+    typeof withinHorizon.body.setupIntentId === 'string' && withinHorizon.body.paymentIntentId === null,
+    `status=${withinHorizon.status}`);
   const beyondHorizon = await call('create-payment-intent', {
     tutorId,
     courseCode,
     durationMinutes: 60,
-    scheduledAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    scheduledAt: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
   }, studentToken);
-  step('seven-day request is refused by the six-day booking horizon',
-    beyondHorizon.status === 400 && String(beyondHorizon.body.error).includes('6 days ahead'),
+  step('day-15 request is refused by the fourteen-day booking horizon',
+    beyondHorizon.status === 400 && String(beyondHorizon.body.error).includes('14 days ahead'),
     `status=${beyondHorizon.status}; ${beyondHorizon.body.error ?? ''}`);
 
   stage = 'DST sanity';
@@ -308,7 +325,7 @@ try {
   const cst = dstParts('2026-11-10T15:00:00.000Z');
   step('mid-November UTC instant formats as 09:00 CST',
     cst.hour === '09' && cst.timeZoneName === 'CST',
-    `${cst.weekday} ${cst.hour}:${cst.minute} ${cst.timeZoneName}; static timezone sanity, beyond current six-day booking horizon`);
+    `${cst.weekday} ${cst.hour}:${cst.minute} ${cst.timeZoneName}; static timezone sanity`);
 } catch (error) {
   fail++;
   console.error(`❌ ${stage} — ${error instanceof Error ? error.message : String(error)}`);

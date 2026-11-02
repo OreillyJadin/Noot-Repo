@@ -204,6 +204,15 @@ try {
   const recentBookingId = await makeBooking(recentStudent, recentTutor, {
     scheduledAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
   });
+  const agedStudent = await makeUser('student');
+  const agedTutor = await makeUser('tutor');
+  const agedBookingId = await makeBooking(agedStudent, agedTutor, {
+    scheduledAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+  });
+  const { error: ageError } = await svc.from('bookings').update({
+    hold_placed_at: new Date(Date.now() - 4 * 86400000 - 60000).toISOString(),
+  }).eq('id', agedBookingId);
+  if (ageError) throw ageError;
 
   const flaggedStudent = await makeUser('student');
   const flaggedTutor = await makeUser('tutor');
@@ -219,6 +228,8 @@ try {
   const dueRow = await booking(dueBookingId);
   const recentRow = await booking(recentBookingId);
   const flaggedRow = await booking(flaggedBookingId);
+  check('four-day-old payment completes an ended session before the 48h fallback',
+    autoComplete.status === 200 && (await booking(agedBookingId)).status === 'completed');
   check(
     'auto-complete-sessions completes the due free session',
     autoComplete.status === 200 &&

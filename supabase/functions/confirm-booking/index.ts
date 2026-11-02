@@ -19,7 +19,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { isAdmin, requireActiveUser } from '../_shared/auth.ts';
 import { BookingAgeError, requireBookingAge } from '../_shared/age.ts';
-import { BookingError, freeBookingFor, resolveBooking, SLOT_TAKEN_NOT_CHARGED, type ResolvedBooking } from '../_shared/booking.ts';
+import { BookingError, freeBookingFor, IMMEDIATE_HOLD_DAYS, resolveBooking, SLOT_TAKEN_NOT_CHARGED, type ResolvedBooking } from '../_shared/booking.ts';
 import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
 import { acceptDeadline } from '../_shared/acceptance.ts';
 import { creditToApply, parseCreditCents } from '../_shared/credits.ts';
@@ -54,12 +54,14 @@ serveWithErrorReporting('confirm-booking', async (req) => {
       location,
       meetingLink,
       paymentIntentId,
+      setupIntentId,
     } = body as {
       courseCode?: string;
       sessionType?: string;
       location?: string;
       meetingLink?: string;
       paymentIntentId?: string;
+      setupIntentId?: string;
     };
     const message = body?.message;
     if (message !== undefined && typeof message !== 'string') {
@@ -145,10 +147,43 @@ serveWithErrorReporting('confirm-booking', async (req) => {
     // credit can't be spent after all.
     let creditCents = 0;
     let releaseHold: (() => Promise<unknown>) | null = null;
+    let storedSetupIntentId: string | null = null;
+    let paymentMethodId: string | null = null;
+    let holdPlacedAt: string | null = null;
+    const deferred = Boolean(setupIntentId) ||
+      new Date(resolved.scheduledAt).getTime() > Date.now() + IMMEDIATE_HOLD_DAYS * 86400000;
     const adminFree = await isAdmin(userClient);
     if (adminFree) {
       resolved = freeBookingFor(resolved);
       storedPaymentIntentId = null;
+    } else if (deferred && stripeKey) {
+      if (typeof setupIntentId !== 'string' || !setupIntentId.startsWith('seti_') || paymentIntentId) {
+        return Response.json({ error: 'Save a payment method for this session first.' }, { status: 400, headers: cors });
+      }
+      const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
+      const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
+      const setup = await stripe.setupIntents.retrieve(setupIntentId);
+      const meta = setup.metadata;
+      const { data: owner, error: ownerError } = await db.from('users').select('stripe_customer_id').eq('id', studentId).single();
+      if (ownerError) throw ownerError;
+      const claimed = parseCreditCents(meta?.credit_cents, resolved.amountCents);
+      if (setup.status !== 'succeeded' || setup.usage !== 'off_session' ||
+          setup.customer !== owner.stripe_customer_id || !setup.payment_method ||
+          meta?.user_id !== studentId || meta?.tutor_id !== resolved.tutorId ||
+          meta?.course_code !== resolved.courseCode || meta?.scheduled_at !== resolved.scheduledAt ||
+          meta?.duration_minutes !== String(resolved.durationMinutes) ||
+          meta?.student_fee_cents !== String(Math.round(resolved.studentFee * 100)) ||
+          claimed === null || meta?.amount !== String(resolved.amountCents - claimed)) {
+        return Response.json({ error: 'That saved payment does not match this session.' }, { status: 400, headers: cors });
+      }
+      const { data: reused, error: reuseError } = await db.from('bookings').select('id')
+        .eq('stripe_setup_intent_id', setupIntentId).limit(1);
+      if (reuseError) throw reuseError;
+      if (reused?.length) return Response.json({ error: 'That payment has already been used' }, { status: 409, headers: cors });
+      creditCents = claimed;
+      storedSetupIntentId = setupIntentId;
+      paymentMethodId = typeof setup.payment_method === 'string' ? setup.payment_method : setup.payment_method.id;
+      storedPaymentIntentId = setupIntentId;
     } else if (stripeKey) {
       if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
         return Response.json({ error: 'A completed payment is required' }, { status: 400, headers: cors });
@@ -185,9 +220,12 @@ serveWithErrorReporting('confirm-booking', async (req) => {
         return Response.json({ error: 'That payment has already been used' }, { status: 409, headers: cors });
       }
       storedPaymentIntentId = paymentIntentId;
+      holdPlacedAt = new Date(pi.created * 1000).toISOString();
     } else {
       // No Stripe configured (local/dev) — create-payment-intent returned a simulated id.
-      storedPaymentIntentId = paymentIntentId ?? 'sim_pi_' + crypto.randomUUID();
+      storedSetupIntentId = deferred ? (setupIntentId ?? 'sim_seti_' + crypto.randomUUID()) : null;
+      storedPaymentIntentId = storedSetupIntentId ?? paymentIntentId ?? 'sim_pi_' + crypto.randomUUID();
+      holdPlacedAt = deferred ? null : new Date().toISOString();
       const { data: bal } = await db.rpc('credit_balance_cents', { p_user: studentId });
       creditCents = creditToApply(Number(bal ?? 0), resolved.amountCents);
     }
@@ -215,7 +253,7 @@ serveWithErrorReporting('confirm-booking', async (req) => {
           const { data: booked } = await db
             .from('bookings')
             .select('id')
-            .eq('stripe_payment_intent_id', storedPaymentIntentId)
+            .eq(storedSetupIntentId ? 'stripe_setup_intent_id' : 'stripe_payment_intent_id', storedPaymentIntentId)
             .limit(1);
           const stale = prior && Date.now() - new Date(prior.created_at as string).getTime() > 60_000;
           if (stale && (booked ?? []).length === 0) {
@@ -265,7 +303,11 @@ serveWithErrorReporting('confirm-booking', async (req) => {
         accept_by: acceptBy,
         cancellation_deadline: cancellationDeadline,
         refund_status: 'not_applicable',
-        stripe_payment_intent_id: storedPaymentIntentId,
+        stripe_payment_intent_id: storedSetupIntentId ? null : storedPaymentIntentId,
+        stripe_setup_intent_id: storedSetupIntentId,
+        stripe_payment_method_id: paymentMethodId,
+        hold_due_at: storedSetupIntentId ? new Date(new Date(resolved.scheduledAt).getTime() - 48 * 3600000).toISOString() : null,
+        hold_placed_at: holdPlacedAt,
         })
       .select('id')
       .single();
@@ -280,7 +322,7 @@ serveWithErrorReporting('confirm-booking', async (req) => {
     if (bookingError) {
       // Another confirm with this PaymentIntent got there first (bookings_one_per_payment_intent).
       // Its booking uses the hold and any credit — leave both alone.
-      if (bookingError.code === '23505' && bookingError.message.includes('bookings_one_per_payment_intent')) {
+      if (bookingError.code === '23505' && (bookingError.message.includes('bookings_one_per_payment_intent') || bookingError.message.includes('stripe_setup_intent_id'))) {
         return Response.json({ error: 'That payment has already been used' }, { status: 409, headers: cors });
       }
       // No booking, so nothing for the credit or the hold to pay for: give both back.
