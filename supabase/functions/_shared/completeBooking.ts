@@ -52,6 +52,9 @@ export async function completeBooking(
 
   const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
   const pi = booking.stripe_payment_intent_id;
+  if (stripeKey && paidSession && !pi) {
+    return { status: 409, body: { error: 'This session has no confirmed payment and cannot be completed.' } };
+  }
   let captured = false;
   let transferId: string | null = null;
   let chargeId: string | null = null;

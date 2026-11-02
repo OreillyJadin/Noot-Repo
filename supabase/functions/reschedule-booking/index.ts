@@ -59,7 +59,7 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
     const { data: booking, error: loadErr } = await db
       .from('bookings')
       .select(
-        'id, student_id, tutor_id, subject, status, scheduled_at, duration_minutes, reschedule_proposed_at, reschedule_proposed_by',
+        'id, student_id, tutor_id, subject, status, scheduled_at, duration_minutes, reschedule_proposed_at, reschedule_proposed_by, stripe_payment_intent_id, hold_placed_at, created_at',
       )
       .eq('id', bookingId)
       .single();
@@ -77,6 +77,13 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
         { status: 409, headers: cors },
       );
     }
+
+    const paymentCovers = (when: Date) => !booking.stripe_payment_intent_id ||
+      when.getTime() + Number(booking.duration_minutes) * 60000 + 48 * 3600000 <=
+        new Date(booking.hold_placed_at ?? booking.created_at).getTime() + 4 * 86400000;
+    const paymentError = () => Response.json({
+      error: 'The saved payment cannot cover that date. Cancel and book a new session.',
+    }, { status: 409, headers: cors });
 
     const notifyOtherParty = async (title: string, body: (name: string) => string) => {
       const recipient = booking.student_id === user.id ? booking.tutor_id : booking.student_id;
@@ -130,6 +137,7 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
           { status: 400, headers: cors },
         );
       }
+      if (!paymentCovers(when)) return paymentError();
       if (booking.student_id === user.id) {
         try {
           await assertWithinAvailability(
@@ -213,6 +221,10 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
 
     if (action === 'accept') {
       const newTime = new Date(booking.reschedule_proposed_at);
+      if (!paymentCovers(newTime)) return paymentError();
+      if (newTime.getTime() > Date.now() + BOOKING_HORIZON_DAYS * 86400000) {
+        return Response.json({ error: 'That time is outside the booking window.' }, { status: 409, headers: cors });
+      }
       // A proposal can sit unanswered until its time has passed — re-check on the way in.
       if (newTime.getTime() <= Date.now()) {
         return Response.json(
@@ -231,12 +243,13 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
             reschedule_proposed_at: null,
             reschedule_proposed_by: null,
           })
-          .eq('id', bookingId);
+          .eq('id', bookingId).eq('status', 'confirmed')
+          .eq('reschedule_proposed_at', booking.reschedule_proposed_at).select('id').maybeSingle();
       // A concurrent write for this tutor can deadlock against the exclusion constraint
       // (40P01); the abort is transient, so retry the identical update once.
-      let { error } = await applyProposal();
+      let { data: moved, error } = await applyProposal();
       if (error?.code === '40P01') {
-        ({ error } = await applyProposal());
+        ({ data: moved, error } = await applyProposal());
       }
       // The slot was free at propose time but taken since (bookings_tutor_no_overlap, 0063).
       if (error?.code === '23P01' || error?.code === '40P01') {
@@ -246,6 +259,7 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
         );
       }
       if (error) throw error;
+      if (!moved) return Response.json({ error: 'This session changed. Refresh and try again.' }, { status: 409, headers: cors });
       // TODO(stripe): no money movement — schedule change only.
       await notifyOtherParty(
         'Session moved',

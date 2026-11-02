@@ -17,7 +17,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { isAdmin, requireActiveUser } from '../_shared/auth.ts';
 import { BookingAgeError, requireBookingAge } from '../_shared/age.ts';
-import { BookingError, freeBookingFor, resolveBooking } from '../_shared/booking.ts';
+import { BookingError, freeBookingFor, IMMEDIATE_HOLD_DAYS, resolveBooking } from '../_shared/booking.ts';
 import { creditToApply } from '../_shared/credits.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
@@ -78,6 +78,7 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
     const { data: bal } = await db.rpc('credit_balance_cents', { p_user: user.id });
     const creditCents = creditToApply(Number(bal ?? 0), resolved.amountCents);
     const chargeCents = resolved.amountCents - creditCents;
+    const deferred = new Date(resolved.scheduledAt).getTime() > Date.now() + IMMEDIATE_HOLD_DAYS * 86400000;
 
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
 
@@ -89,7 +90,10 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
           paymentIntentClientSecret: 'sim_secret_' + crypto.randomUUID(),
           ephemeralKeySecret: null,
           customerId: null,
-          paymentIntentId: 'sim_pi_' + crypto.randomUUID(),
+          paymentIntentId: deferred ? null : 'sim_pi_' + crypto.randomUUID(),
+          setupIntentId: deferred ? 'sim_seti_' + crypto.randomUUID() : null,
+          setupIntentClientSecret: deferred ? 'sim_secret_' + crypto.randomUUID() : null,
+          deferred,
           amountCents: resolved.amountCents,
           studentFeeCents: Math.round(resolved.studentFee * 100),
           creditCents,
@@ -126,6 +130,31 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
     }
 
     const ephemeralKey = await stripe.ephemeralKeys.create({ customer: customerId }, { apiVersion: '2024-06-20' });
+
+    if (deferred) {
+      const setup = await stripe.setupIntents.create({
+        customer: customerId,
+        usage: 'off_session',
+        payment_method_types: ['card'],
+        metadata: {
+          user_id: user.id,
+          tutor_id: resolved.tutorId,
+          course_code: resolved.courseCode,
+          duration_minutes: String(resolved.durationMinutes),
+          scheduled_at: resolved.scheduledAt,
+          student_fee_cents: String(Math.round(resolved.studentFee * 100)),
+          credit_cents: String(creditCents),
+          amount: String(chargeCents),
+        },
+      });
+      return Response.json({
+        deferred: true, setupIntentId: setup.id, setupIntentClientSecret: setup.client_secret,
+        paymentIntentId: null, paymentIntentClientSecret: null,
+        customerId, ephemeralKeySecret: ephemeralKey.secret,
+        amountCents: resolved.amountCents, studentFeeCents: Math.round(resolved.studentFee * 100),
+        creditCents, chargeCents, price: resolved.price, simulated: false, free: false,
+      }, { headers: cors });
+    }
 
     const intent = await stripe.paymentIntents.create({
       amount: chargeCents,

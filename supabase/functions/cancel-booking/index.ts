@@ -49,7 +49,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     // Load booking.
     const { data: booking, error: loadError } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, subject, scheduled_at, status, price, student_fee, credit_applied, tutor_payout_amount, stripe_payment_intent_id')
+      .select('id, student_id, tutor_id, subject, scheduled_at, status, price, student_fee, credit_applied, tutor_payout_amount, stripe_payment_intent_id, stripe_setup_intent_id')
       .eq('id', bookingId)
       .single();
 
@@ -190,6 +190,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     //   0% refund   → capture the full amount (late-cancel fee).
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
     const pi = booking.stripe_payment_intent_id as string | null;
+    if (!pi && booking.stripe_setup_intent_id) refundPercent = 100;
     let chargeId: string | null = null;
     let transferId: string | null = null;
     let payoutFailedAt: string | null = null;

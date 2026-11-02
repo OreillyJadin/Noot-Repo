@@ -15,11 +15,11 @@ import { getPayoutStatus, type PayoutStatus } from './connect.ts';
 // held amount separately.
 
 /**
- * How far ahead a session may be booked, in days. Kept at 6 because payment is a
- * manual-capture hold and card authorizations lapse after about 7 days (T6). Must stay
- * in step with BOOKING_HORIZON_DAYS in apps/mobile/lib/data.ts.
+ * Booking window; sessions beyond six days save a card and defer payment confirmation.
+ * Must stay in step with BOOKING_HORIZON_DAYS in apps/mobile/lib/data.ts.
  */
-export const BOOKING_HORIZON_DAYS = 6;
+export const BOOKING_HORIZON_DAYS = 14;
+export const IMMEDIATE_HOLD_DAYS = 6;
 
 export type ResolveBookingInput = {
   studentId: string;
