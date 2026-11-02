@@ -15,6 +15,7 @@ import { toTutor, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
 import { formatSessionTime } from '../lib/formatSessionTime';
+import { JoinVideoButton } from '../lib/JoinVideoButton';
 
 
 function sessionFacts(booking: BookingDraft, scheduledAt: string, tutor: Tutor, gradesVerified: boolean) {
@@ -130,10 +131,11 @@ export default function TB2() {
             <ListRow
               icon={f.online ? 'video' : 'pin'}
               title={f.online ? 'Virtual' : 'In person'}
-              trailing={<Text numberOfLines={2} style={[styles.factValue, { color: t.text }]}>{f.online ? 'Integrated video' : f.location || 'Location not set'}</Text>}
+              trailing={<Text numberOfLines={2} style={[styles.factValue, { color: t.text }]}>{f.online ? 'Private Noot video' : f.location || 'Location not set'}</Text>}
               chevron={false}
             />
           </ListSection>
+          {f.online && booking.bookingId ? <JoinVideoButton bookingId={booking.bookingId} /> : null}
         </View>
 
         {/* student's message + focus */}
@@ -202,9 +204,9 @@ export default function TB2() {
             <Ic name="clock" size={16} color={t.text3} strokeWidth={1.8} />
           </View>
           <Text style={{ flex: 1, fontSize: 12, color: t.text2, lineHeight: 17 }}>
-            We&apos;ll remind you both <Text style={{ color: t.text, fontWeight: '700' }}>24 hours</Text> and{' '}
-            <Text style={{ color: t.text, fontWeight: '700' }}>1 hour</Text> before. The{' '}
-            {f.online ? 'video link' : 'location'} is included in the 1-hour reminder.
+            {f.online
+              ? 'Your private Noot video link and meeting code arrive 1 hour before, once the session is accepted and payment is ready. Join from this page.'
+              : 'You’ll get reminders based on your notification settings. Confirm the exact meeting spot in chat.'}
           </Text>
         </Card>
       </Body>

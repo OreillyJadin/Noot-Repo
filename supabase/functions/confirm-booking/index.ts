@@ -52,7 +52,6 @@ serveWithErrorReporting('confirm-booking', async (req) => {
       courseCode,
       sessionType,
       location,
-      meetingLink,
       paymentIntentId,
       setupIntentId,
     } = body as {
@@ -75,12 +74,9 @@ serveWithErrorReporting('confirm-booking', async (req) => {
       );
     }
 
-    // Only in-person sessions are sold at launch: noot has no video provider, so a video
-    // booking would leave the student with no way to attend (T14). Existing 'video' rows
-    // still render; we just don't create new ones.
-    if (sessionType !== 'in_person') {
+    if (sessionType !== 'in_person' && sessionType !== 'video') {
       return Response.json(
-        { error: "Only in-person sessions can be booked right now (sessionType must be 'in_person')." },
+        { error: "sessionType must be 'in_person' or 'video'." },
         { status: 400, headers: cors },
       );
     }
@@ -296,8 +292,8 @@ serveWithErrorReporting('confirm-booking', async (req) => {
         tutor_payout_amount: resolved.tutorPayout,
         credit_applied: creditCents / 100,
         session_type: sessionType,
-        meeting_link: meetingLink ?? null,
-        location: location ?? null,
+        meeting_link: null,
+        location: sessionType === 'video' ? null : location ?? null,
         request_note: requestNote,
         status: 'pending',
         accept_by: acceptBy,

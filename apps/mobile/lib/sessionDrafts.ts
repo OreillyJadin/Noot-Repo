@@ -14,10 +14,12 @@ export interface DraftContext {
   location: string;
   /** "Thursday at 3:00 PM"-style, or empty when unknown. */
   when: string;
+  sessionType?: 'video' | 'in_person';
+  dailyRoomName?: string | null;
 }
 
 export interface SessionDraft {
-  key: 'location' | 'intro' | 'bring';
+  key: 'location' | 'intro' | 'bring' | 'virtual';
   label: string;
   text: string;
 }
@@ -41,6 +43,12 @@ export function tutorSessionDrafts(c: DraftContext): SessionDraft[] {
       : `${hi} Where works best for ${session}? I'm thinking [library or hall], in [room number or area].`;
 
   return [
+    ...(c.sessionType === 'video' ? [{
+      key: 'virtual' as const,
+      label: 'Virtual session setup',
+      text: "We're meeting on Noot video. Your private link and meeting code will show up here 1 hour before we start, and you can join from the session page." +
+        (c.dailyRoomName ? ` Your meeting code is ${c.dailyRoomName.toUpperCase()}.` : ''),
+    }] : []),
     { key: 'location', label: 'Confirm meeting spot', text: location },
     {
       key: 'intro',

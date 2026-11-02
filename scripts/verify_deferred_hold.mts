@@ -192,7 +192,7 @@ try {
       (await row(cancelBefore.id)).refund_percent === 100 && !(await row(cancelBefore.id)).stripe_payment_intent_id);
     await db.from('credit_ledger').insert({ user_id: student.id, amount_cents: 300, kind: 'adjustment' });
     const expiry = await deferred(252);
-    await patch(expiry.id, { status: 'confirmed', scheduled_at: bookingTime(11) });
+    await patch(expiry.id, { status: 'confirmed', scheduled_at: bookingTime(2) });
     assert.equal((await work()).status, 200);
     const expired = await row(expiry.id);
     const { data: returned } = await db.from('credit_ledger').select('amount_cents').eq('booking_id', expiry.id).eq('kind', 'booking_return');

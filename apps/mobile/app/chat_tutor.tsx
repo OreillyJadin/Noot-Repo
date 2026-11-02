@@ -123,6 +123,8 @@ function ChatTutorInner() {
         tutorFirstName: me?.firstName ?? '',
         course: booking.course ?? '',
         location: booking.location ?? '',
+        sessionType: booking.sessionType,
+        dailyRoomName: booking.dailyRoomName,
         when: booking.scheduledAt
           ? formatCampusSessionWhen(booking.scheduledAt)
           : '',

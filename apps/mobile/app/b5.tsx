@@ -8,6 +8,7 @@ import { api, auth, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { formatSessionTime } from '../lib/formatSessionTime';
+import { JoinVideoButton } from '../lib/JoinVideoButton';
 
 export default function B5() {
   const { bookingId: rawBookingId } = useLocalSearchParams<{ bookingId?: string | string[] }>();
@@ -25,13 +26,13 @@ function RequestMode() {
   const day = booking.scheduledAt ? formatSessionTime(booking.scheduledAt) : null;
   const lengthMin = booking.lengthMin ?? 60;
   const lengthLabel = lengthMin % 60 === 0 ? `${lengthMin / 60} hr` : `${lengthMin} min`;
-  const location = booking.location ?? 'Gorgas Library, Fl 2';
+  const location = booking.sessionType === 'video' ? 'Virtual' : booking.location ?? 'Gorgas Library, Fl 2';
   const course = booking.course ?? booking.tutor?.courses[0]?.[0] ?? 'Your course';
   const acceptBy = booking.acceptBy ? formatSessionTime(booking.acceptBy) : 'the acceptance deadline';
   const rows: [IconName, string][] = [
     ['cap', course],
     ['cal', day ?? `${booking.dayIndex ?? 'Session'} · ${booking.slot ?? '3:00 PM'}`],
-    [location.startsWith('Online') ? 'video' : 'pin', location],
+    [booking.sessionType === 'video' ? 'video' : 'pin', location],
     ['clock', `${lengthLabel} session`],
   ];
 
@@ -127,7 +128,7 @@ function ConfirmedMode({ bookingId }: { bookingId: string }) {
   }
 
   const { booking, tutor } = session;
-  const location = booking.sessionType === 'video' ? 'Online' : booking.location ?? 'In person';
+  const location = booking.sessionType === 'video' ? 'Virtual' : booking.location ?? 'In person';
   const lengthLabel = booking.durationMinutes % 60 === 0
     ? `${booking.durationMinutes / 60} hr`
     : `${booking.durationMinutes} min`;
@@ -166,6 +167,7 @@ function ConfirmedMode({ bookingId }: { bookingId: string }) {
           </ListSection>
         </View>
 
+        {booking.sessionType === 'video' ? <JoinVideoButton bookingId={booking.id} /> : null}
         <View style={styles.actionRow}>
           <Button label="Message" kind="secondary" size="md" style={{ flex: 1 }} onPress={openChat} />
           <Button label="View session" kind="secondary" size="md" style={{ flex: 1 }} onPress={() => router.replace('/sessions')} />

@@ -447,6 +447,9 @@ function mapBooking(row: any): Booking {
     tutorPayoutAmount: num(row.tutor_payout_amount),
     sessionType: row.session_type,
     meetingLink: row.meeting_link ?? null,
+    dailyRoomName: row.daily_room_name ?? null,
+    videoLinkSentAt: row.video_link_sent_at ?? null,
+    dailyRoomDeletedAt: row.daily_room_deleted_at ?? null,
     location: row.location ?? null,
     status: row.status,
     acceptBy: row.accept_by ?? null,
@@ -2185,6 +2188,10 @@ export const api = {
 
   // --- bookings (trust-sensitive writes → Edge Functions, see ARCHITECTURE.md §5) ---
   bookings: {
+    joinVideo(bookingId: string): Promise<{ url: string }> {
+      return invokeFn('join-video-session', { bookingId });
+    },
+
     createPaymentUpdate(bookingId: string): Promise<{
       paymentIntentId: string;
       paymentIntentClientSecret: string | null;

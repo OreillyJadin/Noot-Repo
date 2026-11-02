@@ -218,6 +218,9 @@ export interface Booking {
   sessionType: SessionType;
   /** Populated when video (external link at launch, ARCHITECTURE.md §9). */
   meetingLink: string | null;
+  dailyRoomName: string | null;
+  videoLinkSentAt: Timestamp | null;
+  dailyRoomDeletedAt: Timestamp | null;
   /** Populated when in_person. */
   location: string | null;
   status: BookingStatus;

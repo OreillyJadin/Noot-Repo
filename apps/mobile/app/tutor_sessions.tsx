@@ -14,6 +14,7 @@ import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
 import { useSessionClock } from '../lib/useSessionClock';
+import { JoinVideoButton } from '../lib/JoinVideoButton';
 
 type Tab = 'upcoming' | 'past';
 
@@ -47,8 +48,7 @@ export default function TutorSessions() {
         av: name.charAt(0) || 'S',
         course: b.subject,
         when: formatSessionTime(b.scheduledAt),
-        // Plain "Online" — see the note in tutor_calendar.tsx (T14).
-        where: b.sessionType === 'video' ? 'Online' : b.location ?? 'In person',
+        where: b.sessionType === 'video' ? 'Virtual' : b.location ?? 'In person',
         pay: `$${tutorEarnedAmount(b).toFixed(2)}`,
         status: b.status,
       };
@@ -240,12 +240,13 @@ export default function TutorSessions() {
                           </>
                         ) : null}
                         <View style={styles.whereRow}>
-                          <Ic name={r.where.startsWith('Online') ? 'video' : 'pin'} size={13} color={t.accent} strokeWidth={1.8} />
+                          <Ic name={r.booking.sessionType === 'video' ? 'video' : 'pin'} size={13} color={t.accent} strokeWidth={1.8} />
                           <Text style={[styles.whereText, { color: t.text2 }]}>{r.where}</Text>
                         </View>
                       </View>
                     </View>
                   </Pressable>
+                  {r.booking.sessionType === 'video' ? <JoinVideoButton bookingId={r.id} /> : null}
                   {r.status === 'pending' ? (
                     <AdaptiveRow style={styles.requestActions}>
                       <Button
@@ -296,6 +297,7 @@ export default function TutorSessions() {
                       </Text>
                     </View>
                   </View>
+                  {r.booking.sessionType === 'video' && r.status === 'confirmed' ? <JoinVideoButton bookingId={r.id} /> : null}
                   {needsComplete ? (
                     <Button
                       label={busyId === r.id ? 'Completing…' : 'Mark session complete'}

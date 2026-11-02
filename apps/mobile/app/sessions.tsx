@@ -17,6 +17,7 @@ import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 import { tutorMeta } from '../lib/tutorMeta';
 import { formatSessionTime } from '../lib/formatSessionTime';
 import { useSessionClock } from '../lib/useSessionClock';
+import { JoinVideoButton } from '../lib/JoinVideoButton';
 import { PaymentUpdateBanner } from '../lib/PaymentUpdateBanner';
 
 type SegmentKey = 'upcoming' | 'past' | 'saved';
@@ -27,11 +28,8 @@ interface UpcomingItem {
   tutor: Tutor | null;
 }
 
-/** Where a booking happens — meeting link for video, location for in-person. */
 function formatWhere(b: Booking): string {
-  // "Zoom" was never true — nothing sets meeting_link, and video isn't sold at launch
-  // (T14). Existing 'video' rows just read "Online".
-  if (b.sessionType === 'video') return 'Online';
+  if (b.sessionType === 'video') return 'Virtual';
   return b.location ?? 'In person';
 }
 
@@ -364,6 +362,7 @@ export default function Sessions() {
                         <Text style={[styles.metaText, { color: t.text2 }]}>{where}</Text>
                       </View>
                     </View>
+                    {online ? <JoinVideoButton bookingId={b.id} /> : null}
                     <PaymentUpdateBanner booking={b} now={now} onUpdated={onRefresh} />
                     {b.status === 'pending' ? (
                       <>
@@ -449,6 +448,7 @@ export default function Sessions() {
                       </View>
                     </View>
                   </View>
+                  {b.sessionType === 'video' && b.status === 'confirmed' ? <JoinVideoButton bookingId={b.id} /> : null}
                   <AdaptiveRow style={styles.btnRow}>
                     <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
                     {tutor && canRate ? (

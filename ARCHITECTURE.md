@@ -345,6 +345,13 @@ migration-agnostic from day one.
 - **Secrets:** Stripe keys, service-role key, webhook signing secret live only in Edge Function env
   (never in the app bundle). Client uses the anon key + RLS.
 - **Config:** per-environment `.env` per app; typed config in `packages/config`.
+- **Video:** Daily Prebuilt opens in the browser via `expo-web-browser`; no native video SDK.
+  `DAILY_API_KEY` is server-only (`supabase secrets set DAILY_API_KEY=... --project-ref ...`),
+  or empty in a chmod-600 local function env file for simulation. The `video-rooms` worker
+  publishes meeting codes only after acceptance/payment and at T−1h; `join-video-session`
+  issues room-scoped, expiring participant tokens. Stored URLs and chat never contain tokens.
+  No recording or transcription. Migration 0102 schedules the worker using the existing
+  Vault project URL/service key pattern. The room opens at start−1h and expires at end+30m.
 
 ---
 

@@ -67,6 +67,23 @@ and `production`) in `apps/mobile/eas.json`:
 A DSN only allows the app to send events, so it is safe to commit. A new EAS build is needed
 for the setting to take effect in the installed app.
 
+### Virtual sessions (Daily Prebuilt)
+
+Set `DAILY_API_KEY` as an Edge Function secret, never an `EXPO_PUBLIC_` variable:
+
+```sh
+supabase secrets set DAILY_API_KEY='YOUR_DAILY_API_KEY' --project-ref YOUR_PROJECT_REF
+```
+
+For local `supabase functions serve --env-file /path/to/functions.env`, add
+`DAILY_API_KEY=` to that chmod-600, gitignored/external env file. Empty means simulated
+rooms and tokens; set a real key only when deliberately testing Daily. Deploy
+`video-rooms` and `join-video-session` together with migration 0102. The minute cron
+uses the existing Vault secrets `noot_project_url` and `noot_service_role_key`.
+Run `pnpm dlx tsx scripts/verify_video_sessions.mts` for DB-only coverage;
+add `--functions` with a Stripe-less, Daily-less local function server for simulated
+end-to-end coverage. No recording or transcription is enabled by this integration.
+
 ### Enable Edge Function error reporting
 
 Set the functions project's DSN as a Supabase secret. The functions read it on each request,
