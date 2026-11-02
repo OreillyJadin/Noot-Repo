@@ -77,6 +77,7 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
   const [last, setLast] = useState('');
   const [year, setYear] = useState('');
   const [expectedYear, setExpectedYear] = useState('');
+  const [expectedTerm, setExpectedTerm] = useState<'Fall' | 'Spring' | 'Summer' | ''>('');
   const [major, setMajor] = useState('');
   const [bio, setBio] = useState('');
   const [rates, setRates] = useState<Record<string, string>>({});
@@ -90,6 +91,7 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
     setLast(me.lastName);
     setYear(academicYearLabel(me.year));
     setExpectedYear(me.expectedGraduationYear?.toString() ?? '');
+    setExpectedTerm(me.expectedGraduationTerm ?? '');
     setMajor(me.major ?? '');
     setBio(app.bio);
     setPrefilled(true);
@@ -110,6 +112,7 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
       last.trim() !== me.lastName ||
       year !== academicYearLabel(me.year) ||
       expectedYear !== (me.expectedGraduationYear?.toString() ?? '') ||
+      expectedTerm !== (me.expectedGraduationTerm ?? '') ||
       major !== (me.major ?? '') ||
       bio.trim() !== app.bio);
   const ratesDirty = app.courses.some((c) => (rates[c.courseCode] ?? '') !== (c.hourlyRate > 0 ? String(c.hourlyRate) : ''));
@@ -134,7 +137,8 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
     try {
       if (profileDirty) {
         await api.profile.updatePersonal({ firstName: first.trim(), lastName: last.trim(), year: year || null, major: major || null,
-          expectedGraduationYear: year === 'Post Grad' || !expectedYear ? null : Number(expectedYear) });
+          expectedGraduationYear: year === 'Post Grad' || !expectedYear ? null : Number(expectedYear),
+          expectedGraduationTerm: year === 'Post Grad' || !expectedTerm ? null : expectedTerm });
         await api.profile.updateTutorProfile({ bio: bio.trim() });
       }
       if (ratesDirty) {
@@ -198,7 +202,7 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
         </View>
       </View>
       <Select label="Academic status" value={year} options={ACADEMIC_YEAR_OPTIONS} onChange={setYear} />
-      <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} />
+      <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} term={expectedTerm} onTermChange={setExpectedTerm} />
       <MajorPicker value={major} onChange={setMajor} />
       <Field label="Bio" value={bio} onChangeText={setBio} multiline placeholder="Tell students why you're a great tutor…" />
 

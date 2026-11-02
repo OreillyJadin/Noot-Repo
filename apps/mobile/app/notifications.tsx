@@ -6,18 +6,19 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, AppState, StyleSheet, Switch, Alert, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Button, Card, Chip, ListSection, ListRow, Ic, EmptyState, Skeleton, useTheme, type IconName } from '@noot/ui';
+import { Screen, NavTop, Body, Button, Card, Select, ListSection, Ic, EmptyState, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api, REMINDER_CHOICES, type Notification } from '@noot/core';
 import { useApp } from '../lib/store';
 import { openNotification } from '../lib/openNotification';
 import { askForPush, getPushState, openPushSettings } from '../lib/push';
 import type { PushState } from '../lib/pushState';
 import { errText } from '../lib/errText';
+import { DAY_OF_TIMES, masterReminderSettings } from '../lib/reminderSettings';
 
 const ICON: Record<Notification['type'], IconName> = { message: 'chat', booking: 'cal', system: 'bell' };
 const REMINDER_LABEL: Record<number, string> = {
   5: '5 min', 10: '10 min', 15: '15 min', 30: '30 min',
-  60: '1 hr', 120: '2 hr', 1440: '1 day',
+  60: '1 hour', 120: '2 hours', 1440: '1 day',
 };
 
 function timeAgo(iso: string): string {
@@ -93,7 +94,8 @@ export default function Notifications() {
   const router = useRouter();
   const { role, setRole, patchBooking } = useApp();
   const [items, setItems] = useState<Notification[] | null>(null);
-  const [reminderSettings, setReminderSettings] = useState<{ minutesBefore: number[]; morningOf: boolean } | null>(null);
+  const [reminderSettings, setReminderSettings] = useState<Awaited<ReturnType<typeof api.notifications.getReminderSettings>> | null>(null);
+  const [rememberedReminders, setRememberedReminders] = useState<typeof reminderSettings>(null);
   const [savingReminders, setSavingReminders] = useState(false);
   const [tooManyReminders, setTooManyReminders] = useState(false);
   const [clearing, setClearing] = useState<string | null>(null);
@@ -120,7 +122,7 @@ export default function Notifications() {
     return () => { active = false; };
   }, []);
 
-  const saveReminderSettings = async (next: { minutesBefore: number[]; morningOf: boolean }) => {
+  const saveReminderSettings = async (next: NonNullable<typeof reminderSettings>) => {
     if (!reminderSettings || savingReminders) return;
     const previous = reminderSettings;
     setReminderSettings(next);
@@ -199,50 +201,76 @@ export default function Notifications() {
       <NavTop title="Notifications" onBack={() => router.back()} />
       <Body pad={16}>
         <PushPermission />
-        <ListSection label="Session reminders">
-          {reminderSettings ? (
-            [
-              <ListRow
-                key="morning-of"
-                size="regular"
-                title="Morning of (7 AM)"
-                chevron={false}
-                trailing={
-                  <Switch
-                    value={reminderSettings.morningOf}
-                    disabled={savingReminders}
-                    onValueChange={(morningOf) => void saveReminderSettings({ ...reminderSettings, morningOf })}
+        <Card style={{ gap: 16, marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Ic name="bell" size={24} color={t.accent} />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[styles.pushTitle, { color: t.text }]}>Session reminders</Text>
+              <Text style={[styles.reminderSub, { color: t.text2 }]}>Get reminders before your tutoring sessions as a student or tutor.</Text>
+            </View>
+            <Switch
+              accessibilityLabel="Session reminders"
+              value={!!reminderSettings && (reminderSettings.morningOf || reminderSettings.minutesBefore.length > 0)}
+              disabled={!reminderSettings || savingReminders}
+              trackColor={{ false: t.borderStrong, true: t.accent }}
+              onValueChange={(enabled) => {
+                if (!reminderSettings) return;
+                if (!enabled) setRememberedReminders(reminderSettings);
+                void saveReminderSettings(masterReminderSettings(reminderSettings, enabled, rememberedReminders));
+              }}
+            />
+          </View>
+          {reminderSettings ? (reminderSettings.morningOf || reminderSettings.minutesBefore.length > 0) ? (
+            <>
+              <View style={{ gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={[styles.pushTitle, { color: t.text }]}>Default reminder</Text>
+                  <Switch accessibilityLabel="Default day-of reminder" value={reminderSettings.morningOf} disabled={savingReminders}
                     trackColor={{ false: t.borderStrong, true: t.accent }}
-                    accessibilityRole="switch"
-                    accessibilityLabel="Morning of (7 AM)"
-                  />
-                }
-              />,
-              <View key="reminder-choices" style={styles.reminderRow}>
-                <Text style={[styles.reminderSub, { color: t.text2 }]}>
-                  Before each session, as a student or a tutor.
-                </Text>
-                <View style={styles.reminderChoices}>
-                  {REMINDER_CHOICES.map((minutes) => (
-                    <Chip
-                      key={minutes}
-                      label={REMINDER_LABEL[minutes]!}
-                      on={reminderSettings.minutesBefore.includes(minutes)}
-                      onPress={() => toggleReminder(minutes)}
-                    />
-                  ))}
+                    onValueChange={(morningOf) => void saveReminderSettings({ ...reminderSettings, morningOf })} />
                 </View>
-                {tooManyReminders ? (
-                  <Text style={[styles.reminderNote, { color: t.text3 }]}>Up to 4 reminders.</Text>
-                ) : !reminderSettings.morningOf && reminderSettings.minutesBefore.length === 0 ? (
-                  <Text style={[styles.reminderNote, { color: t.text3 }]}>Reminders are off.</Text>
-                ) : null}
-              </View>,
-            ]
-          ) : (
-            <ListRow size="regular" title="Loading reminders…" muted />
-          )}
-        </ListSection>
+                <Text style={[styles.reminderSub, { color: t.text2 }]}>Choose when you want your main reminder for each session.</Text>
+                <View style={{ padding: 12, borderRadius: 12, backgroundColor: t.accentWeak, gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ic name="bell" size={18} color={t.accent} />
+                    <Text style={{ color: t.text }}>Day of session at</Text>
+                  </View>
+                  <View pointerEvents={savingReminders ? 'none' : 'auto'}>
+                    <Select value={DAY_OF_TIMES.find((option) => option.value === reminderSettings.dayOfTime)?.label}
+                      options={DAY_OF_TIMES.map((option) => option.label)}
+                      onChange={(label) => {
+                        const option = DAY_OF_TIMES.find((item) => item.label === label);
+                        if (option) void saveReminderSettings({ ...reminderSettings, dayOfTime: option.value });
+                      }} />
+                  </View>
+                </View>
+                <Text style={[styles.reminderNote, { color: t.text3 }]}>Central time. Skipped if less than 1 hour before your session.</Text>
+              </View>
+              <Text style={[styles.pushTitle, { color: t.text }]}>Additional reminders (optional)</Text>
+              <Text style={[styles.reminderSub, { color: t.text2 }]}>Get extra reminders before your session, in addition to your default reminder.</Text>
+              <View style={styles.reminderChoices}>
+                {REMINDER_CHOICES.filter((minutes) => minutes !== 1440 || reminderSettings.minutesBefore.includes(1440)).map((minutes) => {
+                  const selected = reminderSettings.minutesBefore.includes(minutes);
+                  return (
+                    <Pressable key={minutes} accessibilityRole="checkbox" accessibilityState={{ checked: selected, disabled: savingReminders }}
+                      accessibilityLabel={REMINDER_LABEL[minutes] + ' before'} disabled={savingReminders}
+                      onPress={() => toggleReminder(minutes)}
+                      style={{ width: '48%', flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderWidth: 1, borderRadius: 12,
+                        borderColor: selected ? t.accent : t.borderStrong, backgroundColor: selected ? t.accentWeak : t.surface }}>
+                      <View style={{ width: 20, height: 20, borderWidth: 1, borderColor: selected ? t.accent : t.borderStrong, borderRadius: 4 }}>
+                        {selected ? <Ic name="check" size={18} color={t.accent} /> : null}
+                      </View>
+                      <Text style={{ color: t.text, flex: 1 }}>{REMINDER_LABEL[minutes]} before</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={[styles.reminderNote, { color: t.text3 }]}>{tooManyReminders ? 'Up to 4 reminders.' : 'Choose up to 4 additional reminders.'}</Text>
+              {reminderSettings.minutesBefore.includes(1440) ? <Text style={[styles.reminderNote, { color: t.text3 }]}>Your saved 1 day reminder is still active. If removed, it cannot be reselected here.</Text> : null}
+            </>
+          ) : <Text style={[styles.reminderSub, { color: t.text2 }]}>Reminders are off.</Text>
+            : <Text style={{ color: t.text2 }}>Loading reminders…</Text>}
+        </Card>
         {items === null ? (
           <View style={{ gap: 10 }}>
             <Skeleton height={72} radius={14} />

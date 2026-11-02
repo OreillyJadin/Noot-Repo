@@ -30,6 +30,7 @@ export interface User {
   year: string | null;
   /** Private projected graduation year; never changes account or tutoring eligibility. */
   expectedGraduationYear: number | null;
+  expectedGraduationTerm: 'Fall' | 'Spring' | 'Summer' | null;
   major: string | null;
   gender: 'f' | 'm' | null;
   /** Course codes the student is taking (drives home/search categories). */
