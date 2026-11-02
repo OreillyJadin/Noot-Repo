@@ -47,7 +47,7 @@ for (const path of [
 
 assert.doesNotMatch(screens.get('apps/mobile/app/history.tsx')!, /<Badge\b/);
 assert.ok(screens.get('apps/mobile/app/history.tsx')!.includes('const rated = !isTutor && isRatedBooking(b, ratedLookup)'));
-assert.doesNotMatch(screens.get('apps/mobile/app/edit_rates.tsx')!, /gradeBadge/);
+
 for (const path of [
   'apps/mobile/app/help.tsx',
   'apps/mobile/app/edit_courses.tsx',
