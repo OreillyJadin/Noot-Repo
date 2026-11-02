@@ -5,20 +5,20 @@ import { useRouter } from 'expo-router';
 import { Ic, useTheme } from '@noot/ui';
 import { useUnread } from './useUnread';
 
-export function NotificationBell() {
+export function NotificationBell({ color, ringColor }: { color?: string; ringColor?: string } = {}) {
   const t = useTheme();
   const router = useRouter();
   const unread = useUnread();
   return (
     <Pressable
       onPress={() => router.push('/notifications')}
-      style={[styles.btn, { backgroundColor: t.surface, borderColor: t.border }]}
+      style={[styles.btn, { backgroundColor: color ? 'transparent' : t.surface, borderColor: color ?? t.border }]}
       accessibilityRole="button"
       accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
     >
-      <Ic name="bell" size={19} color={t.text2} strokeWidth={1.7} />
+      <Ic name="bell" size={19} color={color ?? t.text2} strokeWidth={1.7} />
       {unread > 0 ? (
-        <View style={[styles.badge, { backgroundColor: t.accent, borderColor: t.surface }]}>
+        <View style={[styles.badge, { backgroundColor: t.accent, borderColor: ringColor ?? t.surface }]}>
           <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
         </View>
       ) : null}

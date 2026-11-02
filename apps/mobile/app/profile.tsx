@@ -4,10 +4,9 @@
 // toggle only (not wired to the real theme yet — that lives in ThemeProvider at the app root).
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { resetToSignedOut } from '../lib/resetToSignedOut';
-import { Screen, Body, Card, Avatar, Toggle, Ic, H1, H2, Eyebrow, TabBar, RoleSwitcher, Skeleton, useTheme, useLargeText, TEXT_CAPS, type IconName } from '@noot/ui';
+import { Screen, Body, BandHeader, ListSection, ListRow, Avatar, Toggle, Ic, TabBar, RoleSwitcher, Skeleton, useTheme, useLargeText } from '@noot/ui';
 import { api, auth, attentionTotal } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, fullName, firstName } from '../lib/useMe';
@@ -24,56 +23,11 @@ import Constants from 'expo-constants';
 import { versionLabel } from '../lib/appVersion';
 import { forgetThisDevice } from '../lib/push';
 
-function Row({
-  icon,
-  label,
-  sub,
-  value,
-  onPress,
-  danger,
-  last,
-  control,
-}: {
-  icon: IconName;
-  label: string;
-  sub?: string;
-  value?: string;
-  onPress?: () => void;
-  danger?: boolean;
-  last?: boolean;
-  control?: React.ReactNode;
-}) {
-  const t = useTheme();
-  // The decorative icon gives its width back to the label at large text.
-  const large = useLargeText();
-  const content = (
-    <View style={[styles.row, !last && { borderBottomWidth: 1, borderBottomColor: t.border }]}>
-      {large ? null : (
-        <View style={[styles.rowIcon, { backgroundColor: danger ? t.accentWeak : t.surface2 }]}>
-          <Ic name={icon} size={17} color={danger ? t.accent : t.text2} strokeWidth={1.8} />
-        </View>
-      )}
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.rowLabel, { color: danger ? t.accent : t.text }]}>{label}</Text>
-        {sub ? <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.rowSub, { color: t.text3 }]}>{sub}</Text> : null}
-      </View>
-      {control}
-      {value ? <Text style={[styles.rowValue, { color: t.text3 }]}>{value}</Text> : null}
-      {onPress && !control ? <Ic name="chevR" size={17} color={t.text3} strokeWidth={2} /> : null}
-    </View>
-  );
-  if (onPress) {
-    return <Pressable onPress={onPress}>{content}</Pressable>;
-  }
-  return content;
-}
-
 export default function Profile() {
   const large = useLargeText();
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { role } = useApp();
   const { me, loading, tutorStatus } = useMe();
   const [deleting, setDeleting] = useState(false);
@@ -105,6 +59,8 @@ export default function Profile() {
     [savedCount != null ? String(savedCount) : '—', 'Saved'],
   ];
   const coursesSub = me?.courses?.length ? me.courses.join(', ') : 'Add the courses you’re taking';
+  const yearMajor = me?.major && me?.year ? `${me.major} ${me.year.toLowerCase()}` : me?.major ?? me?.year ?? '';
+  const identitySubtitle = [yearMajor, '.edu verified'].filter(Boolean).join(' · ');
 
   const { roles, previewRoles, isAdmin, switchTo, select } = useRoleSwitch();
   const counts = useAdminHubCounts(isAdmin);
@@ -200,161 +156,86 @@ export default function Profile() {
 
   return (
     <Screen>
-      <View style={[styles.header, { paddingTop: insets.top + 4, backgroundColor: t.bg }]}>
-        <View style={styles.headerRow}>
-          <H1 style={styles.headerTitle}>Profile</H1>
-        </View>
-      </View>
-      <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 10 }}>
-        {/* identity card */}
-        <Card style={{ padding: 18 }}>
-          <View style={[styles.identityRow, large && styles.identityStacked]}>
-            <View style={{ position: 'relative' }}>
-              <Avatar size={64} label={displayFirst[0]} uri={avatarUrl} />
-              <Pressable
-                onPress={changePhoto}
-                style={[styles.editBadge, { backgroundColor: t.accent, borderColor: t.surface }]}
-              >
-                <Ic name="edit" size={11} color={t.onAccent} strokeWidth={2.2} />
-              </Pressable>
-            </View>
-            <View style={large ? styles.identityTextStacked : { flex: 1, minWidth: 0 }}>
-              {loading ? <Skeleton width={160} height={22} /> : <H2 style={styles.name}>{displayName}</H2>}
-              <Text style={[styles.sub, { color: t.text3 }]}>
-                {me?.year ?? '—'} · {me?.major ?? '—'}
-              </Text>
-              <View style={styles.verifiedRow}>
-                <Ic name="shield" size={13} color={t.good} strokeWidth={1.9} />
-                <Text style={[styles.verifiedText, { color: t.good }]}>.edu verified</Text>
+      <Body
+        ref={scrollRef}
+        onRefresh={onRefresh}
+        refreshTint={t.onBand}
+        pad={20}
+        contentStyle={styles.bodyContent}
+        header={
+          <BandHeader title="Profile">
+            <View style={[styles.identityRow, large && styles.identityStacked]}>
+              <View style={styles.avatarWrap}>
+                <View style={[styles.avatarRing, { borderColor: t.onBand }]}>
+                  <Avatar size={64} label={displayFirst[0]} uri={avatarUrl} />
+                </View>
+                <Pressable onPress={changePhoto} accessibilityRole="button" accessibilityLabel="Change profile photo" style={[styles.editBadge, { backgroundColor: t.accent, borderColor: t.band }]}>
+                  <Ic name="edit" size={11} color={t.onAccent} strokeWidth={2.2} />
+                </Pressable>
+              </View>
+              <View style={styles.identityText}>
+                {loading ? <Skeleton width={160} height={22} /> : <Text style={[styles.identityName, { color: t.onBand }]}>{displayName}</Text>}
+                <Text style={[styles.identitySub, { color: t.onBand }]}>{identitySubtitle}</Text>
+                <View style={styles.inlineStats}>
+                  {STATS.map(([n, label], index) => (
+                    <Text key={label} style={[styles.inlineStat, { color: t.onBand }]}>
+                      {index ? ' · ' : ''}<Text style={[styles.inlineStatNumber, { color: t.onBand }]}>{n}</Text> {label.toLowerCase()}
+                    </Text>
+                  ))}
+                </View>
               </View>
             </View>
-          </View>
-          <View style={[styles.statsRow, { borderTopColor: t.border }]}>
-            {STATS.map(([n, l], i) => (
-              <View key={l} style={[styles.statCell, i > 0 && { borderLeftWidth: 1, borderLeftColor: t.border }]}>
-                <Text style={[styles.statNum, { color: t.text }]}>{n}</Text>
-                <Text maxFontSizeMultiplier={TEXT_CAPS.cell} style={[styles.statLabel, { color: t.text3 }]}>{l}</Text>
-              </View>
-            ))}
-          </View>
-        </Card>
-
-        {/* mode switcher — the modes you hold, plus Tutor as a preview while the application is in review */}
+          </BandHeader>
+        }
+      >
         {roles.length + previewRoles.length + (isAdmin ? 1 : 0) > 1 ? (
-          <View style={{ marginTop: 16 }}>
-            <RoleSwitcher
-              roles={roles}
-              previewRoles={previewRoles}
-              showAdmin={isAdmin}
-              adminAttention={counts ? attentionTotal(counts) : 0}
-              active={role}
-              onSelect={select}
-            />
-          </View>
+          <RoleSwitcher roles={roles} previewRoles={previewRoles} showAdmin={isAdmin} adminAttention={counts ? attentionTotal(counts) : 0} active={role} onSelect={select} />
         ) : null}
 
-        {/* referral CTA — no fabricated credit balance */}
-        {showsReferCard(role) ? (
-          <Card onPress={openReferrals} style={{ ...styles.promo, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
-            <View style={[styles.promoIcon, { backgroundColor: t.accent }]}>
-              <Ic name="gift" size={20} color={t.onAccent} strokeWidth={1.7} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.promoTitle, { color: t.text }]}>{isAmbassador ? 'Refer & earn' : 'Refer a friend'}</Text>
-              <Text style={[styles.promoSub, { color: t.text2 }]}>
-                {isAmbassador
-                  ? '$5 credit per friend who completes a session, plus goal bonuses'
-                  : 'Get $5 in Noot credit when a friend completes a session'}
-              </Text>
-            </View>
-            <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
-          </Card>
+        <ListSection label="Account">
+          <ListRow size="regular" icon={large ? undefined : 'user'} title="Personal info" trailing={<Text numberOfLines={1} style={[styles.emailValue, { color: t.text3 }]}>{me?.email ?? '—'}</Text>} onPress={() => router.push('/edit_personal')} />
+          <ListRow size="regular" icon={large ? undefined : 'cap'} title="My courses" subtitle={me?.courses?.length ? undefined : coursesSub} trailing={me?.courses?.length ? <Text style={[styles.value, { color: t.text3 }]}>{me.courses.length} courses</Text> : undefined} onPress={() => router.push('/edit_courses')} />
+          <ListRow size="regular" icon={large ? undefined : 'doc'} title="Booking & payment history" onPress={() => router.push('/history')} />
+        </ListSection>
+
+        {(showsReferCard(role) || tutorStatus !== 'approved' || !isAmbassador) ? (
+          <ListSection label="Earn with noot">
+            {showsReferCard(role) ? (
+              <ListRow size="regular" icon={large ? undefined : 'gift'} title={isAmbassador ? 'Refer & earn' : 'Refer a friend'} subtitle={isAmbassador ? "$5 per friend's first session, plus goal bonuses" : '$5 credit when they finish a session'} onPress={openReferrals} />
+            ) : null}
+            {tutorStatus !== 'approved' ? (
+              <ListRow
+                size="regular"
+                icon={large ? undefined : 'cap'}
+                title={tutorStatus === 'pending' ? 'Tutor application in review' : tutorStatus === 'draft' ? 'Finish your tutor application' : tutorStatus === 'rejected' ? 'Tutor application not approved' : 'Become a tutor'}
+                subtitle={tutorStatus === 'pending' ? 'We’re reviewing it — we’ll email you within 24 hours' : tutorStatus === 'draft' ? 'Pick up where you left off' : tutorStatus === 'rejected' ? 'Tap to review your details and apply again' : 'Tutor courses you aced'}
+                muted={tutorStatus === 'pending'}
+                onPress={tutorStatus === 'pending' ? undefined : () => router.push('/t1')}
+              />
+            ) : null}
+            {!isAmbassador ? <ListRow size="regular" icon={large ? undefined : 'flame'} title="Become an ambassador" subtitle="Bonuses for invite goals" onPress={becomeAmbassador} /> : null}
+          </ListSection>
         ) : null}
 
-        {/* account */}
-        <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Account</Eyebrow>
-        <Card style={styles.cardNoPad}>
-          <Row icon="user" label="Personal info" sub={me?.email ?? '—'} onPress={() => router.push('/edit_personal')} />
-          <Row icon="cap" label="My courses" sub={coursesSub} onPress={() => router.push('/edit_courses')} />
-          <Row icon="doc" label="Booking & payment history" onPress={() => router.push('/history')} last />
-        </Card>
+        <ListSection label="Preferences">
+          <ListRow size="regular" icon={large ? undefined : 'bell'} title="Notifications" subtitle="Reminders, messages, offers" onPress={() => router.push('/notifications')} />
+          <ListRow size="regular" icon={large ? undefined : 'gear'} title="Dark mode" trailing={<Toggle on={dark} onPress={toggleDark} />} chevron={false} />
+          {/* Names the colour, not the university; this preserves the T22 App Review wording. */}
+          <ListRow size="regular" icon={large ? undefined : 'flame'} title="School colors" subtitle="Crimson accent" trailing={<Toggle on={school} onPress={toggleSchool} />} chevron={false} />
+        </ListSection>
 
-        {/* preferences */}
-        <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Preferences</Eyebrow>
-        <Card style={styles.cardNoPad}>
-          <Row icon="bell" label="Notifications" sub="Reminders, messages, offers" onPress={() => router.push('/notifications')} />
-          <Row icon="gear" label="Dark mode" control={<Toggle on={dark} onPress={toggleDark} />} />
-          {/* Names the colour, not the university. The reply to App Review answers
-              Apple's IP question with "no university trademarks", and naming a specific
-              school as a product feature contradicted it (APP_REVIEW_TICKETS.md T22). */}
-          <Row icon="flame" label="School colors" sub="Crimson accent" control={<Toggle on={school} onPress={toggleSchool} />} />
-          <Row icon="help" label="Help & support" onPress={() => router.push('/help')} />
-          <Row icon="lock" label="Blocked users" onPress={() => router.push('/blocked_users')} />
-          <Row icon="shield" label="Privacy Policy" onPress={() => openLegal('privacy')} />
-          <Row icon="doc" label="Terms of Service" onPress={() => openLegal('terms')} last />
-        </Card>
+        <ListSection label="Support">
+          <ListRow size="regular" icon={large ? undefined : 'help'} title="Help & support" onPress={() => router.push('/help')} />
+          <ListRow size="regular" icon={large ? undefined : 'lock'} title="Blocked users" onPress={() => router.push('/blocked_users')} />
+          <ListRow size="regular" icon={large ? undefined : 'shield'} title="Privacy Policy" onPress={() => openLegal('privacy')} />
+          <ListRow size="regular" icon={large ? undefined : 'doc'} title="Terms of Service" onPress={() => openLegal('terms')} />
+        </ListSection>
 
-        {/* add roles you don't hold yet */}
-        {tutorStatus !== 'approved' ? (
-          <Card
-            onPress={() => (tutorStatus === 'pending' ? undefined : router.push('/t1'))}
-            style={styles.switchCard}
-          >
-            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }, large && styles.hidden]}>
-              <Ic name="cap" size={21} color={t.accent} strokeWidth={1.7} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.switchTitle, { color: t.text }]}>
-                {tutorStatus === 'pending'
-                  ? 'Tutor application in review'
-                  : tutorStatus === 'draft'
-                    ? 'Finish your tutor application'
-                    : tutorStatus === 'rejected'
-                      ? 'Tutor application not approved'
-                      : 'Become a tutor'}
-              </Text>
-              <Text style={[styles.switchSub, { color: t.text3 }]}>
-                {tutorStatus === 'pending'
-                  ? 'We’re reviewing it — we’ll email you within 24 hours'
-                  : tutorStatus === 'draft'
-                    ? 'Pick up where you left off'
-                    : tutorStatus === 'rejected'
-                      ? 'Tap to review your details and apply again'
-                      : 'Earn money helping classmates in courses you aced'}
-              </Text>
-            </View>
-            {large ? null : <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />}
-          </Card>
-        ) : null}
-        {!isAmbassador ? (
-          <Card onPress={becomeAmbassador} style={styles.switchCard}>
-            <View style={[styles.switchIcon, { backgroundColor: t.surface2 }, large && styles.hidden]}>
-              <Ic name="gift" size={21} color={t.accent} strokeWidth={1.7} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.switchTitle, { color: t.text }]}>Become an ambassador</Text>
-              <Text style={[styles.switchSub, { color: t.text3 }]}>Earn bonuses for invite goals and cash out your Noot credit</Text>
-            </View>
-            {large ? null : <Ic name="chevR" size={18} color={t.text3} strokeWidth={2} />}
-          </Card>
-        ) : null}
-
-        {/* sign out + account deletion (App Store 5.1.1(v) requires an in-app delete route) */}
-        <View style={{ marginTop: 4 }}>
-          <Card style={styles.cardNoPad}>
-            <Row icon="logout" label="Sign out" danger onPress={signOutNow} />
-            <Row
-              icon="x"
-              label={deleting ? 'Deleting…' : 'Delete account'}
-              danger
-              onPress={deleting ? undefined : confirmDelete}
-              last
-            />
-          </Card>
-        </View>
-        <Text style={[styles.footer, { color: t.text3 }]}>
-          noot · {versionLabel(Constants.platform?.ios?.buildNumber ?? Constants.expoConfig?.ios?.buildNumber)} · Peer tutoring for campus
-        </Text>
+        <ListSection>
+          <ListRow size="regular" title="Sign out" titleStyle={{ color: t.statusDark ? '#FF6B5E' : '#D23F31' }} onPress={signOutNow} chevron={false} />
+          <ListRow size="regular" title={deleting ? 'Deleting…' : 'Delete account'} titleStyle={{ color: t.statusDark ? '#FF6B5E' : '#D23F31' }} onPress={deleting ? undefined : confirmDelete} chevron={false} />
+        </ListSection>
+        <Text style={[styles.footer, { color: t.text3 }]}>noot {versionLabel(Constants.platform?.ios?.buildNumber ?? Constants.expoConfig?.ios?.buildNumber)}</Text>
       </Body>
       <TabBar active={active} onTab={onTab} role={role} />
     </Screen>
@@ -362,46 +243,19 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexShrink: 0, paddingHorizontal: 20, paddingBottom: 6 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 28 },
-  gearBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  bodyContent: { paddingTop: 14, paddingBottom: 20, gap: 16 },
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   identityStacked: { flexDirection: 'column', alignItems: 'flex-start' },
-  identityTextStacked: { alignSelf: 'stretch' },
-  editBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  name: { fontSize: 19 },
-  sub: { fontSize: 13, marginTop: 2 },
-  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 7 },
-  verifiedText: { fontSize: 12, fontWeight: '600' },
-  statsRow: { flexDirection: 'row', marginTop: 16, paddingTop: 16, borderTopWidth: 1 },
-  statCell: { flex: 1, alignItems: 'center' },
-  statNum: { fontSize: 20, fontWeight: '800' },
-  statLabel: { fontSize: 11, marginTop: 1, textAlign: 'center' },
-  promo: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1 },
-  promoIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  promoTitle: { fontSize: 14, fontWeight: '700' },
-  promoSub: { fontSize: 12, marginTop: 1 },
-  cardNoPad: { padding: 0, overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 13 },
-  rowIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  rowLabel: { fontSize: 15, fontWeight: '500' },
-  rowSub: { fontSize: 12, marginTop: 1 },
-  rowValue: { fontSize: 14 },
-  switchCard: { marginTop: 22, flexDirection: 'row', alignItems: 'center', gap: 13, padding: 16 },
-  switchIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  hidden: { display: 'none' },
-  switchTitle: { fontSize: 15, fontWeight: '700' },
-  switchSub: { fontSize: 12, marginTop: 1 },
-  footer: { textAlign: 'center', fontSize: 12, marginTop: 18 },
+  avatarWrap: { position: 'relative' },
+  avatarRing: { width: 70, height: 70, borderRadius: 35, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
+  editBadge: { position: 'absolute', bottom: -2, right: -2, width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  identityText: { flex: 1, minWidth: 0, gap: 2 },
+  identityName: { fontSize: 20, fontWeight: '700' },
+  identitySub: { opacity: 0.85, fontSize: 13 },
+  inlineStats: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 2 },
+  inlineStat: { opacity: 0.85, fontSize: 12 },
+  inlineStatNumber: { opacity: 1, fontWeight: '600' },
+  emailValue: { color: '#5A6157', fontSize: 13, maxWidth: 150 },
+  value: { color: '#5A6157', fontSize: 13 },
+  footer: { textAlign: 'center', fontSize: 12, marginTop: 2 },
 });

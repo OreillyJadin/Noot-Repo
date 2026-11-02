@@ -3,45 +3,25 @@
 // management actions. Tab root (tutor Home tab).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Button, Skeleton, ViewingAs, PreviewBanner, useTheme, useLargeText, AdaptiveRow, TEXT_CAPS, type IconName } from '@noot/ui';
+import { Body, BandHeader, TabBar, Card, Avatar, Ic, H2, Button, ViewingAs, useTheme, useLargeText, AdaptiveRow, ListSection, ListRow, CountPill, type IconName } from '@noot/ui';
 import { api, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
 import { useMe, firstName } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
-import { GeckoLogo } from '../lib/GeckoLogo';
 import { AdminShortcut } from '../lib/AdminShortcut';
 import { NotificationBell } from '../lib/NotificationBell';
 import { TutorStatusBanner } from '../lib/TutorStatusBanner';
 import { formatSessionTime } from '../lib/formatSessionTime';
-import { CountdownPills } from '../lib/CountdownPills';
+import { countdownLabel } from '../lib/countdownLabel';
 import { useSessionClock } from '../lib/useSessionClock';
 
-/** Booking scheduledAt (+ optional location) → "Tomorrow · 3:00 PM · Gorgas Library". */
-function sessionMeta(iso: string, location: string | null): string {
-  return [formatSessionTime(iso), location].filter(Boolean).join(' · ');
-}
-
-function StatCard({ icon, big, label }: { icon: IconName; big: string; label: string }) {
-  const t = useTheme();
-  return (
-    <View style={[styles.statCard, { backgroundColor: t.surface, borderColor: t.border }]}>
-      <View style={[styles.statIcon, { backgroundColor: t.accentWeak }]}>
-        <Ic name={icon} size={16} color={t.accent} strokeWidth={1.9} />
-      </View>
-      <Text style={[styles.statBig, { color: t.text }]}>{big}</Text>
-      <Text style={[styles.statLabel, { color: t.text3 }]}>{label}</Text>
-    </View>
-  );
-}
-
 const ACTIONS: [IconName, string, string][] = [
-  ['cal', 'Set your availability', 'edit_availability'],
-  ['dollar', 'Adjust your rates', 'edit_rates'],
-  ['user', 'Edit tutor profile', 'edit_tutor'],
+  ['cal', 'Availability', 'edit_availability'],
+  ['dollar', 'Rates', 'edit_rates'],
+  ['user', 'Tutor profile', 'edit_tutor'],
 ];
 
 export default function TutorHome() {
@@ -51,7 +31,7 @@ export default function TutorHome() {
   const large = useLargeText();
   const router = useRouter();
   const { role, patchBooking } = useApp();
-  const { me, loading, tutorStatus, gradesVerified } = useMe();
+  const { me, tutorStatus } = useMe();
   const multiRole = (me?.roles ?? []).filter((r) => r === 'student' || r === 'tutor' || r === 'ambassador').length > 1;
   // Reachable before approval (via the switcher, or straight off T10). Branch on the
   // APPLICATION state, not the role: the tutor role only lands when an admin approves, so a
@@ -73,12 +53,19 @@ export default function TutorHome() {
       setRequests(list.filter((booking) => booking.status === 'pending'));
     }).catch(() => {});
     api.tutorStats().then((s) => { if (active) setStats(s); }).catch(() => {});
-    api.resolveParticipantNames().then((n) => { if (active) setNames(n); }).catch(() => {});
     return () => { active = false; };
   }, [reloadKey, now]);
 
+  useEffect(() => {
+    let active = true;
+    api.resolveParticipantNames().then((n) => { if (active) setNames(n); }).catch(() => {});
+    return () => { active = false; };
+  }, [reloadKey]);
+
   // Countdown to the real session when we have one.
   const target = useMemo(() => (next ? new Date(next.scheduledAt).getTime() : Date.now()), [next]);
+  const endsAt = next ? target + next.durationMinutes * 60_000 : undefined;
+  const inProgress = next != null && target <= now && now < (endsAt ?? target);
   const studentName = next && names[next.studentId]
     ? `${names[next.studentId]!.firstName} ${names[next.studentId]!.lastName}`.trim() || 'Your student'
     : 'Your student';
@@ -123,179 +110,190 @@ export default function TutorHome() {
   const openEarnings = () =>
     Alert.alert('Earnings', stats ? `You've earned $${stats.earnedThisWeek.toFixed(2)} this week.` : 'Loading…');
 
-  // At large text the header scrolls with the content instead of pinning half the screen.
-  const header = (
-    <View style={[styles.header, large && styles.headerInline]}>
-      <View style={styles.headerTop}>
-        <Wordmark size={22} />
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          {/* Verified = grades checked by an admin (T6), not merely approved. */}
-          {tutorStatus === 'approved' && gradesVerified ? <Badge label="✓ Verified" tone="good" /> : null}
-          {tutorStatus === 'pending' ? <Badge label="In review" tone="accentSoft" /> : null}
-          <AdminShortcut />
-          <NotificationBell />
-        </View>
-      </View>
-      <View style={styles.welcomeRow}>
-        <View>
-          <Text style={[styles.welcomeLabel, { color: t.text3 }]}>Tutor dashboard</Text>
-          {loading ? <Skeleton width={150} height={26} /> : <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>}
-        </View>
-        <GeckoLogo size={40} />
-      </View>
-      {multiRole || previewing ? (
-        <View style={{ marginTop: 10 }}>
-          <ViewingAs role="tutor" preview={previewing} />
-        </View>
-      ) : null}
-    </View>
-  );
+  const showRoleContext = multiRole || previewing;
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
-      {large ? null : header}
-
-      <Body ref={scrollRef} onRefresh={onRefresh} contentStyle={{ paddingTop: 8 }}>
-        {large ? header : null}
-        {previewing ? <TutorStatusBanner status={tutorStatus} onApply={() => router.push('/t1')} /> : null}
-
-        {/* Next session + payout — real upcoming booking, or a CTA when there's none */}
+    <View style={[styles.root, { backgroundColor: t.bg }]}>
+      <Body
+        ref={scrollRef}
+        onRefresh={onRefresh}
+        refreshTint={t.onBand}
+        contentStyle={styles.bodyContent}
+        header={
+          <BandHeader
+            title="Home"
+            subtitle={new Date(now).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            overlap={56}
+            trailing={
+              <View style={styles.headerActions}>
+                <AdminShortcut color={t.onBand} ringColor={t.band} />
+                <NotificationBell color={t.onBand} ringColor={t.band} />
+              </View>
+            }
+          />
+        }
+      >
         {next ? (
-          <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
-            <GeckoLogo style={styles.geckoDeco} />
-            <View style={styles.rowBetween}>
-              <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>{target <= now && now < target + next.durationMinutes * 60_000 ? 'SESSION IN PROGRESS' : 'YOUR NEXT SESSION'}</Text>
-              <Badge label={next.subject} tone="ink" />
+          <Card raised style={[styles.nextCard, { marginTop: -56 }]}>
+            <View style={styles.nextContent}>
+              <Text style={[styles.nextLabel, { color: t.text2 }]}>{inProgress ? 'Session in progress' : 'Next session'}</Text>
+              <AdaptiveRow style={styles.nextTutorRow}>
+                <Avatar size={44} label={studentName.charAt(0) || 'S'} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.nextName, { color: t.text }]}>{studentName}</Text>
+                  <Text style={[styles.nextMeta, { color: t.text2 }]}>{next.subject} · {formatSessionTime(next.scheduledAt)}</Text>
+                </View>
+                <View style={{ alignItems: large ? 'flex-start' : 'flex-end' }}>
+                  <Text style={[styles.payout, { color: t.text }]}>${next.tutorPayoutAmount.toFixed(2)}</Text>
+                  <Text style={[styles.payoutLabel, { color: t.text3 }]}>payout</Text>
+                </View>
+              </AdaptiveRow>
+              <View style={styles.sessionMetaLine}>
+                <Ic name="clock" size={15} color={t.accent} strokeWidth={1.8} />
+                <Text style={[styles.countdown, { color: t.accent }]}>{countdownLabel(target, endsAt, now)}</Text>
+                {next.location ? (
+                  <>
+                    <Ic name="pin" size={15} color={t.text2} strokeWidth={1.8} />
+                    <Text style={[styles.location, { color: t.text2 }]}>{next.location}</Text>
+                  </>
+                ) : null}
+              </View>
+              <AdaptiveRow style={[styles.nextActions, { borderTopColor: t.border }]}>
+                <Pressable onPress={openChat} accessibilityRole="button" accessibilityLabel="Message student" style={styles.nextAction}>
+                  <Text style={[styles.nextActionLabel, { color: t.accent }]}>Message</Text>
+                </Pressable>
+                <Pressable
+                  onPress={openNextDetail}
+                  accessibilityRole="button"
+                  accessibilityLabel="Session details"
+                  style={[styles.nextAction, large ? { borderTopWidth: 1, borderTopColor: t.border } : { borderLeftWidth: 1, borderLeftColor: t.border }]}
+                >
+                  <Text style={[styles.nextActionLabel, { color: t.accent }]}>Details</Text>
+                </Pressable>
+              </AdaptiveRow>
             </View>
-            <AdaptiveRow style={styles.nextTutorRow}>
-              <Avatar size={40} label={studentName.charAt(0) || 'S'} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.nextName, { color: t.onAccent }]}>{studentName}</Text>
-                <Text style={[styles.nextMeta, { color: t.onAccent }]}>
-                  {sessionMeta(next.scheduledAt, next.location)}
-                </Text>
-              </View>
-              <View style={{ alignItems: large ? 'flex-start' : 'flex-end' }}>
-                <Text style={[styles.payout, { color: t.onAccent }]}>${next.tutorPayoutAmount.toFixed(2)}</Text>
-                <Text style={[styles.payoutLabel, { color: t.onAccent }]}>payout</Text>
-              </View>
-            </AdaptiveRow>
-            <CountdownPills target={target} endsAt={target + next.durationMinutes * 60_000} now={now} />
-            <AdaptiveRow style={styles.nextActions}>
-              <Pressable onPress={openChat} style={[styles.nextBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
-                <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />
-                <Text style={[styles.nextBtnLabel, { color: t.onAccent }]}>Message</Text>
-              </Pressable>
-              <Pressable onPress={openNextDetail} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
-                <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Details</Text>
-              </Pressable>
-            </AdaptiveRow>
-          </View>
+          </Card>
         ) : (
-          <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
-            <GeckoLogo style={styles.geckoDeco} />
-            <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>NO UPCOMING SESSIONS</Text>
-            <Text style={[styles.nextName, { color: t.onAccent, marginTop: 8 }]}>You&apos;re all caught up</Text>
-            <Text style={[styles.nextMeta, { color: t.onAccent }]}>
-              Open your availability so students can book you.
-            </Text>
-            <AdaptiveRow style={[styles.nextActions, { marginTop: 12 }]}>
-              <Pressable onPress={() => router.push('/edit_availability')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
-                <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Set availability</Text>
+          <Card raised style={[styles.nextCard, { marginTop: -56 }]}>
+            <View style={styles.emptyCard}>
+              <Text style={[styles.nextLabel, { color: t.text2 }]}>No upcoming sessions</Text>
+              <Text style={[styles.emptyTitle, { color: t.text }]}>You&apos;re all caught up</Text>
+              <Text style={[styles.nextMeta, { color: t.text2 }]}>Open your availability so students can book you.</Text>
+              <Pressable onPress={() => router.push('/edit_availability')} accessibilityRole="button" style={styles.emptyAvailability}>
+                <Text style={[styles.nextActionLabel, { color: t.accent }]}>Set availability</Text>
               </Pressable>
-            </AdaptiveRow>
-          </View>
+            </View>
+          </Card>
         )}
 
-        {requests.length ? (
-          <View style={{ marginTop: 18, gap: 10 }}>
-            <View style={styles.sectionHead}>
-              <H2 style={{ fontSize: 17 }}>Session requests</H2>
-              <Text style={{ color: t.text3 }}>{requests.length}</Text>
-            </View>
-            {requests.map((request) => {
-              const name = names[request.studentId];
-              const requestName = name ? `${name.firstName} ${name.lastName}`.trim() : 'Student';
-              return (
-                <Card key={request.id} style={{ padding: 14 }}>
-                  <Text style={{ color: t.text, fontSize: 15, fontWeight: '700' }}>{requestName} · {request.subject}</Text>
-                  <Text style={{ color: t.accent, fontSize: 13, marginTop: 4 }}>
-                    New request · respond by {formatSessionTime(request.acceptBy ?? request.scheduledAt)}
-                  </Text>
-                  <AdaptiveRow style={{ gap: 8, marginTop: 12 }}>
-                    <Button label={busyRequest === request.id ? 'Accepting…' : 'Accept'} kind="primary" size="sm" style={{ flex: 1 }} disabled={!!busyRequest} onPress={() => void acceptRequest(request)} />
-                    <Button label="Decline" kind="secondary" size="sm" style={{ flex: 1 }} disabled={!!busyRequest} onPress={() => declineRequest(request)} />
-                  </AdaptiveRow>
-                </Card>
-              );
-            })}
+        {previewing ? <TutorStatusBanner status={tutorStatus} onApply={() => router.push('/t1')} /> : null}
+        {showRoleContext ? <ViewingAs role="tutor" preview={previewing} /> : null}
+        {tutorStatus === 'pending' ? (
+          <View style={[styles.reviewBadge, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>
+            <Text style={[styles.reviewBadgeText, { color: t.accent }]}>In review</Text>
           </View>
         ) : null}
 
-        {/* This week stats */}
-        <View style={styles.sectionHead}>
-          <H2 style={{ fontSize: 17 }}>This week</H2>
-          <Text onPress={openEarnings} style={[styles.earningsLink, { color: t.accent }]}>
-            Earnings →
-          </Text>
-        </View>
-        <AdaptiveRow style={styles.statsRow}>
-          <StatCard icon="dollar" big={stats ? `$${Math.round(stats.earnedThisWeek)}` : '—'} label="Earned this week" />
-          <StatCard icon="cap" big={stats ? String(stats.sessionsTaught) : '—'} label="Sessions taught" />
-        </AdaptiveRow>
+        {requests.length ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeading}>
+              <H2 style={styles.sectionTitle}>Requests</H2>
+              <CountPill count={requests.length} />
+            </View>
+            <ListSection>
+              {requests.map((request) => {
+                const name = names[request.studentId];
+                const requestName = name ? `${name.firstName} ${name.lastName}`.trim() : 'Student';
+                return (
+                  <View key={request.id} style={[styles.requestRow, { borderBottomColor: t.border }]}>
+                    <Text style={[styles.requestName, { color: t.text }]}>{requestName}</Text>
+                    <Text style={[styles.requestMeta, { color: t.text2 }]}>
+                      {request.subject} · {formatSessionTime(request.scheduledAt)}
+                    </Text>
+                    <Text style={[styles.requestReplyBy, { color: t.text3 }]}>
+                      Reply by {formatSessionTime(request.acceptBy ?? request.scheduledAt)}
+                    </Text>
+                    <AdaptiveRow style={styles.requestActions}>
+                      <Button label={busyRequest === request.id ? 'Accepting…' : 'Accept'} kind="primary" size="sm" disabled={!!busyRequest} onPress={() => void acceptRequest(request)} />
+                      <Button label="Decline" kind="secondary" size="sm" disabled={!!busyRequest} onPress={() => declineRequest(request)} />
+                    </AdaptiveRow>
+                  </View>
+                );
+              })}
+            </ListSection>
+          </View>
+        ) : null}
 
-        {/* Quick actions */}
-        <Eyebrow style={{ marginTop: 8 }}>Manage</Eyebrow>
-        <View style={{ gap: 8 }}>
-          {ACTIONS.map(([icon, label, key]) => (
-            <Card key={label} onPress={() => router.push(`/${key}`)} style={styles.actionRow}>
-              <View style={[styles.actionIcon, { backgroundColor: t.accentWeak }]}>
-                <Ic name={icon} size={17} color={t.accent} strokeWidth={1.8} />
+        <View style={styles.section}>
+          <View style={styles.sectionHeading}>
+            <H2 style={styles.sectionTitle}>This week</H2>
+            <Pressable onPress={openEarnings} accessibilityRole="button">
+              <Text style={[styles.earningsLink, { color: t.accent }]}>Earnings</Text>
+            </Pressable>
+          </View>
+          <ListSection>
+            <AdaptiveRow style={styles.weekStats}>
+              <View style={styles.weekStat}>
+                <Text style={[styles.weekNumber, { color: t.text }]}>{stats ? `$${Math.round(stats.earnedThisWeek)}` : '—'}</Text>
+                <Text style={[styles.weekLabel, { color: t.text2 }]}>earned</Text>
               </View>
-              <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.actionLabel, { color: t.text }]}>{label}</Text>
-              <Ic name="chevR" size={17} color={t.text3} strokeWidth={2} />
-            </Card>
-          ))}
+              <View style={[styles.weekStat, large ? { borderTopWidth: 1, borderTopColor: t.border } : { borderLeftWidth: 1, borderLeftColor: t.border }]}>
+                <Text style={[styles.weekNumber, { color: t.text }]}>{stats ? String(stats.sessionsTaught) : '—'}</Text>
+                <Text style={[styles.weekLabel, { color: t.text2 }]}>sessions taught</Text>
+              </View>
+            </AdaptiveRow>
+          </ListSection>
         </View>
 
+        <View style={styles.section}>
+          <H2 style={styles.sectionTitle}>Manage</H2>
+          <ListSection>
+            {ACTIONS.map(([icon, label, key]) => (
+              <ListRow key={label} size="regular" icon={icon} title={label} onPress={() => router.push(`/${key}`)} />
+            ))}
+          </ListSection>
+        </View>
       </Body>
 
       <TabBar active={active} onTab={onTab} role={role} />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-  headerInline: { paddingHorizontal: 0, paddingTop: 0 },
-  headerTop: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  welcomeLabel: { fontSize: 13 },
-  rowBetween: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between' },
-
-  nextCard: { position: 'relative', overflow: 'hidden', borderRadius: 20, padding: 16, marginBottom: 4 },
-  geckoDeco: { position: 'absolute', right: -10, bottom: -18, width: 100, height: 100, opacity: 0.16, transform: [{ rotate: '10deg' }] },
-  nextEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1, opacity: 0.9 },
+  bodyContent: { paddingTop: 12, paddingBottom: 20, gap: 18 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  reviewBadge: { alignSelf: 'flex-start', borderRadius: 999, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 5 },
+  reviewBadgeText: { fontSize: 12, fontWeight: '600' },
+  nextCard: { padding: 0, overflow: 'hidden' },
+  nextContent: { padding: 16 },
+  emptyCard: { padding: 16, gap: 8 },
+  nextLabel: { fontSize: 13 },
+  emptyTitle: { fontSize: 18, fontWeight: '700' },
+  emptyAvailability: { minHeight: 46, justifyContent: 'center' },
   nextTutorRow: { alignItems: 'center', gap: 10, marginVertical: 12 },
-  nextName: { fontSize: 16, fontWeight: '700' },
-  nextMeta: { fontSize: 12.5, opacity: 0.85, marginTop: 1 },
-  payout: { fontSize: 18, fontWeight: '800' },
-  payoutLabel: { fontSize: 10, opacity: 0.8 },
-  nextActions: { gap: 8, marginTop: 12 },
-  nextBtn: { flex: 1, minHeight: 40, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
-  nextBtnLabel: { fontSize: 14, fontWeight: '600' },
-
-  sectionHead: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
-  earningsLink: { fontSize: 12.5, fontWeight: '600' },
-  statsRow: { gap: 10 },
-  statCard: { flex: 1, padding: 12, borderRadius: 16, borderWidth: 1 },
-  statIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  statBig: { fontWeight: '800', fontSize: 20, lineHeight: 22 },
-  statLabel: { fontSize: 11.5, marginTop: 3, lineHeight: 15 },
-
-  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  actionIcon: { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  actionLabel: { flex: 1, fontSize: 15 },
-
+  nextName: { fontSize: 17, fontWeight: '600' },
+  nextMeta: { fontSize: 13, marginTop: 2 },
+  payout: { fontSize: 17, fontWeight: '700' },
+  payoutLabel: { fontSize: 12 },
+  sessionMetaLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  countdown: { fontSize: 13, fontWeight: '600', marginRight: 6 },
+  location: { fontSize: 13 },
+  nextActions: { marginTop: 14, borderTopWidth: StyleSheet.hairlineWidth },
+  nextAction: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center' },
+  nextActionLabel: { fontSize: 15, fontWeight: '600' },
+  section: { gap: 10 },
+  sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 },
+  sectionTitle: { fontSize: 20 },
+  requestRow: { padding: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  requestName: { fontSize: 16, fontWeight: '600' },
+  requestMeta: { fontSize: 13, marginTop: 3 },
+  requestReplyBy: { fontSize: 13, marginTop: 2 },
+  requestActions: { gap: 8, marginTop: 12, justifyContent: 'flex-start' },
+  weekStats: { minHeight: 70, alignItems: 'stretch' },
+  weekStat: { flex: 1, padding: 14, gap: 2 },
+  weekNumber: { fontSize: 24, fontWeight: '700' },
+  weekLabel: { fontSize: 13 },
+  earningsLink: { fontSize: 14, fontWeight: '600' },
 });
