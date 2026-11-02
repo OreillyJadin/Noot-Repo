@@ -153,6 +153,7 @@ serveWithErrorReporting('delete-account', async (req: Request) => {
         last_name: 'account',
         year: null,
         expected_graduation_year: null,
+        expected_graduation_term: null,
         major: null,
         gender: null,
         courses: [],
