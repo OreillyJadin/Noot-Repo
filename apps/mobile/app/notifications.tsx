@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, AppState, StyleSheet, Switch, Alert, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Button, Card, Chip, Ic, EmptyState, Skeleton, useTheme, type IconName } from '@noot/ui';
+import { Screen, NavTop, Body, Button, Card, Chip, ListSection, ListRow, Ic, EmptyState, Skeleton, useTheme, type IconName } from '@noot/ui';
 import { api, REMINDER_CHOICES, type Notification } from '@noot/core';
 import { useApp } from '../lib/store';
 import { openNotification } from '../lib/openNotification';
@@ -65,7 +65,7 @@ function PushPermission() {
 
   const blocked = state === 'blocked';
   return (
-    <Card style={{ gap: 10, marginBottom: 12, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
+    <Card style={{ gap: 10, marginBottom: 12 }}>
       <Text style={[styles.pushTitle, { color: t.text }]}>
         {blocked ? 'Notifications are off for noot' : 'Turn on notifications'}
       </Text>
@@ -199,44 +199,50 @@ export default function Notifications() {
       <NavTop title="Notifications" onBack={() => router.back()} />
       <Body pad={16}>
         <PushPermission />
-        <Card style={styles.reminderCard}>
-          <Text style={[styles.reminderTitle, { color: t.text }]}>Session reminders</Text>
-          <Text style={[styles.reminderSub, { color: t.text3 }]}>
-            Before each session you have, as a student or a tutor.
-          </Text>
+        <ListSection label="Session reminders">
           {reminderSettings ? (
-            <>
-              <View style={styles.morningRow}>
-                <Text style={[styles.morningLabel, { color: t.text }]}>Morning of (7 AM)</Text>
-                <Switch
-                  value={reminderSettings.morningOf}
-                  disabled={savingReminders}
-                  onValueChange={(morningOf) => void saveReminderSettings({ ...reminderSettings, morningOf })}
-                  trackColor={{ false: t.borderStrong, true: t.accent }}
-                  accessibilityRole="switch"
-                  accessibilityLabel="Morning of (7 AM)"
-                />
-              </View>
-              <View style={styles.reminderChoices}>
-                {REMINDER_CHOICES.map((minutes) => (
-                  <Chip
-                    key={minutes}
-                    label={REMINDER_LABEL[minutes]!}
-                    on={reminderSettings.minutesBefore.includes(minutes)}
-                    onPress={() => toggleReminder(minutes)}
+            [
+              <ListRow
+                key="morning-of"
+                size="regular"
+                title="Morning of (7 AM)"
+                chevron={false}
+                trailing={
+                  <Switch
+                    value={reminderSettings.morningOf}
+                    disabled={savingReminders}
+                    onValueChange={(morningOf) => void saveReminderSettings({ ...reminderSettings, morningOf })}
+                    trackColor={{ false: t.borderStrong, true: t.accent }}
+                    accessibilityRole="switch"
+                    accessibilityLabel="Morning of (7 AM)"
                   />
-                ))}
-              </View>
-              {tooManyReminders ? (
-                <Text style={[styles.reminderNote, { color: t.text3 }]}>Up to 4 reminders.</Text>
-              ) : !reminderSettings.morningOf && reminderSettings.minutesBefore.length === 0 ? (
-                <Text style={[styles.reminderNote, { color: t.text3 }]}>Reminders are off.</Text>
-              ) : null}
-            </>
+                }
+              />,
+              <View key="reminder-choices" style={styles.reminderRow}>
+                <Text style={[styles.reminderSub, { color: t.text2 }]}>
+                  Before each session, as a student or a tutor.
+                </Text>
+                <View style={styles.reminderChoices}>
+                  {REMINDER_CHOICES.map((minutes) => (
+                    <Chip
+                      key={minutes}
+                      label={REMINDER_LABEL[minutes]!}
+                      on={reminderSettings.minutesBefore.includes(minutes)}
+                      onPress={() => toggleReminder(minutes)}
+                    />
+                  ))}
+                </View>
+                {tooManyReminders ? (
+                  <Text style={[styles.reminderNote, { color: t.text3 }]}>Up to 4 reminders.</Text>
+                ) : !reminderSettings.morningOf && reminderSettings.minutesBefore.length === 0 ? (
+                  <Text style={[styles.reminderNote, { color: t.text3 }]}>Reminders are off.</Text>
+                ) : null}
+              </View>,
+            ]
           ) : (
-            <Text style={[styles.reminderNote, { color: t.text3 }]}>Loading reminders…</Text>
+            <ListRow size="regular" title="Loading reminders…" muted />
           )}
-        </Card>
+        </ListSection>
         {items === null ? (
           <View style={{ gap: 10 }}>
             <Skeleton height={72} radius={14} />
@@ -246,45 +252,50 @@ export default function Notifications() {
         ) : items.length === 0 ? (
           <EmptyState icon="bell" title="No notifications yet" subtitle="Messages and new bookings will show up here." />
         ) : (
-          <View style={{ gap: 10 }}>
-            <Button label={clearing === 'all' ? 'Clearing…' : 'Clear all'} size="sm" disabled={clearing !== null} onPress={clearAll} />
-            {items.map((n) => {
-              const unread = !n.readAt;
-              return (
-                <Card key={n.id} style={styles.row}>
-                  <Pressable onPress={() => open(n)} accessibilityRole="button" style={styles.openRow}>
-                  <View style={[styles.iconBox, { backgroundColor: unread ? t.accentWeak : t.surface2 }]}>
-                    <Ic name={ICON[n.type]} size={18} color={unread ? t.accent : t.text3} strokeWidth={1.8} />
+          <>
+            <Button
+              label={clearing === 'all' ? 'Clearing…' : 'Clear all'}
+              size="sm"
+              disabled={clearing !== null}
+              onPress={clearAll}
+            />
+            <ListSection label="Recent">
+              {items.map((n) => {
+                const unread = !n.readAt;
+                return (
+                  <View key={n.id} style={styles.row}>
+                    <Pressable onPress={() => open(n)} accessibilityRole="button" style={styles.openRow}>
+                      <Ic name={ICON[n.type]} size={20} color={unread ? t.accent : t.text3} strokeWidth={1.8} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <View style={styles.titleRow}>
+                          <Text style={[styles.title, { color: t.text, fontWeight: unread ? '700' : '600' }]} numberOfLines={1}>
+                            {n.title}
+                          </Text>
+                          {unread ? <View style={[styles.dot, { backgroundColor: t.accent }]} /> : null}
+                        </View>
+                        {n.body ? (
+                          <Text style={[styles.body, { color: t.text3 }]} numberOfLines={2}>
+                            {n.body}
+                          </Text>
+                        ) : null}
+                        <Text style={[styles.time, { color: t.text3 }]}>{timeAgo(n.createdAt)}</Text>
+                      </View>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => void clear(n.id)}
+                      disabled={clearing !== null}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Clear notification: ${n.title}`}
+                      accessibilityState={{ disabled: clearing !== null }}
+                      style={styles.clearButton}
+                    >
+                      <Ic name="x" size={18} color={t.text3} />
+                    </Pressable>
                   </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <View style={styles.titleRow}>
-                      <Text style={[styles.title, { color: t.text, fontWeight: unread ? '700' : '600' }]} numberOfLines={1}>
-                        {n.title}
-                      </Text>
-                      {unread ? <View style={[styles.dot, { backgroundColor: t.accent }]} /> : null}
-                    </View>
-                    {n.body ? (
-                      <Text style={[styles.body, { color: t.text3 }]} numberOfLines={2}>
-                        {n.body}
-                      </Text>
-                    ) : null}
-                    <Text style={[styles.time, { color: t.text3 }]}>{timeAgo(n.createdAt)}</Text>
-                  </View>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => void clear(n.id)}
-                    disabled={clearing !== null}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Clear notification: ${n.title}`}
-                    accessibilityState={{ disabled: clearing !== null }}
-                    style={styles.clearButton}
-                  >
-                    <Ic name="x" size={18} color={t.text3} />
-                  </Pressable>
-                </Card>
-              );
-            })}
-          </View>
+                );
+              })}
+            </ListSection>
+          </>
         )}
       </Body>
     </Screen>
@@ -292,17 +303,13 @@ export default function Notifications() {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  openRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16 },
+  openRow: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 12 },
   clearButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  reminderCard: { gap: 12, marginBottom: 12 },
-  reminderTitle: { fontSize: 16, fontWeight: '700' },
-  reminderSub: { fontSize: 13, lineHeight: 18 },
-  morningRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  morningLabel: { fontSize: 14, fontWeight: '600' },
+  reminderRow: { paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
+  reminderSub: { fontSize: 13.5, lineHeight: 19 },
   reminderChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   reminderNote: { fontSize: 12.5 },
-  iconBox: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontSize: 15, flexShrink: 1 },
   dot: { width: 8, height: 8, borderRadius: 4 },

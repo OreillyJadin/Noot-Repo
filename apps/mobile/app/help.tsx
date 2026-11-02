@@ -3,10 +3,8 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, Linking, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Card, Eyebrow, Ic, useTheme } from '@noot/ui';
+import { Screen, NavTop, Body, ListSection, ListRow, Ic, useTheme } from '@noot/ui';
 import { SUPPORT_EMAIL } from '../lib/legal';
-
-
 
 const FAQ: [string, string][] = [
   ['How do payments work?', 'You pay when you book — the charge is held securely and only released to your tutor after the session is marked complete. Cancel 12h+ ahead for a full refund.'],
@@ -25,46 +23,45 @@ export default function Help() {
     <Screen>
       <NavTop title="Help & support" onBack={() => router.back()} />
       <Body pad={16}>
-        <Card
-          onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Noot%20support`)}
-          style={styles.contact}
-        >
-          <View style={[styles.contactIcon, { backgroundColor: t.accent }]}>
-            <Ic name="mail" size={20} color={t.onAccent} strokeWidth={1.8} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.contactTitle, { color: t.text }]}>Email support</Text>
-            <Text style={[styles.contactSub, { color: t.text3 }]}>{SUPPORT_EMAIL} · we reply within a day</Text>
-          </View>
-          <Ic name="chevR" size={17} color={t.text3} strokeWidth={2} />
-        </Card>
+        <ListSection>
+          <ListRow
+            size="regular"
+            icon="mail"
+            title="Email support"
+            subtitle={`${SUPPORT_EMAIL} · we reply within a day`}
+            subtitleLines={2}
+            onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=Noot%20support`)}
+          />
+        </ListSection>
 
-        <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>FAQ</Eyebrow>
-        <View style={{ gap: 10 }}>
+        <ListSection label="Common questions">
           {FAQ.map(([q, a], i) => {
             const isOpen = open === i;
             return (
-              <Card key={q} onPress={() => setOpen(isOpen ? null : i)} style={{ padding: 14 }}>
+              <Pressable
+                key={q}
+                onPress={() => setOpen(isOpen ? null : i)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: isOpen }}
+                style={styles.faqRow}
+              >
                 <View style={styles.qRow}>
                   <Text style={[styles.q, { color: t.text }]}>{q}</Text>
                   <Ic name={isOpen ? 'chevdown' : 'chevR'} size={16} color={t.text3} strokeWidth={2} />
                 </View>
                 {isOpen ? <Text style={[styles.a, { color: t.text2 }]}>{a}</Text> : null}
-              </Card>
+              </Pressable>
             );
           })}
-        </View>
+        </ListSection>
       </Body>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  contact: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  contactIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  contactTitle: { fontSize: 15, fontWeight: '600' },
-  contactSub: { fontSize: 12.5, marginTop: 2 },
+  faqRow: { paddingHorizontal: 16, paddingVertical: 14 },
   qRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  q: { fontSize: 14.5, fontWeight: '600', flex: 1 },
+  q: { fontSize: 15, fontWeight: '600', flex: 1 },
   a: { fontSize: 13.5, lineHeight: 20, marginTop: 10 },
 });
