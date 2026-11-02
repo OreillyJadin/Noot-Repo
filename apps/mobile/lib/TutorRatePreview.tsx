@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Switch } from 'react-native';
-import { useTheme } from '@noot/ui';
+import { Ic, useTheme } from '@noot/ui';
 import { tutorHourlyEstimate } from '@noot/core';
 
 export function RateViewToggle({ showNet, onChange }: { showNet: boolean; onChange: (value: boolean) => void }) {
@@ -26,13 +26,13 @@ export function TutorRatePreview({ rate, gradesVerified, currentlyTaking, showNe
 }) {
   const t = useTheme();
   const estimate = tutorHourlyEstimate(rate, gradesVerified, currentlyTaking);
+  if (!showNet) return null;
   return (
-    <Text style={{ color: t.text2, fontSize: 12, lineHeight: 18, marginTop: 10 }}>
-      {!estimate
-        ? 'Set a valid rate to see your hourly estimate.'
-        : showNet
-          ? `Estimated take-home: $${estimate.net.toFixed(2)}/hr after the ${estimate.feeRate * 100}% Noot fee${currentlyTaking ? ' (currently taking)' : gradesVerified ? ' (verified)' : ' (unverified)'}.`
-          : `Before-fee rate: $${estimate.gross.toFixed(2)}/hr. The student service fee is added at checkout.`}
-    </Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <Ic name="wallet" size={18} color={t.good} />
+      <Text style={{ flex: 1, color: t.text2, fontSize: 12, lineHeight: 18 }}>
+        {estimate ? <>Estimated take-home: <Text style={{ color: t.good, fontWeight: '700' }}>${estimate.net.toFixed(2)}/hr</Text></> : 'Set a valid rate to see your hourly estimate.'}
+      </Text>
+    </View>
   );
 }

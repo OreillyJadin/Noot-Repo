@@ -368,6 +368,7 @@ function mapUser(row: any): User {
     status: row.status,
     year: row.year ?? null,
     expectedGraduationYear: row.expected_graduation_year ?? null,
+    expectedGraduationTerm: row.expected_graduation_term ?? null,
     major: row.major ?? null,
     gender: row.gender ?? null,
     courses: row.courses ?? [],
@@ -834,6 +835,7 @@ export const api = {
       lastName?: string;
       year?: string | null;
       expectedGraduationYear?: number | null;
+      expectedGraduationTerm?: User['expectedGraduationTerm'];
       major?: string | null;
       gender?: 'f' | 'm' | null;
     }): Promise<void> {
@@ -850,6 +852,8 @@ export const api = {
         row.expected_graduation_year = year;
       }
       if (patch.year === 'Post Grad') row.expected_graduation_year = null;
+      if (patch.expectedGraduationTerm !== undefined) row.expected_graduation_term = patch.expectedGraduationTerm;
+      if (patch.year === 'Post Grad') row.expected_graduation_term = null;
       if (patch.major !== undefined) row.major = patch.major;
       if (patch.gender !== undefined) row.gender = patch.gender;
       if (Object.keys(row).length === 0) return;
@@ -2797,26 +2801,30 @@ export const api = {
   // --- notifications (in-app feed; rows created by DB triggers — 0014) ---
   notifications: {
     /** The signed-in user's reminder choices; an absent row uses the one-hour default. */
-    async getReminderSettings(): Promise<{ minutesBefore: number[]; morningOf: boolean }> {
+    async getReminderSettings(): Promise<{ minutesBefore: number[]; morningOf: boolean; dayOfTime: string }> {
       const uid = await requireUid();
       const { data, error } = await getSupabase()
         .from('reminder_preferences')
-        .select('minutes_before, morning_of')
+        .select('minutes_before, morning_of, day_of_time')
         .eq('user_id', uid)
         .maybeSingle();
       if (error) throw error;
       return data
-        ? { minutesBefore: data.minutes_before, morningOf: data.morning_of }
-        : { minutesBefore: [...DEFAULT_REMINDERS], morningOf: true };
+        ? { minutesBefore: data.minutes_before, morningOf: data.morning_of, dayOfTime: data.day_of_time.slice(0, 5) }
+        : { minutesBefore: [...DEFAULT_REMINDERS], morningOf: true, dayOfTime: '07:00' };
     },
 
     /** Save up to four valid reminder offsets and the morning reminder toggle. */
-    async setReminderSettings(settings: { minutesBefore: number[]; morningOf: boolean }): Promise<void> {
+    async setReminderSettings(settings: { minutesBefore: number[]; morningOf: boolean; dayOfTime?: string }): Promise<void> {
+      if (settings.dayOfTime !== undefined && !/^(0[6-9]|1[01]):(00|30)$|^12:00$/.test(settings.dayOfTime)) {
+        throw new Error('Choose a valid day-of reminder time.');
+      }
       const minutesBefore = [...new Set(settings.minutesBefore)];
       if (minutesBefore.length > 4) throw new Error('Up to 4 reminders.');
       if (minutesBefore.some((m) => !(REMINDER_CHOICES as readonly number[]).includes(m))) {
         throw new Error('Choose a valid reminder time.');
       }
+      const dayOfTime = settings.dayOfTime ?? (await api.notifications.getReminderSettings()).dayOfTime;
       const uid = await requireUid();
       const { error } = await getSupabase()
         .from('reminder_preferences')
@@ -2824,6 +2832,7 @@ export const api = {
           user_id: uid,
           minutes_before: minutesBefore.sort((a, b) => b - a),
           morning_of: settings.morningOf,
+          day_of_time: dayOfTime,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
       if (error) throw error;

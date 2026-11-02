@@ -1,7 +1,21 @@
 // Run: pnpm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { emptyGrid, totalHours, windowsFromGrid, gridFromWindows, availabilityHourLabel, type Day } from '../lib/weekGrid.ts';
+import { readFileSync } from 'node:fs';
+import { emptyGrid, totalHours, windowsFromGrid, gridFromWindows, availabilityHourLabel, HOURS, type Day } from '../lib/weekGrid.ts';
+
+test('Evening preset covers every hour from 5 PM through 11 PM', () => {
+  const editor = readFileSync(new URL('../lib/AvailabilityEditor.tsx', import.meta.url), 'utf8');
+  const match = editor.match(/label: 'Evening', hours: \[([\d, ]+)\]/);
+  assert.ok(match);
+  const hours = match[1].split(',').map(Number);
+  assert.deepEqual(hours, [17, 18, 19, 20, 21, 22]);
+  assert.ok(hours.every((hour) => HOURS.includes(hour)));
+  assert.equal(`${availabilityHourLabel(hours[0])}–${availabilityHourLabel(hours.at(-1)! + 1)}`, '5 PM–11 PM');
+  const grid = emptyGrid();
+  grid.Mon = new Set(hours);
+  assert.deepEqual(windowsFromGrid(grid), [{ dayOfWeek: 1, startTime: '17:00', endTime: '23:00' }]);
+});
 
 test('availability labels distinguish start hours from the end of evening and late slots', () => {
   assert.equal(availabilityHourLabel(17), '5 PM');
