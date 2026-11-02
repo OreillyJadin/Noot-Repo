@@ -1,9 +1,9 @@
 // Tutor standing — reliability at a glance: completed sessions, cancellations, and the
 // policy that governs standing. Real numbers from api.tutorStats(); ratings stay hidden.
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Card, Eyebrow, Ic, Skeleton, useTheme } from '@noot/ui';
+import { Screen, NavTop, Body, ListSection, ListRow, Skeleton, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 
 export default function Standing() {
@@ -20,57 +20,47 @@ export default function Standing() {
     <Screen>
       <NavTop title="Standing" onBack={() => router.back()} />
       <Body pad={16}>
-        <Card style={{ padding: 16, alignItems: 'center', gap: 8 }}>
-          <View style={[styles.badge, { backgroundColor: t.surface2 }]}>
-            <Ic name="shield" size={26} color={t.text3} strokeWidth={1.8} />
-          </View>
-          <Text style={[styles.status, { color: t.text }]}>Session record</Text>
-          <Text style={[styles.statusSub, { color: t.text3 }]}>
-            Cancellations and no-shows are recorded for admin review.
+        <Text style={[styles.status, { color: t.text }]}>Session record</Text>
+        <Text style={[styles.statusSub, { color: t.text3 }]}>
+          Cancellations and no-shows are recorded for admin review.
+        </Text>
+
+        <ListSection>
+          <ListRow
+            size="regular"
+            title="Sessions completed"
+            trailing={stats ? <Text style={{ color: t.text, fontSize: 16, fontWeight: '700' }}>{stats.sessionsTaught}</Text> : <Skeleton width={40} height={24} />}
+          />
+          <ListRow
+            size="regular"
+            title="Cancellations"
+            trailing={stats ? <Text style={{ color: t.text, fontSize: 16, fontWeight: '700' }}>{stats.cancelledCount}</Text> : <Skeleton width={40} height={24} />}
+          />
+          <ListRow
+            size="regular"
+            title="Sessions missed"
+            trailing={stats ? <Text style={{ color: t.text, fontSize: 16, fontWeight: '700' }}>{stats.noShowCount}</Text> : <Skeleton width={40} height={24} />}
+          />
+        </ListSection>
+
+        <ListSection label="How records work">
+          <Text style={[styles.tip, { color: t.text2 }]}>
+            Complete your booked sessions and let students know if plans change.
           </Text>
-        </Card>
-
-        <View style={styles.statsRow}>
-          <Card style={styles.statCard}>
-            {stats ? <Text style={[styles.statNum, { color: t.text }]}>{stats.sessionsTaught}</Text> : <Skeleton width={40} height={24} />}
-            <Text style={[styles.statLabel, { color: t.text3 }]}>Sessions completed</Text>
-          </Card>
-          <Card style={styles.statCard}>
-            {stats ? <Text style={[styles.statNum, { color: stats.cancelledCount ? t.text : t.text }]}>{stats.cancelledCount}</Text> : <Skeleton width={40} height={24} />}
-            <Text style={[styles.statLabel, { color: t.text3 }]}>Cancellations</Text>
-          </Card>
-          <Card style={styles.statCard}>
-            {stats ? <Text style={[styles.statNum, { color: t.text }]}>{stats.noShowCount}</Text> : <Skeleton width={40} height={24} />}
-            <Text style={[styles.statLabel, { color: t.text3 }]}>Sessions missed</Text>
-          </Card>
-        </View>
-
-        <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>How records work</Eyebrow>
-        <Card flat style={{ padding: 14, backgroundColor: t.surfaceAlt, gap: 10 }}>
-          {[
-            'Complete your booked sessions and let students know if plans change.',
-            'Cancellations you make after confirming and sessions you miss are recorded. Student cancellations do not count against you.',
-            'Our team reviews these records. Counts do not automatically pause bookings, change your ranking, or add penalties.',
-          ].map((line) => (
-            <View key={line} style={styles.tipRow}>
-              <Ic name="check" size={14} color={t.good} strokeWidth={2.4} />
-              <Text style={[styles.tip, { color: t.text2 }]}>{line}</Text>
-            </View>
-          ))}
-        </Card>
+          <Text style={[styles.tip, { color: t.text2 }]}>
+            Cancellations you make after confirming and sessions you miss are recorded. Student cancellations do not count against you.
+          </Text>
+          <Text style={[styles.tip, { color: t.text2 }]}>
+            Our team reviews these records. Counts do not automatically pause bookings, change your ranking, or add penalties.
+          </Text>
+        </ListSection>
       </Body>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  badge: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   status: { fontSize: 18, fontWeight: '700' },
-  statusSub: { fontSize: 13, textAlign: 'center', maxWidth: 280, lineHeight: 18 },
-  statsRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  statCard: { flex: 1, padding: 14, alignItems: 'center', gap: 4 },
-  statNum: { fontSize: 22, fontWeight: '800' },
-  statLabel: { fontSize: 12, textAlign: 'center' },
-  tipRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  tip: { flex: 1, fontSize: 13, lineHeight: 18 },
+  statusSub: { fontSize: 13, lineHeight: 18 },
+  tip: { paddingHorizontal: 16, paddingVertical: 14, fontSize: 14, lineHeight: 20 },
 });

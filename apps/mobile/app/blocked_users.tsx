@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Card, Avatar, Button, Ic, Skeleton, useTheme } from '@noot/ui';
+import { Screen, NavTop, Body, ListSection, ListRow, Avatar, Button, EmptyState, Skeleton, useTheme } from '@noot/ui';
 import { api, type ChatParticipant } from '@noot/core';
 import { errText } from '../lib/errText';
 
@@ -63,31 +63,30 @@ export default function BlockedUsers() {
             <Skeleton height={64} radius={14} />
           </View>
         ) : people.length === 0 ? (
-          <View style={[styles.empty, { borderColor: t.borderStrong }]}>
-            <Ic name="shield" size={24} color={t.text3} strokeWidth={1.7} />
-            <Text style={{ marginTop: 8, fontSize: 14, color: t.text3, textAlign: 'center' }}>
-              You haven’t blocked anyone.
-            </Text>
-          </View>
+          <EmptyState icon="shield" title="You haven’t blocked anyone." />
         ) : (
-          <View style={{ gap: 10 }}>
+          <ListSection>
             {people.map((p) => {
               const name = `${p.firstName} ${p.lastName}`.trim() || 'Unknown';
               return (
-                <Card key={p.id} style={styles.row}>
-                  <Avatar size={40} label={name[0]} uri={p.avatarUrl} />
-                  <Text style={[styles.name, { color: t.text }]}>{name}</Text>
-                  <Button
-                    label={busy === p.id ? '…' : 'Unblock'}
-                    kind="secondary"
-                    size="sm"
-                    disabled={busy === p.id}
-                    onPress={() => unblock(p)}
+                <ListRow
+                  key={p.id}
+                  size="regular"
+                  leading={<Avatar size={36} label={name[0]} uri={p.avatarUrl} />}
+                  title={name}
+                  trailing={
+                    <Button
+                      label={busy === p.id ? '…' : 'Unblock'}
+                      kind="secondary"
+                      size="sm"
+                      disabled={busy === p.id}
+                      onPress={() => unblock(p)}
+                    />
+                  }
                   />
-                </Card>
               );
             })}
-          </View>
+          </ListSection>
         )}
       </Body>
     </Screen>
@@ -96,7 +95,4 @@ export default function BlockedUsers() {
 
 const styles = StyleSheet.create({
   intro: { fontSize: 13, lineHeight: 19.5, marginBottom: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
-  name: { flex: 1, fontSize: 15, fontWeight: '600' },
-  empty: { paddingVertical: 28, paddingHorizontal: 16, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center' },
 });

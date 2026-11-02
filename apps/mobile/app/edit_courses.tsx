@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, ActionBar, Button, Label, Ic, useTheme } from '@noot/ui';
+import { Screen, NavTop, Body, ActionBar, Button, ListSection, ListRow, Ic, useTheme } from '@noot/ui';
 import { api, type CatalogCourse } from '@noot/core';
 import { CoursePicker } from '../lib/CoursePicker';
 
@@ -56,34 +56,30 @@ export default function EditCourses() {
       <NavTop title="My courses" onBack={() => router.back()} />
       <Body>
         <Text style={[styles.intro, { color: t.text2 }]}>
-          Your current courses power your For-You feed and exam reminders — we match tutors who took your exact
-          classes, same professor when we can.
+          Your courses power your For-You feed. We match you with tutors who took the same class.
         </Text>
 
-        <Label style={{ fontSize: 13, marginBottom: 10 }}>Current courses</Label>
-        <View style={{ gap: 8 }}>
+        <ListSection label="Current courses">
           {courses.map((c) => (
-            <View key={c} style={[styles.row, { backgroundColor: t.surface, borderColor: t.border }]}>
-              <View style={[styles.iconBox, { backgroundColor: t.accentWeak }]}>
-                <Ic name="cap" size={16} color={t.accent} strokeWidth={1.8} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.courseText, { color: t.text }]}>{c}</Text>
-                {titles[c] ? (
-                  <Text numberOfLines={1} style={[styles.courseSub, { color: t.text3 }]}>{titles[c]!.courseTitle}</Text>
-                ) : null}
-              </View>
-              <Pressable onPress={() => remove(c)} style={[styles.removeBtn, { backgroundColor: t.surface2 }]}>
-                <Ic name="x" size={13} color={t.text2} strokeWidth={2.2} />
-              </Pressable>
-            </View>
+            <ListRow
+              key={c}
+              size="regular"
+              title={c}
+              subtitle={titles[c]?.courseTitle}
+              trailing={
+                <Pressable
+                  onPress={() => remove(c)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove ${c}`}
+                >
+                  <Ic name="x" size={18} color={t.text3} strokeWidth={2} />
+                </Pressable>
+              }
+            />
           ))}
-          {courses.length === 0 ? (
-            <View style={[styles.empty, { borderColor: t.borderStrong }]}>
-              <Text style={{ fontSize: 13, color: t.text3 }}>No courses yet — add one below.</Text>
-            </View>
-          ) : null}
-        </View>
+          {courses.length === 0 ? <ListRow size="regular" title="No courses yet. Add one below." muted /> : null}
+        </ListSection>
 
         <View style={{ marginTop: 16 }}>
           <CoursePicker selected={courses} onSelect={add} />
@@ -98,11 +94,4 @@ export default function EditCourses() {
 
 const styles = StyleSheet.create({
   intro: { fontSize: 13, lineHeight: 19.5, marginBottom: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 13, borderWidth: 1 },
-  iconBox: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  courseText: { fontSize: 15, fontWeight: '600' },
-  courseSub: { fontSize: 12, marginTop: 1 },
-  removeBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  empty: { paddingHorizontal: 14, paddingVertical: 18, borderRadius: 13, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center' },
-  addRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end', marginTop: 16 },
 });

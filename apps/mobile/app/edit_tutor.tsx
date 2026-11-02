@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, ActionBar, Button, Card, Field, Avatar, Ic, useTheme } from '@noot/ui';
+import { Screen, NavTop, Body, ActionBar, Button, ListSection, ListRow, Field, Avatar, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -86,7 +86,7 @@ export default function EditTutorProfile() {
       <Body>
         <View style={styles.avatarWrap}>
           <View style={{ position: 'relative' }}>
-            <Avatar size={78} label="L" uri={avatarUrl} />
+            <Avatar size={78} label={displayName.charAt(0).toUpperCase() || '?'} uri={avatarUrl} />
             <Pressable
               onPress={changePhoto}
               style={[styles.avatarEdit, { backgroundColor: t.accent, borderColor: t.surface }]}
@@ -114,23 +114,22 @@ export default function EditTutorProfile() {
           hint="What students see on your profile. Mention the professor and how you run sessions."
         />
 
-        <Card onPress={preview} style={{ marginTop: 4, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <View style={[styles.iconBox, { backgroundColor: t.accentWeak }]}>
-            <Ic name="search" size={17} color={t.accent} strokeWidth={1.9} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 14.5, fontWeight: '600', color: t.text }}>Preview your public profile</Text>
-            <Text style={{ fontSize: 12, color: t.text3, marginTop: 1 }}>See exactly what students see</Text>
-          </View>
-          <Ic name="chevR" size={17} color={t.text3} strokeWidth={2} />
-        </Card>
+        <ListSection>
+          <ListRow
+            size="regular"
+            icon="search"
+            title="Preview your public profile"
+            subtitle="See what students see"
+            onPress={preview}
+          />
+        </ListSection>
 
         <View style={styles.footNote}>
           <View style={{ marginTop: 1 }}>
             <Ic name="shield" size={14} color={t.good} strokeWidth={1.8} />
           </View>
           <Text style={[styles.footNoteText, { color: t.text3 }]}>
-            Verified grades and session counts update automatically — you can&apos;t edit those.
+            Verified grades and session counts update automatically.
           </Text>
         </View>
       </Body>
@@ -155,7 +154,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   changePhoto: { fontSize: 13, fontWeight: '600' },
-  iconBox: { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   footNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 14, paddingHorizontal: 2 },
   footNoteText: { flex: 1, fontSize: 12, lineHeight: 17.4 },
 });

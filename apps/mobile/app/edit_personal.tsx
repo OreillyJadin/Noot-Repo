@@ -76,7 +76,7 @@ export default function EditPersonal() {
       <Body>
         <View style={styles.avatarWrap}>
           <View style={{ position: 'relative' }}>
-            <Avatar size={78} label={firstName.charAt(0).toUpperCase() || 'L'} uri={avatarUrl} />
+            <Avatar size={78} label={firstName.charAt(0).toUpperCase() || '?'} uri={avatarUrl} />
             <Pressable
               onPress={changePhoto}
               style={[styles.avatarEdit, { backgroundColor: t.accent, borderColor: t.surface }]}
@@ -102,13 +102,13 @@ export default function EditPersonal() {
         <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} />
 
         <SubjectField value={major} onChange={setMajor} />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={[styles.error, { color: t.danger }]}>{error}</Text> : null}
 
         <View>
           <Label style={{ fontSize: 13, marginBottom: 8 }}>Campus email</Label>
           <View style={[styles.lockedRow, { backgroundColor: t.surface2, borderColor: t.border }]}>
             <Ic name="lock" size={16} color={t.text3} strokeWidth={1.8} />
-            <Text style={[styles.lockedEmail, { color: t.text2 }]}>{email || 'lindsay.t@students.edu'}</Text>
+            <Text style={[styles.lockedEmail, { color: t.text2 }]}>{email || '—'}</Text>
           </View>
           <Text style={[styles.lockedHint, { color: t.text3 }]}>Your verified .edu email can&apos;t be changed.</Text>
         </View>
@@ -145,5 +145,5 @@ const styles = StyleSheet.create({
   },
   lockedEmail: { flex: 1, fontSize: 15 },
   lockedHint: { fontSize: 12, marginTop: 7 },
-  error: { color: '#C0392B', fontSize: 14, marginTop: 10 },
+  error: { fontSize: 14, marginTop: 10 },
 });

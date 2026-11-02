@@ -168,6 +168,7 @@ jobs:
             verify_tutoring_locations
             verify_uploads
             verify_option_b_screens
+            verify_option_b_account
             verify_ui_kit
             verify_verified_grade_lock
             verify_option_b_booking

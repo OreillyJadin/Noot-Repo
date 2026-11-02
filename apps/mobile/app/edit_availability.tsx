@@ -64,8 +64,7 @@ export default function EditAvailability() {
       <NavTop title="Set availability" onBack={() => router.back()} />
       <Body>
         <Text style={[styles.intro, { color: t.text2 }]}>
-          This is your <Text style={{ color: t.text, fontWeight: '700' }}>typical week</Text>, hour by hour — students
-          can request any hour you turn on. Need to block one specific day or open an extra slot? Use the{' '}
+          Your typical week, hour by hour. Students can request any hour you turn on. To block or open a single day, use the{' '}
           <Text onPress={() => router.push('/tutor_calendar')} style={{ color: t.accent, fontWeight: '600' }}>
             Calendar
           </Text>

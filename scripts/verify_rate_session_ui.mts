@@ -12,7 +12,7 @@ for (const [name, source] of [['sessions', sessions], ['history', history]] as c
   assert.match(source, /api\.reviews\s*\.listRatedBookingIds\s*\(/);
   assert.match(source, /useFocusEffect\s*\(/);
   assert.match(source, /label="Rate session"/);
-  assert.match(source, /label="Rated"/);
+  assert.match(source, /label="Rated"|rated \? 'Rated'/);
   assert.match(source, /isRatedBooking\s*\(/);
   assert.match(source, /setRatedLookup\(null\)/);
   assert.doesNotMatch(source, /ratedIds/);
