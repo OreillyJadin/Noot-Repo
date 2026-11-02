@@ -8,15 +8,15 @@
 // adjusting a filter appeared to do nothing at all — that was the "filters don't update the
 // results" report, not a broken filter predicate.
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Screen, Body, Card, Chip, Badge, Avatar, Button, H2, Label, Ic, useTheme } from '@noot/ui';
+import { Screen, Body, Chip, Avatar, Button, H2, Label, Ic, ListSection, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { nextFromWindows } from '../lib/availability';
-import { VerifiedBadge } from '../lib/VerifiedBadge';
+import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 import { courseForQuery, searchTutors } from '../lib/browse';
 
 type SortKey = 'best' | 'sessions' | 'price' | 'soon';
@@ -246,46 +246,55 @@ export default function B1() {
         ) : null}
 
         <View style={{ gap: 10 }}>
-          {list.map((tt) => (
-            <Card key={tt.id} onPress={() => open(tt)} style={styles.tutorCard}>
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <Avatar size={56} uri={tt.avatarUrl} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <View style={styles.rowBetween}>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>{tt.name}</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>
-                      ${tt.rate}
-                      <Text style={{ fontSize: 11, color: t.text3, fontWeight: '500' }}>/hr</Text>
-                    </Text>
-                  </View>
-                  <Text style={{ fontSize: 13, color: t.text3, marginTop: 1 }}>
-                    {tt.year} · {tt.major}
-                  </Text>
-                  <View style={styles.rowGap6}>
-                    <Ic name="cap" size={15} color={t.text3} strokeWidth={1.7} />
-                    <Text style={{ fontSize: 13, color: t.text2 }}>
-                      <Text style={{ color: t.text, fontWeight: '600' }}>{tt.sessions}</Text> sessions completed
-                    </Text>
-                  </View>
-                  <View style={styles.badgeRow}>
-                    <VerifiedBadge verified={tt.verified} />
-                    {courseForQuery(tt, trimmed) ? <Badge label={courseForQuery(tt, trimmed)} tone="accentSoft" /> : null}
-                  </View>
-                </View>
-              </View>
-              <View style={[styles.nextRow, { borderTopColor: t.border }]}>
-                <Ic name="clock" size={15} color={t.good} strokeWidth={1.8} />
-                <Text style={{ fontSize: 13, color: t.text2 }}>
-                  Next available: <Text style={{ color: t.text, fontWeight: '600' }}>{tt.availLabel}</Text>
-                </Text>
-                <View style={{ marginLeft: 'auto' }}>
-                  <Ic name="chevron" size={15} color={t.text3} strokeWidth={2} />
-                </View>
-              </View>
-            </Card>
-          ))}
-
-          {list.length === 0 && (
+          {list.length > 0 ? (
+            <ListSection>
+              {list.map((tt) => {
+                const courseCode = courseForQuery(tt, trimmed);
+                const meta = [courseCode, tt.year, tt.major, `${tt.sessions} sessions`].filter(Boolean).join(' · ');
+                return (
+                  <Pressable
+                    key={tt.id}
+                    onPress={() => open(tt)}
+                    accessibilityRole="button"
+                    accessibilityLabel={[`${tt.name}`, tt.verified ? 'verified' : null, `$${tt.rate} per hour`, meta, `next available ${tt.availLabel}`].filter(Boolean).join(', ')}
+                    style={({ pressed }) => [
+                      styles.tutorRow,
+                      { backgroundColor: pressed ? t.surface2 : 'transparent' },
+                    ]}
+                  >
+                    <Avatar size={56} uri={tt.avatarUrl} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={styles.rowBetween}>
+                        <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                          <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 16, fontWeight: '700', color: t.text }}>{tt.name}</Text>
+                          {tt.verified ? (
+                            <Pressable
+                              onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
+                              hitSlop={6}
+                              accessibilityRole="button"
+                              accessibilityLabel="Verified tutor. Tap for what this means."
+                            >
+                              <Ic name="check" size={15} color={t.good} strokeWidth={2.6} />
+                            </Pressable>
+                          ) : null}
+                        </View>
+                        <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>
+                          ${tt.rate}<Text style={{ fontSize: 11, color: t.text3, fontWeight: '500' }}>/hr</Text>
+                        </Text>
+                      </View>
+                      <Text numberOfLines={2} style={{ fontSize: 13, color: t.text3, marginTop: 2 }}>
+                        {meta}
+                      </Text>
+                      <View style={[styles.nextRow, { marginTop: 6 }]}>
+                        <Ic name="clock" size={14} color={t.text3} strokeWidth={1.8} />
+                        <Text style={{ fontSize: 12, color: t.text3 }}>Next available: {tt.availLabel}</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ListSection>
+          ) : (
             <View style={styles.empty}>
               <Ic name="search" size={28} color={t.text3} strokeWidth={1.6} />
               <Text style={{ marginTop: 10, fontSize: 15, color: t.text3, textAlign: 'center' }}>
@@ -445,11 +454,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
   },
-  tutorCard: { padding: 12 },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
-  rowGap6: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 7 },
-  badgeRow: { flexDirection: 'row', gap: 6, marginTop: 9, flexWrap: 'wrap' },
-  nextRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 11, paddingTop: 11, borderTopWidth: 1 },
+  tutorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  nextRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   empty: { alignItems: 'center', padding: 40 },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   stepBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },

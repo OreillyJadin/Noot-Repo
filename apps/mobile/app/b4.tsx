@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, Alert, Platform, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
+import { Screen, NavTop, Body, ActionBar, Button, Card, H2, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
 import { useStripe } from '@stripe/stripe-react-native';
 import Constants from 'expo-constants';
 import { formatCampusTime, campusSlotISO, tryCampusSlotISO, api, bookingQuote, FunctionError, STUDENT_UNDER_AGE_MESSAGE } from '@noot/core';
@@ -240,7 +240,7 @@ function B4Inner() {
     <Screen>
       <NavTop onBack={() => router.back()} title={free ? 'Confirm booking' : 'Confirm & pay'} />
       <Body pad={20}>
-        <Card style={{ padding: 16 }}>
+        <Card raised style={{ padding: 16 }}>
           <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>Session summary</Eyebrow>
           <View style={{ gap: 10 }}>
             {rows.map(([k, v]) => (
@@ -281,7 +281,7 @@ function B4Inner() {
           </Card>
         ) : null}
 
-        <Eyebrow style={{ color: t.text3, marginTop: 24, marginBottom: 12 }}>Payment</Eyebrow>
+        <H2 style={{ fontSize: 18, color: t.text, marginTop: 24, marginBottom: 12 }}>Payment</H2>
         {free ? (
           <View style={styles.heldRow}>
             <View style={{ marginTop: 1 }}>
@@ -318,7 +318,7 @@ function B4Inner() {
           </>
         )}
 
-        <Card flat style={{ ...styles.policyCard, backgroundColor: t.surfaceAlt }}>
+        <Card style={styles.policyCard}>
           <Pressable onPress={() => setPolicyOpen((o) => !o)} style={styles.policyHead}>
             <Ic name="shield" size={17} color={t.good} strokeWidth={1.8} />
             <Text style={{ flex: 1, fontSize: 13, color: t.text2 }}>
@@ -334,7 +334,7 @@ function B4Inner() {
               {POLICY_ROWS.map(([when, amt, tone]) => (
                 <View key={when} style={styles.rowBetween}>
                   <Text style={{ fontSize: 13, color: t.text2 }}>{when}</Text>
-                  <Badge label={amt} tone={tone === 'good' ? 'good' : 'neutral'} />
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: tone === 'good' ? t.good : t.text2, textAlign: 'right' }}>{amt}</Text>
                 </View>
               ))}
               <Text style={{ fontSize: 11, color: t.text3, marginTop: 2 }}>
@@ -383,7 +383,7 @@ function B4Inner() {
                 setDobError(null);
               }}
             />
-            {dobError ? <Text style={styles.ageSheetError}>{dobError}</Text> : null}
+            {dobError ? <Text style={[styles.ageSheetError, { color: t.danger }]}>{dobError}</Text> : null}
             <Button
               label={dobBusy ? 'Checking…' : 'Continue'}
               full
@@ -426,6 +426,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     borderTopWidth: 1,
   },
-  ageSheetError: { color: '#C0392B', fontSize: 14, lineHeight: 20 },
+  ageSheetError: { fontSize: 14, lineHeight: 20 },
   processingOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 18 },
 });
