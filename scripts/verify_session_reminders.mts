@@ -31,9 +31,9 @@ let tutorId = '';
 let oldStudentPrefs: Record<string, unknown> | null = null;
 let oldTutorPrefs: Record<string, unknown> | null = null;
 
-const setPrefs = async (userId: string, minutes: number[], morning = false) => {
+const setPrefs = async (userId: string, minutes: number[], morning = false, dayOfTime = '07:00') => {
   const { error } = await svc.from('reminder_preferences').upsert({
-    user_id: userId, minutes_before: minutes, morning_of: morning,
+    user_id: userId, minutes_before: minutes, morning_of: morning, day_of_time: dayOfTime,
   }, { onConflict: 'user_id' });
   if (error) throw error;
 };
@@ -93,10 +93,19 @@ try {
   const signIn = await auth.signInWithPassword(studentEmail, PASSWORD);
   if (!signIn.ok) throw new Error(signIn.error);
   const initialSettings = await api.notifications.getReminderSettings();
-  step(initialSettings.minutesBefore.join(',') === '60' && initialSettings.morningOf, 'core defaults to 60 minutes and morning-of');
+  step(initialSettings.minutesBefore.join(',') === '60' && initialSettings.morningOf && initialSettings.dayOfTime === '07:00', 'core defaults remain 60 minutes and 7 AM');
   await api.notifications.setReminderSettings({ minutesBefore: [30, 60, 30], morningOf: false });
   const savedSettings = await api.notifications.getReminderSettings();
   step(savedSettings.minutesBefore.join(',') === '60,30' && !savedSettings.morningOf, 'core deduplicates and sorts reminder choices');
+  await api.notifications.setReminderSettings({ minutesBefore: [1440], morningOf: true, dayOfTime: '09:30' });
+  const customSettings = await api.notifications.getReminderSettings();
+  step(customSettings.dayOfTime === '09:30' && customSettings.minutesBefore[0] === 1440, 'core round trips chosen day-of time and legacy 1 day offset');
+  await api.notifications.setReminderSettings({ minutesBefore: [1440], morningOf: true });
+  step((await api.notifications.getReminderSettings()).dayOfTime === '09:30', 'older callers preserve the saved day-of time when omitted');
+  let rejectedTime = false;
+  try { await api.notifications.setReminderSettings({ minutesBefore: [], morningOf: true, dayOfTime: '09:15' }); }
+  catch { rejectedTime = true; }
+  step(rejectedTime, 'core rejects invalid day-of times');
 
   await setPrefs(studentId, [60, 30], false);
   await setPrefs(tutorId, [60, 30], false);
@@ -181,8 +190,8 @@ try {
   step(
     eightAmBefore.length === 2 &&
       eightAmBefore.every((n) => n.body.includes('1 hour')) &&
-      eightAmMorning.length === 0,
-    'an 8 AM session gets the 60-minute reminder but no morning reminder',
+      eightAmMorning.length === 2,
+    'an 8 AM session gets both reminders at the exact one-hour boundary',
   );
 
   await morningPrefs(true);
@@ -199,6 +208,26 @@ try {
   const morningOff = await makeBooking(central('15:00', '21'));
   await runAt(central('07:05', '21'));
   step((await reminders(morningOff)).length === 0, 'morning_of=false disables the morning reminder');
+
+  await setPrefs(studentId, [], true, '09:30');
+  await setPrefs(tutorId, [], true, '12:00');
+  const customMorning = await makeBooking(central('15:00', '22'));
+  await runAt(central('07:05', '22'));
+  step((await reminders(customMorning)).length === 0, 'custom day-of times do not send at old 7 AM time');
+  await runAt(central('09:30', '22'));
+  step((await reminders(customMorning, studentId)).length === 1 && (await reminders(customMorning, tutorId)).length === 0, 'day-of time is per participant');
+  await runAt(central('09:35', '22'));
+  step((await reminders(customMorning, studentId)).length === 1, 'custom day-of reminder is deduplicated');
+  await runAt(central('12:00', '22'));
+  step((await reminders(customMorning, tutorId)).length === 1, 'noon day-of choice sends at noon');
+  const customTooClose = await makeBooking(central('10:15', '23'));
+  await runAt(central('09:30', '23'));
+  step((await reminders(customTooClose)).length === 0, 'chosen time is skipped if less than one hour before start or after start');
+  await setPrefs(studentId, [1440], false);
+  await setPrefs(tutorId, [], false);
+  const legacyDay = await makeBooking(central('15:00', '25'));
+  await runAt(central('15:00', '24'));
+  step((await reminders(legacyDay, studentId)).some((n) => n.body.includes('1 day')), 'saved legacy day-before offset still schedules');
 
   await clearPrefs();
   const { data: studentClientAuth, error: studentAuthErr } = await createClient(URL, ANON, {
@@ -223,6 +252,16 @@ try {
     user_id: tutorId, minutes_before: [60], morning_of: true,
   });
   step(!!crossWrite.error, 'authenticated user cannot write another user preference');
+  const ownTime = await studentClient.from('reminder_preferences').update({ day_of_time: '06:30' }).eq('user_id', studentId).select('day_of_time').single();
+  step(!ownTime.error && ownTime.data?.day_of_time === '06:30:00', 'owner can update day-of time');
+  await setPrefs(tutorId, [], true, '09:30');
+  const crossTime = await studentClient.from('reminder_preferences').update({ day_of_time: '06:00' }).eq('user_id', tutorId).select('user_id');
+  const unchangedTime = await svc.from('reminder_preferences').select('day_of_time').eq('user_id', tutorId).single();
+  step(!crossTime.error && crossTime.data?.length === 0 && unchangedTime.data?.day_of_time === '09:30:00', 'non-owner day-of write cannot change saved time');
+  for (const day_of_time of ['05:30', '12:30', '09:15', '07:00:01', null]) {
+    const invalidTime = await studentClient.from('reminder_preferences').update({ day_of_time }).eq('user_id', studentId);
+    step(!!invalidTime.error, `database rejects invalid day-of time ${day_of_time}`);
+  }
   const anonClient = createClient(URL, ANON, { auth: { persistSession: false } });
   const anonRead = await anonClient.from('reminder_preferences').select('*');
   step(!!anonRead.error, 'anon cannot read reminder preferences');

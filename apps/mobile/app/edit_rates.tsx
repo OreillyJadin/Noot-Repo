@@ -9,11 +9,12 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, Pressable, Alert, Linking, StyleSheet } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Screen, NavTop, Body, ActionBar, Button, ListSection, ListRow, Ic, useLargeText, useTheme } from '@noot/ui';
+import { Screen, NavTop, Body, ActionBar, Button, Card, ListSection, ListRow, Ic, useLargeText, useTheme } from '@noot/ui';
 import { api, MIN_HOURLY_RATE, MAX_HOURLY_RATE } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { SUPPORT_EMAIL } from '../lib/legal';
 import { RateViewToggle, TutorRatePreview } from '../lib/TutorRatePreview';
+import { RateSlider } from '../lib/RateSlider';
 
 // The server's own sentence when it refuses a save (e.g. the verified lock, 0048) — without
 // the SQLSTATE that errText appends, which means nothing to a tutor.
@@ -70,8 +71,8 @@ export default function EditRates() {
     };
   }, []));
 
-  const bump = (i: number, d: number) =>
-    setRates((rs) => rs.map((r, j) => (j === i ? { ...r, rate: Math.min(MAX_HOURLY_RATE, Math.max(MIN_HOURLY_RATE, r.rate + d)) } : r)));
+  const setRate = useCallback((code: string, rate: number) =>
+    setRates((rs) => rs.map((r) => (r.code === code ? { ...r, rate } : r))), []);
 
   // Only offered to a verified tutor: everyone else adds and removes courses on step 3,
   // which a verified tutor can't use (it also sets grades). Takes effect on "Save changes".
@@ -91,7 +92,7 @@ export default function EditRates() {
     // A course just added from step 3 has no rate yet; saving it at $0 would make it unbookable.
     const unset = rates.filter((r) => r.rate < MIN_HOURLY_RATE);
     if (unset.length > 0) {
-      Alert.alert('Set a rate first', `Use + to set a rate for ${unset.map((r) => r.code).join(', ')}.`);
+      Alert.alert('Set a rate first', `Use the slider to set a rate for ${unset.map((r) => r.code).join(', ')}.`);
       return;
     }
     setSaving(true);
@@ -123,55 +124,39 @@ export default function EditRates() {
         </Text>
 
         <RateViewToggle showNet={showNet} onChange={setShowNet} />
-        <ListSection>
-          {rates.map((r, i) => (
-            <View key={r.code} style={styles.courseRow}>
+        <View style={{ gap: 12, marginBottom: 16 }}>
+          {rates.map((r) => (
+            <Card key={r.code} style={{ gap: 12 }}>
               <View style={[styles.row, largeText && styles.rowStacked]}>
-                <View style={{ flex: largeText ? undefined : 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{r.code}</Text>
-                  <Text style={{ fontSize: 12.5, color: t.text3 }}>
-                    {r.currentlyTaking ? 'Currently taking' : r.grade ? `Grade ${r.grade}${gradesVerified ? ' · verified' : ''}` : 'No grade'}
-                  </Text>
+                <View style={{ flex: largeText ? undefined : 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={[styles.gradeBadge, { backgroundColor: t.accentWeak }]}>
+                    {r.currentlyTaking ? <Ic name="cap" size={20} color={t.accent} /> : <Text style={{ color: t.accent, fontWeight: '700' }}>{r.grade || '—'}</Text>}
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{r.code}</Text>
+                    <Text style={{ fontSize: 12.5, color: t.text3 }}>
+                      {r.currentlyTaking ? 'Currently taking' : r.grade ? `Grade ${r.grade}${gradesVerified ? ' · verified' : ''}` : 'No grade'}
+                    </Text>
+                  </View>
                 </View>
                 <View style={styles.controls}>
-                  <View style={styles.stepper}>
-                    <Pressable
-                      onPress={() => bump(i, -1)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Lower ${r.code} rate`}
-                      style={[styles.stepBtn, { borderColor: t.borderStrong, backgroundColor: t.surface }]}
-                    >
-                      <Ic name="minus" size={15} color={t.text} strokeWidth={2.2} />
-                    </Pressable>
-                    <Text style={styles.rateText}>
-                      <Text style={{ fontSize: 16, fontWeight: '800', color: t.text }}>${r.rate}</Text>
-                      <Text style={{ fontSize: 11, fontWeight: '500', color: t.text3 }}>/hr</Text>
-                    </Text>
-                    <Pressable
-                      onPress={() => bump(i, 1)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Raise ${r.code} rate`}
-                      style={[styles.stepBtn, { borderColor: t.borderStrong, backgroundColor: t.surface }]}
-                    >
-                      <Ic name="plus" size={15} color={t.text} strokeWidth={2.2} />
-                    </Pressable>
+                  <View style={[styles.ratePill, { backgroundColor: t.accentWeak }]}>
+                    <Text style={{ fontSize: 16, fontWeight: '800', color: t.text }}>${r.rate.toFixed(2)}/hr</Text>
                   </View>
                   {gradesVerified ? (
-                    <Pressable
-                      onPress={() => remove(r.code)}
-                      hitSlop={10}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Remove ${r.code}`}
-                    >
+                    <Pressable onPress={() => remove(r.code)} disabled={saving} hitSlop={10}
+                      accessibilityRole="button" accessibilityLabel={`Remove ${r.code}`}>
                       <Ic name="x" size={18} color={t.text3} strokeWidth={2} />
                     </Pressable>
                   ) : null}
                 </View>
               </View>
+              <RateSlider id={r.code} value={r.rate} min={MIN_HOURLY_RATE} max={MAX_HOURLY_RATE} label={`${r.code} hourly rate`}
+                disabled={saving} onChange={setRate} />
               <TutorRatePreview rate={r.rate} gradesVerified={gradesVerified} currentlyTaking={r.currentlyTaking} showNet={showNet} />
-            </View>
+            </Card>
           ))}
-        </ListSection>
+        </View>
 
         <ListSection>
           {gradesVerified ? (
@@ -224,13 +209,11 @@ export default function EditRates() {
 
 const styles = StyleSheet.create({
   intro: { fontSize: 13, lineHeight: 19.5, marginBottom: 16 },
-  courseRow: { paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rowStacked: { flexDirection: 'column', alignItems: 'stretch' },
   controls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  stepBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  rateText: { minWidth: 58, textAlign: 'center' },
+  gradeBadge: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  ratePill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
   footNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 14, paddingHorizontal: 2 },
   footNoteText: { flex: 1, fontSize: 12, lineHeight: 17.4 },
 });

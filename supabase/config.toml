@@ -107,3 +107,6 @@ verify_jwt = false
 
 [functions.join-video-session]
 verify_jwt = true
+
+[functions.place-booking-holds]
+verify_jwt = false

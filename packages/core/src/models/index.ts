@@ -30,6 +30,7 @@ export interface User {
   year: string | null;
   /** Private projected graduation year; never changes account or tutoring eligibility. */
   expectedGraduationYear: number | null;
+  expectedGraduationTerm: 'Fall' | 'Spring' | 'Summer' | null;
   major: string | null;
   gender: 'f' | 'm' | null;
   /** Course codes the student is taking (drives home/search categories). */
@@ -226,7 +227,7 @@ export interface Booking {
   acceptBy: Timestamp | null;
   acceptedAt: Timestamp | null;
   cancelledByRole: 'student' | 'tutor' | null;
-  cancelReason: 'tutor_declined' | 'tutor_no_response' | null;
+  cancelReason: 'tutor_declined' | 'tutor_no_response' | 'payment_failed' | null;
   declineNote: string | null;
   requestNote: string | null;
   cancellationDeadline: Timestamp; // scheduledAt − 12h
@@ -235,7 +236,13 @@ export interface Booking {
   /** Share of the student's payment refunded, from 0 to 100. */
   refundPercent: number;
   refundedCents: number | null;
-  stripePaymentIntentId: string | null; // charged upfront
+  stripePaymentIntentId: string | null;
+  stripeSetupIntentId?: string | null;
+  stripePaymentMethodId?: string | null;
+  holdDueAt?: Timestamp | null;
+  holdPlacedAt?: Timestamp | null;
+  holdFailedAt?: Timestamp | null;
+  holdFailureCode?: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

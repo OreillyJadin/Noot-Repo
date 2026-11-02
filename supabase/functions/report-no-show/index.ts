@@ -49,7 +49,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
     // Load the booking.
     const { data: booking, error: loadErr } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, status, scheduled_at, duration_minutes, price, credit_applied, stripe_payment_intent_id, tutor_payout_amount')
+      .select('id, student_id, tutor_id, status, scheduled_at, duration_minutes, price, credit_applied, stripe_payment_intent_id, stripe_setup_intent_id, tutor_payout_amount')
       .eq('id', bookingId)
       .single();
     if (loadErr || !booking) return Response.json({ error: 'Booking not found' }, { status: 404, headers: cors });
@@ -94,6 +94,7 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
     // Reconcile Stripe's PaymentIntent before applying the no-show outcome.
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
     const pi = booking.stripe_payment_intent_id as string | null;
+    if (!pi && booking.stripe_setup_intent_id) refundPercent = 100;
     let transferId: string | null = null;
     let chargeId: string | null = null;
     let refundedCents: number | null = null;

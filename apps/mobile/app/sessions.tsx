@@ -18,6 +18,7 @@ import { tutorMeta } from '../lib/tutorMeta';
 import { formatSessionTime } from '../lib/formatSessionTime';
 import { useSessionClock } from '../lib/useSessionClock';
 import { JoinVideoButton } from '../lib/JoinVideoButton';
+import { PaymentUpdateBanner } from '../lib/PaymentUpdateBanner';
 
 type SegmentKey = 'upcoming' | 'past' | 'saved';
 
@@ -362,6 +363,7 @@ export default function Sessions() {
                       </View>
                     </View>
                     {online ? <JoinVideoButton bookingId={b.id} /> : null}
+                    <PaymentUpdateBanner booking={b} now={now} onUpdated={onRefresh} />
                     {b.status === 'pending' ? (
                       <>
                         <Text style={[styles.metaText, { color: t.accent, marginTop: 12, fontWeight: '600' }]}>

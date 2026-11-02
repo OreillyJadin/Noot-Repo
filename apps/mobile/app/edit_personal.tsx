@@ -19,6 +19,7 @@ export default function EditPersonal() {
   const [lastName, setLastName] = useState('');
   const [year, setYear] = useState('');
   const [expectedYear, setExpectedYear] = useState('');
+  const [expectedTerm, setExpectedTerm] = useState<'Fall' | 'Spring' | 'Summer' | ''>('');
   const [major, setMajor] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +36,7 @@ export default function EditPersonal() {
           setLastName(me.lastName);
           setYear(academicYearLabel(me.year));
           setExpectedYear(me.expectedGraduationYear?.toString() ?? '');
+          setExpectedTerm(me.expectedGraduationTerm ?? '');
           setMajor(me.major ?? '');
           setEmail(me.email);
         }
@@ -61,6 +63,7 @@ export default function EditPersonal() {
         lastName: lastName.trim(),
         year: year.trim() || null,
         expectedGraduationYear: year === 'Post Grad' || !expectedYear ? null : Number(expectedYear),
+        expectedGraduationTerm: year === 'Post Grad' || !expectedTerm ? null : expectedTerm,
         major: major.trim() || null,
       });
       Alert.alert('Profile updated');
@@ -99,7 +102,7 @@ export default function EditPersonal() {
         </View>
 
         <Select label="Academic status" value={year} options={ACADEMIC_YEAR_OPTIONS} onChange={setYear} />
-        <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} />
+        <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} term={expectedTerm} onTermChange={setExpectedTerm} />
 
         <SubjectField value={major} onChange={setMajor} />
         {error ? <Text style={[styles.error, { color: t.danger }]}>{error}</Text> : null}

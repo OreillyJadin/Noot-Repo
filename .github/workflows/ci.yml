@@ -123,6 +123,7 @@ jobs:
             verify_chat_attachments
             verify_course_catalog
             verify_credits
+            verify_deferred_hold
             verify_definer_lockdown
             verify_age_gate
             verify_age_required_ui

@@ -368,6 +368,7 @@ function mapUser(row: any): User {
     status: row.status,
     year: row.year ?? null,
     expectedGraduationYear: row.expected_graduation_year ?? null,
+    expectedGraduationTerm: row.expected_graduation_term ?? null,
     major: row.major ?? null,
     gender: row.gender ?? null,
     courses: row.courses ?? [],
@@ -466,6 +467,12 @@ function mapBooking(row: any): Booking {
     refundPercent: num(row.refund_percent),
     refundedCents: row.refunded_cents == null ? null : Number(row.refunded_cents),
     stripePaymentIntentId: row.stripe_payment_intent_id ?? null,
+    stripeSetupIntentId: row.stripe_setup_intent_id ?? null,
+    stripePaymentMethodId: row.stripe_payment_method_id ?? null,
+    holdDueAt: row.hold_due_at ?? null,
+    holdPlacedAt: row.hold_placed_at ?? null,
+    holdFailedAt: row.hold_failed_at ?? null,
+    holdFailureCode: row.hold_failure_code ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -745,8 +752,9 @@ export interface ConfirmBookingInput {
   location?: string;
   meetingLink?: string;
   message?: string;
-  /** The held PaymentIntent; omitted for an admin's free booking (create-payment-intent returned none). */
+  /** The confirmed payment, or saved card for a later session; omitted for a free booking. */
   paymentIntentId?: string | null;
+  setupIntentId?: string | null;
 }
 
 /** The booking being paid for. The server derives the amount from these (T5). */
@@ -830,6 +838,7 @@ export const api = {
       lastName?: string;
       year?: string | null;
       expectedGraduationYear?: number | null;
+      expectedGraduationTerm?: User['expectedGraduationTerm'];
       major?: string | null;
       gender?: 'f' | 'm' | null;
     }): Promise<void> {
@@ -846,6 +855,8 @@ export const api = {
         row.expected_graduation_year = year;
       }
       if (patch.year === 'Post Grad') row.expected_graduation_year = null;
+      if (patch.expectedGraduationTerm !== undefined) row.expected_graduation_term = patch.expectedGraduationTerm;
+      if (patch.year === 'Post Grad') row.expected_graduation_term = null;
       if (patch.major !== undefined) row.major = patch.major;
       if (patch.gender !== undefined) row.gender = patch.gender;
       if (Object.keys(row).length === 0) return;
@@ -2144,7 +2155,7 @@ export const api = {
   },
 
   /**
-   * B4 → held (manual-capture) PaymentIntent via `create-payment-intent`. Returns the
+   * B4 → immediate PaymentIntent or deferred SetupIntent via `create-payment-intent`. Returns the
    * params the client PaymentSheet needs, plus the server-computed amount; `simulated` is
    * true when no Stripe key is set (dev/web) so callers can skip presenting the sheet.
    * Capture happens in complete-session. The amount is the server's, never the caller's.
@@ -2157,6 +2168,9 @@ export const api = {
     ephemeralKeySecret: string | null;
     customerId: string | null;
     paymentIntentId: string | null;
+    setupIntentId?: string | null;
+    setupIntentClientSecret?: string | null;
+    deferred?: boolean;
     /** Authoritative session + service fee total, before credit. Show this, don't recompute it. */
     amountCents: number;
     studentFeeCents: number;
@@ -2176,6 +2190,21 @@ export const api = {
   bookings: {
     joinVideo(bookingId: string): Promise<{ url: string }> {
       return invokeFn('join-video-session', { bookingId });
+    },
+
+    createPaymentUpdate(bookingId: string): Promise<{
+      paymentIntentId: string;
+      paymentIntentClientSecret: string | null;
+      customerId?: string;
+      ephemeralKeySecret?: string;
+      amountCents: number;
+      simulated: boolean;
+    }> {
+      return invokeFn('booking-hold', { bookingId, action: 'create' });
+    },
+
+    attachPaymentUpdate(bookingId: string, paymentIntentId: string): Promise<{ ok: true }> {
+      return invokeFn('booking-hold', { bookingId, paymentIntentId, action: 'attach' });
     },
     /** A booking the caller can see under RLS. */
     async get(id: string): Promise<Booking | null> {
@@ -2203,7 +2232,7 @@ export const api = {
       return count ?? 0;
     },
 
-    /** Create a pending booking request with the held PaymentIntent (confirm-booking). */
+    /** Create a pending booking request with a confirmed payment or saved card. */
     confirm(
       input: ConfirmBookingInput,
     ): Promise<{ bookingId: string; price: number; studentFee: number; acceptBy: string; free?: boolean }> {
@@ -2779,26 +2808,30 @@ export const api = {
   // --- notifications (in-app feed; rows created by DB triggers — 0014) ---
   notifications: {
     /** The signed-in user's reminder choices; an absent row uses the one-hour default. */
-    async getReminderSettings(): Promise<{ minutesBefore: number[]; morningOf: boolean }> {
+    async getReminderSettings(): Promise<{ minutesBefore: number[]; morningOf: boolean; dayOfTime: string }> {
       const uid = await requireUid();
       const { data, error } = await getSupabase()
         .from('reminder_preferences')
-        .select('minutes_before, morning_of')
+        .select('minutes_before, morning_of, day_of_time')
         .eq('user_id', uid)
         .maybeSingle();
       if (error) throw error;
       return data
-        ? { minutesBefore: data.minutes_before, morningOf: data.morning_of }
-        : { minutesBefore: [...DEFAULT_REMINDERS], morningOf: true };
+        ? { minutesBefore: data.minutes_before, morningOf: data.morning_of, dayOfTime: data.day_of_time.slice(0, 5) }
+        : { minutesBefore: [...DEFAULT_REMINDERS], morningOf: true, dayOfTime: '07:00' };
     },
 
     /** Save up to four valid reminder offsets and the morning reminder toggle. */
-    async setReminderSettings(settings: { minutesBefore: number[]; morningOf: boolean }): Promise<void> {
+    async setReminderSettings(settings: { minutesBefore: number[]; morningOf: boolean; dayOfTime?: string }): Promise<void> {
+      if (settings.dayOfTime !== undefined && !/^(0[6-9]|1[01]):(00|30)$|^12:00$/.test(settings.dayOfTime)) {
+        throw new Error('Choose a valid day-of reminder time.');
+      }
       const minutesBefore = [...new Set(settings.minutesBefore)];
       if (minutesBefore.length > 4) throw new Error('Up to 4 reminders.');
       if (minutesBefore.some((m) => !(REMINDER_CHOICES as readonly number[]).includes(m))) {
         throw new Error('Choose a valid reminder time.');
       }
+      const dayOfTime = settings.dayOfTime ?? (await api.notifications.getReminderSettings()).dayOfTime;
       const uid = await requireUid();
       const { error } = await getSupabase()
         .from('reminder_preferences')
@@ -2806,6 +2839,7 @@ export const api = {
           user_id: uid,
           minutes_before: minutesBefore.sort((a, b) => b - a),
           morning_of: settings.morningOf,
+          day_of_time: dayOfTime,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
       if (error) throw error;

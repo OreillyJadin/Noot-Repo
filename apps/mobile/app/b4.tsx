@@ -17,6 +17,7 @@ import { NoSession } from '../lib/NoSession';
 import { applePayCartItems } from '../lib/applePaySummary';
 import { DateOfBirthPicker } from '../lib/DateOfBirthPicker';
 import { isValidDob } from '../lib/age';
+import { isDeferredCheckout } from '../lib/paymentTiming';
 
 const SHORT_NOTICE_MS = 3 * 60 * 60 * 1000;
 
@@ -63,6 +64,8 @@ function B4Inner() {
   }, []);
   const quote = bookingQuote({ hourlyRate: rate, durationMinutes: lengthMin, creditBalanceCents: balanceCents, adminFree: isAdmin });
   const { feeCents, creditCents, free } = quote;
+  const [serverDeferred, setServerDeferred] = useState<boolean | null>(null);
+  const deferred = !free && (serverDeferred ?? isDeferredCheckout(previewScheduledAt));
   const cost = dollars(quote.priceCents);
   const due = dollars(quote.dueCents);
 
@@ -100,10 +103,7 @@ function B4Inner() {
 
   const computeScheduledAt = (): string => campusSlotISO(campusDay, slot);
 
-  // Create a held (manual-capture) PaymentIntent, collect payment via Stripe's native
-  // PaymentSheet (authorizes the hold), then create the booking through @noot/core and
-  // stash its id for B5. When the backend has no Stripe key (dev/web) it returns a
-  // simulated intent and we skip the sheet. Errors surface via Alert and reset to idle.
+  // The server chooses immediate payment or card setup; both finish through PaymentSheet.
   const pay = async () => {
     if (status === 'processing') return;
     if (!booking.tutor) { setTimeout(() => router.push('/b5'), 600); return; }
@@ -118,6 +118,7 @@ function B4Inner() {
         durationMinutes: lengthMin,
         scheduledAt,
       });
+      setServerDeferred(!!pi.deferred);
 
       // The screen said $0 (admin role) but the server priced it: the admin session isn't
       // MFA-verified, so is_admin() is false there. Never open a card sheet under a "$0" screen.
@@ -139,7 +140,9 @@ function B4Inner() {
         }
         const { error: initErr } = await initPaymentSheet({
           merchantDisplayName: 'Noot',
-          paymentIntentClientSecret: pi.paymentIntentClientSecret ?? '',
+          ...(pi.deferred
+            ? { setupIntentClientSecret: pi.setupIntentClientSecret! }
+            : { paymentIntentClientSecret: pi.paymentIntentClientSecret! }),
           customerId: pi.customerId ?? undefined,
           customerEphemeralKeySecret: pi.ephemeralKeySecret ?? undefined,
           applePay: {
@@ -153,7 +156,7 @@ function B4Inner() {
             }),
           },
           // testEnv must be false in a release build or Google Pay stays in test mode.
-          googlePay: { merchantCountryCode: 'US', testEnv: __DEV__ },
+          googlePay: { merchantCountryCode: 'US', currencyCode: 'USD', testEnv: __DEV__, ...(pi.deferred ? { amount: (pi.chargeCents / 100).toFixed(2) } : {}) },
           returnURL: 'noot://stripe-redirect',
         });
         if (initErr) throw new Error(initErr.message);
@@ -178,6 +181,7 @@ function B4Inner() {
         meetingLink: undefined,
         message: booking.message,
         paymentIntentId: pi.paymentIntentId ?? undefined,
+        setupIntentId: pi.setupIntentId ?? undefined,
       });
       patchBooking({ bookingId, acceptBy, scheduledAt });
       router.push('/b5');
@@ -238,7 +242,7 @@ function B4Inner() {
 
   return (
     <Screen>
-      <NavTop onBack={() => router.back()} title={free ? 'Confirm booking' : 'Confirm & pay'} />
+      <NavTop onBack={() => router.back()} title={free || deferred ? 'Confirm booking' : 'Confirm & pay'} />
       <Body pad={20}>
         <Card raised style={{ padding: 16 }}>
           <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>Session summary</Eyebrow>
@@ -312,7 +316,9 @@ function B4Inner() {
                 <Ic name="lock" size={18} color={t.good} strokeWidth={1.8} />
               </View>
               <Text style={{ flex: 1, fontSize: 13, color: t.text2, lineHeight: 19 }}>
-                Payment held securely and released to your tutor after your session is complete.
+                {deferred
+                  ? "You won't be charged now. We'll save your card and confirm it 2 days before the session. Payment goes to your tutor after the session is complete."
+                  : 'Your card is confirmed securely now. Payment goes to your tutor after your session is complete.'}
               </Text>
             </View>
           </>
@@ -346,7 +352,7 @@ function B4Inner() {
       </Body>
 
       <ActionBar>
-        <Button label={free ? 'Confirm booking' : `Confirm & pay $${due}`} full onPress={pay} disabled={status === 'processing'} />
+        <Button label={free ? 'Confirm booking' : deferred ? 'Save card & request session' : `Confirm & pay $${due}`} full onPress={pay} disabled={status === 'processing'} />
       </ActionBar>
 
       <Modal
@@ -399,7 +405,7 @@ function B4Inner() {
         <View style={[styles.processingOverlay, { backgroundColor: t.bg }]}>
           <ActivityIndicator size="large" color={t.accent} />
           <View style={{ alignItems: 'center' }}>
-            <Text style={{ fontSize: 17, fontWeight: '600', color: t.text }}>{free ? 'Booking your session…' : 'Processing payment…'}</Text>
+            <Text style={{ fontSize: 17, fontWeight: '600', color: t.text }}>{free ? 'Booking your session…' : deferred ? 'Saving your card…' : 'Processing payment…'}</Text>
             <Text style={{ fontSize: 13, color: t.text3, marginTop: 4 }}>Please don&apos;t close this screen.</Text>
           </View>
         </View>
