@@ -70,10 +70,17 @@ function B2Inner() {
               {tutor.sessions} sessions completed
             </Text>
             {tutor.verified ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <Ic name="check" size={14} color={t.good} strokeWidth={2.6} />
-                <Text style={{ fontSize: 14, fontWeight: '600', color: t.good }}>Verified</Text>
-              </View>
+              <Pressable
+                onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel="Verified tutor. Tap for what this means."
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ic name="check" size={14} color={t.good} strokeWidth={2.6} />
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: t.good }}>Verified</Text>
+                </View>
+              </Pressable>
             ) : null}
           </View>
         </View>

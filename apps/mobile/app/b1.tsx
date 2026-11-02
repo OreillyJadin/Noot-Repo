@@ -8,7 +8,7 @@
 // adjusting a filter appeared to do nothing at all — that was the "filters don't update the
 // results" report, not a broken filter predicate.
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, Body, Chip, Avatar, Button, H2, Label, Ic, ListSection, useTheme } from '@noot/ui';
@@ -16,6 +16,7 @@ import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { nextFromWindows } from '../lib/availability';
+import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 import { courseForQuery, searchTutors } from '../lib/browse';
 
 type SortKey = 'best' | 'sessions' | 'price' | 'soon';
@@ -266,7 +267,16 @@ export default function B1() {
                       <View style={styles.rowBetween}>
                         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                           <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '700', color: t.text }}>{tt.name}</Text>
-                          {tt.verified ? <Ic name="check" size={15} color={t.good} strokeWidth={2.6} /> : null}
+                          {tt.verified ? (
+                            <Pressable
+                              onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
+                              hitSlop={6}
+                              accessibilityRole="button"
+                              accessibilityLabel="Verified tutor. Tap for what this means."
+                            >
+                              <Ic name="check" size={15} color={t.good} strokeWidth={2.6} />
+                            </Pressable>
+                          ) : null}
                         </View>
                         <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>
                           ${tt.rate}<Text style={{ fontSize: 11, color: t.text3, fontWeight: '500' }}>/hr</Text>
@@ -445,7 +455,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   tutorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   nextRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   empty: { alignItems: 'center', padding: 40 },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
