@@ -113,28 +113,24 @@ export default function TB2() {
               icon="cap"
               title="Course"
               trailing={<Text numberOfLines={2} style={[styles.factValue, { color: t.text }]}>{f.course}</Text>}
-              accessibilityLabel={`Course: ${f.course}`}
               chevron={false}
             />
             <ListRow
               icon="cal"
               title="Date"
               trailing={<Text numberOfLines={2} style={[styles.factValue, { color: t.text }]}>{f.day}</Text>}
-              accessibilityLabel={`Date: ${f.day}`}
               chevron={false}
             />
             <ListRow
               icon="clock"
               title="Time"
               trailing={<Text numberOfLines={2} style={[styles.factValue, { color: t.text }]}>{f.time} · {f.lenLabel}</Text>}
-              accessibilityLabel={`Time: ${f.time} · ${f.lenLabel}`}
               chevron={false}
             />
             <ListRow
               icon={f.online ? 'video' : 'pin'}
               title={f.online ? 'Virtual' : 'In person'}
               trailing={<Text numberOfLines={2} style={[styles.factValue, { color: t.text }]}>{f.online ? 'Integrated video' : f.location || 'Location not set'}</Text>}
-              accessibilityLabel={`${f.online ? 'Virtual' : 'In person'}: ${f.online ? 'Integrated video' : f.location || 'Location not set'}`}
               chevron={false}
             />
           </ListSection>

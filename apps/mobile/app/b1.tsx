@@ -250,13 +250,13 @@ export default function B1() {
             <ListSection>
               {list.map((tt) => {
                 const courseCode = courseForQuery(tt, trimmed);
-                const meta = [courseCode, tt.year, `${tt.sessions} sessions`].filter(Boolean).join(' · ');
+                const meta = [courseCode, tt.year, tt.major, `${tt.sessions} sessions`].filter(Boolean).join(' · ');
                 return (
                   <Pressable
                     key={tt.id}
                     onPress={() => open(tt)}
                     accessibilityRole="button"
-                    accessibilityLabel={`${tt.name}, $${tt.rate} per hour`}
+                    accessibilityLabel={[`${tt.name}`, tt.verified ? 'verified' : null, `$${tt.rate} per hour`, meta, `next available ${tt.availLabel}`].filter(Boolean).join(', ')}
                     style={({ pressed }) => [
                       styles.tutorRow,
                       { backgroundColor: pressed ? t.surface2 : 'transparent' },
@@ -265,8 +265,8 @@ export default function B1() {
                     <Avatar size={56} uri={tt.avatarUrl} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <View style={styles.rowBetween}>
-                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                          <Text numberOfLines={1} style={{ fontSize: 16, fontWeight: '700', color: t.text }}>{tt.name}</Text>
+                        <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                          <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 16, fontWeight: '700', color: t.text }}>{tt.name}</Text>
                           {tt.verified ? (
                             <Pressable
                               onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
@@ -282,7 +282,7 @@ export default function B1() {
                           ${tt.rate}<Text style={{ fontSize: 11, color: t.text3, fontWeight: '500' }}>/hr</Text>
                         </Text>
                       </View>
-                      <Text style={{ fontSize: 13, color: t.text3, marginTop: 2 }}>
+                      <Text numberOfLines={2} style={{ fontSize: 13, color: t.text3, marginTop: 2 }}>
                         {meta}
                       </Text>
                       <View style={[styles.nextRow, { marginTop: 6 }]}>

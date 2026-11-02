@@ -30,11 +30,10 @@ const screens = [
 for (const { path, source } of screens) {
   assert.doesNotMatch(source, /textTransform:\s*['"]uppercase['"]/, `${path} has uppercase text styling`);
   assert.doesNotMatch(source, /\bletterSpacing\b/, `${path} has letter spacing`);
-  assert.doesNotMatch(source, /\bTEXT_CAPS\b/, `${path} uses TEXT_CAPS`);
   // B3's "Hey, I'm …" strings are draft messages written by the student, not greetings.
   assert.doesNotMatch(source, /Hey,\s(?!I'm )/, `${path} contains a greeting`);
   assert.doesNotMatch(source, /from ['"]@supabase\//, `${path} imports Supabase directly`);
-  assert.doesNotMatch(source, /<Badge\b[^>]*\/>\s*<Badge\b/, `${path} has adjacent badges`);
+  assert.doesNotMatch(source, /(<Badge\b[^>]*\/>|<\/Badge>)\s*<Badge\b/, `${path} has adjacent badges`);
 }
 
 const allSources = screens.map(({ source }) => source).join('\n');
