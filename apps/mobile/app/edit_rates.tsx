@@ -127,7 +127,7 @@ export default function EditRates() {
           {rates.map((r, i) => (
             <View key={r.code} style={styles.courseRow}>
               <View style={[styles.row, largeText && styles.rowStacked]}>
-                <View style={{ flex: 1, minWidth: 0 }}>
+                <View style={{ flex: largeText ? undefined : 1, minWidth: 0 }}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{r.code}</Text>
                   <Text style={{ fontSize: 12.5, color: t.text3 }}>
                     {r.currentlyTaking ? 'Currently taking' : r.grade ? `Grade ${r.grade}${gradesVerified ? ' · verified' : ''}` : 'No grade'}
