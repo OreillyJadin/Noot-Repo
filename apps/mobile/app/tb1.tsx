@@ -6,7 +6,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, Avatar, Divider, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { Screen, Body, ActionBar, Button, Card, Avatar, Divider, H1, Sub, Ic, StatusDot, useTheme } from '@noot/ui';
 import { feeRateFor } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { useApp, type BookingDraft } from '../lib/store';
@@ -71,17 +71,14 @@ export default function TB1() {
         </View>
 
         {/* quick recap */}
-        <Card style={{ marginTop: 26, padding: 16 }}>
+        <Card raised style={{ marginTop: 26, padding: 16 }}>
           <View style={styles.row}>
             <Avatar size={44} label={student.first[0]} />
             <View style={{ flex: 1 }}>
               <Text style={[styles.name, { color: t.text }]}>{student.name}</Text>
               {studentMeta ? <Text style={[styles.meta, { color: t.text3 }]}>{studentMeta}</Text> : null}
             </View>
-            <View style={[styles.confirmedPill, { backgroundColor: t.goodWeak }]}>
-              <Ic name="check" size={11} color={t.good} strokeWidth={3} />
-              <Text style={[styles.confirmedLabel, { color: t.good }]}>Confirmed</Text>
-            </View>
+            <StatusDot label="Confirmed" color={t.good} />
           </View>
           <Divider style={{ marginVertical: 14 }} />
           <View style={styles.row}>
@@ -122,6 +119,4 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   name: { fontSize: 16, fontWeight: '600' },
   meta: { fontSize: 13 },
-  confirmedPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
-  confirmedLabel: { fontSize: 11, fontWeight: '700' },
 });
