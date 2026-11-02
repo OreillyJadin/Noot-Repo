@@ -71,16 +71,16 @@ export function TabBar({ active, onTab, role = 'student' }: TabBarProps) {
             accessibilityHint={on ? 'Scroll to top and reset this page' : `Go to ${tab.label}`}
           >
             {tab.icon === 'home' ? (
-              <GeckoMark size={23} style={{ opacity: on ? 1 : 0.5 }} />
+              <GeckoMark size={44} style={{ margin: -10, opacity: on ? 1 : 0.55 }} />
             ) : (
-              <Ic name={tab.icon} size={23} color={color} strokeWidth={on ? 2.1 : 1.7} />
+              <Ic name={tab.icon} size={24} color={color} strokeWidth={on ? 2.1 : 1.7} />
             )}
             <Text
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.75}
               maxFontSizeMultiplier={TEXT_CAPS.tabLabel}
-              style={[styles.label, { color, fontWeight: on ? '700' : '500' }]}
+              style={[styles.label, { color, fontWeight: on ? '600' : '500' }]}
             >
               {tab.label}
             </Text>

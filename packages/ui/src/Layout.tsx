@@ -1,7 +1,7 @@
 // Layout primitives — ported from app/kit.jsx (Screen/NavTop/Body/ActionBar).
 // The prototype used fixed TOP_INSET/BOT_INSET; here we use real safe-area insets.
 import React from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, useWindowDimensions, type ViewStyle } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, StatusBar, StyleSheet, useWindowDimensions, type ViewStyle } from 'react-native';
 import { KeyboardAwareScrollView, type KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from './ThemeProvider';
@@ -50,10 +50,52 @@ export function NavTop({ title, onBack, trailing }: NavTopProps) {
   );
 }
 
+export interface BandHeaderProps {
+  title: string;
+  /** Small line above the title, e.g. the date. */
+  subtitle?: string;
+  /** Right side of the title row (bell, avatar…). */
+  trailing?: React.ReactNode;
+  /** Content inside the band under the title (search field, identity block). */
+  children?: React.ReactNode;
+  /** Extra band height at the bottom so the first body element can overlap it with a negative marginTop. */
+  overlap?: number;
+}
+
+export function BandHeader({ title, subtitle, trailing, children, overlap }: BandHeaderProps) {
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const large = useLargeText();
+  return (
+    <View style={[styles.bandHeader, { backgroundColor: t.band, paddingTop: insets.top + 8, paddingBottom: 18 + (overlap ?? 0) }]}>
+      <View pointerEvents="none" style={[styles.bandOverscroll, { backgroundColor: t.band }]} />
+      <StatusBar barStyle="light-content" />
+      <View style={[styles.bandTitleRow, large && styles.bandTitleRowLarge]}>
+        <View style={styles.bandTitleText}>
+          {subtitle ? <Text style={[styles.bandSubtitle, { color: t.onBand }]}>{subtitle}</Text> : null}
+          <Text
+            accessibilityRole="header"
+            maxFontSizeMultiplier={TEXT_CAPS.screenTitle}
+            style={[styles.bandTitle, { color: t.onBand }, large && styles.bandTitleAutoLine]}
+          >
+            {title}
+          </Text>
+        </View>
+        {trailing}
+      </View>
+      {children ? <View style={styles.bandChildren}>{children}</View> : null}
+    </View>
+  );
+}
+
 export interface BodyProps {
   children: React.ReactNode;
   pad?: number;
   contentStyle?: ViewStyle;
+  /** Full-bleed element at the top of the scroll content (e.g. <BandHeader/>), outside the padding. */
+  header?: React.ReactNode;
+  /** RefreshControl spinner colour; defaults to t.accent. Pass t.onBand when `header` is a BandHeader. */
+  refreshTint?: string;
   /** Enables pull-to-refresh. The spinner shows until the returned promise settles. */
   onRefresh?: () => Promise<unknown> | void;
 }
@@ -63,10 +105,11 @@ export interface BodyProps {
 // KeyboardAwareScrollView keeps the focused field, and the caret of a growing multiline
 // field, above the keyboard on iOS and Android.
 export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
-  { children, pad = 20, contentStyle, onRefresh },
+  { children, pad = 20, contentStyle, header, refreshTint, onRefresh },
   ref,
 ) {
   const t = useTheme();
+  const tint = refreshTint ?? t.accent;
   const [refreshing, setRefreshing] = React.useState(false);
   const pull = React.useCallback(async () => {
     if (!onRefresh) return;
@@ -82,7 +125,7 @@ export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
       ref={ref as React.Ref<KeyboardAwareScrollViewRef>}
       refreshControl={
         onRefresh ? (
-          <RefreshControl refreshing={refreshing} onRefresh={pull} tintColor={t.accent} colors={[t.accent]} />
+          <RefreshControl refreshing={refreshing} onRefresh={pull} tintColor={tint} colors={[tint]} />
         ) : undefined
       }
       style={styles.bodyScroll}
@@ -94,6 +137,7 @@ export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
       keyboardDismissMode="on-drag"
       bottomOffset={24}
     >
+      {header ? <View style={{ marginHorizontal: -pad, marginTop: -4 }}>{header}</View> : null}
       {children}
     </KeyboardAwareScrollView>
   );
@@ -153,5 +197,14 @@ const styles = StyleSheet.create({
   adaptiveRow: { flexDirection: 'row' },
   adaptiveStacked: { flexDirection: 'column', alignItems: 'stretch' },
   adaptiveCell: { flexDirection: 'row' },
+  bandHeader: { position: 'relative', paddingHorizontal: 20 },
+  bandOverscroll: { position: 'absolute', left: 0, right: 0, top: -1000, height: 1000 },
+  bandTitleRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
+  bandTitleRowLarge: { flexDirection: 'column', alignItems: 'stretch' },
+  bandTitleText: { flex: 1, minWidth: 0 },
+  bandTitle: { fontSize: 34, lineHeight: 41, fontWeight: '700', letterSpacing: -0.6 },
+  bandTitleAutoLine: { lineHeight: undefined },
+  bandSubtitle: { fontSize: 13, fontWeight: '500', marginBottom: 2 },
+  bandChildren: { marginTop: 12 },
   actionBar: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, flexDirection: 'row', gap: 10, alignItems: 'center' },
 });

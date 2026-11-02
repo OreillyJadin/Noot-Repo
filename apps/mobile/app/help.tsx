@@ -39,7 +39,7 @@ export default function Help() {
           <Ic name="chevR" size={17} color={t.text3} strokeWidth={2} />
         </Card>
 
-        <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>FAQ</Eyebrow>
+        <Eyebrow style={{ marginTop: 22, marginBottom: 10, color: t.text3 }}>Frequently asked questions</Eyebrow>
         <View style={{ gap: 10 }}>
           {FAQ.map(([q, a], i) => {
             const isOpen = open === i;

@@ -22,7 +22,7 @@ export function H2({ children, style }: TypoProps) {
 }
 export function Eyebrow({ children, style }: TypoProps) {
   const t = useTheme();
-  return <Text style={[styles.eyebrow, { color: t.accent }, style]}>{children}</Text>;
+  return <Text style={[styles.eyebrow, { color: t.text2 }, style]}>{children}</Text>;
 }
 export function Sub({ children, style }: TypoProps) {
   const t = useTheme();
@@ -39,9 +39,9 @@ export function Label({ children, style }: TypoProps) {
 
 const styles = StyleSheet.create({
   autoLine: { lineHeight: undefined },
-  h1: { fontSize: 28, lineHeight: 31, fontWeight: '700', letterSpacing: -0.3 },
-  h2: { fontSize: 20, lineHeight: 24, fontWeight: '700', letterSpacing: -0.2 },
-  eyebrow: { fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
+  h1: { fontSize: 32, lineHeight: 38, fontWeight: '700', letterSpacing: -0.5 },
+  h2: { fontSize: 20, lineHeight: 25, fontWeight: '600', letterSpacing: -0.2 },
+  eyebrow: { fontSize: 13, fontWeight: '600' },
   sub: { fontSize: 15, lineHeight: 22 },
   label: { fontSize: 12, fontWeight: '600', marginBottom: 6 },
 });
