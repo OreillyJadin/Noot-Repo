@@ -22,6 +22,7 @@ assert.match(layout, /barStyle="light-content"/);
 assert.match(layout, /t\.band/);
 assert.match(layout, /header\?: React\.ReactNode/);
 assert.match(layout, /refreshTint\?: string/);
+assert.match(layout, /header \? \(\s*<View\s+pointerEvents="none"[\s\S]*?height: insets\.top, backgroundColor: t\.band/);
 console.log('✅ Layout exports BandHeader and Body header/refreshTint slots');
 
 const tabBar = read('packages/ui/src/TabBar.tsx');

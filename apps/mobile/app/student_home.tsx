@@ -263,7 +263,7 @@ export default function StudentHome() {
                       key={tutor.id}
                       onPress={() => openTutor(tutor, course)}
                       accessibilityRole="button"
-                      accessibilityLabel={course ? `Find ${tutor.name} for ${course}` : `Find ${tutor.name}`}
+                      accessibilityLabel={`${course ? `Find ${tutor.name} for ${course}` : `Find ${tutor.name}`}${tutor.verified ? ', verified tutor' : ''}`}
                       style={styles.miniItem}
                     >
                       <Avatar size={60} uri={tutor.avatarUrl} />
