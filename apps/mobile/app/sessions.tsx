@@ -13,7 +13,8 @@ import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { draftFromBooking } from '../lib/bookingDraft';
 import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
-import { VerifiedBadge } from '../lib/VerifiedBadge';
+import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
+import { tutorMeta } from '../lib/tutorMeta';
 import { formatSessionTime } from '../lib/formatSessionTime';
 import { useSessionClock } from '../lib/useSessionClock';
 
@@ -257,41 +258,53 @@ export default function Sessions() {
                 {saved.length} tutor{saved.length === 1 ? '' : 's'} saved for later
               </Text>
               <ListSection label="Saved tutors">
-                {saved.map((tutor) => (
-                  <View key={tutor.id} style={styles.savedRow}>
-                    <Pressable
-                      onPress={() => openTutor(tutor)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`${tutor.name}, ${tutor.year} ${tutor.major}, $${tutor.rate} per hour`}
-                      style={({ pressed }) => [styles.savedContent, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
-                    >
-                      <Avatar size={46} uri={tutor.avatarUrl} />
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <View style={styles.rowHead}>
-                          <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
-                          <Text style={[styles.rate, { color: t.text }]}>
-                            ${tutor.rate}
-                            <Text style={[styles.rateUnit, { color: t.text3 }]}>/hr</Text>
-                          </Text>
+                {saved.map((tutor) => {
+                  const meta = tutorMeta(tutor);
+                  const nameDetails = [tutor.year, tutor.major].filter(Boolean).join(' · ');
+                  return (
+                    <View key={tutor.id} style={styles.savedRow}>
+                      <Pressable
+                        onPress={() => openTutor(tutor)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${tutor.name}${nameDetails ? `, ${nameDetails}` : ''}, $${tutor.rate} per hour${tutor.verified ? ', verified tutor' : ''}`}
+                        style={({ pressed }) => [styles.savedContent, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
+                      >
+                        <Avatar size={46} uri={tutor.avatarUrl} />
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <View style={styles.rowHead}>
+                            <View style={styles.nameWithCheck}>
+                              <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
+                              {tutor.verified ? (
+                                <Pressable
+                                  onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
+                                  hitSlop={6}
+                                  accessibilityRole="button"
+                                  accessibilityLabel="Verified tutor. Tap for what this means."
+                                >
+                                  <Ic name="check" size={14} color={t.good} strokeWidth={2.6} />
+                                </Pressable>
+                              ) : null}
+                            </View>
+                            <Text style={[styles.rate, { color: t.text }]}>
+                              ${tutor.rate}
+                              <Text style={[styles.rateUnit, { color: t.text3 }]}>/hr</Text>
+                            </Text>
+                          </View>
+                          <Text style={[styles.sub, { color: t.text2 }]}>{meta.line}</Text>
                         </View>
-                        <Text style={[styles.sub, { color: t.text3 }]}>{tutor.year} · {tutor.major}</Text>
-                        <View style={styles.tagsRow}>
-                          <VerifiedBadge verified={tutor.verified} />
-                          <Text style={[styles.sessions, { color: t.text3 }]}>{tutor.sessions} sessions</Text>
-                        </View>
-                      </View>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => unsaveTutor(tutor.id)}
-                      hitSlop={10}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Remove ${tutor.name} from saved tutors`}
-                      style={styles.removeSaved}
-                    >
-                      <Ic name="bookmark" size={19} color={t.accent} strokeWidth={1.6} fill={t.accent} />
-                    </Pressable>
-                  </View>
-                ))}
+                      </Pressable>
+                      <Pressable
+                        onPress={() => unsaveTutor(tutor.id)}
+                        hitSlop={10}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${tutor.name} from saved tutors`}
+                        style={styles.removeSaved}
+                      >
+                        <Ic name="bookmark" size={19} color={t.accent} strokeWidth={1.6} fill={t.accent} />
+                      </Pressable>
+                    </View>
+                  );
+                })}
               </ListSection>
             </>
           )
@@ -482,11 +495,10 @@ const styles = StyleSheet.create({
   pastHead: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   pastBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   rowHead: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, justifyContent: 'space-between', alignItems: 'baseline' },
+  nameWithCheck: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
   name: { fontSize: 16, fontWeight: '600' },
   nameSm: { fontSize: 15, fontWeight: '600' },
   rate: { fontSize: 15, fontWeight: '700' },
   rateUnit: { fontSize: 11, fontWeight: '500' },
   sub: { fontSize: 13, marginTop: 1 },
-  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 8 },
-  sessions: { marginLeft: 'auto', fontSize: 12 },
 });

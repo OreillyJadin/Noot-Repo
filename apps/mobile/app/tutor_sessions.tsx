@@ -246,7 +246,7 @@ export default function TutorSessions() {
                     </View>
                   </Pressable>
                   {r.status === 'pending' ? (
-                    <AdaptiveRow style={{ gap: 8, marginTop: 12 }}>
+                    <AdaptiveRow style={styles.requestActions}>
                       <Button
                         label={busyId === r.id ? 'Accepting…' : 'Accept'}
                         kind="primary"
@@ -361,6 +361,7 @@ const styles = StyleSheet.create({
 
   sessionRow: { paddingVertical: 4 },
   sessionContent: { paddingHorizontal: 14, paddingVertical: 10 },
+  requestActions: { gap: 8, marginTop: 10, marginHorizontal: 14, paddingBottom: 14 },
   upcomingRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   name: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
   pay: { fontSize: 15, fontWeight: '700' },

@@ -3,9 +3,9 @@
 // left off". This is a tab root (Home tab). The next session + weekly numbers are
 // real data via @noot/core.
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
+import { Alert, View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Body, BandHeader, TabBar, Card, Badge, Avatar, Ic, ViewingAs, useTheme, useLargeText, AdaptiveRow, ListSection } from '@noot/ui';
+import { Body, BandHeader, TabBar, Card, Avatar, Ic, ViewingAs, useTheme, useLargeText, AdaptiveRow, ListSection } from '@noot/ui';
 import { formatCampusDate, formatCampusSession, api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -14,7 +14,8 @@ import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { AdminShortcut } from '../lib/AdminShortcut';
 import { NotificationBell } from '../lib/NotificationBell';
-import { VerifiedBadge } from '../lib/VerifiedBadge';
+import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
+import { tutorMeta } from '../lib/tutorMeta';
 import { nudgeCourse } from '../lib/browse';
 import { countdownLabel } from '../lib/countdownLabel';
 import { useSessionClock } from '../lib/useSessionClock';
@@ -25,48 +26,48 @@ function formatWhen(iso: string): string {
 }
 
 function TutorRow({
-  name,
-  meta,
+  tutor,
   course,
-  rate,
-  sessions,
-  verified,
-  avatarUrl,
   onPress,
 }: {
-  name: string;
-  meta: string;
+  tutor: Tutor;
   course: string;
-  rate: string;
-  sessions: number;
-  verified: boolean;
-  avatarUrl: string | null;
   onPress: () => void;
 }) {
   const t = useTheme();
   const large = useLargeText();
+  const meta = tutorMeta(tutor, course);
+  const nameDetails = [tutor.year, tutor.major].filter(Boolean).join(' · ');
+  const sessionsLabel = `${tutor.sessions} ${tutor.sessions === 1 ? 'session' : 'sessions'}`;
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${name}${course ? `, ${course}` : ''}, ${meta}, ${sessions} sessions${verified ? ', verified tutor' : ''}. ${rate} per hour`}
+      accessibilityLabel={`${tutor.name}${meta.course ? `, ${meta.course}` : ''}${nameDetails ? `, ${nameDetails}` : ''}, ${sessionsLabel}${tutor.verified ? ', verified tutor' : ''}. $${tutor.rate} per hour`}
       style={({ pressed }) => [styles.tutorRow, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
     >
-      {large ? null : <Avatar size={46} uri={avatarUrl} />}
+      {large ? null : <Avatar size={46} uri={tutor.avatarUrl} />}
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={styles.rowBetween}>
-          <Text style={[styles.tutorName, { color: t.text }]}>{name}</Text>
+          <View style={styles.tutorNameRow}>
+            <Text style={[styles.tutorName, { color: t.text }]}>{tutor.name}</Text>
+            {tutor.verified ? (
+              <Pressable
+                onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel="Verified tutor. Tap for what this means."
+              >
+                <Ic name="check" size={14} color={t.good} strokeWidth={2.6} />
+              </Pressable>
+            ) : null}
+          </View>
           <Text style={[styles.tutorRate, { color: t.text }]}>
-            {rate}
+            ${tutor.rate}
             <Text style={{ fontSize: 11, color: t.text3, fontWeight: '500' }}>/hr</Text>
           </Text>
         </View>
-        <Text style={[styles.tutorMeta, { color: t.text3 }]}>{meta}</Text>
-        <View style={styles.tutorBadges}>
-          {course ? <Badge label={course} tone="accentSoft" /> : null}
-          <VerifiedBadge verified={verified} />
-          <Text style={[styles.tutorSessions, { color: t.text3 }]}>{sessions} sessions</Text>
-        </View>
+        <Text style={[styles.tutorMeta, { color: t.text2 }]}>{meta.line}</Text>
       </View>
     </Pressable>
   );
@@ -284,13 +285,8 @@ export default function Home() {
               <TutorRow
                 key={tt.id}
                 onPress={() => openTutor(tt, course)}
-                name={tt.name}
-                meta={`${tt.year} · ${tt.major}`}
+                tutor={tt}
                 course={course}
-                rate={`$${tt.rate}`}
-                sessions={tt.sessions}
-                verified={tt.verified}
-                avatarUrl={tt.avatarUrl}
               />
             );
           })}
@@ -338,9 +334,8 @@ const styles = StyleSheet.create({
 
   emptyTutors: { fontSize: 13, paddingHorizontal: 14, paddingVertical: 12 },
   tutorRow: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
+  tutorNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
   tutorName: { fontSize: 16, fontWeight: '600' },
   tutorRate: { fontSize: 15, fontWeight: '700' },
   tutorMeta: { fontSize: 13, marginTop: 2 },
-  tutorBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 8 },
-  tutorSessions: { fontSize: 12, marginLeft: 'auto' },
 });

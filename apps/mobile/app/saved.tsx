@@ -3,15 +3,16 @@
 // "Saved" segment (see sessions.tsx), but the standalone route is kept per the nav map.
 // Tapping a tutor stashes it on the in-progress booking draft and opens their profile (B2).
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
+import { Alert, View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, Body, BandHeader, Avatar, Badge, Ic, TabBar, EmptyState, ListSection, useTheme } from '@noot/ui';
+import { Screen, Body, BandHeader, Avatar, Ic, TabBar, EmptyState, ListSection, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
-import { VerifiedBadge } from '../lib/VerifiedBadge';
+import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
+import { tutorMeta } from '../lib/tutorMeta';
 
 export default function Saved() {
   const { reloadKey, onRefresh } = usePullToRefresh();
@@ -52,35 +53,44 @@ export default function Saved() {
         </Text>
         {!loading && tutors.length > 0 ? (
           <ListSection label="Saved tutors">
-            {tutors.map((tutor) => (
-              <Pressable
-                key={tutor.id}
-                onPress={() => open(tutor)}
-                accessibilityRole="button"
-                accessibilityLabel={`${tutor.name}, ${tutor.year} ${tutor.major}, $${tutor.rate} per hour`}
-                style={({ pressed }) => [styles.row, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
-              >
-                <Avatar size={48} uri={tutor.avatarUrl} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <View style={styles.rowHead}>
-                    <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
-                    <Text style={[styles.rate, { color: t.text }]}>
-                      ${tutor.rate}
-                      <Text style={[styles.rateUnit, { color: t.text3 }]}>/hr</Text>
-                    </Text>
+            {tutors.map((tutor) => {
+              const meta = tutorMeta(tutor);
+              const nameDetails = [tutor.year, tutor.major].filter(Boolean).join(' · ');
+              return (
+                <Pressable
+                  key={tutor.id}
+                  onPress={() => open(tutor)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${tutor.name}${nameDetails ? `, ${nameDetails}` : ''}, $${tutor.rate} per hour${tutor.verified ? ', verified tutor' : ''}`}
+                  style={({ pressed }) => [styles.row, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
+                >
+                  <Avatar size={48} uri={tutor.avatarUrl} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={styles.rowHead}>
+                      <View style={styles.nameWithCheck}>
+                        <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
+                        {tutor.verified ? (
+                          <Pressable
+                            onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
+                            hitSlop={6}
+                            accessibilityRole="button"
+                            accessibilityLabel="Verified tutor. Tap for what this means."
+                          >
+                            <Ic name="check" size={14} color={t.good} strokeWidth={2.6} />
+                          </Pressable>
+                        ) : null}
+                      </View>
+                      <Text style={[styles.rate, { color: t.text }]}>
+                        ${tutor.rate}
+                        <Text style={[styles.rateUnit, { color: t.text3 }]}>/hr</Text>
+                      </Text>
+                    </View>
+                    <Text style={[styles.sub, { color: t.text2 }]}>{meta.line}</Text>
                   </View>
-                  <Text style={[styles.sub, { color: t.text3 }]}>
-                    {tutor.year} · {tutor.major}
-                  </Text>
-                  <View style={styles.tagsRow}>
-                    {tutor.courses[0]?.[0] ? <Badge label={tutor.courses[0][0]} tone="accentSoft" /> : null}
-                    <VerifiedBadge verified={tutor.verified} />
-                    <Text style={[styles.sessions, { color: t.text3 }]}>{tutor.sessions} sessions</Text>
-                  </View>
-                </View>
-                <Ic name="bookmark" size={19} color={t.accent} strokeWidth={1.6} fill={t.accent} />
-              </Pressable>
-            ))}
+                  <Ic name="bookmark" size={19} color={t.accent} strokeWidth={1.6} fill={t.accent} />
+                </Pressable>
+              );
+            })}
           </ListSection>
         ) : !loading ? (
           <EmptyState
@@ -102,9 +112,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
   rowHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   name: { fontSize: 16, fontWeight: '600' },
+  nameWithCheck: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
   rate: { fontSize: 15, fontWeight: '700' },
   rateUnit: { fontSize: 11, fontWeight: '500' },
-  sub: { fontSize: 13, marginTop: 1 },
-  tagsRow: { flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 8 },
-  sessions: { marginLeft: 'auto', fontSize: 12 },
+  sub: { fontSize: 13, marginTop: 2 },
 });

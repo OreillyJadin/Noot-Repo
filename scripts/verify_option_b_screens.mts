@@ -54,6 +54,30 @@ assert.match(tutorHome, /overlap=\{previewing \? undefined : 56\}/, 'tutor Home 
 assert.match(tutorHome, /marginTop: previewing \? 0 : -56/, 'tutor Home card offset must match the preview overlap');
 const studentTabHome = readFileSync(join(root, 'apps/mobile/app/home.tsx'), 'utf8');
 assert.doesNotMatch(studentTabHome, /CountdownPills|Wordmark/, 'student Home should use the band header and countdown text');
+const sessionTab = readFileSync(join(root, 'apps/mobile/app/sessions.tsx'), 'utf8');
+const savedTab = readFileSync(join(root, 'apps/mobile/app/saved.tsx'), 'utf8');
+for (const [path, source] of [
+  ['student_home.tsx', studentHome],
+  ['home.tsx', studentTabHome],
+  ['sessions.tsx', sessionTab],
+  ['saved.tsx', savedTab],
+] as const) {
+  assert.match(source, /from ['"]\.\.\/lib\/tutorMeta['"]/, `${path} must use the shared tutor metadata helper`);
+  assert.match(source, /verified tutor/, `${path} must include verified tutor accessibility text`);
+}
+const homeTutorRow = studentTabHome.slice(studentTabHome.indexOf('function TutorRow('), studentTabHome.indexOf('export default function Home'));
+assert.doesNotMatch(homeTutorRow, /<Badge\b|<VerifiedBadge\b/, 'Home TutorRow must not stack badges');
+const sessionsSavedRows = sessionTab.match(/<ListSection label="Saved tutors">([\s\S]*?)<\/ListSection>/)?.[1];
+assert.ok(sessionsSavedRows, 'Sessions Saved tab must contain its grouped tutor rows');
+assert.doesNotMatch(sessionsSavedRows, /<Badge\b|<VerifiedBadge\b/, 'Sessions Saved rows must not stack badges');
+assert.doesNotMatch(savedTab, /<Badge\b|<VerifiedBadge\b/, 'Saved screen rows must not stack badges');
+const ambassadorHome = readFileSync(join(root, 'apps/mobile/app/ambassador_home.tsx'), 'utf8');
+assert.match(ambassadorHome, /<ListSection>\s*<Pressable/, 'Ambassador CTA must be inside a ListSection');
+assert.match(ambassadorHome, /<ListSection label="People you invited">/, 'Invited people heading must be a ListSection label');
+assert.doesNotMatch(ambassadorHome, /sectionTitle/, 'Ambassador Home must not use a custom invited-people heading');
+const tutorCalendar = readFileSync(join(root, 'apps/mobile/app/tutor_calendar.tsx'), 'utf8');
+assert.match(tutorCalendar, /accessibilityRole="tab"/, 'Tutor Calendar week pills must expose tab roles');
+assert.match(tutorCalendar, /accessibilityState=\{\{\s*selected:\s*on\s*\}\}/, 'Tutor Calendar week pills must expose selected state');
 const ambassadorReferrals = readFileSync(join(root, 'apps/mobile/app/ambassador_referrals.tsx'), 'utf8');
 assert.match(ambassadorReferrals, /<InviteView\b[^>]*presentation="referralsTab"/, 'Ambassador Referrals must use the tab-root invite presentation');
 const inviteView = readFileSync(join(root, 'apps/mobile/lib/InviteView.tsx'), 'utf8');

@@ -204,19 +204,21 @@ export default function TutorCalendar() {
       >
         <View style={styles.controls}>
         {/* week switch */}
-        <View style={[styles.weekSwitch, { backgroundColor: t.surface2 }]}>
+        <View style={styles.weekSwitch} accessibilityRole="tablist">
           {WEEK_TABS.map(([v, l]) => {
             const on = week === v;
             return (
               <Pressable
                 key={v}
                 onPress={() => pickWeek(v)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
                 style={[
                   styles.weekSeg,
                   { backgroundColor: on ? t.accentWeak : 'transparent' },
                 ]}
               >
-                <Text style={[styles.weekSegLabel, { color: on ? t.accent : t.text2 }]}>{l}</Text>
+                <Text style={[styles.weekSegLabel, { color: on ? t.accent : t.text2, fontWeight: on ? '600' : '400' }]}>{l}</Text>
               </Pressable>
             );
           })}
@@ -377,9 +379,9 @@ export default function TutorCalendar() {
 
 const styles = StyleSheet.create({
   controls: { gap: 12 },
-  weekSwitch: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 16 },
-  weekSeg: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 14 },
-  weekSegLabel: { fontSize: 14, fontWeight: '600' },
+  weekSwitch: { flexDirection: 'row', gap: 8 },
+  weekSeg: { flex: 1, alignItems: 'center', paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999 },
+  weekSegLabel: { fontSize: 14 },
   dayStrip: { flexDirection: 'row', gap: 6 },
   dayCell: { flex: 1, paddingTop: 8, paddingBottom: 7, borderRadius: 13, alignItems: 'center', borderWidth: 1.5 },
   dayDow: { fontSize: 10, fontWeight: '600' },
