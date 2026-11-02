@@ -109,6 +109,7 @@ export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
   ref,
 ) {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
   const tint = refreshTint ?? t.accent;
   const [refreshing, setRefreshing] = React.useState(false);
   const pull = React.useCallback(async () => {
@@ -121,25 +122,33 @@ export const Body = React.forwardRef<ScrollView, BodyProps>(function Body(
     }
   }, [onRefresh]);
   return (
-    <KeyboardAwareScrollView
-      ref={ref as React.Ref<KeyboardAwareScrollViewRef>}
-      refreshControl={
-        onRefresh ? (
-          <RefreshControl refreshing={refreshing} onRefresh={pull} tintColor={tint} colors={[tint]} />
-        ) : undefined
-      }
-      style={styles.bodyScroll}
-      contentContainerStyle={[{ padding: pad, paddingTop: 4, gap: 14 }, contentStyle]}
-      // persistTaps: a control under the keyboard responds on the FIRST tap instead of the
-      // tap being swallowed to dismiss. dismissMode: scrolling the page puts the keyboard
-      // away, so a search list can be browsed without reaching for "done".
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="on-drag"
-      bottomOffset={24}
-    >
-      {header ? <View style={{ marginHorizontal: -pad, marginTop: -4 }}>{header}</View> : null}
-      {children}
-    </KeyboardAwareScrollView>
+    <View style={styles.bodyRoot}>
+      <KeyboardAwareScrollView
+        ref={ref as React.Ref<KeyboardAwareScrollViewRef>}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl refreshing={refreshing} onRefresh={pull} tintColor={tint} colors={[tint]} />
+          ) : undefined
+        }
+        style={styles.bodyScroll}
+        contentContainerStyle={[{ padding: pad, paddingTop: 4, gap: 14 }, contentStyle]}
+        // persistTaps: a control under the keyboard responds on the FIRST tap instead of the
+        // tap being swallowed to dismiss. dismissMode: scrolling the page puts the keyboard
+        // away, so a search list can be browsed without reaching for "done".
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        bottomOffset={24}
+      >
+        {header ? <View style={{ marginHorizontal: -pad, marginTop: -4 }}>{header}</View> : null}
+        {children}
+      </KeyboardAwareScrollView>
+      {header ? (
+        <View
+          pointerEvents="none"
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: t.band }}
+        />
+      ) : null}
+    </View>
   );
 });
 
@@ -193,6 +202,7 @@ const styles = StyleSheet.create({
   navSide: { width: 64, justifyContent: 'center' },
   navSideLarge: { width: undefined, minWidth: 44, flexShrink: 0 },
   navTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600' },
+  bodyRoot: { flex: 1, position: 'relative' },
   bodyScroll: { flex: 1 },
   adaptiveRow: { flexDirection: 'row' },
   adaptiveStacked: { flexDirection: 'column', alignItems: 'stretch' },
