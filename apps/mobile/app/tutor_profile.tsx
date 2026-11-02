@@ -223,8 +223,8 @@ export default function TutorProfile() {
         </ListSection>
 
         <ListSection>
-          <ListRow size="regular" title="Sign out" titleStyle={{ color: t.statusDark ? '#FF6B5E' : '#D23F31' }} onPress={signOutNow} chevron={false} />
-          <ListRow size="regular" title={deletingTutorProfile ? 'Deleting…' : 'Delete tutor profile'} titleStyle={{ color: t.statusDark ? '#FF6B5E' : '#D23F31' }} onPress={deletingTutorProfile ? undefined : confirmLeaveTutorRole} chevron={false} />
+          <ListRow size="regular" title="Sign out" titleStyle={{ color: t.danger }} onPress={signOutNow} chevron={false} />
+          <ListRow size="regular" title={deletingTutorProfile ? 'Deleting…' : 'Delete tutor profile'} titleStyle={{ color: t.danger }} onPress={deletingTutorProfile ? undefined : confirmLeaveTutorRole} chevron={false} />
         </ListSection>
         <Text style={[styles.footer, { color: t.text3 }]}>noot {versionLabel(Constants.platform?.ios?.buildNumber ?? Constants.expoConfig?.ios?.buildNumber)}</Text>
       </Body>

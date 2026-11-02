@@ -232,8 +232,8 @@ export default function Profile() {
         </ListSection>
 
         <ListSection>
-          <ListRow size="regular" title="Sign out" titleStyle={{ color: t.statusDark ? '#FF6B5E' : '#D23F31' }} onPress={signOutNow} chevron={false} />
-          <ListRow size="regular" title={deleting ? 'Deleting…' : 'Delete account'} titleStyle={{ color: t.statusDark ? '#FF6B5E' : '#D23F31' }} onPress={deleting ? undefined : confirmDelete} chevron={false} />
+          <ListRow size="regular" title="Sign out" titleStyle={{ color: t.danger }} onPress={signOutNow} chevron={false} />
+          <ListRow size="regular" title={deleting ? 'Deleting…' : 'Delete account'} titleStyle={{ color: t.danger }} onPress={deleting ? undefined : confirmDelete} chevron={false} />
         </ListSection>
         <Text style={[styles.footer, { color: t.text3 }]}>noot {versionLabel(Constants.platform?.ios?.buildNumber ?? Constants.expoConfig?.ios?.buildNumber)}</Text>
       </Body>
