@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, Badge, Avatar, H2, ProgressDots, H1, Sub, Ic, Skeleton, Field, Select, Label, Eyebrow, useTheme } from '@noot/ui';
+import { Screen, Body, ActionBar, Button, Card, Avatar, H2, ProgressDots, H1, Sub, Ic, Skeleton, Field, Select, ListSection, ListRow, useTheme } from '@noot/ui';
 import {
   api,
   ACADEMIC_YEAR_OPTIONS,
@@ -52,7 +52,7 @@ function StepHead({
           <Ic name="back" size={22} color={t.accent} strokeWidth={2.4} />
         </Pressable>
         <Text style={[styles.stepLabel, { color: t.text3 }]}>Step {step} of 10</Text>
-        <Text onPress={onExit} style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
+        <Text onPress={onExit} accessibilityRole="button" style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
       </View>
       <View style={styles.stepBody}>
         <ProgressDots total={10} current={step} />
@@ -183,7 +183,7 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
 
   return (
     <View style={{ gap: 14, marginTop: 4 }}>
-      <Eyebrow style={{ color: t.text3 }}>Make final tweaks</Eyebrow>
+      <Text style={{ color: t.text, fontSize: 17, fontWeight: '700' }}>Make final tweaks</Text>
 
       <View style={styles.photoRow}>
         <Avatar size={48} uri={me?.avatarUrl} />
@@ -202,36 +202,37 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
       <MajorPicker value={major} onChange={setMajor} />
       <Field label="Bio" value={bio} onChangeText={setBio} multiline placeholder="Tell students why you're a great tutor…" />
 
-      <Label>Courses &amp; rates</Label>
-      {app.courses.map((c) => (
-        <View key={c.courseCode} style={[styles.rateRow, { borderColor: t.border }]}>
-          <Text style={[styles.rateCode, { color: t.text }]}>
-            {c.courseCode}
-            {c.currentlyTaking ? (
-              <Text style={{ color: t.text3, fontWeight: '500' }}>  Taking now</Text>
-            ) : c.grade ? (
-              <Text style={{ color: t.text3, fontWeight: '500' }}>{`  ${c.grade}`}</Text>
-            ) : null}
-          </Text>
-          <View style={[styles.rateBox, { borderColor: t.borderStrong, backgroundColor: t.surface }]}>
-            <Text style={{ color: t.text3 }}>$</Text>
-            <TextInput
-              value={rates[c.courseCode] ?? ''}
-              onChangeText={(v) => setRates((r) => ({ ...r, [c.courseCode]: v.replace(/[^0-9]/g, '') }))}
-              keyboardType="number-pad"
-              maxLength={3}
-              placeholder="—"
-              placeholderTextColor={t.text3}
-              accessibilityLabel={`Hourly rate for ${c.courseCode}`}
-              style={[styles.rateInput, { color: t.text }]}
-            />
-            <Text style={{ color: t.text3, fontSize: 12 }}>/hr</Text>
+      <ListSection label="Courses & rates">
+        {app.courses.map((c) => (
+          <View key={c.courseCode} style={styles.rateRow}>
+            <Text style={[styles.rateCode, { color: t.text }]}>
+              {c.courseCode}
+              {c.currentlyTaking ? (
+                <Text style={{ color: t.text3, fontWeight: '500' }}>  Taking now</Text>
+              ) : c.grade ? (
+                <Text style={{ color: t.text3, fontWeight: '500' }}>{`  ${c.grade}`}</Text>
+              ) : null}
+            </Text>
+            <View style={[styles.rateBox, { borderColor: t.borderStrong, backgroundColor: t.surface2 }]}>
+              <Text style={{ color: t.text3 }}>$</Text>
+              <TextInput
+                value={rates[c.courseCode] ?? ''}
+                onChangeText={(v) => setRates((r) => ({ ...r, [c.courseCode]: v.replace(/[^0-9]/g, '') }))}
+                keyboardType="number-pad"
+                maxLength={3}
+                placeholder="—"
+                placeholderTextColor={t.text3}
+                accessibilityLabel={`Hourly rate for ${c.courseCode}`}
+                style={[styles.rateInput, { color: t.text }]}
+              />
+              <Text style={{ color: t.text3, fontSize: 12 }}>/hr</Text>
+            </View>
+            <Pressable onPress={() => removeCourse(c.courseCode)} hitSlop={8} accessibilityLabel={`Remove ${c.courseCode}`}>
+              <Ic name="x" size={17} color={t.text3} strokeWidth={2} />
+            </Pressable>
           </View>
-          <Pressable onPress={() => removeCourse(c.courseCode)} hitSlop={8} accessibilityLabel={`Remove ${c.courseCode}`}>
-            <Ic name="x" size={17} color={t.text3} strokeWidth={2} />
-          </Pressable>
-        </View>
-      ))}
+        ))}
+      </ListSection>
       <Text onPress={() => router.push('/t3?from=review')} style={[styles.link, { color: t.accent }]}>+ Add a course</Text>
 
       <View style={styles.hoursRow}>
@@ -289,8 +290,8 @@ export default function T9() {
   };
 
   const previewName = me ? `${me.firstName} ${me.lastName ? me.lastName.charAt(0) + '.' : ''}`.trim() : '';
-  const previewMeta = [me?.year, me?.major].filter(Boolean).join(' · ');
   const courses = app?.courses ?? [];
+  const previewMeta = [me?.year, me?.major, courses.map((c) => c.courseCode).join(', ')].filter(Boolean).join(' · ');
   const priced = courses.filter((c) => c.hourlyRate > 0);
   const fromRate = priced.length ? Math.min(...priced.map((c) => c.hourlyRate)) : null;
   const hours = app ? weeklyHours(app.availability) : 0;
@@ -303,19 +304,11 @@ export default function T9() {
           <Skeleton height={220} radius={16} />
         ) : (
           <Card style={styles.previewCard}>
-            <View style={styles.badgeRow}>
-              <Badge label="Pending review" tone="accentSoft" />
-            </View>
             <View style={styles.previewHead}>
               <Avatar size={56} uri={me?.avatarUrl} />
               <View style={{ flex: 1 }}>
                 <H2 style={{ fontSize: 18 }}>{previewName || 'Add your name'}</H2>
                 {previewMeta ? <Text style={[styles.previewSub, { color: t.text3 }]}>{previewMeta}</Text> : null}
-                <View style={styles.courseBadges}>
-                  {courses.map((c) => (
-                    <Badge key={c.courseCode} label={c.courseCode} tone="accentSoft" />
-                  ))}
-                </View>
               </View>
               {fromRate != null ? (
                 <View style={{ alignItems: 'flex-end' }}>
@@ -328,45 +321,44 @@ export default function T9() {
               <Text style={[styles.bio, { color: app.bio ? t.text2 : t.text3 }]}>
                 {app.bio || 'No bio yet — add one so students know why to pick you.'}
               </Text>
-              <View style={{ gap: 6, marginTop: 14 }}>
-                {courses.map((c) => (
-                  <View key={c.courseCode} style={[styles.statBox, { backgroundColor: t.surface2 }]}>
-                    <Ic name="dollar" size={16} color={t.accent} strokeWidth={1.8} />
-                    <Text style={[styles.statLabel, { color: t.text2 }]}>
-                      {c.courseCode}
-                      {c.currentlyTaking ? ' · Taking now' : c.grade ? ` · ${c.grade}` : ''}
-                    </Text>
-                    <Text style={[styles.statValue, { color: c.hourlyRate > 0 ? t.text : t.text3 }]}>
-                      {c.hourlyRate > 0 ? `$${c.hourlyRate}/hr` : 'No rate'}
-                    </Text>
-                  </View>
-                ))}
-                <View style={[styles.statBox, { backgroundColor: t.surface2 }]}>
-                  <Ic name="clock" size={16} color={t.accent} strokeWidth={1.8} />
-                  <Text style={[styles.statLabel, { color: t.text2 }]}>Weekly availability</Text>
-                  <Text style={[styles.statValue, { color: t.text }]}>{hours} hrs</Text>
-                </View>
+              <View style={{ marginTop: 14 }}>
+                <ListSection>
+                  {courses.map((c) => (
+                    <ListRow
+                      key={c.courseCode}
+                      title={c.courseCode}
+                      subtitle={c.currentlyTaking ? 'Taking now' : c.grade || undefined}
+                      trailing={
+                        <Text style={{ color: c.hourlyRate > 0 ? t.text : t.text3, fontSize: 13, fontWeight: '700' }}>
+                          {c.hourlyRate > 0 ? `$${c.hourlyRate}/hr` : 'No rate'}
+                        </Text>
+                      }
+                    />
+                  ))}
+                  <ListRow
+                    title="Weekly availability"
+                    trailing={<Text style={{ color: t.text, fontSize: 13, fontWeight: '700' }}>{hours} hrs</Text>}
+                  />
+                </ListSection>
               </View>
             </View>
           </Card>
         )}
 
         {missing && missing.length > 0 ? (
-          <Card flat style={[styles.todoCard, { backgroundColor: t.surfaceAlt }]}>
-            <Text style={[styles.todoTitle, { color: t.text }]}>Still to do before you can submit</Text>
+          <ListSection label="Still to do before you can submit">
             {missing.map((r) => (
-              <Pressable
+              <ListRow
                 key={r}
+                icon="alert"
+                title={REQUIREMENT_LABEL[r]}
+                titleLines={2}
+                accessibilityLabel={`${REQUIREMENT_LABEL[r]}, go to step ${stepFor(r)}`}
+                trailing={<Text style={{ color: t.accent, fontSize: 13, fontWeight: '600' }}>Step {stepFor(r)}</Text>}
                 onPress={() => router.push(`/t${stepFor(r)}` as never)}
-                accessibilityRole="button"
-                style={styles.todoRow}
-              >
-                <Ic name="alert" size={15} color={t.text3} strokeWidth={2} />
-                <Text style={[styles.todoText, { color: t.text2 }]}>{REQUIREMENT_LABEL[r]}</Text>
-                <Text style={[styles.todoGo, { color: t.accent }]}>Step {stepFor(r)}</Text>
-              </Pressable>
+              />
             ))}
-          </Card>
+          </ListSection>
         ) : null}
 
         {app ? <ReviewEditor app={app} onSaved={reload} /> : null}
@@ -387,35 +379,25 @@ export default function T9() {
 const styles = StyleSheet.create({
   stepRow: { flexDirection: 'row', alignItems: 'center', minHeight: 40, paddingLeft: 8, paddingRight: 12 },
   stepBack: { paddingVertical: 6, paddingRight: 6 },
-  stepLabel: { flex: 1, fontSize: 12, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase', textAlign: 'center' },
+  stepLabel: { flex: 1, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   stepExit: { fontSize: 13, fontWeight: '600', width: 78, textAlign: 'right' },
   stepBody: { paddingHorizontal: 20, paddingTop: 8 },
   stepTitle: { fontSize: 24, marginTop: 14 },
   stepSub: { marginTop: 6, fontSize: 14 },
   previewCard: { padding: 0, overflow: 'hidden' },
-  badgeRow: { paddingHorizontal: 16, paddingTop: 12, alignItems: 'flex-end' },
-  previewHead: { flexDirection: 'row', gap: 14, paddingHorizontal: 16, paddingBottom: 16, paddingTop: 8 },
+  previewHead: { flexDirection: 'row', gap: 14, paddingHorizontal: 16, paddingBottom: 16, paddingTop: 16 },
   previewSub: { fontSize: 13, marginTop: 2 },
-  courseBadges: { flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap' },
   price: { fontSize: 20, fontWeight: '700' },
   priceUnit: { fontSize: 12 },
   previewFoot: { paddingHorizontal: 16, paddingBottom: 16 },
   bio: { fontSize: 14, lineHeight: 20 },
-  statBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 },
-  statLabel: { fontSize: 13, flexShrink: 1 },
-  statValue: { fontSize: 13, fontWeight: '700', marginLeft: 'auto' },
   photoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   row: { flexDirection: 'row', gap: 10 },
   link: { fontSize: 14, fontWeight: '600' },
-  rateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1 },
+  rateRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
   rateCode: { flex: 1, fontSize: 15, fontWeight: '600' },
   rateBox: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 11, borderWidth: 1.5 },
   rateInput: { width: 36, fontWeight: '700', fontSize: 17, textAlign: 'center', padding: 0 },
   hoursRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   hoursText: { fontSize: 14 },
-  todoCard: { padding: 14, gap: 8 },
-  todoTitle: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
-  todoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  todoText: { flex: 1, fontSize: 13.5 },
-  todoGo: { fontSize: 13, fontWeight: '600' },
 });

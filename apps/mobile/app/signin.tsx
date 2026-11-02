@@ -95,7 +95,7 @@ export default function SignIn() {
         keyboardDismissMode="on-drag"
         bottomOffset={24}
       >
-        <Text style={[styles.h1, { color: t.text }]}>Welcome back</Text>
+        <Text style={[styles.h1, { color: t.text }]}>Log in with your campus email</Text>
 
         <Field
           label="Campus email"
@@ -116,7 +116,7 @@ export default function SignIn() {
           Forgot password?
         </Text>
 
-        {error ? <Text style={{ color: '#C0392B', fontSize: 14 }}>{error}</Text> : null}
+        {error ? <Text style={{ color: t.danger, fontSize: 14 }}>{error}</Text> : null}
 
         <Button label={busy ? 'Signing in…' : 'Sign in'} disabled={busy} onPress={handleSignIn} />
 

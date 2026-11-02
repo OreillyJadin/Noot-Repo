@@ -172,3 +172,4 @@ jobs:
             verify_ui_kit
             verify_verified_grade_lock
             verify_option_b_booking
+            verify_option_b_onboarding

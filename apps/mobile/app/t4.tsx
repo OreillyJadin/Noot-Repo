@@ -8,7 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, ProgressDots, H1, Sub, Skeleton, useTheme, Ic } from '@noot/ui';
+import { Screen, Body, ActionBar, Button, Card, ProgressDots, H1, Sub, Skeleton, ListSection, useTheme, Ic } from '@noot/ui';
 import { api, MIN_HOURLY_RATE, MAX_HOURLY_RATE } from '@noot/core';
 import { useStepBack } from '../lib/useStepBack';
 import { useMe } from '../lib/useMe';
@@ -46,7 +46,7 @@ function StepHead({
           <Ic name="back" size={22} color={t.accent} strokeWidth={2.4} />
         </Pressable>
         <Text style={[styles.stepLabel, { color: t.text3 }]}>Step {step} of 10</Text>
-        <Text onPress={onExit} style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
+        <Text onPress={onExit} accessibilityRole="button" style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
       </View>
       <View style={styles.stepBody}>
         <ProgressDots total={10} current={step} />
@@ -163,18 +163,15 @@ export default function T4() {
             No courses yet. Go back a step and add the courses you tutor.
           </Text>
         ) : (
-          <View style={{ gap: 10 }}>
+          <ListSection>
             {rates.map((r, i) => (
-              <Card key={r.courseCode} style={{ padding: 14 }}>
-                <View style={styles.rateCard}>
-                  <View style={[styles.gradeChip, { backgroundColor: t.surface2 }]}>
-                    <Text style={[styles.gradeChipText, { color: t.text2 }]}>
-                      {r.currentlyTaking ? 'Now' : r.grade || '—'}
-                    </Text>
-                  </View>
+              <View key={r.courseCode} style={styles.rateCard}>
+                <View style={styles.rateRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.courseCode, { color: t.text }]}>{r.courseCode}</Text>
-                    <Text style={[styles.perHour, { color: t.text3 }]}>before fees</Text>
+                    <Text style={[styles.perHour, { color: t.text3 }]}>
+                      {r.currentlyTaking ? 'Taking now · before fees' : r.grade ? `${r.grade} · before fees` : 'before fees'}
+                    </Text>
                   </View>
                   <View style={[styles.rateBox, { borderColor: t.borderStrong, backgroundColor: t.surface }]}>
                     <Text style={{ color: t.text3, fontSize: 15 }}>$</Text>
@@ -192,12 +189,12 @@ export default function T4() {
                   </View>
                 </View>
                 <TutorRatePreview rate={Number(r.rate)} gradesVerified={gradesVerified} currentlyTaking={r.currentlyTaking} showNet={showNet} />
-              </Card>
+              </View>
             ))}
-          </View>
+          </ListSection>
         )}
 
-        <Card flat style={[styles.infoCard, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>
+        <Card flat style={styles.infoCard}>
           <Text style={{ color: t.text2, fontSize: 13, lineHeight: 19 }}>
             <Text style={{ color: t.accent, fontWeight: '700' }}>You keep the majority of every session.</Text> You&apos;ll
             always see your exact payout before you accept — set your rate to what feels fair.
@@ -220,14 +217,13 @@ export default function T4() {
 const styles = StyleSheet.create({
   stepRow: { flexDirection: 'row', alignItems: 'center', minHeight: 40, paddingLeft: 8, paddingRight: 12 },
   stepBack: { paddingVertical: 6, paddingRight: 6 },
-  stepLabel: { flex: 1, fontSize: 12, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase', textAlign: 'center' },
+  stepLabel: { flex: 1, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   stepExit: { fontSize: 13, fontWeight: '600', width: 78, textAlign: 'right' },
   stepBody: { paddingHorizontal: 20, paddingTop: 8 },
   stepTitle: { fontSize: 24, marginTop: 14 },
   stepSub: { marginTop: 6, fontSize: 14 },
-  rateCard: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  gradeChip: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  gradeChipText: { fontWeight: '700', fontSize: 13 },
+  rateCard: { gap: 10, padding: 14 },
+  rateRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   courseCode: { fontSize: 16, fontWeight: '600' },
   perHour: { fontSize: 13 },
   rateBox: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 13, borderWidth: 1.5 },

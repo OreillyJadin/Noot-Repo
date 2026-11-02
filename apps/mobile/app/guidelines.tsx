@@ -129,7 +129,7 @@ export default function CommunityGuidelines() {
           </Text>
         </Pressable>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={[styles.error, { color: t.danger }]}>{error}</Text> : null}
 
         <Button label={busy ? 'Saving…' : 'Agree & continue'} disabled={busy || leaving || !accepted} onPress={handleContinue} />
         <Text onPress={signOut} accessibilityRole="button" style={[styles.link, { color: t.text3 }]}>
@@ -155,6 +155,6 @@ const styles = StyleSheet.create({
   agreementRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginTop: 4 },
   box: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   agreementText: { flex: 1, fontSize: 13.5, lineHeight: 19 },
-  error: { color: '#C0392B', fontSize: 14 },
+  error: { fontSize: 14 },
   link: { fontSize: 14, fontWeight: '600', textAlign: 'center', marginTop: 6 },
 });

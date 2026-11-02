@@ -34,7 +34,7 @@ function StepHead({
           <Ic name="back" size={22} color={t.accent} strokeWidth={2.4} />
         </Pressable>
         <Text style={[styles.stepLabel, { color: t.text3 }]}>Step {step} of 10</Text>
-        <Text onPress={onExit} style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
+        <Text onPress={onExit} accessibilityRole="button" style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
       </View>
       <View style={styles.stepBody}>
         <ProgressDots total={10} current={step} />
@@ -100,7 +100,7 @@ export default function T8() {
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
         <Card style={styles.stripeCard}>
-          <View style={[styles.stripeHeader, { backgroundColor: t.surface2, borderBottomColor: t.border }]}>
+          <View style={[styles.stripeHeader, { borderBottomColor: t.border }]}>
             <Text style={{ color: t.text3, fontSize: 12 }}>Powered by</Text>
             <Text style={[styles.stripeWordmark, { color: t.text }]}>stripe</Text>
           </View>
@@ -121,7 +121,7 @@ export default function T8() {
           </View>
         </Card>
 
-        <Card flat style={[styles.lockCard, { backgroundColor: t.surfaceAlt }]}>
+        <Card flat style={styles.lockCard}>
           <Ic name="lock" size={18} color={t.good} strokeWidth={1.7} />
           <Text style={[styles.lockText, { color: t.text2 }]}>
             Stripe is PCI-DSS compliant and issues your 1099-K at year-end.{' '}
@@ -150,13 +150,13 @@ export default function T8() {
 const styles = StyleSheet.create({
   stepRow: { flexDirection: 'row', alignItems: 'center', minHeight: 40, paddingLeft: 8, paddingRight: 12 },
   stepBack: { paddingVertical: 6, paddingRight: 6 },
-  stepLabel: { flex: 1, fontSize: 12, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase', textAlign: 'center' },
+  stepLabel: { flex: 1, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   stepExit: { fontSize: 13, fontWeight: '600', width: 78, textAlign: 'right' },
   stepBody: { paddingHorizontal: 20, paddingTop: 8 },
   stepTitle: { fontSize: 24, marginTop: 14 },
   stepSub: { marginTop: 6, fontSize: 14 },
   stripeCard: { padding: 0, overflow: 'hidden' },
-  stripeHeader: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  stripeHeader: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   stripeWordmark: { fontWeight: '800', fontSize: 14 },
   stripeBody: { padding: 16 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 },
