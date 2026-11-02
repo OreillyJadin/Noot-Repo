@@ -38,7 +38,7 @@ function StepHead({
           <Ic name="back" size={22} color={t.accent} strokeWidth={2.4} />
         </Pressable>
         <Text style={[styles.stepLabel, { color: t.text3 }]}>Step {step} of 10</Text>
-        <Text onPress={onExit} style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
+        <Text onPress={onExit} accessibilityRole="button" style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
       </View>
       <View style={styles.stepBody}>
         <ProgressDots total={10} current={step} />
@@ -204,7 +204,7 @@ export default function T2() {
 const styles = StyleSheet.create({
   stepRow: { flexDirection: 'row', alignItems: 'center', minHeight: 40, paddingLeft: 8, paddingRight: 12 },
   stepBack: { paddingVertical: 6, paddingRight: 6 },
-  stepLabel: { flex: 1, fontSize: 12, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase', textAlign: 'center' },
+  stepLabel: { flex: 1, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   stepExit: { fontSize: 13, fontWeight: '600', width: 78, textAlign: 'right' },
   stepBody: { paddingHorizontal: 20, paddingTop: 8 },
   stepTitle: { fontSize: 24, marginTop: 14 },

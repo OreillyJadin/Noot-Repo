@@ -10,7 +10,7 @@ import { View, Text, Pressable, Alert, ActivityIndicator, StyleSheet, type ViewS
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { Screen, Body, ActionBar, Button, ProgressDots, H1, Sub, Ic, ListSection, ListRow, useTheme } from '@noot/ui';
 import { api, STORAGE_LIMITS } from '@noot/core';
 import { useTutorApplication } from '../lib/useTutorApplication';
 import { errText } from '../lib/errText';
@@ -40,7 +40,7 @@ function StepHead({
           <Ic name="back" size={22} color={t.accent} strokeWidth={2.4} />
         </Pressable>
         <Text style={[styles.stepLabel, { color: t.text3 }]}>Step {step} of 10</Text>
-        <Text onPress={onExit} style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
+        <Text onPress={onExit} accessibilityRole="button" style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
       </View>
       <View style={styles.stepBody}>
         <ProgressDots total={10} current={step} />
@@ -140,42 +140,38 @@ export default function T6() {
           )}
         </Pressable>
 
-        <Eyebrow style={{ color: t.text3 }}>Uploaded</Eyebrow>
         {hasTranscript ? (
-          <Card style={styles.fileCard}>
-            <View style={[styles.fileIcon, { backgroundColor: t.surface2, borderColor: t.border }]}>
-              <Ic name="doc" size={18} color={t.accent} strokeWidth={1.6} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text numberOfLines={1} style={[styles.fileCourse, { color: t.text }]}>{uploaded ?? 'Transcript'}</Text>
-              <Text style={[styles.fileName, { color: t.text3 }]}>Sent for review</Text>
-            </View>
-            <Badge label="Pending" tone="accentSoft" />
-          </Card>
+          <ListSection label="Uploaded">
+            <ListRow icon="doc" title={uploaded ?? 'Transcript'} subtitle="Sent for review · Pending" />
+          </ListSection>
         ) : (
-          <Text style={[styles.fileName, { color: t.text3, paddingHorizontal: 2 }]}>
-            {skipped ? 'You chose to sign up unverified. Upload an unofficial transcript any time to get verified.' : 'No transcript uploaded yet.'}
-          </Text>
+          <View style={{ gap: 8 }}>
+            <Text style={{ color: t.text3, fontSize: 12, fontWeight: '600' }}>Uploaded</Text>
+            <Text style={[styles.fileName, { color: t.text3, paddingHorizontal: 2 }]}>
+              {skipped ? 'You chose to sign up unverified. Upload an unofficial transcript any time to get verified.' : 'No transcript uploaded yet.'}
+            </Text>
+          </View>
         )}
-
-        <Card flat style={[styles.lockCard, { backgroundColor: t.surfaceAlt }]}>
-          <Ic name="lock" size={18} color={t.good} strokeWidth={1.7} />
-          <Text style={[styles.lockText, { color: t.text2 }]}>
-            Reviewed by a noot team member within 24h. <Text style={{ color: t.text, fontWeight: '700' }}>We never share your transcript.</Text>
-          </Text>
-        </Card>
 
         <Text style={[styles.finePrint, { color: t.text3 }]}>
           If a grade comes back below B-, only that course is removed — you stay on the platform.
         </Text>
 
-        <Card flat style={[styles.lockCard, { backgroundColor: t.surfaceAlt }]}>
-          <Ic name="shield" size={18} color={t.accent} strokeWidth={1.7} />
-          <Text style={[styles.lockText, { color: t.text2 }]}>
-            <Text style={{ color: t.text, fontWeight: '700' }}>Why verify?</Text> Verified tutors get a ✓ badge
-            students can see, and keep more of every session.
-          </Text>
-        </Card>
+        <ListSection>
+          <View style={styles.lockRow}>
+            <Ic name="lock" size={18} color={t.good} strokeWidth={1.7} />
+            <Text style={[styles.lockText, { color: t.text2 }]}>
+              Reviewed by a noot team member within 24h. <Text style={{ color: t.text, fontWeight: '700' }}>We never share your transcript.</Text>
+            </Text>
+          </View>
+          <View style={styles.lockRow}>
+            <Ic name="shield" size={18} color={t.accent} strokeWidth={1.7} />
+            <Text style={[styles.lockText, { color: t.text2 }]}>
+              <Text style={{ color: t.text, fontWeight: '700' }}>Why verify?</Text> Verified tutors get a ✓ badge
+              students can see, and keep more of every session.
+            </Text>
+          </View>
+        </ListSection>
       </Body>
       <ActionBar>
         {hasTranscript || skipped ? (
@@ -196,19 +192,16 @@ export default function T6() {
 const styles = StyleSheet.create({
   stepRow: { flexDirection: 'row', alignItems: 'center', minHeight: 40, paddingLeft: 8, paddingRight: 12 },
   stepBack: { paddingVertical: 6, paddingRight: 6 },
-  stepLabel: { flex: 1, fontSize: 12, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase', textAlign: 'center' },
+  stepLabel: { flex: 1, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   stepExit: { fontSize: 13, fontWeight: '600', width: 78, textAlign: 'right' },
   stepBody: { paddingHorizontal: 20, paddingTop: 8 },
   stepTitle: { fontSize: 24, marginTop: 14 },
   stepSub: { marginTop: 6, fontSize: 14 },
-  dropzone: { height: 110, borderRadius: 20, borderWidth: 2, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  dropzone: { height: 110, borderRadius: 20, borderWidth: 1.5, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 6 },
   dropTitle: { fontSize: 15, fontWeight: '600' },
   dropSub: { fontSize: 12 },
-  fileCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
-  fileIcon: { width: 34, height: 40, borderRadius: 6, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  fileCourse: { fontSize: 15, fontWeight: '600' },
   fileName: { fontSize: 13 },
-  lockCard: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14 },
+  lockRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14 },
   lockText: { flex: 1, fontSize: 13, lineHeight: 19 },
   finePrint: { fontSize: 12, lineHeight: 17, paddingHorizontal: 2 },
   skip: { fontSize: 14, fontWeight: '600', textAlign: 'center', paddingVertical: 4 },

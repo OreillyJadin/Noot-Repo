@@ -2,10 +2,10 @@
 // of the tutor application; no StepHead (matches source, which just pads for the
 // safe area). → Tutor Home (dashboard tab root).
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, HeroIcon, H1, Sub, Eyebrow, Ic, useTheme, type IconName } from '@noot/ui';
+import { Screen, Body, ActionBar, Button, HeroIcon, H1, Sub, ListSection, ListRow, useTheme, type IconName } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useTutorApplication } from '../lib/useTutorApplication';
@@ -68,17 +68,12 @@ export default function T10() {
           </Sub>
         </View>
 
-        <Eyebrow style={{ color: t.text3, marginTop: 14, marginBottom: 12 }}>While you wait</Eyebrow>
-        <View style={{ gap: 8 }}>
-          {TASKS.map(([ic, label, href]) => (
-            <Card key={label} onPress={() => router.push(href as never)} style={styles.taskCard}>
-              <View style={[styles.taskIcon, { backgroundColor: t.accentWeak }]}>
-                <Ic name={ic} size={17} color={t.accent} strokeWidth={1.8} />
-              </View>
-              <Text style={[styles.taskLabel, { color: t.text }]}>{label}</Text>
-              <Ic name="chevron" size={16} color={t.text3} strokeWidth={2} />
-            </Card>
-          ))}
+        <View style={{ marginTop: 14 }}>
+          <ListSection label="While you wait">
+            {TASKS.map(([ic, label, href]) => (
+              <ListRow key={label} icon={ic} title={label} size="regular" onPress={() => router.push(href as never)} />
+            ))}
+          </ListSection>
         </View>
       </Body>
       <ActionBar>
@@ -90,7 +85,4 @@ export default function T10() {
 
 const styles = StyleSheet.create({
   hero: { alignItems: 'center', paddingTop: 18 },
-  taskCard: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
-  taskIcon: { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  taskLabel: { flex: 1, fontSize: 15 },
 });

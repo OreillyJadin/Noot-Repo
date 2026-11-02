@@ -66,7 +66,7 @@ export default function AcceptTerms() {
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={[styles.h1, { color: t.text }]}>One thing before you continue</Text>
         <Text style={[styles.sub, { color: t.text2 }]}>
-          Using noot means agreeing to how we keep it safe for everyone. Please read and accept the terms below.
+          Please read and accept the terms below to keep using noot.
         </Text>
 
         <Pressable
@@ -97,7 +97,7 @@ export default function AcceptTerms() {
           </Text>
         </Pressable>
 
-        {error ? <Text style={{ color: '#C0392B', fontSize: 14 }}>{error}</Text> : null}
+        {error ? <Text style={{ color: t.danger, fontSize: 14 }}>{error}</Text> : null}
 
         <Button label={busy ? 'Saving…' : 'Agree & continue'} disabled={busy || leaving || !accepted} onPress={handleContinue} />
         <Text onPress={signOut} accessibilityRole="button" style={[styles.link, { color: t.text3 }]}>

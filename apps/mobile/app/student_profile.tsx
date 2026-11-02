@@ -150,7 +150,7 @@ export default function StudentProfile() {
         <View style={styles.mt14}>
           <MajorPicker value={major} onChange={setMajor} />
         </View>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={[styles.error, { color: t.danger }]}>{error}</Text> : null}
 
         <Divider style={styles.divider} />
 
@@ -169,7 +169,7 @@ export default function StudentProfile() {
           </View>
         ) : null}
         <Text style={[styles.helpText, { color: t.text3 }]}>
-          Helps us match tutors who took your exact classes — same professor when we can.
+          Helps us match you with tutors who took your classes.
         </Text>
       </Body>
       <ActionBar>
@@ -191,5 +191,5 @@ const styles = StyleSheet.create({
   chipLabel: { fontSize: 13, fontWeight: '600' },
   cancel: { fontSize: 13, fontWeight: '600', marginTop: 8, textAlign: 'center' },
   helpText: { fontSize: 13, marginTop: 10, lineHeight: 18 },
-  error: { color: '#C0392B', fontSize: 14, marginTop: 10 },
+  error: { fontSize: 14, marginTop: 10 },
 });
