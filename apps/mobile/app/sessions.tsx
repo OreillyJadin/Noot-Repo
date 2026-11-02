@@ -17,6 +17,7 @@ import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 import { tutorMeta } from '../lib/tutorMeta';
 import { formatSessionTime } from '../lib/formatSessionTime';
 import { useSessionClock } from '../lib/useSessionClock';
+import { PaymentUpdateBanner } from '../lib/PaymentUpdateBanner';
 
 type SegmentKey = 'upcoming' | 'past' | 'saved';
 
@@ -363,6 +364,7 @@ export default function Sessions() {
                         <Text style={[styles.metaText, { color: t.text2 }]}>{where}</Text>
                       </View>
                     </View>
+                    <PaymentUpdateBanner booking={b} now={now} onUpdated={onRefresh} />
                     {b.status === 'pending' ? (
                       <>
                         <Text style={[styles.metaText, { color: t.accent, marginTop: 12, fontWeight: '600' }]}>

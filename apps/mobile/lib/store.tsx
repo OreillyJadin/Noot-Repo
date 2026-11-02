@@ -31,7 +31,7 @@ export interface BookingDraft {
   acceptBy?: string | null;
   acceptedAt?: string | null;
   status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
-  cancelReason?: 'tutor_declined' | 'tutor_no_response' | null;
+  cancelReason?: 'tutor_declined' | 'tutor_no_response' | 'payment_failed' | null;
   declineNote?: string | null;
   rescheduleProposedAt?: string | null;
   rescheduleProposedBy?: string | null;

@@ -463,6 +463,12 @@ function mapBooking(row: any): Booking {
     refundPercent: num(row.refund_percent),
     refundedCents: row.refunded_cents == null ? null : Number(row.refunded_cents),
     stripePaymentIntentId: row.stripe_payment_intent_id ?? null,
+    stripeSetupIntentId: row.stripe_setup_intent_id ?? null,
+    stripePaymentMethodId: row.stripe_payment_method_id ?? null,
+    holdDueAt: row.hold_due_at ?? null,
+    holdPlacedAt: row.hold_placed_at ?? null,
+    holdFailedAt: row.hold_failed_at ?? null,
+    holdFailureCode: row.hold_failure_code ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -742,8 +748,9 @@ export interface ConfirmBookingInput {
   location?: string;
   meetingLink?: string;
   message?: string;
-  /** The held PaymentIntent; omitted for an admin's free booking (create-payment-intent returned none). */
+  /** The confirmed payment, or saved card for a later session; omitted for a free booking. */
   paymentIntentId?: string | null;
+  setupIntentId?: string | null;
 }
 
 /** The booking being paid for. The server derives the amount from these (T5). */
@@ -2141,7 +2148,7 @@ export const api = {
   },
 
   /**
-   * B4 → held (manual-capture) PaymentIntent via `create-payment-intent`. Returns the
+   * B4 → immediate PaymentIntent or deferred SetupIntent via `create-payment-intent`. Returns the
    * params the client PaymentSheet needs, plus the server-computed amount; `simulated` is
    * true when no Stripe key is set (dev/web) so callers can skip presenting the sheet.
    * Capture happens in complete-session. The amount is the server's, never the caller's.
@@ -2154,6 +2161,9 @@ export const api = {
     ephemeralKeySecret: string | null;
     customerId: string | null;
     paymentIntentId: string | null;
+    setupIntentId?: string | null;
+    setupIntentClientSecret?: string | null;
+    deferred?: boolean;
     /** Authoritative session + service fee total, before credit. Show this, don't recompute it. */
     amountCents: number;
     studentFeeCents: number;
@@ -2171,6 +2181,20 @@ export const api = {
 
   // --- bookings (trust-sensitive writes → Edge Functions, see ARCHITECTURE.md §5) ---
   bookings: {
+    createPaymentUpdate(bookingId: string): Promise<{
+      paymentIntentId: string;
+      paymentIntentClientSecret: string | null;
+      customerId?: string;
+      ephemeralKeySecret?: string;
+      amountCents: number;
+      simulated: boolean;
+    }> {
+      return invokeFn('booking-hold', { bookingId, action: 'create' });
+    },
+
+    attachPaymentUpdate(bookingId: string, paymentIntentId: string): Promise<{ ok: true }> {
+      return invokeFn('booking-hold', { bookingId, paymentIntentId, action: 'attach' });
+    },
     /** A booking the caller can see under RLS. */
     async get(id: string): Promise<Booking | null> {
       await requireUid();
@@ -2197,7 +2221,7 @@ export const api = {
       return count ?? 0;
     },
 
-    /** Create a pending booking request with the held PaymentIntent (confirm-booking). */
+    /** Create a pending booking request with a confirmed payment or saved card. */
     confirm(
       input: ConfirmBookingInput,
     ): Promise<{ bookingId: string; price: number; studentFee: number; acceptBy: string; free?: boolean }> {
