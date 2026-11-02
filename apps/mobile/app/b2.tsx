@@ -91,22 +91,26 @@ function B2Inner() {
 
         <Section title="Courses & rates">
           <ListSection>
-            {tutor.courses.map(([code, grade, rate, sess, currentlyTaking]) => (
-              <ListRow
-                key={code}
-                title={code}
-                subtitle={[
-                  currentlyTaking
-                    ? 'Currently taking'
-                    : grade
-                      ? (tutor.verified ? `Grade ${grade} · verified` : `Grade ${grade} · self-reported`)
-                      : null,
-                  `${sess} sessions`,
-                ].filter(Boolean).join(' · ')}
-                trailing={<Text style={{ fontSize: 15, fontWeight: '700', color: t.text }}>${rate}/hr</Text>}
-                onPress={() => book(code)}
-              />
-            ))}
+            {tutor.courses.map(([code, grade, rate, sess, currentlyTaking]) => {
+              const sub = [
+                currentlyTaking
+                  ? 'Currently taking'
+                  : grade
+                    ? (tutor.verified ? `Grade ${grade} · verified` : `Grade ${grade} · self-reported`)
+                    : null,
+                `${sess} sessions`,
+              ].filter(Boolean).join(' · ');
+              return (
+                <ListRow
+                  key={code}
+                  title={code}
+                  subtitle={sub}
+                  trailing={<Text style={{ fontSize: 15, fontWeight: '700', color: t.text }}>${rate}/hr</Text>}
+                  accessibilityLabel={[code, sub, `$${rate} per hour`].filter(Boolean).join(', ')}
+                  onPress={() => book(code)}
+                />
+              );
+            })}
           </ListSection>
         </Section>
 
