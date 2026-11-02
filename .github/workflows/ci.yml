@@ -167,5 +167,6 @@ jobs:
             verify_tutor_status
             verify_tutoring_locations
             verify_uploads
+            verify_option_b_screens
             verify_ui_kit
             verify_verified_grade_lock

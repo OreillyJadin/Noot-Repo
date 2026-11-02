@@ -26,7 +26,7 @@ export function LargeHeader({ title, subtitle, trailing }: LargeHeaderProps) {
 }
 
 export interface ListSectionProps {
-  label: string;
+  label?: string;
   action?: { label: string; onPress: () => void };
   children: React.ReactNode;
 }
@@ -36,19 +36,21 @@ export function ListSection({ label, action, children }: ListSectionProps) {
   const rows = React.Children.toArray(children);
   return (
     <View style={styles.section}>
-      <View style={styles.sectionHeading}>
-        <Text style={[styles.sectionLabel, { color: t.text3 }]}>{label}</Text>
-        {action ? (
-          <Pressable
-            onPress={action.onPress}
-            accessibilityRole="button"
-            accessibilityLabel={action.label}
-            style={({ pressed }) => pressed && styles.pressedAction}
-          >
-            <Text style={[styles.sectionAction, { color: t.accent }]}>{action.label}</Text>
-          </Pressable>
-        ) : null}
-      </View>
+      {label || action ? (
+        <View style={styles.sectionHeading}>
+          {label ? <Text style={[styles.sectionLabel, { color: t.text3 }]}>{label}</Text> : null}
+          {action ? (
+            <Pressable
+              onPress={action.onPress}
+              accessibilityRole="button"
+              accessibilityLabel={action.label}
+              style={({ pressed }) => pressed && styles.pressedAction}
+            >
+              <Text style={[styles.sectionAction, { color: t.accent }]}>{action.label}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
       <View style={[styles.sectionSurface, { backgroundColor: t.surface, borderRadius: parseRadius(t.cardRadius, 16) }]}>
         {rows.map((child, index) => (
           <React.Fragment key={index}>
