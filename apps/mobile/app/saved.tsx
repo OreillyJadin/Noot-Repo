@@ -3,26 +3,16 @@
 // "Saved" segment (see sessions.tsx), but the standalone route is kept per the nav map.
 // Tapping a tutor stashes it on the in-progress booking draft and opens their profile (B2).
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, type ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Badge, Ic, H1, TabBar, EmptyState, useTheme } from '@noot/ui';
+import { Screen, Body, BandHeader, Avatar, Ic, TabBar, EmptyState, ListSection, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
-import { VerifiedBadge } from '../lib/VerifiedBadge';
-
-function TabHeader({ title }: { title: string }) {
-  const t = useTheme();
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={[styles.header, { paddingTop: insets.top + 4, backgroundColor: t.bg }]}>
-      <H1 style={styles.headerTitle}>{title}</H1>
-    </View>
-  );
-}
+import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
+import { tutorMeta } from '../lib/tutorMeta';
 
 export default function Saved() {
   const { reloadKey, onRefresh } = usePullToRefresh();
@@ -51,45 +41,67 @@ export default function Saved() {
 
   return (
     <Screen>
-      <TabHeader title="Saved" />
-      <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 8 }}>
+      <Body
+        ref={scrollRef}
+        onRefresh={onRefresh}
+        refreshTint={t.onBand}
+        pad={20}
+        header={<BandHeader title="Saved" />}
+      >
         <Text style={[styles.count, { color: t.text3 }]}>
           {loading ? 'Loading…' : `${tutors.length} tutor${tutors.length === 1 ? '' : 's'} saved for later`}
         </Text>
-        <View style={{ gap: 10 }}>
-          {tutors.map((tutor) => (
-            <Card key={tutor.id} onPress={() => open(tutor)} style={styles.row}>
-              <Avatar size={48} uri={tutor.avatarUrl} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={styles.rowHead}>
-                  <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
-                  <Text style={[styles.rate, { color: t.text }]}>
-                    ${tutor.rate}
-                    <Text style={[styles.rateUnit, { color: t.text3 }]}>/hr</Text>
-                  </Text>
-                </View>
-                <Text style={[styles.sub, { color: t.text3 }]}>
-                  {tutor.year} · {tutor.major}
-                </Text>
-                <View style={styles.tagsRow}>
-                  {tutor.courses[0]?.[0] ? <Badge label={tutor.courses[0][0]} tone="accentSoft" /> : null}
-                  <VerifiedBadge verified={tutor.verified} />
-                  <Text style={[styles.sessions, { color: t.text3 }]}>{tutor.sessions} sessions</Text>
-                </View>
-              </View>
-              <Ic name="bookmark" size={19} color={t.accent} strokeWidth={1.6} fill={t.accent} />
-            </Card>
-          ))}
-          {!loading && tutors.length === 0 ? (
-            <EmptyState
-              icon="bookmark"
-              title="No saved tutors yet"
-              subtitle="Tap the bookmark on any tutor to keep them here."
-              actionLabel="Find tutors"
-              onAction={() => router.replace('/student_home')}
-            />
-          ) : null}
-        </View>
+        {!loading && tutors.length > 0 ? (
+          <ListSection label="Saved tutors">
+            {tutors.map((tutor) => {
+              const meta = tutorMeta(tutor);
+              const nameDetails = [tutor.year, tutor.major].filter(Boolean).join(' · ');
+              const sessionsLabel = `${tutor.sessions} ${tutor.sessions === 1 ? 'session' : 'sessions'}`;
+              return (
+                <Pressable
+                  key={tutor.id}
+                  onPress={() => open(tutor)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${tutor.name}${meta.course ? `, ${meta.course}` : ''}${nameDetails ? `, ${nameDetails}` : ''}, ${sessionsLabel}${tutor.verified ? ', verified tutor' : ''}. $${tutor.rate} per hour`}
+                  style={({ pressed }) => [styles.row, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
+                >
+                  <Avatar size={48} uri={tutor.avatarUrl} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={styles.rowHead}>
+                      <View style={styles.nameWithCheck}>
+                        <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
+                        {tutor.verified ? (
+                          <Pressable
+                            onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
+                            hitSlop={6}
+                            accessibilityRole="button"
+                            accessibilityLabel="Verified tutor. Tap for what this means."
+                          >
+                            <Ic name="check" size={14} color={t.good} strokeWidth={2.6} />
+                          </Pressable>
+                        ) : null}
+                      </View>
+                      <Text style={[styles.rate, { color: t.text }]}>
+                        ${tutor.rate}
+                        <Text style={[styles.rateUnit, { color: t.text3 }]}>/hr</Text>
+                      </Text>
+                    </View>
+                    <Text style={[styles.sub, { color: t.text2 }]}>{meta.line}</Text>
+                  </View>
+                  <Ic name="bookmark" size={19} color={t.accent} strokeWidth={1.6} fill={t.accent} />
+                </Pressable>
+              );
+            })}
+          </ListSection>
+        ) : !loading ? (
+          <EmptyState
+            icon="bookmark"
+            title="No saved tutors yet"
+            subtitle="Tap the bookmark on any tutor to keep them here."
+            actionLabel="Find tutors"
+            onAction={() => router.replace('/student_home')}
+          />
+        ) : null}
       </Body>
       <TabBar active={active} onTab={onTab} role="student" />
     </Screen>
@@ -97,15 +109,12 @@ export default function Saved() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexShrink: 0, paddingHorizontal: 20, paddingBottom: 8 },
-  headerTitle: { fontSize: 30 },
   count: { fontSize: 13, marginBottom: 2 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
   rowHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   name: { fontSize: 16, fontWeight: '600' },
+  nameWithCheck: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
   rate: { fontSize: 15, fontWeight: '700' },
   rateUnit: { fontSize: 11, fontWeight: '500' },
-  sub: { fontSize: 13, marginTop: 1 },
-  tagsRow: { flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 8 },
-  sessions: { marginLeft: 'auto', fontSize: 12 },
+  sub: { fontSize: 13, marginTop: 2 },
 });

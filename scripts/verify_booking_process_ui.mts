@@ -46,15 +46,17 @@ assert.match(studentPending, /Cancel request/);
 assert.doesNotMatch(studentPending, /Message/);
 assert.match(studentPending, /full/);
 
-const tutorCardStart = tutorSessions.indexOf('<Card key={r.id}');
-assert.ok(tutorCardStart >= 0, 'tutor sessions renders request cards');
-const tutorCardEnd = tutorSessions.indexOf('</Card>', tutorCardStart);
-assert.ok(tutorCardEnd > tutorCardStart, 'tutor request card is closed');
-const tutorCard = tutorSessions.slice(tutorCardStart, tutorCardEnd);
-assert.match(tutorCard, /requestNote/);
-assert.match(tutorCard, /numberOfLines=\{3\}/);
-assert.match(tutorCard, /color: t\.text2/);
-assert.doesNotMatch(tutorCard, /openChat|\/chat|Message/);
+const tutorUpcomingStart = tutorSessions.indexOf('<ListSection label="Upcoming sessions">');
+assert.ok(tutorUpcomingStart >= 0, 'tutor sessions groups upcoming rows');
+const tutorUpcomingEnd = tutorSessions.indexOf('</ListSection>', tutorUpcomingStart);
+assert.ok(tutorUpcomingEnd > tutorUpcomingStart, 'tutor upcoming rows are grouped');
+const tutorUpcoming = tutorSessions.slice(tutorUpcomingStart, tutorUpcomingEnd);
+assert.match(tutorUpcoming, /<View key={r\.id}/);
+assert.match(tutorUpcoming, /disabled=\{r\.status !== 'confirmed'\}/, 'only confirmed tutor sessions are navigable');
+assert.match(tutorUpcoming, /requestNote/);
+assert.match(tutorUpcoming, /numberOfLines=\{3\}/);
+assert.match(tutorUpcoming, /color: t\.text2/);
+assert.doesNotMatch(tutorUpcoming, /openChat|\/chat|Message/);
 assert.doesNotMatch(tutorSessions, /openChat/);
 assert.match(tutorSessions, /router\.push\('\/chat_tutor'\)/);
 

@@ -1,10 +1,9 @@
 // Chats — the conversation list for both roles. A 1:1 thread is created when the tutor
 // accepts a request. Tapping an existing row opens the thread for either participant.
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, StyleSheet, type ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Screen, Body, Card, Avatar, Badge, H1, TabBar, EmptyState, Skeleton, useTheme, useLargeText } from '@noot/ui';
+import { Screen, Body, BandHeader, Avatar, Badge, TabBar, EmptyState, Skeleton, ListSection, useTheme, useLargeText } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import type { Booking, ConversationSummary } from '@noot/core';
 import { useTabNav } from '../lib/useTabNav';
@@ -54,16 +53,6 @@ function fallbackTutor(c: ConversationSummary): Tutor {
     bio: '',
     courses: [['', '', 0, 0, false]],
   };
-}
-
-function TabHeader({ title }: { title: string }) {
-  const t = useTheme();
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={[styles.header, { paddingTop: insets.top + 4, backgroundColor: t.bg }]}>
-      <H1 style={styles.headerTitle}>{title}</H1>
-    </View>
-  );
 }
 
 export default function Chats() {
@@ -152,8 +141,7 @@ export default function Chats() {
 
   return (
     <Screen>
-      <TabHeader title="Chats" />
-      <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 4 }}>
+      <Body ref={scrollRef} onRefresh={onRefresh} refreshTint={t.onBand} pad={20} header={<BandHeader title="Chats" />}>
         {loading ? (
           <View style={{ gap: 10 }}>
             <Skeleton height={72} radius={16} />
@@ -173,7 +161,7 @@ export default function Chats() {
             onAction={role === 'tutor' ? undefined : () => router.replace('/student_home')}
           />
         ) : (
-          <View style={{ gap: 10 }}>
+          <ListSection label="Conversations">
             {rows.map((c) => {
               const name = counterpartName(c);
               const booking = bookingBy[c.counterpart.id];
@@ -181,38 +169,41 @@ export default function Chats() {
               const last = c.lastMessage;
               const mine = !!last && last.senderId === uid;
               const preview = last ? (last.content || 'Attachment') : 'No messages yet';
+              const badgeLabel = pending
+                ? c.side === 'student'
+                  ? c.counterpart.firstName.trim()
+                    ? `Awaiting ${c.counterpart.firstName.trim()}'s response`
+                    : 'Awaiting response'
+                  : 'New request'
+                : '';
+              const time = listTime(last?.createdAt ?? c.createdAt);
               return (
-                <Card key={c.id} onPress={() => void open(c)} style={styles.row}>
+                <Pressable
+                  key={c.id}
+                  onPress={() => void open(c)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${name}, ${mine ? 'You: ' : ''}${preview}${badgeLabel ? `, ${badgeLabel}` : ''}, ${time}`}
+                  style={({ pressed }) => [styles.row, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
+                >
                   <Avatar size={46} label={name.charAt(0)} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <View style={[styles.rowHead, large && styles.rowHeadStacked]}>
                       <Text numberOfLines={large ? 2 : 1} style={[styles.name, { color: t.text }]}>{name}</Text>
-                      <Text style={[styles.time, { color: t.text3 }]}>
-                        {listTime(last?.createdAt ?? c.createdAt)}
-                      </Text>
+                      <Text style={[styles.time, { color: t.text3 }]}>{time}</Text>
                     </View>
                     <Text numberOfLines={1} style={[styles.preview, { color: t.text3 }]}>
                       {mine ? `You: ${preview}` : preview}
                     </Text>
-                    {pending ? (
+                    {badgeLabel ? (
                       <View style={styles.badgeRow}>
-                        <Badge
-                          label={
-                            c.side === 'student'
-                              ? c.counterpart.firstName.trim()
-                                ? `Awaiting ${c.counterpart.firstName.trim()}'s response`
-                                : 'Awaiting response'
-                              : 'New request'
-                          }
-                          tone="accentSoft"
-                        />
+                        <Badge label={badgeLabel} tone="accentSoft" />
                       </View>
                     ) : null}
                   </View>
-                </Card>
+                </Pressable>
               );
             })}
-          </View>
+          </ListSection>
         )}
       </Body>
       <TabBar active={active} onTab={onTab} role={role} />
@@ -221,8 +212,6 @@ export default function Chats() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexShrink: 0, paddingHorizontal: 20, paddingBottom: 8 },
-  headerTitle: { fontSize: 30 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
   rowHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
   rowHeadStacked: { flexDirection: 'column', alignItems: 'flex-start', gap: 0 },
