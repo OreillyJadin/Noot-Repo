@@ -7,15 +7,13 @@
 // own colour, and the times it covers are not shown as open (ERR-032).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, TabBar, Card, Avatar, Ic, Label, useTheme, useLargeText, TEXT_CAPS } from '@noot/ui';
+import { Screen, Body, BandHeader, TabBar, Card, Avatar, Ic, useTheme, useLargeText } from '@noot/ui';
 import { campusParts, formatCampusSlot, formatCampusTime, api, type TutorInterview } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { DAYS, MONTHS } from '../lib/data';
 import { isTimeOpen } from '../lib/availability';
-import { GeckoLogo } from '../lib/GeckoLogo';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { INTERVIEW_MINUTES, interviewBlockedSlots, interviewRange } from '../lib/interviewBlock';
@@ -65,7 +63,6 @@ export default function TutorCalendar() {
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { role } = useApp();
   const { me } = useMe();
 
@@ -198,12 +195,14 @@ export default function TutorCalendar() {
 
   return (
     <Screen>
-      <View style={[styles.top, { paddingTop: insets.top + 12 }]}>
-        <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: t.text }]}>Calendar</Text>
-          <GeckoLogo size={18} />
-        </View>
-
+      <Body
+        ref={scrollRef}
+        onRefresh={onRefresh}
+        refreshTint={t.onBand}
+        pad={20}
+        header={<BandHeader title="Calendar" />}
+      >
+        <View style={styles.controls}>
         {/* week switch */}
         <View style={[styles.weekSwitch, { backgroundColor: t.surface2 }]}>
           {WEEK_TABS.map(([v, l]) => {
@@ -214,11 +213,10 @@ export default function TutorCalendar() {
                 onPress={() => pickWeek(v)}
                 style={[
                   styles.weekSeg,
-                  { backgroundColor: on ? t.surface : 'transparent' },
-                  on && styles.weekSegShadow,
+                  { backgroundColor: on ? t.accentWeak : 'transparent' },
                 ]}
               >
-                <Text style={[styles.weekSegLabel, { color: on ? t.text : t.text3 }]}>{l}</Text>
+                <Text style={[styles.weekSegLabel, { color: on ? t.accent : t.text2 }]}>{l}</Text>
               </Pressable>
             );
           })}
@@ -239,8 +237,8 @@ export default function TutorCalendar() {
                   { backgroundColor: on ? t.accent : t.surface, borderColor: on ? t.accent : t.border },
                 ]}
               >
-                <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={TEXT_CAPS.cell} style={[styles.dayDow, { color: on ? t.onAccent : t.text3 }]}>{d.dow}</Text>
-                <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={TEXT_CAPS.cell} style={[styles.dayDom, { color: on ? t.onAccent : t.text }]}>{d.dom}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.dayDow, { color: on ? t.onAccent : t.text3 }]}>{d.dow}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.dayDom, { color: on ? t.onAccent : t.text }]}>{d.dom}</Text>
                 <View style={styles.dayDots}>
                   {booked && (
                     <View style={[styles.dot, { backgroundColor: on ? t.onAccent : t.accent }]} />
@@ -274,10 +272,8 @@ export default function TutorCalendar() {
             Edit availability
           </Text>
         </View>
-      </View>
-
-      <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 12 }}>
-        <Label style={{ fontSize: 13, marginBottom: 10 }}>{dayObj.label}</Label>
+        </View>
+        <Text style={[styles.dayLabel, { color: t.text2 }]}>{dayObj.label}</Text>
         {interview && interviewAt && interviewDay === day ? (
           <View style={[styles.interviewCard, { backgroundColor: ADMIN_EVENT_WEAK, borderColor: ADMIN_EVENT }]}>
             <View style={[styles.interviewIcon, { backgroundColor: ADMIN_EVENT }]}>
@@ -380,18 +376,9 @@ export default function TutorCalendar() {
 }
 
 const styles = StyleSheet.create({
-  top: { paddingHorizontal: 20 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontSize: 22, fontWeight: '700' },
-  weekSwitch: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 16, marginTop: 14, marginBottom: 12 },
+  controls: { gap: 12 },
+  weekSwitch: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 16 },
   weekSeg: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 14 },
-  weekSegShadow: {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 1,
-  },
   weekSegLabel: { fontSize: 14, fontWeight: '600' },
   dayStrip: { flexDirection: 'row', gap: 6 },
   dayCell: { flex: 1, paddingTop: 8, paddingBottom: 7, borderRadius: 13, alignItems: 'center', borderWidth: 1.5 },
@@ -403,6 +390,7 @@ const styles = StyleSheet.create({
   summaryText: { fontSize: 12.5 },
   summaryStrong: { fontWeight: '700' },
   copyLink: { fontSize: 12.5, fontWeight: '600' },
+  dayLabel: { fontSize: 15, fontWeight: '600' },
   slotRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   slotTime: { width: 60, flexShrink: 0, fontSize: 12, fontWeight: '600', textAlign: 'right' },
   // Large text: the time sits above its slot instead of in a 60pt column.

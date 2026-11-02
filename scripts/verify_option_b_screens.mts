@@ -4,12 +4,31 @@ import { join } from 'node:path';
 import { countdownLabel } from '../apps/mobile/lib/countdownLabel';
 
 const root = process.cwd();
-const screens = [
+const referenceScreens = [
   'apps/mobile/app/student_home.tsx',
   'apps/mobile/app/tutor_home.tsx',
   'apps/mobile/app/profile.tsx',
   'apps/mobile/app/tutor_profile.tsx',
 ];
+const phase3aScreens = [
+  'apps/mobile/app/home.tsx',
+  'apps/mobile/app/sessions.tsx',
+  'apps/mobile/app/tutor_sessions.tsx',
+  'apps/mobile/app/tutor_calendar.tsx',
+  'apps/mobile/app/chats.tsx',
+  'apps/mobile/app/saved.tsx',
+  'apps/mobile/app/ambassador_home.tsx',
+  'apps/mobile/app/ambassador_referrals.tsx',
+];
+const screens = [...referenceScreens, ...phase3aScreens];
+const listScreens = new Set([
+  'apps/mobile/app/home.tsx',
+  'apps/mobile/app/sessions.tsx',
+  'apps/mobile/app/tutor_sessions.tsx',
+  'apps/mobile/app/chats.tsx',
+  'apps/mobile/app/saved.tsx',
+  'apps/mobile/app/ambassador_home.tsx',
+]);
 
 for (const path of screens) {
   const source = readFileSync(join(root, path), 'utf8');
@@ -17,8 +36,11 @@ for (const path of screens) {
   assert.match(source, /refreshTint=\{t\.onBand\}/, `${path} must use the on-band refresh tint`);
   assert.doesNotMatch(source, /Hey,\s/, `${path} still has a greeting`);
   assert.doesNotMatch(source, /textTransform:\s*['"]uppercase['"]/, `${path} still has uppercase text styling`);
+  assert.doesNotMatch(source, /\bTEXT_CAPS\b/, `${path} still uses TEXT_CAPS`);
+  assert.doesNotMatch(source, /<SafeAreaView[^>]*edges=\{\[\s*['"]top['"]\s*\]\}/s, `${path} still wraps its header in a top SafeAreaView`);
+  assert.doesNotMatch(source, /paddingTop\s*:\s*insets\.top/, `${path} still adds top inset header padding`);
   assert.doesNotMatch(source, /<ListSection\s+label=["']["']/, `${path} has a blank section label`);
-  assert.match(source, /\bListSection\b/, `${path} must use grouped list sections`);
+  if (listScreens.has(path)) assert.match(source, /\bListSection\b/, `${path} must use grouped list sections`);
   for (const [, value] of source.matchAll(/letterSpacing\s*:\s*(-?\d+(?:\.\d+)?)/g)) {
     assert.ok(Number(value) < 0.5, `${path} has small-label letter spacing ${value}`);
   }
@@ -30,6 +52,13 @@ const tutorHome = readFileSync(join(root, screens[1]), 'utf8');
 assert.doesNotMatch(tutorHome, /CountdownPills|geckoDeco|Wordmark/);
 assert.match(tutorHome, /overlap=\{previewing \? undefined : 56\}/, 'tutor Home must skip overlap while previewing');
 assert.match(tutorHome, /marginTop: previewing \? 0 : -56/, 'tutor Home card offset must match the preview overlap');
+const studentTabHome = readFileSync(join(root, 'apps/mobile/app/home.tsx'), 'utf8');
+assert.doesNotMatch(studentTabHome, /CountdownPills|Wordmark/, 'student Home should use the band header and countdown text');
+const ambassadorReferrals = readFileSync(join(root, 'apps/mobile/app/ambassador_referrals.tsx'), 'utf8');
+assert.match(ambassadorReferrals, /<InviteView\b[^>]*presentation="referralsTab"/, 'Ambassador Referrals must use the tab-root invite presentation');
+const inviteView = readFileSync(join(root, 'apps/mobile/lib/InviteView.tsx'), 'utf8');
+assert.match(inviteView, /presentation === 'referralsTab'/, 'InviteView must provide the grouped Ambassador Referrals presentation');
+assert.match(inviteView, /groupedInviteRow/);
 assert.match(readFileSync(join(root, 'apps/mobile/lib/NotificationBell.tsx'), 'utf8'), /color\?:\s*string/);
 assert.match(readFileSync(join(root, 'apps/mobile/lib/AdminShortcut.tsx'), 'utf8'), /color\?:\s*string/);
 
