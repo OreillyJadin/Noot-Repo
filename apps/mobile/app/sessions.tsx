@@ -2,10 +2,9 @@
 // segmented tabs. Upcoming, Past and Saved all read live via @noot/core
 // because the backend has no past-sessions endpoint (see TODO(api) below).
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Alert, Pressable, type ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScrollView as HorizontalScrollView, View, Text, StyleSheet, Alert, Pressable, type ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { Screen, Body, Card, Avatar, Badge, Chip, Button, AdaptiveRow, Ic, H1, TabBar, EmptyState, Skeleton, useTheme } from '@noot/ui';
+import { Screen, Body, BandHeader, Avatar, Badge, Button, AdaptiveRow, Ic, TabBar, EmptyState, Skeleton, ListSection, useTheme, TEXT_CAPS } from '@noot/ui';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { api, sessionPhase, canReportNoShow } from '@noot/core';
@@ -14,7 +13,8 @@ import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { draftFromBooking } from '../lib/bookingDraft';
 import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
-import { VerifiedBadge } from '../lib/VerifiedBadge';
+import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
+import { tutorMeta } from '../lib/tutorMeta';
 import { formatSessionTime } from '../lib/formatSessionTime';
 import { useSessionClock } from '../lib/useSessionClock';
 
@@ -32,16 +32,6 @@ function formatWhere(b: Booking): string {
   // (T14). Existing 'video' rows just read "Online".
   if (b.sessionType === 'video') return 'Online';
   return b.location ?? 'In person';
-}
-
-function TabHeader({ title }: { title: string }) {
-  const t = useTheme();
-  const insets = useSafeAreaInsets();
-  return (
-    <View style={[styles.header, { paddingTop: insets.top + 4, backgroundColor: t.bg }]}>
-      <H1 style={styles.headerTitle}>{title}</H1>
-    </View>
-  );
 }
 
 export default function Sessions() {
@@ -214,19 +204,40 @@ export default function Sessions() {
 
   return (
     <Screen>
-      <TabHeader title="Sessions" />
-      <View style={[styles.segments, { backgroundColor: t.bg }]}>
-        {(
-          [
-            ['upcoming', 'Upcoming'],
-            ['past', 'Past'],
-            ['saved', 'Saved'],
-          ] as [SegmentKey, string][]
-        ).map(([v, l]) => (
-          <Chip key={v} label={l} on={tab === v} onPress={() => setTab(v)} />
-        ))}
-      </View>
-      <Body ref={scrollRef} onRefresh={onRefresh} pad={20} contentStyle={{ paddingTop: 4 }}>
+      <Body
+        ref={scrollRef}
+        onRefresh={onRefresh}
+        refreshTint={t.onBand}
+        pad={20}
+        header={<BandHeader title="Sessions" />}
+      >
+        <HorizontalScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          accessibilityRole="tablist"
+          style={styles.segmentsViewport}
+          contentContainerStyle={styles.segments}
+        >
+          {(
+            [
+              ['upcoming', 'Upcoming'],
+              ['past', 'Past'],
+              ['saved', 'Saved'],
+            ] as [SegmentKey, string][]
+          ).map(([value, label]) => (
+            <Pressable
+              key={value}
+              onPress={() => setTab(value)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: tab === value }}
+              style={[styles.segmentPill, { backgroundColor: tab === value ? t.accentWeak : 'transparent' }]}
+            >
+              <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.segmentLabel, { color: tab === value ? t.accent : t.text2, fontWeight: tab === value ? '600' : '400' }]}>
+                {label}
+              </Text>
+            </Pressable>
+          ))}
+        </HorizontalScrollView>
         {tab === 'saved' ? (
           savedLoading ? (
             <View style={{ gap: 10 }}>
@@ -242,40 +253,61 @@ export default function Sessions() {
               onAction={() => router.replace('/student_home')}
             />
           ) : (
-          <View style={{ gap: 10 }}>
-            <Text style={[styles.count, { color: t.text3 }]}>{saved.length} tutors saved for later</Text>
-            {saved.map((tutor) => {
-              return (
-                <Card key={tutor.id} onPress={() => openTutor(tutor)} style={styles.savedRow}>
-                  <Avatar size={46} uri={tutor.avatarUrl} />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <View style={styles.rowHead}>
-                      <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
-                      <Text style={[styles.rate, { color: t.text }]}>
-                        ${tutor.rate}
-                        <Text style={[styles.rateUnit, { color: t.text3 }]}>/hr</Text>
-                      </Text>
+            <>
+              <Text style={[styles.count, { color: t.text3 }]}>
+                {saved.length} tutor{saved.length === 1 ? '' : 's'} saved for later
+              </Text>
+              <ListSection label="Saved tutors">
+                {saved.map((tutor) => {
+                  const meta = tutorMeta(tutor);
+                  const nameDetails = [tutor.year, tutor.major].filter(Boolean).join(' · ');
+                  const sessionsLabel = `${tutor.sessions} ${tutor.sessions === 1 ? 'session' : 'sessions'}`;
+                  return (
+                    <View key={tutor.id} style={styles.savedRow}>
+                      <Pressable
+                        onPress={() => openTutor(tutor)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${tutor.name}${meta.course ? `, ${meta.course}` : ''}${nameDetails ? `, ${nameDetails}` : ''}, ${sessionsLabel}${tutor.verified ? ', verified tutor' : ''}. $${tutor.rate} per hour`}
+                        style={({ pressed }) => [styles.savedContent, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
+                      >
+                        <Avatar size={46} uri={tutor.avatarUrl} />
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <View style={styles.rowHead}>
+                            <View style={styles.nameWithCheck}>
+                              <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
+                              {tutor.verified ? (
+                                <Pressable
+                                  onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
+                                  hitSlop={6}
+                                  accessibilityRole="button"
+                                  accessibilityLabel="Verified tutor. Tap for what this means."
+                                >
+                                  <Ic name="check" size={14} color={t.good} strokeWidth={2.6} />
+                                </Pressable>
+                              ) : null}
+                            </View>
+                            <Text style={[styles.rate, { color: t.text }]}>
+                              ${tutor.rate}
+                              <Text style={[styles.rateUnit, { color: t.text3 }]}>/hr</Text>
+                            </Text>
+                          </View>
+                          <Text style={[styles.sub, { color: t.text2 }]}>{meta.line}</Text>
+                        </View>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => unsaveTutor(tutor.id)}
+                        hitSlop={10}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${tutor.name} from saved tutors`}
+                        style={styles.removeSaved}
+                      >
+                        <Ic name="bookmark" size={19} color={t.accent} strokeWidth={1.6} fill={t.accent} />
+                      </Pressable>
                     </View>
-                    <Text style={[styles.sub, { color: t.text3 }]}>
-                      {tutor.year} · {tutor.major}
-                    </Text>
-                    <View style={styles.tagsRow}>
-                      <VerifiedBadge verified={tutor.verified} />
-                      <Text style={[styles.sessions, { color: t.text3 }]}>{tutor.sessions} sessions</Text>
-                    </View>
-                  </View>
-                  {/* Its own Pressable, and hitSlop'd, so it doesn't just open the profile. */}
-                  <Pressable
-                    onPress={() => unsaveTutor(tutor.id)}
-                    hitSlop={10}
-                    accessibilityLabel={`Remove ${tutor.name} from saved tutors`}
-                  >
-                    <Ic name="bookmark" size={19} color={t.accent} strokeWidth={1.6} fill={t.accent} />
-                  </Pressable>
-                </Card>
-              );
-            })}
-          </View>
+                  );
+                })}
+              </ListSection>
+            </>
           )
         ) : tab === 'upcoming' ? (
           loading ? (
@@ -292,7 +324,7 @@ export default function Sessions() {
               onAction={() => router.replace('/student_home')}
             />
           ) : (
-          <View style={{ gap: 12 }}>
+          <ListSection label="Upcoming sessions">
             {upcoming.map(({ booking: b, tutor }) => {
               const tutorName = tutor?.name ?? 'Your tutor';
               const when = formatSessionTime(b.scheduledAt);
@@ -305,7 +337,7 @@ export default function Sessions() {
               const inProgress = phase === 'active';
               const soon = phase === 'upcoming' && new Date(b.scheduledAt).getTime() - now < 3_600_000;
               return (
-                <Card key={b.id} style={styles.cardNoPad}>
+                <View key={b.id}>
                   {soon || inProgress ? (
                     <View style={[styles.soonBanner, { backgroundColor: t.accent }]}>
                       <Ic name="clock" size={13} color={t.onAccent} strokeWidth={2.2} />
@@ -368,10 +400,10 @@ export default function Sessions() {
                       </>
                     )}
                   </View>
-                </Card>
+                </View>
               );
             })}
-          </View>
+          </ListSection>
           )
         ) : pastLoading ? (
           <View style={{ gap: 12 }}>
@@ -381,11 +413,11 @@ export default function Sessions() {
         ) : past.length === 0 ? (
           <EmptyState icon="list" title="No past sessions yet" subtitle="Your completed sessions will appear here." />
         ) : (
-          <View style={{ gap: 12 }}>
+          <ListSection label="Past sessions">
             {past.map(({ booking: b, tutor }) => {
               const canRate = canRateBooking(b, ratedLookup);
               return (
-                <Card key={b.id} style={{ padding: 14 }}>
+                <View key={b.id} style={styles.pastRow}>
                   <View style={styles.pastHead}>
                     <Avatar size={44} uri={tutor?.avatarUrl} />
                     <View style={{ flex: 1, minWidth: 0 }}>
@@ -432,10 +464,10 @@ export default function Sessions() {
                     <Button label="Report a no-show" kind="tint" size="sm" full
                       style={{ marginTop: 10 }} onPress={() => reportNoShow(tutor, b)} />
                   ) : null}
-                </Card>
+                </View>
               );
             })}
-          </View>
+          </ListSection>
         )}
       </Body>
       <TabBar active={active} onTab={onTab} role={role} />
@@ -444,11 +476,15 @@ export default function Sessions() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexShrink: 0, paddingHorizontal: 20, paddingBottom: 8 },
-  headerTitle: { fontSize: 30 },
-  segments: { flexShrink: 0, flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 20, paddingBottom: 12 },
+  segmentsViewport: { flexGrow: 0, marginHorizontal: -20 },
+  segments: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingVertical: 2 },
+  segmentPill: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
+  segmentLabel: { fontSize: 14, fontWeight: '400' },
   count: { fontSize: 13, marginBottom: 2 },
-  cardNoPad: { padding: 0, overflow: 'hidden' },
+  savedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  savedContent: { flex: 1, minWidth: 0, flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
+  removeSaved: { paddingHorizontal: 12, paddingVertical: 14 },
+  pastRow: { padding: 14 },
   soonBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 6 },
   soonText: { fontSize: 12, fontWeight: '700' },
   upcomingHead: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
@@ -459,13 +495,11 @@ const styles = StyleSheet.create({
   link: { fontSize: 12, fontWeight: '600' },
   pastHead: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   pastBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  savedRow: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
   rowHead: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, justifyContent: 'space-between', alignItems: 'baseline' },
+  nameWithCheck: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
   name: { fontSize: 16, fontWeight: '600' },
   nameSm: { fontSize: 15, fontWeight: '600' },
   rate: { fontSize: 15, fontWeight: '700' },
   rateUnit: { fontSize: 11, fontWeight: '500' },
   sub: { fontSize: 13, marginTop: 1 },
-  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 8 },
-  sessions: { marginLeft: 'auto', fontSize: 12 },
 });

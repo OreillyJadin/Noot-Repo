@@ -9,7 +9,7 @@
 // Cash-outs are paid by Stripe transfer (0088), so an ambassador first sets up the same
 // payout account tutors have (lib/payoutSetup), and sees each request's status below.
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, Share, Alert, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, Share, Alert, StyleSheet, useWindowDimensions, type TextStyle } from 'react-native';
 import { Card, Badge, Avatar, Ic, Eyebrow, Skeleton, EmptyState, useTheme, useLargeText, TEXT_CAPS, type IconName } from '@noot/ui';
 import { api, type Cashout, type Invite, type Milestone } from '@noot/core';
 import { useMe } from './useMe';
@@ -23,10 +23,21 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, {
 
 export const dollars = (cents: number) => `$${(cents / 100).toFixed(2).replace(/\.00$/, '')}`;
 
-export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
+export function InviteView({
+  reloadKey = 0,
+  presentation = 'default',
+}: {
+  reloadKey?: number;
+  presentation?: 'default' | 'referralsTab';
+}) {
   const t = useTheme();
   const large = useLargeText();
   const { fontScale } = useWindowDimensions();
+  const groupedPresentation = presentation === 'referralsTab';
+  const sectionLabel = (label: string, style?: TextStyle) =>
+    groupedPresentation
+      ? <Text style={[styles.sectionTitle, { color: t.text2 }, style]}>{label}</Text>
+      : <Eyebrow style={{ color: t.text3, ...style }}>{label}</Eyebrow>;
   const [codeWidth, setCodeWidth] = useState(0);
   const { isAmbassador } = useMe();
   const [code, setCode] = useState<string | null>(null);
@@ -125,11 +136,53 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
     );
   };
 
+  const renderInviteRow = (invite: Invite, index: number) => {
+    const badge = (
+      <Badge
+        label={invite.reversed ? 'Refunded' : invite.completed ? `+${dollars(invite.rewardCents)}` : 'Joined'}
+        tone={invite.completed && !invite.reversed ? 'good' : 'neutral'}
+      />
+    );
+    const content = (
+      <>
+        <Avatar size={42} label={invite.name.charAt(0) || 'A'} />
+        <View style={{ flex: 1, minWidth: 0, gap: large ? 6 : 0 }}>
+          <Text style={[styles.name, { color: t.text }]}>{invite.name}</Text>
+          <Text style={[styles.sub, { color: t.text3 }]}>
+            {invite.reversed
+              ? 'Their session was refunded'
+              : invite.completed
+                ? 'Completed a session'
+                : 'Joined — your $5 comes after their first session'}
+          </Text>
+          {large ? <View style={{ flexDirection: 'row' }}>{badge}</View> : null}
+        </View>
+        {large ? null : badge}
+      </>
+    );
+    return groupedPresentation ? (
+      <View
+        key={invite.referralId}
+        style={[
+          styles.row,
+          styles.groupedInviteRow,
+          index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border },
+        ]}
+      >
+        {content}
+      </View>
+    ) : (
+      <Card key={invite.referralId} style={styles.row}>{content}</Card>
+    );
+  };
+
   return (
     <View>
       {/* balance */}
       <View style={[styles.balance, { backgroundColor: t.accent }]}>
-        <Text style={[styles.balanceLabel, { color: t.onAccent }]}>NOOT CREDIT</Text>
+        <Text style={[styles.balanceLabel, groupedPresentation && styles.balanceLabelGrouped, { color: t.onAccent }]}>
+          {groupedPresentation ? 'Noot credit' : 'NOOT CREDIT'}
+        </Text>
         <Text style={[styles.balanceValue, { color: t.onAccent }]}>{balance == null ? '—' : dollars(balance)}</Text>
         <Text style={[styles.balanceSub, { color: t.onAccent }]}>
           {isAmbassador ? 'Use it on sessions or cash it out' : 'Comes off your next session automatically'}
@@ -138,7 +191,7 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
 
       {/* code + share */}
       <Card style={{ padding: 20, alignItems: 'center', marginTop: 12 }}>
-        <Eyebrow style={{ color: t.text3 }}>Your invite code</Eyebrow>
+        {sectionLabel('Your invite code')}
         {code === '' ? (
           <Text style={[styles.code, { color: t.text3 }]}>—</Text>
         ) : code ? (
@@ -154,6 +207,7 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
             onLayout={large ? (e) => setCodeWidth(e.nativeEvent.layout.width) : undefined}
             style={[
               styles.code,
+              groupedPresentation && styles.codeGrouped,
               { color: t.accent },
               large && {
                 fontSize: Math.min(
@@ -179,15 +233,21 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
       </Card>
 
       <Card flat style={{ ...styles.how, backgroundColor: t.surfaceAlt }}>
-        <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>How it works</Eyebrow>
+        {sectionLabel('How it works', { marginBottom: 12 })}
         {([
           ['user', 'Your friend signs up and enters your code'],
           ['cap', 'They complete a session on noot'],
           ['gift', 'You get $5 in Noot credit'],
         ] as [IconName, string][]).map(([ic, label]) => (
           <View key={label} style={styles.step}>
-            <View style={[styles.stepIcon, { backgroundColor: t.accentWeak }]}>
-              <Ic name={ic} size={16} color={t.accent} strokeWidth={1.8} />
+            <View
+              style={[
+                styles.stepIcon,
+                groupedPresentation && styles.stepIconGrouped,
+                { backgroundColor: groupedPresentation ? 'transparent' : t.accentWeak },
+              ]}
+            >
+              <Ic name={ic} size={groupedPresentation ? 18 : 16} color={t.accent} strokeWidth={1.8} />
             </View>
             <Text style={[styles.stepText, { color: t.text2 }]}>{label}</Text>
           </View>
@@ -197,7 +257,7 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
       {/* ambassador goals + cash-out */}
       {isAmbassador ? (
         <>
-          <Eyebrow style={{ color: t.text3, marginTop: 22, marginBottom: 10 }}>Ambassador goals</Eyebrow>
+          {sectionLabel('Ambassador goals', { marginTop: 22, marginBottom: 10 })}
           {approved === false ? (
             <Card flat style={{ padding: 14, marginBottom: 10, backgroundColor: t.surfaceAlt }}>
               <Text style={[styles.goalTitle, { color: t.text }]}>Pending team approval</Text>
@@ -288,7 +348,7 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
 
           {cashouts.length ? (
             <>
-              <Eyebrow style={{ color: t.text3, marginTop: 22, marginBottom: 10 }}>Your cash-outs</Eyebrow>
+              {sectionLabel('Your cash-outs', { marginTop: 22, marginBottom: 10 })}
               <Card style={{ paddingVertical: 4, paddingHorizontal: 16 }}>
                 {cashouts.map((c, i) => {
                   const label = c.status === 'paid'
@@ -320,7 +380,7 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
       ) : null}
 
       {/* people you invited */}
-      <Eyebrow style={{ color: t.text3, marginTop: 22, marginBottom: 10 }}>People you invited</Eyebrow>
+      {sectionLabel('People you invited', { marginTop: 22, marginBottom: 10 })}
       {invites == null ? (
         <View style={{ gap: 10 }}>
           <Skeleton height={64} radius={16} />
@@ -335,34 +395,13 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
           onAction={code ? share : undefined}
         />
       ) : (
-        <View style={{ gap: 10 }}>
-          {invites.map((i) => {
-            const badge = (
-              <Badge
-                label={i.reversed ? 'Refunded' : i.completed ? `+${dollars(i.rewardCents)}` : 'Joined'}
-                tone={i.completed && !i.reversed ? 'good' : 'neutral'}
-              />
-            );
-            // At large text the badge drops under the name so the text column keeps its width.
-            return (
-              <Card key={i.referralId} style={styles.row}>
-                <Avatar size={42} label={i.name.charAt(0) || 'A'} />
-                <View style={{ flex: 1, minWidth: 0, gap: large ? 6 : 0 }}>
-                  <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
-                  <Text style={[styles.sub, { color: t.text3 }]}>
-                    {i.reversed
-                      ? 'Their session was refunded'
-                      : i.completed
-                        ? 'Completed a session'
-                        : 'Joined — your $5 comes after their first session'}
-                  </Text>
-                  {large ? <View style={{ flexDirection: 'row' }}>{badge}</View> : null}
-                </View>
-                {large ? null : badge}
-              </Card>
-            );
-          })}
-        </View>
+        groupedPresentation ? (
+          <View style={[styles.invitesGroup, { backgroundColor: t.surface }]}>
+            {invites.map(renderInviteRow)}
+          </View>
+        ) : (
+          <View style={{ gap: 10 }}>{invites.map(renderInviteRow)}</View>
+        )
       )}
     </View>
   );
@@ -371,14 +410,18 @@ export function InviteView({ reloadKey = 0 }: { reloadKey?: number }) {
 const styles = StyleSheet.create({
   balance: { borderRadius: 20, padding: 18 },
   balanceLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1, opacity: 0.9 },
+  balanceLabelGrouped: { fontSize: 14, fontWeight: '600', letterSpacing: 0 },
   balanceValue: { fontSize: 40, fontWeight: '800', marginTop: 4 },
   balanceSub: { fontSize: 12.5, opacity: 0.9, marginTop: 2 },
   code: { fontSize: 30, fontWeight: '700', letterSpacing: 1, marginTop: 8, alignSelf: 'stretch', textAlign: 'center' },
+  codeGrouped: { letterSpacing: 0 },
   shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16, minHeight: 48, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 14, alignSelf: 'stretch' },
   shareLabel: { fontSize: 15, fontWeight: '700', flexShrink: 1, textAlign: 'center' },
   how: { marginTop: 12, padding: 16 },
+  sectionTitle: { fontSize: 15, fontWeight: '600' },
   step: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
   stepIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  stepIconGrouped: { width: 24, height: 24, borderRadius: 0 },
   stepText: { flex: 1, fontSize: 14 },
   goalTitle: { fontSize: 14.5, fontWeight: '700' },
   track: { height: 8, borderRadius: 4, marginTop: 10, overflow: 'hidden' },
@@ -397,6 +440,8 @@ const styles = StyleSheet.create({
   cashoutDate: { fontSize: 12, marginTop: 1 },
   cashoutAmt: { fontSize: 14, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
+  invitesGroup: { borderRadius: 20, overflow: 'hidden', paddingHorizontal: 4 },
+  groupedInviteRow: { paddingVertical: 14, paddingHorizontal: 12 },
   name: { fontSize: 15, fontWeight: '600' },
   sub: { fontSize: 12.5, marginTop: 1 },
 });

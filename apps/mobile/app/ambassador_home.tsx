@@ -2,17 +2,15 @@
 // people you invited (joined → completed a session, +$5 credit) — all from api.credits
 // (0040). Tab root for the ambassador mode.
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, type ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Eyebrow, Skeleton, EmptyState, ViewingAs, PreviewBanner, useTheme, useLargeText } from '@noot/ui';
+import { Screen, Body, BandHeader, TabBar, Badge, Avatar, Ic, Skeleton, EmptyState, ViewingAs, ListSection, useTheme, useLargeText } from '@noot/ui';
 import { api, type Invite, type Milestone } from '@noot/core';
 import { dollars } from '../lib/InviteView';
 import { useApp } from '../lib/store';
-import { useMe, firstName } from '../lib/useMe';
+import { useMe } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
-import { GeckoLogo } from '../lib/GeckoLogo';
 import { AdminShortcut } from '../lib/AdminShortcut';
 
 export default function AmbassadorHome() {
@@ -47,36 +45,19 @@ export default function AmbassadorHome() {
   const completed = invites.filter((i) => i.completed && !i.reversed).length;
   const nextGoal = milestones.find((m) => m.threshold > completed);
 
-  // At large text the header scrolls with the content instead of pinning half the screen.
-  const header = (
-    <View style={[styles.header, large && styles.headerInline]}>
-      <View style={styles.headerTop}>
-        <Wordmark size={22} />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, flexShrink: 1 }}>
-          <ViewingAs role="ambassador" preview={previewing} />
-          <AdminShortcut />
-        </View>
-      </View>
-      <View style={styles.welcomeRow}>
-        <View>
-          <Text style={[styles.label, { color: t.text3 }]}>Ambassador</Text>
-          <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>
-        </View>
-        <GeckoLogo size={40} />
-      </View>
-    </View>
-  );
-
   return (
-    <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
-      {large ? null : header}
-
-      <Body ref={scrollRef} onRefresh={onRefresh} contentStyle={{ paddingTop: 8 }}>
-        {large ? header : null}
+    <Screen>
+      <Body
+        ref={scrollRef}
+        onRefresh={onRefresh}
+        refreshTint={t.onBand}
+        pad={20}
+        header={<BandHeader title="Ambassador" trailing={<AdminShortcut color={t.onBand} ringColor={t.band} />} />}
+      >
+        <ViewingAs role="ambassador" preview={previewing} />
         {/* earnings summary */}
         <View style={[styles.summary, { backgroundColor: t.accent }]}>
-          <GeckoLogo style={styles.geckoDeco} />
-          <Text style={[styles.summaryLabel, { color: t.onAccent }]}>NOOT CREDIT</Text>
+          <Text style={[styles.summaryLabel, { color: t.onAccent }]}>Noot credit</Text>
           <Text style={[styles.summaryValue, { color: t.onAccent }]}>{loading ? '—' : dollars(balance)}</Text>
           <Text style={[styles.summarySub, { color: t.onAccent }]}>
             {loading
@@ -87,19 +68,23 @@ export default function AmbassadorHome() {
         </View>
 
         {/* share CTA */}
-        <Card onPress={() => router.push('/ambassador_referrals')} style={{ ...styles.cta, backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
-          <View style={[styles.ctaIcon, { backgroundColor: t.accent }]}>
-            <Ic name="gift" size={20} color={t.onAccent} strokeWidth={1.8} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.ctaTitle, { color: t.text }]}>Invite, earn, cash out</Text>
-            <Text style={[styles.ctaSub, { color: t.text2 }]}>$5 credit per friend who completes a session, plus goal bonuses</Text>
-          </View>
-          <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
-        </Card>
+        <ListSection>
+          <Pressable
+            onPress={() => router.push('/ambassador_referrals')}
+            accessibilityRole="button"
+            accessibilityLabel="Invite, earn, cash out. Open referrals"
+            style={styles.cta}
+          >
+            <Ic name="gift" size={20} color={t.accent} strokeWidth={1.8} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.ctaTitle, { color: t.text }]}>Invite, earn, cash out</Text>
+              <Text style={[styles.ctaSub, { color: t.text2 }]}>$5 credit per friend who completes a session, plus goal bonuses</Text>
+            </View>
+            <Ic name="chevR" size={17} color={t.accent} strokeWidth={2} />
+          </Pressable>
+        </ListSection>
 
         {/* referral pipeline */}
-        <Eyebrow style={{ color: t.text3, marginTop: 22, marginBottom: 10 }}>People you invited</Eyebrow>
         {loading ? (
           <View style={{ gap: 10 }}>
             <Skeleton height={64} radius={16} />
@@ -114,7 +99,7 @@ export default function AmbassadorHome() {
             onAction={() => router.push('/ambassador_referrals')}
           />
         ) : (
-          <View style={{ gap: 10 }}>
+          <ListSection label="People you invited">
             {invites.map((i) => {
               const badge = (
                 <Badge
@@ -123,7 +108,7 @@ export default function AmbassadorHome() {
                 />
               );
               return (
-                <Card key={i.referralId} style={styles.row}>
+                <View key={i.referralId} style={styles.row}>
                   <Avatar size={42} label={i.name.charAt(0) || 'A'} />
                   <View style={{ flex: 1, minWidth: 0, gap: large ? 6 : 0 }}>
                     <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
@@ -133,32 +118,24 @@ export default function AmbassadorHome() {
                     {large ? <View style={{ flexDirection: 'row' }}>{badge}</View> : null}
                   </View>
                   {large ? null : badge}
-                </Card>
+                </View>
               );
             })}
-          </View>
+          </ListSection>
         )}
       </Body>
 
       <TabBar active={active} onTab={onTab} role={role} />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-  headerInline: { paddingHorizontal: 0, paddingTop: 0 },
-  headerTop: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  label: { fontSize: 13 },
-  summary: { position: 'relative', overflow: 'hidden', borderRadius: 20, padding: 18, marginBottom: 12 },
-  geckoDeco: { position: 'absolute', right: -10, bottom: -18, width: 100, height: 100, opacity: 0.16, transform: [{ rotate: '10deg' }] },
-  summaryLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1, opacity: 0.9 },
+  summary: { borderRadius: 20, padding: 18 },
+  summaryLabel: { fontSize: 13, fontWeight: '600', opacity: 0.9 },
   summaryValue: { fontSize: 40, fontWeight: '800', marginTop: 4 },
   summarySub: { fontSize: 12.5, opacity: 0.9, marginTop: 2 },
-  cta: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderWidth: 1 },
-  ctaIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  cta: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   ctaTitle: { fontSize: 14, fontWeight: '700' },
   ctaSub: { fontSize: 12.5, marginTop: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
