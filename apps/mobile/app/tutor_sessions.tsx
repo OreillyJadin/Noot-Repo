@@ -1,10 +1,9 @@
 // TS Tutor Sessions — ported from screens-home.jsx (TutorSessions). Upcoming/Past
 // segmented list of a tutor's sessions. Tab root (tutor Sessions tab).
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView as HorizontalScrollView, View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { Body, TabBar, Button, Badge, Card, Avatar, Ic, H2, EmptyState, Skeleton, AdaptiveRow, useTheme, TEXT_CAPS } from '@noot/ui';
+import { Screen, Body, BandHeader, TabBar, Button, Badge, Avatar, Ic, EmptyState, Skeleton, AdaptiveRow, ListSection, useTheme, TEXT_CAPS } from '@noot/ui';
 import { api, tutorEarnedAmount, sessionPhase, canReportNoShow } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -13,7 +12,6 @@ import { toTutor } from '../lib/data';
 import { formatSessionTime } from '../lib/formatSessionTime';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
-import { GeckoLogo } from '../lib/GeckoLogo';
 import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
 import { useSessionClock } from '../lib/useSessionClock';
 
@@ -161,36 +159,44 @@ export default function TutorSessions() {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
-      <View style={styles.header}>
-        <View style={styles.titleRow}>
-          <H2 style={{ fontSize: 22 }}>Your sessions</H2>
-          <GeckoLogo size={18} />
-        </View>
-        <View style={[styles.segment, { backgroundColor: t.surface2 }]}>
-          {(['upcoming', 'past'] as const).map((v) => {
-            const on = tab === v;
+    <Screen>
+      <Body
+        ref={scrollRef}
+        onRefresh={onRefresh}
+        refreshTint={t.onBand}
+        pad={20}
+        header={<BandHeader title="Sessions" />}
+      >
+        <HorizontalScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          accessibilityRole="tablist"
+          style={styles.segmentsViewport}
+          contentContainerStyle={styles.segments}
+        >
+          {(['upcoming', 'past'] as const).map((value) => {
+            const on = tab === value;
             return (
               <Pressable
-                key={v}
-                onPress={() => setTab(v)}
-                style={[styles.segmentItem, on && { backgroundColor: t.surface }]}
+                key={value}
+                onPress={() => setTab(value)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: on }}
+                style={[styles.segmentPill, { backgroundColor: on ? t.accentWeak : 'transparent' }]}
               >
                 <Text
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.6}
                   maxFontSizeMultiplier={TEXT_CAPS.label}
-                  style={[styles.segmentLabel, { color: on ? t.text : t.text3, fontWeight: on ? '700' : '600' }]}>
-                  {v === 'upcoming' ? 'Upcoming' : 'Past'}
+                  style={[styles.segmentLabel, { color: on ? t.accent : t.text2, fontWeight: on ? '600' : '400' }]}
+                >
+                  {value === 'upcoming' ? 'Upcoming' : 'Past'}
                 </Text>
               </Pressable>
             );
           })}
-        </View>
-      </View>
-
-      <Body ref={scrollRef} onRefresh={onRefresh} contentStyle={{ paddingTop: 14 }}>
+        </HorizontalScrollView>
         {tab === 'upcoming' ? (
           loading ? (
             <View style={{ gap: 10 }}>
@@ -200,40 +206,48 @@ export default function TutorSessions() {
           ) : upcoming.length === 0 ? (
             <EmptyState icon="cal" title="No upcoming sessions" subtitle="Sessions students book with you will show up here." />
           ) : (
-            <View style={{ gap: 10 }}>
+            <ListSection label="Upcoming sessions">
               {upcoming.map((r) => (
-                <Card key={r.id} onPress={r.status === 'confirmed' ? () => openDetail(r) : undefined} style={{ padding: 14 }}>
-                  <View style={styles.upcomingRow}>
-                    <Avatar size={44} label={r.av} />
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <View style={styles.rowBetween}>
-                        <Text style={[styles.name, { color: t.text }]}>{r.name}</Text>
-                        <Text style={[styles.pay, { color: t.good }]}>{r.pay}</Text>
-                      </View>
-                      <Text style={[styles.meta, { color: t.text3 }]}>
-                        {r.course} · {r.when}
-                      </Text>
-                      {sessionPhase(r.booking, now) === 'active' ? <Badge label="Session in progress" tone="good" /> : null}
-                      {r.status === 'pending' ? (
-                        <>
-                          <Text style={[styles.meta, { color: t.accent, fontWeight: '600' }]}>
-                            New request · respond by {formatSessionTime(r.booking.acceptBy ?? r.booking.scheduledAt)}
-                          </Text>
-                          {r.booking.requestNote ? (
-                            <Text numberOfLines={3} style={[styles.meta, { color: t.text2, marginTop: 4 }]}>
-                              “{r.booking.requestNote}”
+                <View key={r.id} style={styles.sessionRow}>
+                  <Pressable
+                    disabled={r.status !== 'confirmed'}
+                    onPress={() => openDetail(r)}
+                    accessibilityRole={r.status === 'confirmed' ? 'button' : undefined}
+                    accessibilityLabel={r.status === 'confirmed' ? `${r.name}, ${r.course}, ${r.when}. View session details` : undefined}
+                    style={({ pressed }) => [styles.sessionContent, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
+                  >
+                    <View style={styles.upcomingRow}>
+                      <Avatar size={44} label={r.av} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <View style={styles.rowBetween}>
+                          <Text style={[styles.name, { color: t.text }]}>{r.name}</Text>
+                          <Text style={[styles.pay, { color: t.good }]}>{r.pay}</Text>
+                        </View>
+                        <Text style={[styles.meta, { color: t.text3 }]}>
+                          {r.course} · {r.when}
+                        </Text>
+                        {sessionPhase(r.booking, now) === 'active' ? <Badge label="Session in progress" tone="good" /> : null}
+                        {r.status === 'pending' ? (
+                          <>
+                            <Text style={[styles.meta, { color: t.accent, fontWeight: '600' }]}>
+                              New request · respond by {formatSessionTime(r.booking.acceptBy ?? r.booking.scheduledAt)}
                             </Text>
-                          ) : null}
-                        </>
-                      ) : null}
-                      <View style={styles.whereRow}>
-                        <Ic name={r.where.startsWith('Online') ? 'video' : 'pin'} size={13} color={t.accent} strokeWidth={1.8} />
-                        <Text style={[styles.whereText, { color: t.text2 }]}>{r.where}</Text>
+                            {r.booking.requestNote ? (
+                              <Text numberOfLines={3} style={[styles.meta, { color: t.text2, marginTop: 4 }]}>
+                                “{r.booking.requestNote}”
+                              </Text>
+                            ) : null}
+                          </>
+                        ) : null}
+                        <View style={styles.whereRow}>
+                          <Ic name={r.where.startsWith('Online') ? 'video' : 'pin'} size={13} color={t.accent} strokeWidth={1.8} />
+                          <Text style={[styles.whereText, { color: t.text2 }]}>{r.where}</Text>
+                        </View>
                       </View>
                     </View>
-                  </View>
+                  </Pressable>
                   {r.status === 'pending' ? (
-                    <AdaptiveRow style={{ gap: 8, marginTop: 12 }}>
+                    <AdaptiveRow style={styles.requestActions}>
                       <Button
                         label={busyId === r.id ? 'Accepting…' : 'Accept'}
                         kind="primary"
@@ -252,9 +266,9 @@ export default function TutorSessions() {
                       />
                     </AdaptiveRow>
                   ) : null}
-                </Card>
+                </View>
               ))}
-            </View>
+            </ListSection>
           )
         ) : loading ? (
           <View style={{ gap: 10 }}>
@@ -264,12 +278,12 @@ export default function TutorSessions() {
         ) : past.length === 0 ? (
           <EmptyState icon="list" title="No past sessions yet" subtitle="Your completed sessions will appear here." />
         ) : (
-          <View style={{ gap: 10 }}>
+          <ListSection label="Past sessions">
             {past.map((r) => {
               const done = r.status === 'completed';
               const needsComplete = r.status === 'confirmed';
               return (
-                <Card key={r.id} style={{ padding: 14 }}>
+                <View key={r.id} style={styles.pastRow}>
                   <View style={styles.upcomingRow}>
                     <Avatar size={44} label={r.av} />
                     <View style={{ flex: 1, minWidth: 0 }}>
@@ -327,27 +341,28 @@ export default function TutorSessions() {
                       <Badge label="Rated" tone="neutral" />
                     </View>
                   ) : null}
-                </Card>
+                </View>
               );
             })}
-          </View>
+          </ListSection>
         )}
       </Body>
 
       <TabBar active={active} onTab={onTab} role={role} />
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 8 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  segment: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 13, marginTop: 14, marginBottom: 4 },
-  segmentItem: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 11 },
+  segmentsViewport: { flexGrow: 0, marginHorizontal: -20 },
+  segments: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingVertical: 2 },
+  segmentPill: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 7 },
   segmentLabel: { fontSize: 14 },
   rowBetween: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, alignItems: 'baseline', justifyContent: 'space-between' },
 
+  sessionRow: { paddingVertical: 4 },
+  sessionContent: { paddingHorizontal: 14, paddingVertical: 10 },
+  requestActions: { gap: 8, marginTop: 10, marginHorizontal: 14, paddingBottom: 14 },
   upcomingRow: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   name: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
   pay: { fontSize: 15, fontWeight: '700' },
@@ -355,6 +370,6 @@ const styles = StyleSheet.create({
   whereRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
   whereText: { fontSize: 12.5 },
 
-  pastRow: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 14 },
+  pastRow: { padding: 14 },
   pastPay: { fontSize: 15, fontWeight: '700' },
 });
