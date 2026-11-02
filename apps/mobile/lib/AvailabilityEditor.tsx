@@ -11,7 +11,7 @@ import { AV_DAYS, WEEKDAYS, HOURS, totalHours, availabilityHourLabel as hourLabe
 const PRESETS: { label: string; hours: number[] }[] = [
   { label: 'Morning', hours: [8, 9, 10, 11] },
   { label: 'Afternoon', hours: [12, 13, 14, 15, 16] },
-  { label: 'Evening', hours: [17, 18, 19, 20, 21] },
+  { label: 'Evening', hours: [17, 18, 19, 20, 21, 22] },
 ];
 
 export function AvailabilityEditor({ value, onChange }: { value: WeekGrid; onChange: (next: WeekGrid) => void }) {

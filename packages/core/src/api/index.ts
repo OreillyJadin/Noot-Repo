@@ -368,6 +368,7 @@ function mapUser(row: any): User {
     status: row.status,
     year: row.year ?? null,
     expectedGraduationYear: row.expected_graduation_year ?? null,
+    expectedGraduationTerm: row.expected_graduation_term ?? null,
     major: row.major ?? null,
     gender: row.gender ?? null,
     courses: row.courses ?? [],
@@ -827,6 +828,7 @@ export const api = {
       lastName?: string;
       year?: string | null;
       expectedGraduationYear?: number | null;
+      expectedGraduationTerm?: User['expectedGraduationTerm'];
       major?: string | null;
       gender?: 'f' | 'm' | null;
     }): Promise<void> {
@@ -843,6 +845,8 @@ export const api = {
         row.expected_graduation_year = year;
       }
       if (patch.year === 'Post Grad') row.expected_graduation_year = null;
+      if (patch.expectedGraduationTerm !== undefined) row.expected_graduation_term = patch.expectedGraduationTerm;
+      if (patch.year === 'Post Grad') row.expected_graduation_term = null;
       if (patch.major !== undefined) row.major = patch.major;
       if (patch.gender !== undefined) row.gender = patch.gender;
       if (Object.keys(row).length === 0) return;

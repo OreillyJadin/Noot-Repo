@@ -23,10 +23,21 @@ test('student and tutor profile entry points save and prefill expected graduatio
     assert.match(screenSource, /<GraduationYearField/, screen);
     assert.match(screenSource, /setExpectedYear\(me\.expectedGraduationYear/, screen);
     assert.match(screenSource, /expectedGraduationYear: year === 'Post Grad'/, screen);
+    assert.match(screenSource, /expectedGraduationTerm: year === 'Post Grad'/, screen);
+    assert.match(screenSource, /setExpectedTerm\(me.expectedGraduationTerm/, screen);
+    assert.match(screenSource, /term=\{expectedTerm\} onTermChange=\{setExpectedTerm\}/, screen);
     assert.match(screenSource, /options=\{ACADEMIC_YEAR_OPTIONS\}/, screen);
   }
 });
 
 test('account deletion clears the newly collected private field', () => {
   assert.match(source('../../../supabase/functions/delete-account/index.ts'), /expected_graduation_year: null/);
+  assert.match(source('../../../supabase/functions/delete-account/index.ts'), /expected_graduation_term: null/);
+});
+
+test('graduation term is optional, clearable, and hidden with the year for Post Grads', () => {
+  const field = source('../lib/GraduationYearField.tsx');
+  assert.match(field, /if \(year === 'Post Grad'\) return/);
+  assert.match(field, /Expected graduation term \(optional\)/);
+  assert.match(field, /options=\{\['Not set', 'Fall', 'Spring', 'Summer'\]\}/);
 });

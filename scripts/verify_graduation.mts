@@ -53,6 +53,15 @@ try {
   const tutor = await makeUser('tutor', true);
   const peer = await makeUser('peer');
   await login(tutor.email);
+  for (const term of ['Fall', 'Spring', 'Summer'] as const) {
+    await api.profile.updatePersonal({ expectedGraduationTerm: term });
+    check(`owner saves and reads ${term} through core`, (await api.getMe())?.expectedGraduationTerm === term);
+  }
+  await api.profile.updatePersonal({ expectedGraduationTerm: null });
+  check('owner can clear optional graduation term', (await api.getMe())?.expectedGraduationTerm === null);
+  const { error: invalidTerm } = await client.from('users').update({ expected_graduation_term: 'Winter' }).eq('id', tutor.id);
+  check('database rejects invalid graduation term', invalidTerm?.code === '23514');
+  await api.profile.updatePersonal({ expectedGraduationTerm: 'Fall' });
   await api.profile.updatePersonal({ expectedGraduationYear: currentYear - 1 });
   check('owner reads saved expected year and overdue prompt becomes eligible', graduationPromptDue((await api.getMe())!));
   const before = (await api.getMe())!;
@@ -68,6 +77,7 @@ try {
   await api.profile.respondToGraduation(true);
   me = (await api.getMe())!;
   check('graduation confirmation atomically sets Post Grad and clears expected year', me.year === 'Post Grad' && me.expectedGraduationYear === null && !graduationPromptDue(me));
+  check('graduation RPC also clears expected term', me.expectedGraduationTerm === null);
   check('graduation retains active status and all roles', me.status === before.status && JSON.stringify(me.roles) === JSON.stringify(before.roles));
   check('Post Grad retains approved tutor standing', (await api.profile.getTutorStanding()).status === 'approved');
   for (const invalid of [1899, 2201]) {
@@ -75,16 +85,23 @@ try {
     check(`raw owner write rejects out-of-bounds year ${invalid}`, !!error);
   }
   await login(peer.email);
-  const { data: privateRows, error: privateError } = await client.from('users').select('expected_graduation_year').eq('id', tutor.id);
+  const { data: privateRows, error: privateError } = await client.from('users').select('expected_graduation_year, expected_graduation_term').eq('id', tutor.id);
   assert.ifError(privateError);
   check('another student cannot read private graduation date', privateRows.length === 0);
-  const { data: changed, error: changeError } = await client.from('users').update({ expected_graduation_year: currentYear + 5 }).eq('id', tutor.id).select('id');
+  const { data: changed, error: changeError } = await client.from('users').update({ expected_graduation_year: currentYear + 5, expected_graduation_term: 'Spring' }).eq('id', tutor.id).select('id');
   check('another student cannot change graduation fields', !changeError && changed.length === 0);
   const { data: publicRow, error: publicError } = await client.from('tutor_public_profiles').select('*').eq('id', tutor.id).single();
   assert.ifError(publicError);
   check('public tutor view shows Post Grad but never exposes private expected year', publicRow.year === 'Post Grad' && !Object.hasOwn(publicRow, 'expected_graduation_year'));
+  check('public tutor view never exposes private expected term', !Object.hasOwn(publicRow, 'expected_graduation_term'));
+  const { data: unchanged, error: unchangedError } = await admin.from('users').select('expected_graduation_term').eq('id', tutor.id).single();
+  assert.ifError(unchangedError);
+  check('non-owner write leaves expected term unchanged', unchanged.expected_graduation_term === null);
   check('Post Grad tutor remains visible in core tutor reads', (await api.tutors.getById(tutor.id))?.year === 'Post Grad');
   await api.profile.updatePersonal({ expectedGraduationYear: currentYear - 1 });
+  await api.profile.updatePersonal({ expectedGraduationTerm: 'Summer' });
+  await api.profile.updatePersonal({ year: 'Post Grad', expectedGraduationTerm: 'Fall' });
+  check('personal info Post Grad save clears expected term', (await api.getMe())?.expectedGraduationTerm === null);
   await api.profile.respondToGraduation(true);
   check('student graduation confirmation also works', (await api.getMe())?.year === 'Post Grad');
   const { error: suspendError } = await admin.from('users').update({ status: 'suspended' }).eq('id', peer.id);
