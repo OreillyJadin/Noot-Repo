@@ -16,6 +16,7 @@ import { useMe } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { useCourseSuggestions } from '../lib/useCourseSuggestions';
 import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
+import { tutorMeta } from '../lib/tutorMeta';
 import { byPopularity, forYou, populatedCategories, tutorsIn } from '../lib/browse';
 
 function courseFor(tutor: Tutor): string {
@@ -41,14 +42,13 @@ function matchCourse(tutor: Tutor, query: string): string {
 // ── local helper (used only by this screen) ─────────────────────────────────
 function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => void; course?: string }) {
   const t = useTheme();
-  const badgeCourse = course ?? courseFor(tutor);
+  const meta = tutorMeta(tutor, course);
   const large = useLargeText();
-  const details = [tutor.year, `${tutor.sessions} ${tutor.sessions === 1 ? 'session' : 'sessions'}`].filter(Boolean).join(' · ');
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${tutor.name}${tutor.verified ? ', verified tutor' : ''}${badgeCourse ? `, ${badgeCourse}` : ''}, $${tutor.rate} per hour`}
+      accessibilityLabel={`${tutor.name}${tutor.verified ? ', verified tutor' : ''}${meta.course ? `, ${meta.course}` : ''}, $${tutor.rate} per hour`}
       style={({ pressed }) => [styles.rowInner, pressed && { backgroundColor: t.surface2 }]}
     >
         {large ? null : <Avatar size={44} uri={tutor.avatarUrl} />}
@@ -73,9 +73,9 @@ function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => voi
             </Text>
           </View>
           <View style={styles.rowMetaLine}>
-            {badgeCourse ? <Text style={[styles.rowCourse, { color: t.accent }]}>{badgeCourse}</Text> : null}
-            {badgeCourse && details ? <Text style={{ color: t.text2 }}> · </Text> : null}
-            {details ? <Text style={[styles.rowMeta, { color: t.text2 }]}>{details}</Text> : null}
+            {meta.course ? <Text style={[styles.rowCourse, { color: t.accent }]}>{meta.course}</Text> : null}
+            {meta.course && meta.details.length > 0 ? <Text style={{ color: t.text2 }}> · </Text> : null}
+            {meta.details.length > 0 ? <Text style={[styles.rowMeta, { color: t.text2 }]}>{meta.details.join(' · ')}</Text> : null}
           </View>
         </View>
     </Pressable>

@@ -3,22 +3,21 @@
 // left off". This is a tab root (Home tab). The next session + weekly numbers are
 // real data via @noot/core.
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Body, TabBar, Wordmark, Card, Badge, Avatar, Ic, H2, Skeleton, ViewingAs, useTheme, useLargeText, AdaptiveRow, TEXT_CAPS, type IconName } from '@noot/ui';
-import { formatCampusSession, api } from '@noot/core';
+import { Body, BandHeader, TabBar, Card, Avatar, Ic, ViewingAs, useTheme, useLargeText, AdaptiveRow, ListSection, TEXT_CAPS } from '@noot/ui';
+import { formatCampusDate, formatCampusSession, api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
-import { useMe, firstName } from '../lib/useMe';
+import { useMe } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
-import { GeckoLogo } from '../lib/GeckoLogo';
 import { AdminShortcut } from '../lib/AdminShortcut';
 import { NotificationBell } from '../lib/NotificationBell';
-import { VerifiedBadge, VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
+import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
+import { tutorMeta } from '../lib/tutorMeta';
 import { nudgeCourse } from '../lib/browse';
-import { CountdownPills } from '../lib/CountdownPills';
+import { countdownLabel } from '../lib/countdownLabel';
 import { useSessionClock } from '../lib/useSessionClock';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
@@ -26,73 +25,51 @@ function formatWhen(iso: string): string {
   return formatCampusSession(iso);
 }
 
-function StatCard({ icon, big, label, onPress }: { icon: IconName; big: string; label: string; onPress?: () => void }) {
-  const t = useTheme();
-  const inner = (
-    <>
-      <View style={[styles.statIcon, { backgroundColor: t.accentWeak }]}>
-        <Ic name={icon} size={16} color={t.accent} strokeWidth={1.9} />
-      </View>
-      <Text style={[styles.statBig, { color: t.text }]}>{big}</Text>
-      <Text style={[styles.statLabel, { color: t.text3 }]}>{label}</Text>
-    </>
-  );
-  // The whole card is the tap target (full flex:1 hit area), not just the text.
-  if (onPress) {
-    return (
-      <Pressable
-        onPress={onPress}
-        style={[styles.statCard, { backgroundColor: t.surface, borderColor: t.border }]}
-        accessibilityRole="button"
-        accessibilityLabel={`${label}: ${big}. View sessions`}
-      >
-        {inner}
-      </Pressable>
-    );
-  }
-  return <View style={[styles.statCard, { backgroundColor: t.surface, borderColor: t.border }]}>{inner}</View>;
-}
-
 function TutorRow({
-  name,
-  meta,
+  tutor,
   course,
-  rate,
-  sessions,
-  verified,
-  avatarUrl,
   onPress,
 }: {
-  name: string;
-  meta: string;
+  tutor: Tutor;
   course: string;
-  rate: string;
-  sessions: number;
-  verified: boolean;
-  avatarUrl: string | null;
   onPress: () => void;
 }) {
   const t = useTheme();
   const large = useLargeText();
+  const meta = tutorMeta(tutor, course);
+  const nameDetails = [tutor.year, tutor.major].filter(Boolean).join(' · ');
+  const sessionsLabel = `${tutor.sessions} ${tutor.sessions === 1 ? 'session' : 'sessions'}`;
   return (
-    <Card onPress={onPress} style={styles.tutorRow}>
-      {large ? null : <Avatar size={46} uri={avatarUrl} />}
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${tutor.name}${meta.course ? `, ${meta.course}` : ''}${nameDetails ? `, ${nameDetails}` : ''}, ${sessionsLabel}${tutor.verified ? ', verified tutor' : ''}. $${tutor.rate} per hour`}
+      style={({ pressed }) => [styles.tutorRow, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
+    >
+      {large ? null : <Avatar size={46} uri={tutor.avatarUrl} />}
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={styles.rowBetween}>
-          <Text style={[styles.tutorName, { color: t.text }]}>{name}</Text>
+          <View style={styles.tutorNameRow}>
+            <Text style={[styles.tutorName, { color: t.text }]}>{tutor.name}</Text>
+            {tutor.verified ? (
+              <Pressable
+                onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel="Verified tutor. Tap for what this means."
+              >
+                <Ic name="check" size={14} color={t.good} strokeWidth={2.6} />
+              </Pressable>
+            ) : null}
+          </View>
           <Text style={[styles.tutorRate, { color: t.text }]}>
-            {rate}
+            ${tutor.rate}
             <Text style={{ fontSize: 11, color: t.text3, fontWeight: '500' }}>/hr</Text>
           </Text>
         </View>
-        <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.tutorMeta, { color: t.text3 }]}>{meta}</Text>
-        <View style={styles.tutorBadges}>
-          {course ? <Badge label={course} tone="accentSoft" /> : null}
-          <VerifiedBadge verified={verified} />
-          <Text style={[styles.tutorSessions, { color: t.text3 }]}>{sessions} sessions</Text>
-        </View>
+        <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.tutorMeta, { color: t.text2 }]}>{meta.line}</Text>
       </View>
-    </Card>
+    </Pressable>
   );
 }
 
@@ -103,7 +80,7 @@ export default function Home() {
   const t = useTheme();
   const router = useRouter();
   const { patchBooking, role } = useApp();
-  const { me, loading } = useMe();
+  const { me } = useMe();
   const multiRole = (me?.roles ?? []).filter((r) => r === 'student' || r === 'tutor' || r === 'ambassador').length > 1;
 
   // Next session: the soonest real upcoming booking, or null → a "find a tutor" CTA.
@@ -173,193 +150,192 @@ export default function Home() {
   // Search results for that course (an exact course query lists only its tutors).
   const findForCourse = (course: string) => router.push({ pathname: '/b1', params: { q: course } });
 
-  // At large text the header scrolls with the content instead of pinning half the screen.
-  const header = (
-    <View style={[styles.header, large && styles.headerInline]}>
-      <View style={styles.headerTop}>
-        <Wordmark size={22} />
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <AdminShortcut />
-          <NotificationBell />
-        </View>
-      </View>
-      <View style={styles.welcomeRow}>
-        <View>
-          <Text style={[styles.welcomeLabel, { color: t.text3 }]}>Welcome back</Text>
-          {loading ? <Skeleton width={150} height={26} /> : <H2 style={{ fontSize: 24 }}>Hey, {firstName(me, 'there')}</H2>}
-        </View>
-        <GeckoLogo size={40} />
-      </View>
-      {multiRole ? (
-        <View style={{ marginTop: 10 }}>
-          <ViewingAs role="student" />
-        </View>
-      ) : null}
-    </View>
-  );
-
   return (
-    <SafeAreaView edges={['top']} style={[styles.root, { backgroundColor: t.bg }]}>
-      {large ? null : header}
-
-      <Body ref={scrollRef} onRefresh={onRefresh} contentStyle={{ paddingTop: 8 }}>
-        {large ? header : null}
+    <View style={[styles.root, { backgroundColor: t.bg }]}>
+      <Body
+        ref={scrollRef}
+        onRefresh={onRefresh}
+        refreshTint={t.onBand}
+        pad={20}
+        header={
+          <BandHeader
+            title="Home"
+            subtitle={formatCampusDate(now, { weekday: 'long', month: 'long', day: 'numeric' })}
+            overlap={multiRole ? undefined : 56}
+            trailing={
+              <View style={styles.headerActions}>
+                <AdminShortcut color={t.onBand} ringColor={t.band} />
+                <NotificationBell color={t.onBand} ringColor={t.band} />
+              </View>
+            }
+          />
+        }
+      >
+        {multiRole ? <ViewingAs role="student" /> : null}
         {/* Next session countdown — real upcoming booking, or a CTA when there's none */}
         {next ? (
-          <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
-            <GeckoLogo style={styles.geckoDeco} />
-            <View style={styles.rowBetween}>
-              <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>{next.at <= now && now < next.endsAt ? 'SESSION IN PROGRESS' : 'YOUR NEXT SESSION'}</Text>
-              <Badge label={next.course} tone="ink" />
-            </View>
+          <Card raised style={[styles.nextCard, { marginTop: multiRole ? 0 : -56, backgroundColor: t.surface, borderColor: t.border }]}>
+            <Text style={[styles.nextLabel, { color: t.text2 }]}>
+              {next.at <= now && now < next.endsAt ? 'Session in progress' : 'Next session'}
+            </Text>
             <AdaptiveRow style={styles.nextTutorRow}>
-              <Avatar size={40} uri={next.tutor?.avatarUrl} />
+              <Avatar size={44} uri={next.tutor?.avatarUrl} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.nextName, { color: t.onAccent }]}>{next.tutorName}</Text>
-                <Text style={[styles.nextMeta, { color: t.onAccent }]}>
-                  {next.when} · {next.where}
+                <Text style={[styles.nextName, { color: t.text }]}>{next.tutorName}</Text>
+                <Text style={[styles.nextMeta, { color: t.text2 }]}>
+                  {next.course} · {next.when}
                 </Text>
               </View>
             </AdaptiveRow>
-            <CountdownPills target={next.at} endsAt={next.endsAt} now={now} />
-            <AdaptiveRow style={styles.nextActions}>
-              <Pressable onPress={openChat} style={[styles.nextBtn, { backgroundColor: 'rgba(255,255,255,0.18)' }]}>
-                <Ic name="chat" size={15} color={t.onAccent} strokeWidth={1.9} />
-                <Text style={[styles.nextBtnLabel, { color: t.onAccent }]}>Message</Text>
+            <View style={styles.sessionMetaLine}>
+              <Ic name="clock" size={15} color={t.accent} strokeWidth={1.8} />
+              <Text style={[styles.countdown, { color: t.accent }]}>{countdownLabel(next.at, next.endsAt, now)}</Text>
+              <Ic name="pin" size={15} color={t.text2} strokeWidth={1.8} />
+              <Text style={[styles.nextLocation, { color: t.text2 }]}>{next.where}</Text>
+            </View>
+            <AdaptiveRow style={[styles.nextActions, large && styles.nextActionsLarge, { borderColor: t.border }]}>
+              <Pressable
+                onPress={openChat}
+                style={[styles.nextAction, large ? styles.nextActionLarge : styles.nextActionDivider, { borderColor: t.border }]}
+                accessibilityRole="button"
+                accessibilityLabel="Message your tutor"
+              >
+                <Ic name="chat" size={15} color={t.accent} strokeWidth={1.9} />
+                <Text style={[styles.nextBtnLabel, { color: t.accent }]}>Message</Text>
               </Pressable>
-              <Pressable onPress={() => router.push('/sessions')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
+              <Pressable
+                onPress={() => router.push('/sessions')}
+                style={[styles.nextAction, large && styles.nextActionLarge, { borderColor: t.border }]}
+                accessibilityRole="button"
+                accessibilityLabel="Session details"
+              >
                 <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Details</Text>
               </Pressable>
             </AdaptiveRow>
-          </View>
+          </Card>
         ) : (
-          <View style={[styles.nextCard, { backgroundColor: t.accent }]}>
-            <GeckoLogo style={styles.geckoDeco} />
-            <Text style={[styles.nextEyebrow, { color: t.onAccent }]}>NO UPCOMING SESSIONS</Text>
-            <Text style={[styles.nextName, { color: t.onAccent, marginTop: 8 }]}>
+          <Card raised style={[styles.nextCard, { marginTop: multiRole ? 0 : -56, backgroundColor: t.surface, borderColor: t.border }]}>
+            <Text style={[styles.nextLabel, { color: t.text2 }]}>No upcoming sessions</Text>
+            <Text style={[styles.nextName, { color: t.text, marginTop: 6 }]}>
               {nextLoading ? 'Loading…' : stats && stats.sessionsCompleted > 0 ? 'Book your next session' : 'Book your first session'}
             </Text>
-            <Text style={[styles.nextMeta, { color: t.onAccent, marginBottom: 12 }]}>
+            <Text style={[styles.nextMeta, { color: t.text2 }]}>
               Find a verified tutor for your courses and lock in a time.
             </Text>
-            <AdaptiveRow style={styles.nextActions}>
-              <Pressable onPress={() => router.replace('/student_home')} style={[styles.nextBtn, { backgroundColor: t.surface }]}>
+            <AdaptiveRow style={[styles.nextActions, large && styles.nextActionsLarge, { borderColor: t.border }]}>
+              <Pressable
+                onPress={() => router.replace('/student_home')}
+                style={[styles.nextAction, large && styles.nextActionLarge, { borderColor: t.border }]}
+                accessibilityRole="button"
+                accessibilityLabel="Find a tutor"
+              >
                 <Text style={[styles.nextBtnLabel, { color: t.accent, fontWeight: '700' }]}>Find a tutor</Text>
               </Pressable>
             </AdaptiveRow>
-          </View>
+          </Card>
         )}
 
         {/* Course-aware nudge — a course the student takes that a tutor teaches */}
         {nudge ? (
-          <Card flat style={[styles.examCard, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>
-            <View style={[styles.examIcon, { backgroundColor: t.surface }]}>
-              <Ic name="cap" size={20} color={t.accent} strokeWidth={1.8} />
-            </View>
-            <View style={{ flex: 1, minWidth: 140 }}>
-              <Text style={[styles.examTitle, { color: t.text }]}>Studying {nudge}?</Text>
-              <Text style={[styles.examSub, { color: t.text2 }]}>Find a tutor who's taken it</Text>
-            </View>
-            <Pressable onPress={() => findForCourse(nudge)} style={[styles.examBtn, { backgroundColor: t.accent }]}>
-              <Text style={[styles.examBtnLabel, { color: t.onAccent }]}>Find one</Text>
+          <ListSection label="For your courses">
+            <Pressable
+              onPress={() => findForCourse(nudge)}
+              accessibilityRole="button"
+              accessibilityLabel={`Find a tutor for ${nudge}`}
+              style={({ pressed }) => [styles.nudgeRow, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
+            >
+              <Ic name="cap" size={20} color={t.text2} strokeWidth={1.8} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.examTitle, { color: t.text }]}>Studying {nudge}?</Text>
+                <Text style={[styles.examSub, { color: t.text2 }]}>Find a tutor who's taken it</Text>
+              </View>
+              <Text style={[styles.examBtnLabel, { color: t.accent }]}>Find one</Text>
             </Pressable>
-          </Card>
+          </ListSection>
         ) : null}
 
         {/* Momentum — real counts from the student's bookings */}
-        <View style={styles.sectionHead}>
-          <H2 style={{ fontSize: 17 }}>Your momentum</H2>
-        </View>
-        <AdaptiveRow style={styles.statsRow}>
-          <StatCard
-            icon="cap"
-            big={stats ? String(stats.sessionsCompleted) : '—'}
-            label="Sessions completed"
-            onPress={() => router.push('/sessions?tab=past')}
-          />
-          <StatCard icon="target" big={stats ? String(stats.upcomingCount) : '—'} label="Upcoming booked" />
-          <StatCard icon="trophy" big={stats ? `${Math.round(stats.hoursLearned)}h` : '—'} label="Hours learned" />
-        </AdaptiveRow>
+        <ListSection label="Your momentum">
+          <AdaptiveRow style={large ? [styles.statsRow, styles.statsRowLarge] : styles.statsRow}>
+            <Pressable
+              onPress={() => router.push('/sessions?tab=past')}
+              accessibilityRole="button"
+              accessibilityLabel={`Sessions completed: ${stats ? stats.sessionsCompleted : '—'}. View sessions`}
+              style={[styles.statCell, !large && styles.statCellDivider, large && styles.statCellLarge, { borderColor: t.border }]}
+            >
+              <Text style={[styles.statBig, { color: t.text }]}>{stats ? String(stats.sessionsCompleted) : '—'}</Text>
+              <Text style={[styles.statLabel, { color: t.text2 }]}>Sessions completed</Text>
+            </Pressable>
+            <View style={[styles.statCell, !large && styles.statCellDivider, large && styles.statCellLarge, { borderColor: t.border }]}>
+              <Text style={[styles.statBig, { color: t.text }]}>{stats ? String(stats.upcomingCount) : '—'}</Text>
+              <Text style={[styles.statLabel, { color: t.text2 }]}>Upcoming booked</Text>
+            </View>
+            <View style={[styles.statCell, large && styles.statCellLarge, { borderColor: t.border }]}>
+              <Text style={[styles.statBig, { color: t.text }]}>{stats ? `${Math.round(stats.hoursLearned)}h` : '—'}</Text>
+              <Text style={[styles.statLabel, { color: t.text2 }]}>Hours learned</Text>
+            </View>
+          </AdaptiveRow>
+        </ListSection>
 
         {/* Continue / popular */}
-        <View style={[styles.sectionHead, { marginTop: 10 }]}>
-          <H2 style={{ fontSize: 17 }}>Pick up where you left off</H2>
-          <Text onPress={() => router.replace('/student_home')} style={[styles.browseLink, { color: t.accent }]}>
-            Browse
-          </Text>
-        </View>
-        <View style={{ gap: 10 }}>
+        <ListSection label="Pick up where you left off" action={{ label: 'Browse', onPress: () => router.replace('/student_home') }}>
           {popular.map((tt) => {
             const course = tt.courses[0]?.[0] ?? '';
             return (
               <TutorRow
                 key={tt.id}
                 onPress={() => openTutor(tt, course)}
-                name={tt.name}
-                meta={`${tt.year} · ${tt.major}`}
+                tutor={tt}
                 course={course}
-                rate={`$${tt.rate}`}
-                sessions={tt.sessions}
-                verified={tt.verified}
-                avatarUrl={tt.avatarUrl}
               />
             );
           })}
-          {popular.length === 0 ? (
-            <Text style={{ fontSize: 13, color: t.text3 }}>Finding tutors for your courses…</Text>
-          ) : null}
-        </View>
+          {popular.length === 0 ? <Text style={[styles.emptyTutors, { color: t.text3 }]}>Finding tutors for your courses…</Text> : null}
+        </ListSection>
       </Body>
 
       <TabBar active={active} onTab={onTab} role={role} />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 },
-  headerInline: { paddingHorizontal: 0, paddingTop: 0 },
-  headerTop: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  welcomeRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  welcomeLabel: { fontSize: 13 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rowBetween: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between' },
 
-  nextCard: { position: 'relative', overflow: 'hidden', borderRadius: 20, padding: 16, marginBottom: 4 },
-  geckoDeco: { position: 'absolute', right: -10, bottom: -18, width: 100, height: 100, opacity: 0.16, transform: [{ rotate: '10deg' }] },
-  nextEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1, opacity: 0.9 },
-  nextTutorRow: { alignItems: 'center', gap: 10, marginVertical: 12 },
+  nextCard: { padding: 16, gap: 10 },
+  nextLabel: { fontSize: 13, fontWeight: '500' },
+  nextTutorRow: { alignItems: 'center', gap: 10 },
   nextName: { fontSize: 16, fontWeight: '700' },
-  nextMeta: { fontSize: 12.5, opacity: 0.85, marginTop: 1 },
-  nextActions: { gap: 8, marginTop: 12 },
-  nextBtn: { flex: 1, minHeight: 40, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
-  nextBtnLabel: { fontSize: 14, fontWeight: '600' },
+  nextMeta: { fontSize: 13, marginTop: 1 },
+  sessionMetaLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 7 },
+  countdown: { fontSize: 13, fontWeight: '600' },
+  nextLocation: { flexShrink: 1, fontSize: 13 },
+  nextActions: { flexDirection: 'row', gap: 0, marginTop: 2, borderTopWidth: StyleSheet.hairlineWidth },
+  nextActionsLarge: {},
+  nextAction: { flex: 1, minHeight: 46, paddingVertical: 8, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  nextActionDivider: { borderRightWidth: StyleSheet.hairlineWidth },
+  nextActionLarge: { borderBottomWidth: StyleSheet.hairlineWidth },
+  nextBtnLabel: { fontSize: 15, fontWeight: '600' },
 
-  examCard: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: 14 },
-  examIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  examTitle: { fontSize: 14, fontWeight: '700' },
-  examSub: { fontSize: 12.5, marginTop: 1 },
-  examBtn: { height: 36, paddingHorizontal: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  examBtnLabel: { fontSize: 12.5, fontWeight: '700' },
+  nudgeRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12, minHeight: 72, paddingHorizontal: 14, paddingVertical: 12 },
+  examTitle: { fontSize: 14, fontWeight: '600' },
+  examSub: { fontSize: 13, marginTop: 2 },
+  examBtnLabel: { fontSize: 13, fontWeight: '600' },
 
-  sectionHead: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 },
-  statsRow: { gap: 10 },
-  statCard: { flex: 1, padding: 12, borderRadius: 16, borderWidth: 1 },
-  statIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  statBig: { fontWeight: '800', fontSize: 20, lineHeight: 22 },
-  statLabel: { fontSize: 11.5, marginTop: 3, lineHeight: 15 },
+  statsRow: { flexDirection: 'row', gap: 0, paddingVertical: 10 },
+  statsRowLarge: { paddingVertical: 0 },
+  statCell: { flex: 1, minWidth: 0, paddingHorizontal: 10, paddingVertical: 4, alignItems: 'center', justifyContent: 'center' },
+  statCellDivider: { borderRightWidth: StyleSheet.hairlineWidth },
+  statCellLarge: { width: '100%', borderRightWidth: 0, borderBottomWidth: StyleSheet.hairlineWidth },
+  statBig: { fontWeight: '700', fontSize: 22, lineHeight: 26 },
+  statLabel: { fontSize: 12.5, marginTop: 3, lineHeight: 17, textAlign: 'center' },
 
-  goalBox: { padding: 14, borderRadius: 16, borderWidth: 1 },
-  goalLabel: { fontSize: 13, fontWeight: '600' },
-  goalPct: { fontSize: 12, fontWeight: '700' },
-  goalTrack: { height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 8 },
-  goalFill: { height: '100%', borderRadius: 4 },
-
-  browseLink: { fontSize: 13, fontWeight: '600' },
+  emptyTutors: { fontSize: 13, paddingHorizontal: 14, paddingVertical: 12 },
   tutorRow: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
+  tutorNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
   tutorName: { fontSize: 16, fontWeight: '600' },
   tutorRate: { fontSize: 15, fontWeight: '700' },
   tutorMeta: { fontSize: 13, marginTop: 2 },
-  tutorBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 8 },
-  tutorSessions: { fontSize: 12, marginLeft: 'auto' },
 });
