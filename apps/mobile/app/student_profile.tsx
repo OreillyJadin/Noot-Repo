@@ -67,6 +67,7 @@ export default function StudentProfile() {
   const [lastName, setLastName] = useState('');
   const [year, setYear] = useState('');
   const [expectedYear, setExpectedYear] = useState('');
+  const [expectedTerm, setExpectedTerm] = useState<'Fall' | 'Spring' | 'Summer' | ''>('');
   const [major, setMajor] = useState('');
   const [courses, setCourses] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +84,7 @@ export default function StudentProfile() {
     setLastName(me.lastName);
     setYear(academicYearLabel(me.year));
     setExpectedYear(me.expectedGraduationYear?.toString() ?? '');
+    setExpectedTerm(me.expectedGraduationTerm ?? '');
     setMajor(me.major ?? '');
     setCourses(me.courses);
   }, [me, prefilled]);
@@ -108,6 +110,7 @@ export default function StudentProfile() {
         lastName: lastName.trim(),
         year: year.trim() || null,
         expectedGraduationYear: year === 'Post Grad' || !expectedYear ? null : Number(expectedYear),
+        expectedGraduationTerm: year === 'Post Grad' || !expectedTerm ? null : expectedTerm,
         major: major.trim() || null,
       });
       await api.profile.setCourses(courses);
@@ -144,7 +147,7 @@ export default function StudentProfile() {
 
         <View style={styles.mt14}>
           <Select label="Academic status" value={year} options={ACADEMIC_YEAR_OPTIONS} onChange={setYear} />
-          <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} />
+          <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} term={expectedTerm} onTermChange={setExpectedTerm} />
         </View>
 
         <View style={styles.mt14}>

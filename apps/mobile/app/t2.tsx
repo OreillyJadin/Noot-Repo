@@ -59,6 +59,7 @@ export default function T2() {
   const [last, setLast] = useState('');
   const [year, setYear] = useState('');
   const [expectedYear, setExpectedYear] = useState('');
+  const [expectedTerm, setExpectedTerm] = useState<'Fall' | 'Spring' | 'Summer' | ''>('');
   const [major, setMajor] = useState('');
   const [bio, setBio] = useState('');
   const [prefilled, setPrefilled] = useState(false);
@@ -68,6 +69,7 @@ export default function T2() {
     setLast(me.lastName ?? '');
     setYear(academicYearLabel(me.year));
     setExpectedYear(me.expectedGraduationYear?.toString() ?? '');
+    setExpectedTerm(me.expectedGraduationTerm ?? '');
     setMajor(me.major ?? '');
     setPrefilled(true);
   }, [me, prefilled]);
@@ -96,6 +98,7 @@ export default function T2() {
         lastName: last.trim(),
         year: year || null,
         expectedGraduationYear: year === 'Post Grad' || !expectedYear ? null : Number(expectedYear),
+        expectedGraduationTerm: year === 'Post Grad' || !expectedTerm ? null : expectedTerm,
         major: major || null,
       });
       await api.profile.updateTutorProfile({ bio: bio.trim() });
@@ -172,7 +175,7 @@ export default function T2() {
 
         <View style={{ marginTop: 14 }}>
           <Select label="Academic status" value={year} options={ACADEMIC_YEAR_OPTIONS} onChange={setYear} />
-          <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} />
+          <GraduationYearField year={year} value={expectedYear} onChange={setExpectedYear} term={expectedTerm} onTermChange={setExpectedTerm} />
         </View>
 
         <View style={{ marginTop: 14 }}>
