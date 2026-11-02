@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, Avatar, Badge, Ic, HeroIcon, useTheme } from '@noot/ui';
+import { Screen, Body, ActionBar, Button, Card, Avatar, Ic, HeroIcon, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { DAYS, toTutor } from '../lib/data';
@@ -75,7 +75,6 @@ export default function C1() {
             <Text style={{ fontSize: 13, color: t.text3 }}>You&apos;re rating</Text>
             <Text style={{ fontSize: 16, fontWeight: '600', color: t.text }}>{rateTarget}</Text>
           </View>
-          <Badge label={isTutor ? 'Tutor view' : 'Student view'} tone="accentSoft" />
         </View>
       </Body>
       <ActionBar style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>

@@ -5,11 +5,11 @@
 import React from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Screen, NavTop, Body, ActionBar, Button, Card, Badge, Avatar, H1, Sub, Eyebrow, Ic, useTheme } from '@noot/ui';
+import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, H1, H2, Sub, Ic, ListSection, ListRow, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { NoSession } from '../lib/NoSession';
-import { VerifiedBadge, VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
+import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 
 export default function B2() {
   const { booking } = useApp();
@@ -67,10 +67,14 @@ function B2Inner() {
           </Text>
           <View style={styles.headerStats}>
             <Text style={{ fontSize: 14, color: t.text2 }}>
-              <Text style={{ color: t.text, fontWeight: '700' }}>{tutor.sessions}</Text> sessions completed
+              {tutor.sessions} sessions completed
             </Text>
-            {tutor.verified ? <View style={[styles.divider, { backgroundColor: t.border }]} /> : null}
-            <VerifiedBadge verified={tutor.verified} />
+            {tutor.verified ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ic name="check" size={14} color={t.good} strokeWidth={2.6} />
+                <Text style={{ fontSize: 14, fontWeight: '600', color: t.good }}>Verified</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -79,42 +83,30 @@ function B2Inner() {
         </Section>
 
         <Section title="Courses & rates">
-          <View style={{ gap: 8 }}>
+          <ListSection>
             {tutor.courses.map(([code, grade, rate, sess, currentlyTaking]) => (
-              <Card key={code} onPress={() => book(code)} style={styles.courseCard}>
-                <View style={[styles.gradeBox, { backgroundColor: t.accent }]}>
-                  <Text style={{ color: t.onAccent, fontWeight: '700', fontSize: 14 }}>
-                    {currentlyTaking ? 'Now' : grade}
-                  </Text>
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{code}</Text>
-                  <View style={styles.courseMetaRow}>
-                    {/* Green "Grade A" read as checked; it is only once the tutor is verified (T6). */}
-                    {currentlyTaking ? (
-                      <Badge label="Currently taking" tone="neutral" />
-                    ) : grade ? (
-                      <Badge
-                        label={tutor.verified ? `Grade ${grade} · verified` : `Grade ${grade} · self-reported`}
-                        tone={tutor.verified ? 'good' : 'neutral'}
-                      />
-                    ) : null}
-                    <Text style={{ fontSize: 12, color: t.text3 }}>· {sess} sessions</Text>
-                  </View>
-                </View>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: t.text }}>
-                  ${rate}
-                  <Text style={{ fontSize: 11, color: t.text3, fontWeight: '500' }}>/hr</Text>
-                </Text>
-              </Card>
+              <ListRow
+                key={code}
+                title={code}
+                subtitle={[
+                  currentlyTaking
+                    ? 'Currently taking'
+                    : grade
+                      ? (tutor.verified ? `Grade ${grade} · verified` : `Grade ${grade} · self-reported`)
+                      : null,
+                  `${sess} sessions`,
+                ].filter(Boolean).join(' · ')}
+                trailing={<Text style={{ fontSize: 15, fontWeight: '700', color: t.text }}>${rate}/hr</Text>}
+                onPress={() => book(code)}
+              />
             ))}
-          </View>
+          </ListSection>
         </Section>
 
         {/* Says only what's true for THIS tutor: "confirmed against transcripts" was shown
             for everyone, verified or not (T6). */}
         <Section title={tutor.verified ? 'Verified by noot' : 'Reviewed by noot'}>
-          <Card flat style={{ ...styles.verifiedCard, backgroundColor: t.surfaceAlt }}>
+          <Card style={styles.verifiedCard}>
             <Ic name="shield" size={18} color={tutor.verified ? t.good : t.text3} strokeWidth={1.8} />
             <Text style={{ flex: 1, fontSize: 13, color: t.text2, lineHeight: 19.5 }}>
               {tutor.verified
@@ -148,10 +140,9 @@ function B2Inner() {
 
 // ── local helpers (used only by this screen) ───────────────────────────────
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const t = useTheme();
   return (
     <View style={{ marginTop: 24 }}>
-      <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>{title}</Eyebrow>
+      <H2 style={{ fontSize: 18, marginBottom: 12 }}>{title}</H2>
       {children}
     </View>
   );
@@ -167,10 +158,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   header: { alignItems: 'center' },
-  headerStats: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 12 },
-  divider: { width: 1, height: 16 },
-  courseCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
-  gradeBox: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  courseMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  headerStats: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
   verifiedCard: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14 },
 });

@@ -50,14 +50,13 @@ export default function C4() {
             </Text>
           ) : (
             <Text style={[styles.sub, { color: t.text2, maxWidth: 280 }]}>
-              Thanks for rating — it helps great tutors get surfaced to more students. Every review keeps{' '}
-              <Text style={{ fontWeight: '700', color: t.text }}>students helping students</Text>.
+              Your rating helps other students find great tutors.
             </Text>
           )}
         </View>
 
         {isTutor ? (
-          <Card style={{ marginTop: 26, padding: 16 }}>
+          <Card raised style={{ marginTop: 26, padding: 16 }}>
             <View style={styles.rowBetween}>
               <Text style={{ fontSize: 14, color: t.text2 }}>Releasing to</Text>
               <View style={styles.releasingTo}>
@@ -72,34 +71,32 @@ export default function C4() {
             </View>
           </Card>
         ) : (
-          <Card style={{ marginTop: 26, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={[styles.iconBox, { backgroundColor: t.surface2 }]}>
-              <Ic name="bolt" size={18} color={t.accent} strokeWidth={1.8} />
-            </View>
+          <View style={styles.footnoteRow}>
+            <Ic name="bolt" size={18} color={t.accent} strokeWidth={1.8} />
             <Text style={[styles.cardText, { color: t.text2 }]}>
               Your rating feeds <Text style={{ fontWeight: '700', color: t.text }}>{tutorFirst}&apos;s</Text> standing
               in search. noot reviews feedback and decides when ratings publish — so scores stay fair and can&apos;t be gamed.
             </Text>
-          </Card>
+          </View>
         )}
 
         {!isTutor ? (
-          <Card flat style={{ marginTop: 12, padding: 14, backgroundColor: t.accentWeak, borderColor: t.accentBorder, flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+          <View style={[styles.footnoteRow, { marginTop: 12 }]}>
             <Ic name="shield" size={16} color={t.accent} strokeWidth={1.8} />
             <Text style={[styles.footnote, { color: t.text2 }]}>
               Ratings are never shown publicly the moment they&apos;re left. noot&apos;s team holds and releases them so the community
               stays trustworthy.
             </Text>
-          </Card>
+          </View>
         ) : null}
 
-        <Card flat style={{ marginTop: 12, padding: 14, backgroundColor: t.surfaceAlt, flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+        <View style={[styles.footnoteRow, { marginTop: 12 }]}>
           <Ic name="clock" size={16} color={t.text3} strokeWidth={1.8} />
           <Text style={[styles.footnote, { color: t.text2 }]}>
             If neither side responds within <Text style={{ fontWeight: '700', color: t.text }}>24 hours</Text>, the session
             auto-completes and payment is released.
           </Text>
-        </Card>
+        </View>
       </Body>
       <ActionBar>
         <Button label="Done" kind="secondary" full onPress={() => router.replace(isTutor ? '/tutor_home' : '/home')} />
@@ -115,7 +112,7 @@ const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   rowBetweenBaseline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   releasingTo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  iconBox: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  footnoteRow: { marginTop: 26, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   cardText: { flex: 1, fontSize: 13, lineHeight: 19 },
   footnote: { flex: 1, fontSize: 12, lineHeight: 18 },
 });
