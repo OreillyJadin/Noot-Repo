@@ -66,7 +66,7 @@ export default function AcceptTerms() {
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={[styles.h1, { color: t.text }]}>One thing before you continue</Text>
         <Text style={[styles.sub, { color: t.text2 }]}>
-          Please read and accept the terms below to keep using noot.
+          Using noot means agreeing to how we keep it safe for everyone. Please read and accept the terms below.
         </Text>
 
         <Pressable

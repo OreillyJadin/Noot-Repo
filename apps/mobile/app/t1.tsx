@@ -36,7 +36,7 @@ export default function T1() {
           <HeroIcon name="cap" size={64} />
         </View>
         <H1 style={{ fontSize: 28, marginTop: 18, maxWidth: 280 }}>You&apos;re about to become a tutor.</H1>
-        <Sub style={{ marginTop: 10 }}>About 10–15 minutes. Your progress is saved as you go.</Sub>
+        <Sub style={{ marginTop: 10 }}>About 10–15 minutes. You can save and pick up later.</Sub>
 
         <View style={{ marginTop: 26 }}>
           <ListSection label="You'll need">

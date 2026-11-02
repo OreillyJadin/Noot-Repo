@@ -169,7 +169,7 @@ export default function StudentProfile() {
           </View>
         ) : null}
         <Text style={[styles.helpText, { color: t.text3 }]}>
-          Helps us match you with tutors who took your classes.
+          Helps us match tutors who took your exact classes — same professor when we can.
         </Text>
       </Body>
       <ActionBar>

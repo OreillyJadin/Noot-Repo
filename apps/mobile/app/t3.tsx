@@ -223,7 +223,7 @@ export default function T3() {
           <Text style={[styles.addHint, { color: t.text3 }]}>
             {gradesVerified
               ? "Your grades are verified, so you can only add courses you're taking now."
-              : 'Tap each course you tutor, then pick a grade or Taking it now below.'}
+              : 'Tap every course you tutor (the list stays open), then pick a grade or Taking it now below.'}
           </Text>
         </Card>
 

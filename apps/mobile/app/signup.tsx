@@ -104,7 +104,7 @@ export default function SignUp() {
           <>
             <Text style={[styles.h1, { color: t.text }]}>Create your account</Text>
 
-            <Text style={[styles.sub, { color: t.text2 }]}>noot is only for verified students.</Text>
+            <Text style={[styles.sub, { color: t.text2 }]}>noot is closed to verified students.</Text>
 
             <Field
               label="Full name"

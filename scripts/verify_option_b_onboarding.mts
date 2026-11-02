@@ -48,6 +48,10 @@ for (const screen of ['t1', 't3', 't4', 't6', 't9', 't10', 'verified', 'index'])
 for (const [screen, phrase] of [
   ['set_password', 'zero tolerance for objectionable content and abusive behavior'],
   ['accept_terms', 'zero tolerance for objectionable content and abusive behavior'],
+  ['accept_terms', 'Using noot means agreeing to how we keep it safe for everyone. Please read and accept the terms below.'],
+  ['signup', 'noot is closed to verified students.'],
+  ['t6', 'We never share your transcript.'],
+  ['t4', 'You keep the majority of every session.'],
   ['t8', 'noot never sees your SSN or bank info.'],
   ['age_gate', 'noot is for people 18 and older'],
   ['signup', 'You must be 18 or older to use noot.'],

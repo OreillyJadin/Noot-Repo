@@ -213,7 +213,7 @@ function ReviewEditor({ app, onSaved }: { app: MyTutorProfile; onSaved: () => Pr
                 <Text style={{ color: t.text3, fontWeight: '500' }}>{`  ${c.grade}`}</Text>
               ) : null}
             </Text>
-            <View style={[styles.rateBox, { borderColor: t.borderStrong, backgroundColor: t.surface }]}>
+            <View style={[styles.rateBox, { borderColor: t.borderStrong, backgroundColor: t.surface2 }]}>
               <Text style={{ color: t.text3 }}>$</Text>
               <TextInput
                 value={rates[c.courseCode] ?? ''}
@@ -353,6 +353,7 @@ export default function T9() {
                 icon="alert"
                 title={REQUIREMENT_LABEL[r]}
                 titleLines={2}
+                accessibilityLabel={`${REQUIREMENT_LABEL[r]}, go to step ${stepFor(r)}`}
                 trailing={<Text style={{ color: t.accent, fontSize: 13, fontWeight: '600' }}>Step {stepFor(r)}</Text>}
                 onPress={() => router.push(`/t${stepFor(r)}` as never)}
               />
