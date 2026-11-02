@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView as HorizontalScrollView, View, Text, StyleSheet, Alert, Pressable, type ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { Screen, Body, BandHeader, Avatar, Badge, Button, AdaptiveRow, Ic, TabBar, EmptyState, Skeleton, ListSection, useTheme } from '@noot/ui';
+import { Screen, Body, BandHeader, Avatar, Badge, Button, AdaptiveRow, Ic, TabBar, EmptyState, Skeleton, ListSection, useTheme, TEXT_CAPS } from '@noot/ui';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { api, sessionPhase, canReportNoShow } from '@noot/core';
@@ -232,7 +232,7 @@ export default function Sessions() {
               accessibilityState={{ selected: tab === value }}
               style={[styles.segmentPill, { backgroundColor: tab === value ? t.accentWeak : 'transparent' }]}
             >
-              <Text style={[styles.segmentLabel, { color: tab === value ? t.accent : t.text2, fontWeight: tab === value ? '600' : '400' }]}>
+              <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.segmentLabel, { color: tab === value ? t.accent : t.text2, fontWeight: tab === value ? '600' : '400' }]}>
                 {label}
               </Text>
             </Pressable>
@@ -261,12 +261,13 @@ export default function Sessions() {
                 {saved.map((tutor) => {
                   const meta = tutorMeta(tutor);
                   const nameDetails = [tutor.year, tutor.major].filter(Boolean).join(' · ');
+                  const sessionsLabel = `${tutor.sessions} ${tutor.sessions === 1 ? 'session' : 'sessions'}`;
                   return (
                     <View key={tutor.id} style={styles.savedRow}>
                       <Pressable
                         onPress={() => openTutor(tutor)}
                         accessibilityRole="button"
-                        accessibilityLabel={`${tutor.name}${nameDetails ? `, ${nameDetails}` : ''}, $${tutor.rate} per hour${tutor.verified ? ', verified tutor' : ''}`}
+                        accessibilityLabel={`${tutor.name}${meta.course ? `, ${meta.course}` : ''}${nameDetails ? `, ${nameDetails}` : ''}, ${sessionsLabel}${tutor.verified ? ', verified tutor' : ''}. $${tutor.rate} per hour`}
                         style={({ pressed }) => [styles.savedContent, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
                       >
                         <Avatar size={46} uri={tutor.avatarUrl} />

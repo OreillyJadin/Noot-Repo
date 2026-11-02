@@ -169,37 +169,34 @@ export default function Chats() {
               const last = c.lastMessage;
               const mine = !!last && last.senderId === uid;
               const preview = last ? (last.content || 'Attachment') : 'No messages yet';
+              const badgeLabel = pending
+                ? c.side === 'student'
+                  ? c.counterpart.firstName.trim()
+                    ? `Awaiting ${c.counterpart.firstName.trim()}'s response`
+                    : 'Awaiting response'
+                  : 'New request'
+                : '';
+              const time = listTime(last?.createdAt ?? c.createdAt);
               return (
                 <Pressable
                   key={c.id}
                   onPress={() => void open(c)}
                   accessibilityRole="button"
-                  accessibilityLabel={`Open chat with ${name}`}
+                  accessibilityLabel={`${name}, ${mine ? 'You: ' : ''}${preview}${badgeLabel ? `, ${badgeLabel}` : ''}, ${time}`}
                   style={({ pressed }) => [styles.row, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
                 >
                   <Avatar size={46} label={name.charAt(0)} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <View style={[styles.rowHead, large && styles.rowHeadStacked]}>
                       <Text numberOfLines={large ? 2 : 1} style={[styles.name, { color: t.text }]}>{name}</Text>
-                      <Text style={[styles.time, { color: t.text3 }]}>
-                        {listTime(last?.createdAt ?? c.createdAt)}
-                      </Text>
+                      <Text style={[styles.time, { color: t.text3 }]}>{time}</Text>
                     </View>
                     <Text numberOfLines={1} style={[styles.preview, { color: t.text3 }]}>
                       {mine ? `You: ${preview}` : preview}
                     </Text>
-                    {pending ? (
+                    {badgeLabel ? (
                       <View style={styles.badgeRow}>
-                        <Badge
-                          label={
-                            c.side === 'student'
-                              ? c.counterpart.firstName.trim()
-                                ? `Awaiting ${c.counterpart.firstName.trim()}'s response`
-                                : 'Awaiting response'
-                              : 'New request'
-                          }
-                          tone="accentSoft"
-                        />
+                        <Badge label={badgeLabel} tone="accentSoft" />
                       </View>
                     ) : null}
                   </View>

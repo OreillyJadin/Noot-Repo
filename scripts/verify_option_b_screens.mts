@@ -29,6 +29,12 @@ const listScreens = new Set([
   'apps/mobile/app/saved.tsx',
   'apps/mobile/app/ambassador_home.tsx',
 ]);
+const textCapsScreens = new Set([
+  'apps/mobile/app/home.tsx',
+  'apps/mobile/app/sessions.tsx',
+  'apps/mobile/app/tutor_sessions.tsx',
+  'apps/mobile/app/tutor_calendar.tsx',
+]);
 
 for (const path of screens) {
   const source = readFileSync(join(root, path), 'utf8');
@@ -36,7 +42,7 @@ for (const path of screens) {
   assert.match(source, /refreshTint=\{t\.onBand\}/, `${path} must use the on-band refresh tint`);
   assert.doesNotMatch(source, /Hey,\s/, `${path} still has a greeting`);
   assert.doesNotMatch(source, /textTransform:\s*['"]uppercase['"]/, `${path} still has uppercase text styling`);
-  assert.doesNotMatch(source, /\bTEXT_CAPS\b/, `${path} still uses TEXT_CAPS`);
+  if (!textCapsScreens.has(path)) assert.doesNotMatch(source, /\bTEXT_CAPS\b/, `${path} still uses TEXT_CAPS`);
   assert.doesNotMatch(source, /<SafeAreaView[^>]*edges=\{\[\s*['"]top['"]\s*\]\}/s, `${path} still wraps its header in a top SafeAreaView`);
   assert.doesNotMatch(source, /paddingTop\s*:\s*insets\.top/, `${path} still adds top inset header padding`);
   assert.doesNotMatch(source, /<ListSection\s+label=["']["']/, `${path} has a blank section label`);
@@ -55,6 +61,7 @@ assert.match(tutorHome, /marginTop: previewing \? 0 : -56/, 'tutor Home card off
 const studentTabHome = readFileSync(join(root, 'apps/mobile/app/home.tsx'), 'utf8');
 assert.doesNotMatch(studentTabHome, /CountdownPills|Wordmark/, 'student Home should use the band header and countdown text');
 const sessionTab = readFileSync(join(root, 'apps/mobile/app/sessions.tsx'), 'utf8');
+const tutorSessions = readFileSync(join(root, 'apps/mobile/app/tutor_sessions.tsx'), 'utf8');
 const savedTab = readFileSync(join(root, 'apps/mobile/app/saved.tsx'), 'utf8');
 for (const [path, source] of [
   ['student_home.tsx', studentHome],
@@ -71,9 +78,21 @@ const sessionsSavedRows = sessionTab.match(/<ListSection label="Saved tutors">([
 assert.ok(sessionsSavedRows, 'Sessions Saved tab must contain its grouped tutor rows');
 assert.doesNotMatch(sessionsSavedRows, /<Badge\b|<VerifiedBadge\b/, 'Sessions Saved rows must not stack badges');
 assert.doesNotMatch(savedTab, /<Badge\b|<VerifiedBadge\b/, 'Saved screen rows must not stack badges');
+for (const [path, source] of [
+  ['sessions.tsx', sessionTab],
+  ['tutor_sessions.tsx', tutorSessions],
+] as const) {
+  assert.match(source, /accessibilityRole="tab"/, `${path} must retain tab accessibility roles`);
+  assert.match(source, /accessibilityState=\{\{\s*selected:/, `${path} must retain selected tab state`);
+}
+const chats = readFileSync(join(root, 'apps/mobile/app/chats.tsx'), 'utf8');
+assert.match(chats, /accessibilityLabel=\{`[^\n]*\$\{preview\}[^\n]*\$\{time\}/, 'Chats row labels must include the preview and time');
 const ambassadorHome = readFileSync(join(root, 'apps/mobile/app/ambassador_home.tsx'), 'utf8');
 assert.match(ambassadorHome, /<ListSection>\s*<Pressable/, 'Ambassador CTA must be inside a ListSection');
-assert.match(ambassadorHome, /<ListSection label="People you invited">/, 'Invited people heading must be a ListSection label');
+assert.match(ambassadorHome, /accessibilityLabel="Invite, earn, cash out\. Open referrals"/, 'Ambassador CTA must have a descriptive label');
+const invitedRows = ambassadorHome.match(/<ListSection label="People you invited">([\s\S]*?)<\/ListSection>/)?.[1];
+assert.ok(invitedRows && /invites\.map/.test(invitedRows), 'Invited people rows must be grouped');
+assert.doesNotMatch(invitedRows, /<EmptyState|<Skeleton/, 'Ambassador loading and empty states must stay outside the invite list section');
 assert.doesNotMatch(ambassadorHome, /sectionTitle/, 'Ambassador Home must not use a custom invited-people heading');
 const tutorCalendar = readFileSync(join(root, 'apps/mobile/app/tutor_calendar.tsx'), 'utf8');
 assert.match(tutorCalendar, /accessibilityRole="tab"/, 'Tutor Calendar week pills must expose tab roles');

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView as HorizontalScrollView, View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { Screen, Body, BandHeader, TabBar, Button, Badge, Avatar, Ic, EmptyState, Skeleton, AdaptiveRow, ListSection, useTheme } from '@noot/ui';
+import { Screen, Body, BandHeader, TabBar, Button, Badge, Avatar, Ic, EmptyState, Skeleton, AdaptiveRow, ListSection, useTheme, TEXT_CAPS } from '@noot/ui';
 import { api, tutorEarnedAmount, sessionPhase, canReportNoShow } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
@@ -188,6 +188,7 @@ export default function TutorSessions() {
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.6}
+                  maxFontSizeMultiplier={TEXT_CAPS.label}
                   style={[styles.segmentLabel, { color: on ? t.accent : t.text2, fontWeight: on ? '600' : '400' }]}
                 >
                   {value === 'upcoming' ? 'Upcoming' : 'Past'}

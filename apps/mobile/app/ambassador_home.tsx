@@ -72,6 +72,7 @@ export default function AmbassadorHome() {
           <Pressable
             onPress={() => router.push('/ambassador_referrals')}
             accessibilityRole="button"
+            accessibilityLabel="Invite, earn, cash out. Open referrals"
             style={styles.cta}
           >
             <Ic name="gift" size={20} color={t.accent} strokeWidth={1.8} />
@@ -84,42 +85,44 @@ export default function AmbassadorHome() {
         </ListSection>
 
         {/* referral pipeline */}
-        <ListSection label="People you invited">
-          {loading ? (
-            <View style={{ gap: 10 }}>
-              <Skeleton height={64} radius={16} />
-              <Skeleton height={64} radius={16} />
-            </View>
-          ) : invites.length === 0 ? (
-            <EmptyState
-              icon="gift"
-              title="No invites yet"
-              subtitle="Share your code — friends who sign up with it show up here."
-              actionLabel="Invite a friend"
-              onAction={() => router.push('/ambassador_referrals')}
-            />
-          ) : invites.map((i) => {
-            const badge = (
-              <Badge
-                label={i.reversed ? 'Refunded' : i.completed ? `+${dollars(i.rewardCents)}` : 'Joined'}
-                tone={i.completed && !i.reversed ? 'good' : 'neutral'}
-              />
-            );
-            return (
-              <View key={i.referralId} style={styles.row}>
-                <Avatar size={42} label={i.name.charAt(0) || 'A'} />
-                <View style={{ flex: 1, minWidth: 0, gap: large ? 6 : 0 }}>
-                  <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
-                  <Text style={[styles.roleSub, { color: t.text3 }]}>
-                    {i.reversed ? 'Session refunded' : i.completed ? 'Completed a session' : 'Waiting for their first session'}
-                  </Text>
-                  {large ? <View style={{ flexDirection: 'row' }}>{badge}</View> : null}
+        {loading ? (
+          <View style={{ gap: 10 }}>
+            <Skeleton height={64} radius={16} />
+            <Skeleton height={64} radius={16} />
+          </View>
+        ) : invites.length === 0 ? (
+          <EmptyState
+            icon="gift"
+            title="No invites yet"
+            subtitle="Share your code — friends who sign up with it show up here."
+            actionLabel="Invite a friend"
+            onAction={() => router.push('/ambassador_referrals')}
+          />
+        ) : (
+          <ListSection label="People you invited">
+            {invites.map((i) => {
+              const badge = (
+                <Badge
+                  label={i.reversed ? 'Refunded' : i.completed ? `+${dollars(i.rewardCents)}` : 'Joined'}
+                  tone={i.completed && !i.reversed ? 'good' : 'neutral'}
+                />
+              );
+              return (
+                <View key={i.referralId} style={styles.row}>
+                  <Avatar size={42} label={i.name.charAt(0) || 'A'} />
+                  <View style={{ flex: 1, minWidth: 0, gap: large ? 6 : 0 }}>
+                    <Text style={[styles.name, { color: t.text }]}>{i.name}</Text>
+                    <Text style={[styles.roleSub, { color: t.text3 }]}>
+                      {i.reversed ? 'Session refunded' : i.completed ? 'Completed a session' : 'Waiting for their first session'}
+                    </Text>
+                    {large ? <View style={{ flexDirection: 'row' }}>{badge}</View> : null}
+                  </View>
+                  {large ? null : badge}
                 </View>
-                {large ? null : badge}
-              </View>
-            );
-          })}
-        </ListSection>
+              );
+            })}
+          </ListSection>
+        )}
       </Body>
 
       <TabBar active={active} onTab={onTab} role={role} />

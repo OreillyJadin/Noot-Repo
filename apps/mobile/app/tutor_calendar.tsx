@@ -8,7 +8,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Screen, Body, BandHeader, TabBar, Card, Avatar, Ic, useTheme, useLargeText } from '@noot/ui';
+import { Screen, Body, BandHeader, TabBar, Card, Avatar, Ic, useTheme, useLargeText, TEXT_CAPS } from '@noot/ui';
 import { campusParts, formatCampusSlot, formatCampusTime, api, type TutorInterview } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
@@ -239,8 +239,8 @@ export default function TutorCalendar() {
                   { backgroundColor: on ? t.accent : t.surface, borderColor: on ? t.accent : t.border },
                 ]}
               >
-                <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.dayDow, { color: on ? t.onAccent : t.text3 }]}>{d.dow}</Text>
-                <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.dayDom, { color: on ? t.onAccent : t.text }]}>{d.dom}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={TEXT_CAPS.cell} style={[styles.dayDow, { color: on ? t.onAccent : t.text3 }]}>{d.dow}</Text>
+                <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={TEXT_CAPS.cell} style={[styles.dayDom, { color: on ? t.onAccent : t.text }]}>{d.dom}</Text>
                 <View style={styles.dayDots}>
                   {booked && (
                     <View style={[styles.dot, { backgroundColor: on ? t.onAccent : t.accent }]} />

@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Body, BandHeader, TabBar, Card, Avatar, Ic, ViewingAs, useTheme, useLargeText, AdaptiveRow, ListSection } from '@noot/ui';
+import { Body, BandHeader, TabBar, Card, Avatar, Ic, ViewingAs, useTheme, useLargeText, AdaptiveRow, ListSection, TEXT_CAPS } from '@noot/ui';
 import { formatCampusDate, formatCampusSession, api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -67,7 +67,7 @@ function TutorRow({
             <Text style={{ fontSize: 11, color: t.text3, fontWeight: '500' }}>/hr</Text>
           </Text>
         </View>
-        <Text style={[styles.tutorMeta, { color: t.text2 }]}>{meta.line}</Text>
+        <Text maxFontSizeMultiplier={TEXT_CAPS.label} style={[styles.tutorMeta, { color: t.text2 }]}>{meta.line}</Text>
       </View>
     </Pressable>
   );

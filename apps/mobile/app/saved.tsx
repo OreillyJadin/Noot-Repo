@@ -56,12 +56,13 @@ export default function Saved() {
             {tutors.map((tutor) => {
               const meta = tutorMeta(tutor);
               const nameDetails = [tutor.year, tutor.major].filter(Boolean).join(' · ');
+              const sessionsLabel = `${tutor.sessions} ${tutor.sessions === 1 ? 'session' : 'sessions'}`;
               return (
                 <Pressable
                   key={tutor.id}
                   onPress={() => open(tutor)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${tutor.name}${nameDetails ? `, ${nameDetails}` : ''}, $${tutor.rate} per hour${tutor.verified ? ', verified tutor' : ''}`}
+                  accessibilityLabel={`${tutor.name}${meta.course ? `, ${meta.course}` : ''}${nameDetails ? `, ${nameDetails}` : ''}, ${sessionsLabel}${tutor.verified ? ', verified tutor' : ''}. $${tutor.rate} per hour`}
                   style={({ pressed }) => [styles.row, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
                 >
                   <Avatar size={48} uri={tutor.avatarUrl} />

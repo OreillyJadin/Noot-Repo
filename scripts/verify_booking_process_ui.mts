@@ -52,6 +52,7 @@ const tutorUpcomingEnd = tutorSessions.indexOf('</ListSection>', tutorUpcomingSt
 assert.ok(tutorUpcomingEnd > tutorUpcomingStart, 'tutor upcoming rows are grouped');
 const tutorUpcoming = tutorSessions.slice(tutorUpcomingStart, tutorUpcomingEnd);
 assert.match(tutorUpcoming, /<View key={r\.id}/);
+assert.match(tutorUpcoming, /disabled=\{r\.status !== 'confirmed'\}/, 'only confirmed tutor sessions are navigable');
 assert.match(tutorUpcoming, /requestNote/);
 assert.match(tutorUpcoming, /numberOfLines=\{3\}/);
 assert.match(tutorUpcoming, /color: t\.text2/);
