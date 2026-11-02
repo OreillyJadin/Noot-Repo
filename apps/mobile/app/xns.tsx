@@ -141,9 +141,7 @@ function XNoShowInner() {
         <SessionStrip booking={booking} tutor={tutor} who={studentView ? 'student' : 'tutor'} studentName={student.name} />
 
         <Card style={{ marginTop: 16, padding: 16, flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-          <View style={[styles.clockIcon, { backgroundColor: t.accentWeak }]}>
-            <Ic name="clock" size={19} color={t.accent} strokeWidth={1.8} />
-          </View>
+          <Ic name="clock" size={19} color={t.accent} strokeWidth={1.8} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>
               {studentView ? `${tutor.name.split(' ')[0]!} didn't show up` : `${student.first} didn't show up`}
@@ -177,5 +175,4 @@ function XNoShowInner() {
 
 const styles = StyleSheet.create({
   doneWrap: { alignItems: 'center', paddingTop: 22 },
-  clockIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
 });

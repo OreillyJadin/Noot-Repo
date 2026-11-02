@@ -13,10 +13,10 @@ import {
   ActionBar,
   Button,
   Card,
-  Badge,
   Avatar,
   Ic,
   Label,
+  ListSection,
   useTheme,
   type IconName,
 } from '@noot/ui';
@@ -220,7 +220,7 @@ function B3Inner() {
     <Screen>
       <NavTop onBack={() => router.back()} title="Book a session" />
       <Body pad={20}>
-        <Card flat style={{ ...styles.tutorMini, backgroundColor: t.surfaceAlt }}>
+        <Card style={styles.tutorMini}>
           <Avatar size={42} uri={tutor.avatarUrl} />
           <View style={{ flex: 1 }}>
             <Text style={[styles.tutorName, { color: t.text }]}>{tutor.name}</Text>
@@ -444,32 +444,35 @@ function B3Inner() {
       </ActionBar>
 
       <Sheet visible={courseOpen} onClose={() => setCourseOpen(false)} title="Choose course">
-        {tutor.courses.map(([code, grade, r, , currentlyTaking]) => (
-          <Card
-            key={code}
-            selected={course === code}
-            onPress={() => {
-              setCourse(code);
-              setCourseOpen(false);
-            }}
-            style={styles.courseRow}
-          >
-            <View style={[styles.courseGrade, { backgroundColor: t.accentWeak }]}>
-              <Text style={{ color: t.accent, fontWeight: '700', fontSize: 13 }}>
-                {currentlyTaking ? 'Now' : grade}
-              </Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{code}</Text>
-              {currentlyTaking || grade ? (
-                <Text style={{ fontSize: 12, color: t.text3 }}>
-                  {currentlyTaking ? 'Currently taking' : gradeLabel(grade, tutor.verified)}
-                </Text>
-              ) : null}
-            </View>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: t.text }}>${r}/hr</Text>
-          </Card>
-        ))}
+        <ListSection>
+          {tutor.courses.map(([code, grade, r, , currentlyTaking]) => {
+            const selected = course === code;
+            const subtitle = currentlyTaking ? 'Currently taking' : grade ? gradeLabel(grade, tutor.verified) : undefined;
+            return (
+              <Pressable
+                key={code}
+                onPress={() => {
+                  setCourse(code);
+                  setCourseOpen(false);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`${code}${subtitle ? `, ${subtitle}` : ''}, $${r} per hour`}
+                accessibilityState={{ selected }}
+                style={({ pressed }) => [
+                  styles.courseRow,
+                  { backgroundColor: pressed ? t.surface2 : 'transparent' },
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: t.text }}>{code}</Text>
+                  {subtitle ? <Text style={{ fontSize: 12, color: t.text3 }}>{subtitle}</Text> : null}
+                </View>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: t.text }}>${r}/hr</Text>
+                {selected ? <Ic name="check" size={18} color={t.accent} strokeWidth={2.6} /> : null}
+              </Pressable>
+            );
+          })}
+        </ListSection>
       </Sheet>
 
       <SpotSheet
@@ -545,31 +548,44 @@ function SpotSheet({
             </Text>
           ) : null}
           {sections.map((section) => (
-            <View key={section.title}>
-              <Label style={styles.spotSectionTitle}>{section.title}</Label>
+            <ListSection key={section.title} label={section.title}>
               {section.items.map((name) => (
                 <Pressable
                   key={name}
                   onPress={() => choose(name)}
-                  style={[styles.spotOption, { borderBottomColor: t.border }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={name}
+                  accessibilityState={{ selected: selected === name }}
+                  style={({ pressed }) => [
+                    styles.spotOption,
+                    { backgroundColor: pressed ? t.surface2 : 'transparent' },
+                  ]}
                 >
                   <Ic name="pin" size={18} color={t.accent} strokeWidth={1.8} />
                   <Text style={[styles.spotOptionName, { color: t.text }]}>{name}</Text>
                   {selected === name ? <Ic name="check" size={18} color={t.accent} strokeWidth={2.6} /> : null}
                 </Pressable>
               ))}
-            </View>
+            </ListSection>
           ))}
         </>
       )}
-      <Pressable
-        onPress={() => choose(OTHER_SPOT)}
-        style={styles.spotOtherOption}
-      >
-        <Ic name="edit" size={18} color={t.accent} strokeWidth={1.8} />
-        <Text style={[styles.spotOptionName, { color: t.text }]}>{OTHER_SPOT}</Text>
-        {selected === OTHER_SPOT ? <Ic name="check" size={18} color={t.accent} strokeWidth={2.6} /> : null}
-      </Pressable>
+      <ListSection>
+        <Pressable
+          onPress={() => choose(OTHER_SPOT)}
+          accessibilityRole="button"
+          accessibilityLabel={OTHER_SPOT}
+          accessibilityState={{ selected: selected === OTHER_SPOT }}
+          style={({ pressed }) => [
+            styles.spotOption,
+            { backgroundColor: pressed ? t.surface2 : 'transparent' },
+          ]}
+        >
+          <Ic name="edit" size={18} color={t.accent} strokeWidth={1.8} />
+          <Text style={[styles.spotOptionName, { color: t.text }]}>{OTHER_SPOT}</Text>
+          {selected === OTHER_SPOT ? <Ic name="check" size={18} color={t.accent} strokeWidth={2.6} /> : null}
+        </Pressable>
+      </ListSection>
     </Sheet>
   );
 }
@@ -668,17 +684,14 @@ const styles = StyleSheet.create({
   msgFooterLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   selectable: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52, paddingHorizontal: 14, borderRadius: 13, borderWidth: 1.5 },
-  courseRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
-  courseGrade: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  courseRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   sheetScroll: { flexShrink: 1 },
   spotSheetContent: { gap: 0 },
   spotSearch: { height: 44, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 12, borderRadius: 13, borderWidth: 1.5 },
   spotSearchInput: { flex: 1, height: 44, paddingVertical: 0, fontSize: 14 },
   spotEmpty: { fontSize: 13, paddingVertical: 14 },
-  spotSectionTitle: { fontSize: 11, letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 12, marginBottom: 2 },
-  spotOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth },
+  spotOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 14 },
   spotOptionName: { flex: 1, fontSize: 15 },
-  spotOtherOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
   sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
   sheetBody: { maxHeight: '75%', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   sheetBodyTall: { height: '75%' },

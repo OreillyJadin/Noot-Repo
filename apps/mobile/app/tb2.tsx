@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, NavTop, Body, Card, Avatar, Divider, Eyebrow, Button, Ic, useTheme, type IconName } from '@noot/ui';
+import { Screen, NavTop, Body, Card, Avatar, Divider, Eyebrow, Button, Ic, ListSection, ListRow, StatusDot, useTheme } from '@noot/ui';
 import { api, feeRateFor } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { useApp, type BookingDraft } from '../lib/store';
@@ -38,19 +38,6 @@ function sessionFacts(booking: BookingDraft, scheduledAt: string, tutor: Tutor, 
   const rate = booked ? gross / lengthHours : previewRate;
   const online = booking.sessionType === 'video';
   return { day: day!, time: time!, lengthHours, lenLabel, location, course, rate, feeRate, gross, fee, payout, online };
-}
-
-function FactRow({ ic, label, value }: { ic: IconName; label: string; value: string }) {
-  const t = useTheme();
-  return (
-    <View style={styles.factRow}>
-      <View style={[styles.factIcon, { backgroundColor: t.accentWeak }]}>
-        <Ic name={ic} size={17} color={t.accent} strokeWidth={1.8} />
-      </View>
-      <Text style={[styles.factLabel, { color: t.text3 }]}>{label}</Text>
-      <Text style={[styles.factValue, { color: t.text }]}>{value}</Text>
-    </View>
-  );
 }
 
 export default function TB2() {
@@ -115,27 +102,39 @@ export default function TB2() {
               <Text style={[styles.name, { color: t.text }]}>{student.name}</Text>
               {studentMeta ? <Text style={[styles.meta, { color: t.text3 }]}>{studentMeta}</Text> : null}
             </View>
-            <View style={[styles.confirmedPill, { backgroundColor: t.goodWeak }]}>
-              <Ic name="check" size={11} color={t.good} strokeWidth={3} />
-              <Text style={[styles.confirmedLabel, { color: t.good }]}>Confirmed</Text>
-            </View>
+            <StatusDot label="Confirmed" color={t.good} />
           </View>
         </Card>
 
         {/* facts */}
-        <Card style={{ marginTop: 12, padding: 16 }}>
-          <Eyebrow style={{ color: t.text3, marginBottom: 12 }}>Session</Eyebrow>
-          <View style={{ gap: 12 }}>
-            <FactRow ic="cap" label="Course" value={f.course} />
-            <FactRow ic="cal" label="Date" value={f.day} />
-            <FactRow ic="clock" label="Time" value={`${f.time} · ${f.lenLabel}`} />
-            <FactRow
-              ic={f.online ? 'video' : 'pin'}
-              label={f.online ? 'Virtual' : 'In person'}
-              value={f.online ? 'Integrated video' : f.location || 'Location not set'}
+        <View style={{ marginTop: 12 }}>
+          <ListSection label="Session">
+            <ListRow
+              icon="cap"
+              title="Course"
+              trailing={<Text numberOfLines={2} style={[styles.factValue, { color: t.text }]}>{f.course}</Text>}
+              chevron={false}
             />
-          </View>
-        </Card>
+            <ListRow
+              icon="cal"
+              title="Date"
+              trailing={<Text numberOfLines={2} style={[styles.factValue, { color: t.text }]}>{f.day}</Text>}
+              chevron={false}
+            />
+            <ListRow
+              icon="clock"
+              title="Time"
+              trailing={<Text numberOfLines={2} style={[styles.factValue, { color: t.text }]}>{f.time} · {f.lenLabel}</Text>}
+              chevron={false}
+            />
+            <ListRow
+              icon={f.online ? 'video' : 'pin'}
+              title={f.online ? 'Virtual' : 'In person'}
+              trailing={<Text numberOfLines={2} style={[styles.factValue, { color: t.text }]}>{f.online ? 'Integrated video' : f.location || 'Location not set'}</Text>}
+              chevron={false}
+            />
+          </ListSection>
+        </View>
 
         {/* student's message + focus */}
         {booking.requestNote?.trim() ? (
@@ -198,7 +197,7 @@ export default function TB2() {
           <Text style={[styles.moreLabel, { color: t.text3 }]}>Need to reschedule or cancel?</Text>
         </Pressable>
 
-        <Card flat style={{ ...styles.reminder, backgroundColor: t.surfaceAlt }}>
+        <Card style={styles.reminder}>
           <View style={{ marginTop: 1 }}>
             <Ic name="clock" size={16} color={t.text3} strokeWidth={1.8} />
           </View>
@@ -226,45 +225,28 @@ export default function TB2() {
             </Text>
           </Card>
 
-          <Card
-            onPress={ownProposalPending ? undefined : () => {
-              setMoreOpen(false);
-              router.push('/xtr');
-            }}
-            style={[{ padding: 14, marginBottom: 10 }, ownProposalPending && { opacity: 0.55 }]}
-          >
-            <View style={styles.choiceRow}>
-              <View style={[styles.choiceIcon, { backgroundColor: t.accentWeak }]}>
-                <Ic name="cal" size={18} color={t.accent} strokeWidth={1.8} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.choiceTitle, { color: t.text }]}>Propose a new time</Text>
-                <Text style={[styles.choiceSub, { color: t.text3 }]}>
-                  {ownProposalPending ? `Waiting on ${student.first}` : `${student.first} confirms the change`}
-                </Text>
-              </View>
-              {!ownProposalPending ? <Ic name="chevron" size={16} color={t.text3} strokeWidth={2} /> : null}
-            </View>
-          </Card>
-
-          <Card
-            onPress={() => {
-              setMoreOpen(false);
-              router.push('/xtc');
-            }}
-            style={{ padding: 14 }}
-          >
-            <View style={styles.choiceRow}>
-              <View style={[styles.choiceIcon, { backgroundColor: t.surface2 }]}>
-                <Ic name="x" size={18} color={t.text2} strokeWidth={2} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.choiceTitle, { color: t.text }]}>Cancel session</Text>
-                <Text style={[styles.choiceSub, { color: t.text3 }]}>{student.first} is refunded per policy</Text>
-              </View>
-              <Ic name="chevron" size={16} color={t.text3} strokeWidth={2} />
-            </View>
-          </Card>
+          <ListSection>
+            <ListRow
+              icon="cal"
+              title="Propose a new time"
+              subtitle={ownProposalPending ? `Waiting on ${student.first}` : `${student.first} confirms the change`}
+              muted={ownProposalPending}
+              chevron={!ownProposalPending}
+              onPress={ownProposalPending ? undefined : () => {
+                setMoreOpen(false);
+                router.push('/xtr');
+              }}
+            />
+            <ListRow
+              icon="x"
+              title="Cancel session"
+              subtitle={`${student.first} is refunded per policy`}
+              onPress={() => {
+                setMoreOpen(false);
+                router.push('/xtc');
+              }}
+            />
+          </ListSection>
         </View>
       </Modal>
     </Screen>
@@ -275,12 +257,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   name: { fontSize: 17, fontWeight: '700' },
   meta: { fontSize: 13 },
-  confirmedPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
-  confirmedLabel: { fontSize: 11, fontWeight: '700' },
-  factRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  factIcon: { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  factLabel: { fontSize: 13, width: 64, flexShrink: 0 },
-  factValue: { fontSize: 14, fontWeight: '600', textAlign: 'right', flex: 1 },
+  factValue: { flexShrink: 1, maxWidth: '55%', textAlign: 'right', fontSize: 13, fontWeight: '600' },
   msgHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   msgRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   bubble: { flex: 1, paddingHorizontal: 13, paddingVertical: 11, borderTopLeftRadius: 4, borderTopRightRadius: 14, borderBottomLeftRadius: 14, borderBottomRightRadius: 14 },
@@ -295,8 +272,4 @@ const styles = StyleSheet.create({
   sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   sheetHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   sheetTitle: { fontSize: 17, fontWeight: '700' },
-  choiceRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  choiceIcon: { width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  choiceTitle: { fontSize: 15, fontWeight: '600' },
-  choiceSub: { fontSize: 12, marginTop: 1 },
 });
