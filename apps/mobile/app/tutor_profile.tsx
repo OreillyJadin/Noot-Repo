@@ -186,7 +186,7 @@ export default function TutorProfile() {
         ) : null}
 
         <ListSection label="Earnings">
-          <ListRow size="regular" icon="dollar" title={stats ? `$${stats.earnedTotal.toFixed(2)} earned` : 'Earnings'} subtitle={payouts?.payoutsEnabled ? 'Payouts enabled — you’re all set' : 'Connect Stripe to start receiving payouts'} onPress={setupPayouts} />
+          <ListRow size="regular" icon={large ? undefined : 'dollar'} title={stats ? `$${stats.earnedTotal.toFixed(2)} earned` : 'Earnings'} subtitle={payouts?.payoutsEnabled ? 'Payouts enabled — you’re all set' : 'Connect Stripe to start receiving payouts'} onPress={setupPayouts} />
         </ListSection>
 
         <ListSection label="Account">
@@ -246,6 +246,6 @@ const styles = StyleSheet.create({
   inlineStats: { flexDirection: 'row', flexWrap: 'wrap' },
   inlineStat: { opacity: 0.85, fontSize: 12 },
   inlineStatNumber: { opacity: 1, fontWeight: '600' },
-  value: { color: '#5A6157', fontSize: 13 },
+  value: { fontSize: 13 },
   footer: { textAlign: 'center', fontSize: 12, marginTop: 2 },
 });

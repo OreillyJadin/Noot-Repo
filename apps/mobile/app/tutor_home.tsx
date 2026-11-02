@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Body, BandHeader, TabBar, Card, Avatar, Ic, H2, Button, ViewingAs, useTheme, useLargeText, AdaptiveRow, ListSection, ListRow, CountPill, type IconName } from '@noot/ui';
-import { api, type Booking } from '@noot/core';
+import { api, formatCampusDate, type Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
 import { useMe, firstName } from '../lib/useMe';
@@ -60,7 +60,7 @@ export default function TutorHome() {
     let active = true;
     api.resolveParticipantNames().then((n) => { if (active) setNames(n); }).catch(() => {});
     return () => { active = false; };
-  }, [reloadKey]);
+  }, [reloadKey, now]);
 
   // Countdown to the real session when we have one.
   const target = useMemo(() => (next ? new Date(next.scheduledAt).getTime() : Date.now()), [next]);
@@ -122,8 +122,8 @@ export default function TutorHome() {
         header={
           <BandHeader
             title="Home"
-            subtitle={new Date(now).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-            overlap={56}
+            subtitle={formatCampusDate(now, { weekday: 'long', month: 'long', day: 'numeric' })}
+            overlap={previewing ? undefined : 56}
             trailing={
               <View style={styles.headerActions}>
                 <AdminShortcut color={t.onBand} ringColor={t.band} />
@@ -133,8 +133,10 @@ export default function TutorHome() {
           />
         }
       >
+        {previewing ? <TutorStatusBanner status={tutorStatus} onApply={() => router.push('/t1')} /> : null}
+
         {next ? (
-          <Card raised style={[styles.nextCard, { marginTop: -56 }]}>
+          <Card raised style={[styles.nextCard, { marginTop: previewing ? 0 : -56 }]}>
             <View style={styles.nextContent}>
               <Text style={[styles.nextLabel, { color: t.text2 }]}>{inProgress ? 'Session in progress' : 'Next session'}</Text>
               <AdaptiveRow style={styles.nextTutorRow}>
@@ -174,7 +176,7 @@ export default function TutorHome() {
             </View>
           </Card>
         ) : (
-          <Card raised style={[styles.nextCard, { marginTop: -56 }]}>
+          <Card raised style={[styles.nextCard, { marginTop: previewing ? 0 : -56 }]}>
             <View style={styles.emptyCard}>
               <Text style={[styles.nextLabel, { color: t.text2 }]}>No upcoming sessions</Text>
               <Text style={[styles.emptyTitle, { color: t.text }]}>You&apos;re all caught up</Text>
@@ -186,7 +188,6 @@ export default function TutorHome() {
           </Card>
         )}
 
-        {previewing ? <TutorStatusBanner status={tutorStatus} onApply={() => router.push('/t1')} /> : null}
         {showRoleContext ? <ViewingAs role="tutor" preview={previewing} /> : null}
         {tutorStatus === 'pending' ? (
           <View style={[styles.reviewBadge, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>

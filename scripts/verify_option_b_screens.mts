@@ -28,13 +28,16 @@ const studentHome = readFileSync(join(root, screens[0]), 'utf8');
 assert.doesNotMatch(studentHome, /Welcome back/);
 const tutorHome = readFileSync(join(root, screens[1]), 'utf8');
 assert.doesNotMatch(tutorHome, /CountdownPills|geckoDeco|Wordmark/);
-assert.match(tutorHome, /overlap=\{56\}/, 'tutor Home must overlap the session card onto the band');
+assert.match(tutorHome, /overlap=\{previewing \? undefined : 56\}/, 'tutor Home must skip overlap while previewing');
+assert.match(tutorHome, /marginTop: previewing \? 0 : -56/, 'tutor Home card offset must match the preview overlap');
 assert.match(readFileSync(join(root, 'apps/mobile/lib/NotificationBell.tsx'), 'utf8'), /color\?:\s*string/);
 assert.match(readFileSync(join(root, 'apps/mobile/lib/AdminShortcut.tsx'), 'utf8'), /color\?:\s*string/);
 
 const now = Date.parse('2026-01-01T00:00:00Z');
 assert.equal(countdownLabel(now + 46 * 60 * 60_000, now + 47 * 60 * 60_000, now), 'In 1 day, 22 hr');
 assert.equal(countdownLabel(now + 25 * 60_000, now + 85 * 60_000, now), 'In 25 min');
+assert.equal(countdownLabel(now + 59_000, now + 60_000, now), 'Starting now');
 assert.equal(countdownLabel(now - 20 * 60_000, now + 40 * 60_000, now), 'In progress · ends in 40 min');
+assert.equal(countdownLabel(now - 20 * 60_000, now, now), 'Session ended');
 
 console.log('Option B mobile screen source checks passed.');

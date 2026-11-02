@@ -193,8 +193,8 @@ export default function Profile() {
         ) : null}
 
         <ListSection label="Account">
-          <ListRow size="regular" icon={large ? undefined : 'user'} title="Personal info" trailing={<Text numberOfLines={1} style={[styles.emailValue, { color: t.text3 }]}>{me?.email ?? '—'}</Text>} onPress={() => router.push('/edit_personal')} />
-          <ListRow size="regular" icon={large ? undefined : 'cap'} title="My courses" subtitle={me?.courses?.length ? undefined : coursesSub} trailing={me?.courses?.length ? <Text style={[styles.value, { color: t.text3 }]}>{me.courses.length} courses</Text> : undefined} onPress={() => router.push('/edit_courses')} />
+          <ListRow size="regular" icon={large ? undefined : 'user'} title="Personal info" accessibilityLabel={`Personal info, ${me?.email ?? '—'}`} trailing={<Text numberOfLines={1} style={[styles.emailValue, { color: t.text3 }]}>{me?.email ?? '—'}</Text>} onPress={() => router.push('/edit_personal')} />
+          <ListRow size="regular" icon={large ? undefined : 'cap'} title="My courses" subtitle={me?.courses?.length ? undefined : coursesSub} trailing={me?.courses?.length ? <Text style={[styles.value, { color: t.text3 }]}>{me.courses.length} {me.courses.length === 1 ? 'course' : 'courses'}</Text> : undefined} onPress={() => router.push('/edit_courses')} />
           <ListRow size="regular" icon={large ? undefined : 'doc'} title="Booking & payment history" onPress={() => router.push('/history')} />
         </ListSection>
 
@@ -213,7 +213,7 @@ export default function Profile() {
                 onPress={tutorStatus === 'pending' ? undefined : () => router.push('/t1')}
               />
             ) : null}
-            {!isAmbassador ? <ListRow size="regular" icon={large ? undefined : 'flame'} title="Become an ambassador" subtitle="Bonuses for invite goals" onPress={becomeAmbassador} /> : null}
+            {!isAmbassador ? <ListRow size="regular" icon={large ? undefined : 'gift'} title="Become an ambassador" subtitle="Bonuses for invite goals" onPress={becomeAmbassador} /> : null}
           </ListSection>
         ) : null}
 
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   inlineStats: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 2 },
   inlineStat: { opacity: 0.85, fontSize: 12 },
   inlineStatNumber: { opacity: 1, fontWeight: '600' },
-  emailValue: { color: '#5A6157', fontSize: 13, maxWidth: 150 },
-  value: { color: '#5A6157', fontSize: 13 },
+  emailValue: { fontSize: 13, maxWidth: 150 },
+  value: { fontSize: 13 },
   footer: { textAlign: 'center', fontSize: 12, marginTop: 2 },
 });

@@ -48,7 +48,7 @@ function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => voi
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${tutor.name}, ${badgeCourse}, $${tutor.rate} per hour`}
+      accessibilityLabel={`${tutor.name}${tutor.verified ? ', verified tutor' : ''}${badgeCourse ? `, ${badgeCourse}` : ''}, $${tutor.rate} per hour`}
       style={({ pressed }) => [styles.rowInner, pressed && { backgroundColor: t.surface2 }]}
     >
         {large ? null : <Avatar size={44} uri={tutor.avatarUrl} />}
@@ -263,11 +263,14 @@ export default function StudentHome() {
                       key={tutor.id}
                       onPress={() => openTutor(tutor, course)}
                       accessibilityRole="button"
-                      accessibilityLabel={`Find ${tutor.name} for ${course}`}
+                      accessibilityLabel={course ? `Find ${tutor.name} for ${course}` : `Find ${tutor.name}`}
                       style={styles.miniItem}
                     >
                       <Avatar size={60} uri={tutor.avatarUrl} />
-                      <Text numberOfLines={1} style={[styles.miniName, { color: t.text }]}>{tutor.name.split(' ')[0]}</Text>
+                      <View style={styles.miniNameRow}>
+                        <Text numberOfLines={1} style={[styles.miniName, { color: t.text }]}>{tutor.name.split(' ')[0]}</Text>
+                        {tutor.verified ? <Ic name="check" size={12} color={t.good} strokeWidth={2.6} /> : null}
+                      </View>
                       {course ? <Text numberOfLines={1} style={[styles.miniCourse, { color: t.accent }]}>{course}</Text> : null}
                     </Pressable>
                   ))}
@@ -331,7 +334,8 @@ const styles = StyleSheet.create({
   courseSection: { gap: 10, paddingHorizontal: 20 },
   carousel: { gap: 20, paddingVertical: 2 },
   miniItem: { width: 72, alignItems: 'center', gap: 3 },
-  miniName: { fontSize: 14, textAlign: 'center' },
+  miniNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, maxWidth: '100%' },
+  miniName: { fontSize: 14, textAlign: 'center', flexShrink: 1, minWidth: 0 },
   miniCourse: { fontSize: 12.5, fontWeight: '600', textAlign: 'center' },
   popularSection: { gap: 0 },
   skeletons: { gap: 10 },
