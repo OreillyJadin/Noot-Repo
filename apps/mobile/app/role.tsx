@@ -39,7 +39,7 @@ export default function Role() {
       <ScrollView contentContainerStyle={styles.body}>
         <Text style={[styles.h1, { color: t.text }]}>How will you start?</Text>
         <Text style={[styles.sub, { color: t.text2 }]}>
-          One noot account holds both — you can add the other role anytime and switch modes from your profile.
+          One account holds both. Add the other role anytime from your profile.
         </Text>
 
         <View style={{ gap: 12, marginTop: 8 }}>
@@ -53,11 +53,7 @@ export default function Role() {
                     {on ? <Text style={{ color: t.onAccent, fontWeight: '700', fontSize: 12 }}>✓</Text> : null}
                   </View>
                 </View>
-                <View style={{ gap: 6, marginTop: 8 }}>
-                  {r.bullets.map((b) => (
-                    <Text key={b} style={{ color: t.text2, fontSize: 14 }}>• {b}</Text>
-                  ))}
-                </View>
+                <Text style={{ color: t.text2, fontSize: 14, marginTop: 8 }}>{r.bullets.join(' · ')}</Text>
               </Card>
             );
           })}

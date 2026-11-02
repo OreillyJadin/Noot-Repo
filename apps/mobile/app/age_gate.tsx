@@ -56,7 +56,7 @@ export default function AgeGate() {
           value={dateOfBirth}
           onChange={(value) => { setDateOfBirth(value); setError(null); }}
         />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <Text style={[styles.error, { color: t.danger }]}>{error}</Text> : null}
         <Button label={busy ? 'Saving…' : 'Continue'} disabled={busy || leaving} onPress={handleContinue} />
         <Text onPress={signOut} accessibilityRole="button" style={[styles.link, { color: t.text3 }]}>
           Sign out
@@ -71,6 +71,6 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, padding: 20, gap: 18, paddingTop: 32, paddingBottom: 28 },
   title: { fontSize: 26, fontWeight: '700' },
   body: { fontSize: 15, lineHeight: 22 },
-  error: { color: '#C0392B', fontSize: 14, lineHeight: 20 },
+  error: { fontSize: 14, lineHeight: 20 },
   link: { fontSize: 14, fontWeight: '600', textAlign: 'center', marginTop: 6 },
 });

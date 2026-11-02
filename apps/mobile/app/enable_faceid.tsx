@@ -10,7 +10,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Button, useTheme } from '@noot/ui';
+import { Button, HeroIcon, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 import { getBiometricCapability, enableBiometric, type BiometricCapability } from '../lib/biometrics';
 
@@ -59,7 +59,7 @@ export default function EnableFaceId() {
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
       <View style={styles.body}>
         <View style={styles.hero}>
-          <Text style={{ fontSize: 56 }}>🔒</Text>
+          <HeroIcon name="lock" size={64} />
           <Text style={[styles.h1, { color: t.text }]}>Turn on {label}?</Text>
           <Text style={[styles.sub, { color: t.text2 }]}>
             Sign in faster next time without typing your password. You can change this later in Settings.

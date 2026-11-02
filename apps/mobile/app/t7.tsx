@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, Field, Divider, Eyebrow, Label, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { Screen, Body, ActionBar, Button, Card, Field, Divider, Label, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
 import { api, AGREEMENT_VERSION } from '@noot/core';
 import { useMe, fullName } from '../lib/useMe';
 import { useTutorApplication } from '../lib/useTutorApplication';
@@ -39,7 +39,7 @@ function StepHead({
           <Ic name="back" size={22} color={t.accent} strokeWidth={2.4} />
         </Pressable>
         <Text style={[styles.stepLabel, { color: t.text3 }]}>Step {step} of 10</Text>
-        <Text onPress={onExit} style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
+        <Text onPress={onExit} accessibilityRole="button" style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
       </View>
       <View style={styles.stepBody}>
         <ProgressDots total={10} current={step} />
@@ -90,7 +90,7 @@ export default function T7() {
       <StepHead step={7} title="Tutor Agreement" onBack={stepBack} onExit={() => router.replace('/')} />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
         <Card flat style={styles.agreementCard}>
-          <Eyebrow style={{ color: t.text3, marginBottom: 10 }}>{AGREEMENT_TITLE}</Eyebrow>
+          <Text style={{ color: t.text, fontSize: 15, fontWeight: '700', marginBottom: 10 }}>{AGREEMENT_TITLE}</Text>
           <ScrollView nestedScrollEnabled style={{ flex: 1 }} contentContainerStyle={{ gap: 10, paddingBottom: 6 }}>
             {AGREEMENT_SECTIONS.map((sec) => (
               <View key={sec.heading}>
@@ -102,7 +102,7 @@ export default function T7() {
         </Card>
 
         {signedAt ? (
-          <Card flat style={[styles.signedCard, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}>
+          <Card flat style={styles.signedCard}>
             <Ic name="check" size={18} color={t.accent} strokeWidth={2.4} />
             <Text style={[styles.signedText, { color: t.text2 }]}>
               Signed by <Text style={{ fontWeight: '700', color: t.text }}>{app?.agreementSignedName}</Text> on{' '}
@@ -160,7 +160,7 @@ export default function T7() {
 const styles = StyleSheet.create({
   stepRow: { flexDirection: 'row', alignItems: 'center', minHeight: 40, paddingLeft: 8, paddingRight: 12 },
   stepBack: { paddingVertical: 6, paddingRight: 6 },
-  stepLabel: { flex: 1, fontSize: 12, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase', textAlign: 'center' },
+  stepLabel: { flex: 1, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   stepExit: { fontSize: 13, fontWeight: '600', width: 78, textAlign: 'right' },
   stepBody: { paddingHorizontal: 20, paddingTop: 8 },
   stepTitle: { fontSize: 24, marginTop: 14 },

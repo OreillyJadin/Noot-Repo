@@ -10,7 +10,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
-import { Button, Card, Field, useTheme } from '@noot/ui';
+import { Button, Field, useTheme } from '@noot/ui';
 import { api, auth } from '@noot/core';
 import { useApp } from '../lib/store';
 import { savePendingInvite } from '../lib/pendingInvite';
@@ -104,12 +104,7 @@ export default function SignUp() {
           <>
             <Text style={[styles.h1, { color: t.text }]}>Create your account</Text>
 
-            <Card style={{ backgroundColor: t.accentWeak, borderColor: t.accentBorder }}>
-              <Text style={[styles.eyebrow, { color: t.accent }]}>WHY .EDU?</Text>
-              <Text style={{ color: t.text2, fontSize: 14, lineHeight: 20, marginTop: 4 }}>
-                noot is closed to verified students. No bots, no scrapers, no randoms.
-              </Text>
-            </Card>
+            <Text style={[styles.sub, { color: t.text2 }]}>noot is closed to verified students.</Text>
 
             <Field
               label="Full name"
@@ -152,7 +147,7 @@ export default function SignUp() {
               }
             />
 
-            {error ? <Text style={{ color: '#C0392B', fontSize: 14 }}>{error}</Text> : null}
+            {error ? <Text style={{ color: t.danger, fontSize: 14 }}>{error}</Text> : null}
 
             <Button label={busy ? 'Sending…' : 'Send verification link'} disabled={busy} onPress={handleSend} />
             <Text style={[styles.hint, { color: t.text3 }]}>You&apos;ll set a password after verifying.</Text>
@@ -198,6 +193,5 @@ const styles = StyleSheet.create({
   dateOfBirth: { gap: 8 },
   dateOfBirthLabel: { fontSize: 14, fontWeight: '600' },
   dateOfBirthHint: { fontSize: 13, lineHeight: 18 },
-  eyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
   link: { fontSize: 14, textAlign: 'center' },
 });

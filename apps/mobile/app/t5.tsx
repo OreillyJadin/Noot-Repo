@@ -16,7 +16,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Eyebrow, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
+import { Screen, Body, ActionBar, Button, ProgressDots, H1, Sub, Ic, useTheme } from '@noot/ui';
 import { api } from '@noot/core';
 
 import { AvailabilityEditor } from '../lib/AvailabilityEditor';
@@ -45,7 +45,7 @@ function StepHead({
           <Ic name="back" size={22} color={t.accent} strokeWidth={2.4} />
         </Pressable>
         <Text style={[styles.stepLabel, { color: t.text3 }]}>Step {step} of 10</Text>
-        <Text onPress={onExit} style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
+        <Text onPress={onExit} accessibilityRole="button" style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
       </View>
       <View style={styles.stepBody}>
         <ProgressDots total={10} current={step} />
@@ -120,7 +120,7 @@ export default function T5() {
       <StepHead step={5} title="When can you tutor?" onBack={stepBack} onExit={() => router.replace('/')} />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
         <View style={styles.headRow}>
-          <Eyebrow style={{ color: t.text3 }}>Weekly availability</Eyebrow>
+          <Text style={{ color: t.text, fontSize: 15, fontWeight: '600' }}>Weekly availability</Text>
           <Text style={[styles.totalHrs, { color: t.accent }]}>{total} hrs/wk{total > 0 ? ' ✓' : ''}</Text>
         </View>
         <AvailabilityEditor value={grid} onChange={edit} />
@@ -141,7 +141,7 @@ export default function T5() {
 const styles = StyleSheet.create({
   stepRow: { flexDirection: 'row', alignItems: 'center', minHeight: 40, paddingLeft: 8, paddingRight: 12 },
   stepBack: { paddingVertical: 6, paddingRight: 6 },
-  stepLabel: { flex: 1, fontSize: 12, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase', textAlign: 'center' },
+  stepLabel: { flex: 1, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   stepExit: { fontSize: 13, fontWeight: '600', width: 78, textAlign: 'right' },
   stepBody: { paddingHorizontal: 20, paddingTop: 8 },
   stepTitle: { fontSize: 24, marginTop: 14 },

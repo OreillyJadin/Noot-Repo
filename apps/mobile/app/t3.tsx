@@ -10,7 +10,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Screen, Body, ActionBar, Button, Card, Badge, Eyebrow, H2, ProgressDots, H1, Sub, Ic, Skeleton, useTheme } from '@noot/ui';
+import { Screen, Body, ActionBar, Button, Card, H2, ProgressDots, H1, Sub, Ic, Skeleton, ListSection, useTheme } from '@noot/ui';
 import { api, UNVERIFIED_FEE_RATE, type CatalogCourse, MIN_HOURLY_RATE } from '@noot/core';
 import { CoursePicker } from '../lib/CoursePicker';
 import { useStepBack } from '../lib/useStepBack';
@@ -55,7 +55,7 @@ function StepHead({
           <Ic name="back" size={22} color={t.accent} strokeWidth={2.4} />
         </Pressable>
         <Text style={[styles.stepLabel, { color: t.text3 }]}>Step {step} of 10</Text>
-        <Text onPress={onExit} style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
+        <Text onPress={onExit} accessibilityRole="button" style={[styles.stepExit, { color: t.accent }]}>Save & exit</Text>
       </View>
       <View style={styles.stepBody}>
         <ProgressDots total={10} current={step} />
@@ -207,8 +207,8 @@ export default function T3() {
         onExit={saveAndExit}
       />
       <Body pad={20} contentStyle={{ paddingTop: 14 } as ViewStyle}>
-        <Card flat style={[styles.addingCard, { borderColor: t.borderStrong, backgroundColor: t.surfaceAlt }]}>
-          <Eyebrow style={{ marginBottom: 10 }}>Add courses</Eyebrow>
+        <Card style={styles.addingCard}>
+          <Text style={[styles.addLabel, { color: t.text }]}>Add courses</Text>
           {meLoading ? (
             <Skeleton height={48} radius={13} />
           ) : (
@@ -223,13 +223,13 @@ export default function T3() {
           <Text style={[styles.addHint, { color: t.text3 }]}>
             {gradesVerified
               ? "Your grades are verified, so you can only add courses you're taking now."
-              : 'Tap every course you want — the list stays open. Then pick a grade or choose Taking it now for each one below.'}
+              : 'Tap every course you tutor (the list stays open), then pick a grade or Taking it now below.'}
           </Text>
         </Card>
 
         <View style={styles.headRow}>
           <H2 style={{ fontSize: 16 }}>Your courses</H2>
-          <Badge label={`${courses.length} / ${MAX_COURSES}`} tone="neutral" />
+          <Text style={{ color: t.text3, fontSize: 13 }}>{courses.length} of {MAX_COURSES}</Text>
         </View>
 
         {loading || meLoading ? (
@@ -240,9 +240,9 @@ export default function T3() {
         ) : courses.length === 0 ? (
           <Text style={{ fontSize: 13, color: t.text3 }}>No courses yet — search above and tap the courses you tutor.</Text>
         ) : (
-          <View style={{ gap: 10 }}>
+          <ListSection>
             {courses.map((c) => (
-              <Card key={c.courseCode} style={styles.courseCard}>
+              <View key={c.courseCode} style={styles.courseCard}>
                 <View style={styles.courseHead}>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={[styles.courseCode, { color: t.text }]}>{c.courseCode}</Text>
@@ -321,9 +321,9 @@ export default function T3() {
                     Students see this as Currently taking. Noot&apos;s fee on this course is {UNVERIFIED_FEE_RATE * 100}% until a transcript shows your final grade.
                   </Text>
                 ) : null}
-              </Card>
+              </View>
             ))}
-          </View>
+          </ListSection>
         )}
 
         <Text style={[styles.anytime, { color: t.text3 }]}>
@@ -346,13 +346,13 @@ export default function T3() {
 const styles = StyleSheet.create({
   stepRow: { flexDirection: 'row', alignItems: 'center', minHeight: 40, paddingLeft: 8, paddingRight: 12 },
   stepBack: { paddingVertical: 6, paddingRight: 6 },
-  stepLabel: { flex: 1, fontSize: 12, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase', textAlign: 'center' },
+  stepLabel: { flex: 1, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   stepExit: { fontSize: 13, fontWeight: '600', width: 78, textAlign: 'right' },
   stepBody: { paddingHorizontal: 20, paddingTop: 8 },
   stepTitle: { fontSize: 24, marginTop: 14 },
   stepSub: { marginTop: 6, fontSize: 14 },
   headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 },
-  courseCard: { gap: 10, padding: 12 },
+  courseCard: { gap: 10, padding: 14 },
   courseHead: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   gradeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   gradeLabel: { fontSize: 13, fontWeight: '600' },
@@ -362,7 +362,8 @@ const styles = StyleSheet.create({
   currentlyTakingNote: { fontSize: 12, lineHeight: 17 },
   courseCode: { fontSize: 16, fontWeight: '600' },
   courseSem: { fontSize: 13 },
-  addingCard: { marginBottom: 18, padding: 16, borderWidth: 1.5, borderStyle: 'dashed' },
+  addingCard: { marginBottom: 18, padding: 16 },
+  addLabel: { fontSize: 15, fontWeight: '600', marginBottom: 10 },
   addHint: { fontSize: 12.5, lineHeight: 18, marginTop: 10 },
   anytime: { fontSize: 13, lineHeight: 19, marginTop: 14, textAlign: 'center' },
 });

@@ -64,7 +64,7 @@ export default function ForgotPassword() {
               onChangeText={(v) => { setEmail(v); if (error) setError(null); }}
               keyboardType="email-address"
             />
-            {error ? <Text style={{ color: '#C0392B', fontSize: 14 }}>{error}</Text> : null}
+            {error ? <Text style={{ color: t.danger, fontSize: 14 }}>{error}</Text> : null}
             <Button label={busy ? 'Sending…' : 'Send reset link'} disabled={busy} onPress={handleSend} />
           </>
         ) : (
