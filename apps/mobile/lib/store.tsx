@@ -41,6 +41,9 @@ export interface BookingDraft {
   location?: string;
   /** Set explicitly by B3 — B4 must not re-infer it from the location label. */
   sessionType?: 'video' | 'in_person';
+  dailyRoomName?: string | null;
+  videoLinkSentAt?: string | null;
+  dailyRoomDeletedAt?: string | null;
   tag?: string;
   message?: string;
 }

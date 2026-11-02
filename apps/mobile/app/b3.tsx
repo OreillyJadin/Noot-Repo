@@ -105,7 +105,7 @@ function B3Inner() {
   const [msgEdited, setMsgEdited] = useState(!!booking.message);
   const tutorFirst = tutor.name.split(' ')[0];
 
-  // In-person only for launch; campus choices come from the read-only tutoring_locations list.
+  const [sessionType, setSessionType] = useState<'in_person' | 'video'>(booking.sessionType ?? 'in_person');
   const [spot, setSpot] = useState<string | null>(
     booking.location?.startsWith('Online') ? null : booking.location ?? null,
   );
@@ -197,19 +197,19 @@ function B3Inner() {
   const daySlots = slots[day] ?? [];
   const dayBooked = booked[day] ?? new Set<string>();
   const fullyBooked = daySlots.length > 0 && daySlots.every((s) => dayBooked.has(s));
-  const ready = !!slot && !!tag && !!spot && msg.trim().length > 0;
+  const ready = !!slot && !!tag && (sessionType === 'video' || !!spot) && msg.trim().length > 0;
   const dayObj = BOOKABLE_DAYS.find((d) => d.i === day) ?? BOOKABLE_DAYS[0]!;
 
   const continueToPayment = () => {
-    if (!ready || !spot) return;
+    if (!ready) return;
     patchBooking({
       tutor,
       course,
       dayIndex: day,
       slot: slot ?? undefined,
       lengthMin: length,
-      location: spot,
-      sessionType: 'in_person',
+      location: sessionType === 'video' ? undefined : spot ?? undefined,
+      sessionType,
       tag: tag ?? undefined,
       message: msg.trim(),
     });
@@ -381,12 +381,22 @@ function B3Inner() {
         </FieldBlock>
 
         <FieldBlock label="Where you'll meet">
-          <Selectable
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+            <Button label="In person" kind={sessionType === 'in_person' ? 'primary' : 'secondary'} size="sm"
+              style={{ flex: 1 }} onPress={() => setSessionType('in_person')} />
+            <Button label="Virtual" kind={sessionType === 'video' ? 'primary' : 'secondary'} size="sm"
+              style={{ flex: 1 }} onPress={() => setSessionType('video')} />
+          </View>
+          {sessionType === 'video' ? (
+            <Text style={{ color: t.text2, fontSize: 13, lineHeight: 19 }}>
+              You&apos;ll get a private Noot video link 1 hour before your session, once your tutor accepts.
+            </Text>
+          ) : <Selectable
             onPress={() => setSpotOpen(true)}
             value={spot ?? 'Loading…'}
             icon="pin"
             sub={spot === OTHER_SPOT ? "You'll propose a spot in chat" : "You'll confirm the exact room in chat"}
-          />
+          />}
         </FieldBlock>
 
         <FieldBlock label={`Message to ${tutorFirst}`}>

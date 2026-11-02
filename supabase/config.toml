@@ -101,3 +101,9 @@ verify_jwt = false
 
 [functions.auto-complete-sessions]
 verify_jwt = false
+
+[functions.video-rooms]
+verify_jwt = false
+
+[functions.join-video-session]
+verify_jwt = true

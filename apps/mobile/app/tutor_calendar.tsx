@@ -112,9 +112,7 @@ export default function TutorCalendar() {
             name: 'Student',
             av: 'S',
             course: b.subject,
-            // Plain "Online": noot hosts no video, and video sessions aren't sold at
-            // launch (T14). Only pre-existing rows can be 'video'.
-            where: online ? 'Online' : (b.location ?? 'In person'),
+            where: online ? 'Virtual' : (b.location ?? 'In person'),
             pay: `$${Math.round(b.tutorPayoutAmount)}`,
             len: lenLabel(b.durationMinutes),
           };
@@ -317,7 +315,7 @@ export default function TutorCalendar() {
                         <Text style={[styles.sessionPay, { color: t.good }]}>{s.pay}</Text>
                       </View>
                       <View style={styles.sessionMetaRow}>
-                        <Ic name={s.where.startsWith('Online') ? 'video' : 'pin'} size={12} color={t.accent} strokeWidth={1.8} />
+                        <Ic name={s.where === 'Virtual' ? 'video' : 'pin'} size={12} color={t.accent} strokeWidth={1.8} />
                         <Text numberOfLines={1} style={[styles.sessionMeta, { color: t.text3 }]}>
                           {s.course} · {s.len}
                         </Text>

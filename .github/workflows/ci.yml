@@ -152,6 +152,7 @@ jobs:
             verify_reschedule_copy
             verify_s1_sync
             verify_session_reminders
+            verify_video_sessions
             verify_sign_out
             verify_forced_sign_out
             verify_student_walls

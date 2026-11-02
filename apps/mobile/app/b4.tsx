@@ -49,7 +49,7 @@ function B4Inner() {
   const slot = booking.slot ?? '3:00 PM';
   const campusDay = { year: dayObj.year, month: MONTHS.indexOf(dayObj.month) + 1, day: dayObj.dom };
   const previewScheduledAt = tryCampusSlotISO(campusDay, slot);
-  const location = booking.location ?? 'Gorgas Library, Fl 2';
+  const location = booking.sessionType === 'video' ? 'Virtual' : booking.location ?? 'Gorgas Library, Fl 2';
   const course = booking.course ?? tutor.courses[0]![0];
   const rate = (tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!)[2];
   const dollars = (cents: number) => (cents / 100).toFixed(2).replace(/\.00$/, '');
@@ -174,7 +174,7 @@ function B4Inner() {
         scheduledAt,
         durationMinutes: lengthMin,
         sessionType,
-        location,
+        location: sessionType === 'video' ? undefined : location,
         meetingLink: undefined,
         message: booking.message,
         paymentIntentId: pi.paymentIntentId ?? undefined,
