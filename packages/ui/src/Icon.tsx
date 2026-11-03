@@ -11,7 +11,7 @@ export const ICONS = {
   chevdown: 'M5 8l7 7 7-7',
   plus: 'M12 5v14M5 12h14',
   check: 'M4 12l5 5L20 6',
-  search: 'M11 4a7 7 0 105.3 11.7M20 20l-4.7-4.3',
+  search: 'circle:11,11,7|M16 16l4 4',
   camera: 'M4 8h3l2-2h6l2 2h3v11H4z|circle:12,13,3.4',
   upload: 'M12 16V4M7 9l5-5 5 5M4 20h16',
   mail: 'M3 6h18v12H3z|M3 7l9 6 9-6',
