@@ -52,7 +52,7 @@ export default function AmbassadorHome() {
         onRefresh={onRefresh}
         refreshTint={t.onBand}
         pad={20}
-        header={<BandHeader title="Ambassador" trailing={<AdminShortcut color={t.onBand} ringColor={t.band} />} />}
+        header={<BandHeader watermark title="Ambassador" trailing={<AdminShortcut color={t.onBand} ringColor={t.band} />} />}
       >
         <ViewingAs role="ambassador" preview={previewing} />
         {/* earnings summary */}

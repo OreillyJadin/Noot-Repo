@@ -6,6 +6,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useTheme } from './ThemeProvider';
 import { Ic, type IconName } from './Icon';
 import { Button } from './Button';
+import { GeckoWatermark } from './GeckoWatermark';
 
 export interface EmptyStateProps {
   icon?: IconName;
@@ -19,6 +20,7 @@ export function EmptyState({ icon = 'search', title, subtitle, actionLabel, onAc
   const t = useTheme();
   return (
     <View style={styles.wrap}>
+      <GeckoWatermark centered />
       <View style={[styles.iconWrap, { backgroundColor: t.surface, borderColor: t.border }]}>
         <Ic name={icon} size={26} color={t.text3} strokeWidth={1.6} />
       </View>
