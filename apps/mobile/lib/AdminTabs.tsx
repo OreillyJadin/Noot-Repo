@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, usePathname, useRouter } from 'expo-router';
 import { api, type AdminHubCounts } from '@noot/core';
-import { useLargeText, useTheme } from '@noot/ui';
+import { TabPressScale, useLargeText, useTheme } from '@noot/ui';
 
 export interface AdminTab {
   key: string;
@@ -76,15 +76,21 @@ export function AdminTabs({ tabs, active }: { tabs: AdminTab[]; active: string }
             accessibilityRole="button"
             accessibilityState={{ selected }}
             accessibilityLabel={tab.count && tab.count > 0 ? `${tab.label}, ${tab.count}` : tab.label}
-            style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+            style={styles.tab}
           >
-            <Text numberOfLines={1} style={[styles.label, { color: selected ? t.text : t.text3 }]}>
-              {tab.label}
-            </Text>
-            {tab.count && tab.count > 0 ? (
-              <Text style={[styles.count, { color: t.accent }]}>{tab.count}</Text>
-            ) : null}
-            <View style={[styles.underline, { backgroundColor: selected ? t.text : 'transparent' }]} />
+            {({ pressed }) => (
+              <>
+                <TabPressScale pressed={pressed} style={styles.tabContent}>
+                  <Text numberOfLines={1} style={[styles.label, { color: selected ? t.text : t.text3 }]}>
+                    {tab.label}
+                  </Text>
+                  {tab.count && tab.count > 0 ? (
+                    <Text style={[styles.count, { color: t.accent }]}>{tab.count}</Text>
+                  ) : null}
+                </TabPressScale>
+                <View style={[styles.underline, { backgroundColor: selected ? t.text : 'transparent' }]} />
+              </>
+            )}
           </Pressable>
         );
       })}
@@ -97,7 +103,7 @@ const styles = StyleSheet.create({
   trackLarge: { maxHeight: undefined, flexGrow: 0 },
   tabs: { flexDirection: 'row', alignItems: 'stretch', gap: 20 },
   tab: { minHeight: 42, flexDirection: 'row', alignItems: 'flex-start', gap: 4, paddingHorizontal: 2, paddingTop: 8, position: 'relative' },
-  pressed: { opacity: 0.65 },
+  tabContent: { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
   label: { fontSize: 14, fontWeight: '600' },
   count: { fontSize: 10, lineHeight: 13, fontWeight: '700' },
   underline: { position: 'absolute', left: 0, right: 0, bottom: -1, height: 2, borderRadius: 1 },

@@ -57,31 +57,32 @@ function ThemedApp() {
         <AuthGate>
           <PushOpener />
           <BookingConfirmedHost />
-          {/* Tab roots cross-fade instead of the jerky horizontal slide; drill-down
-              screens (booking, edit, etc.) keep the default push animation. */}
+          {/* Tab roots switch instantly; tab bars provide press-scale feedback.
+              Drill-down screens (booking, edit, etc.) keep the default push slide. */}
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="guidelines" options={{ gestureEnabled: false }} />
             <Stack.Screen name="age_gate" options={{ gestureEnabled: false }} />
             <Stack.Screen name="under_age" options={{ gestureEnabled: false }} />
-            <Stack.Screen name="home" options={{ animation: 'fade' }} />
-            <Stack.Screen name="student_home" options={{ animation: 'fade' }} />
-            <Stack.Screen name="sessions" options={{ animation: 'fade' }} />
-            <Stack.Screen name="saved" options={{ animation: 'fade' }} />
-            <Stack.Screen name="profile" options={{ animation: 'fade' }} />
-            <Stack.Screen name="tutor_home" options={{ animation: 'fade' }} />
-            <Stack.Screen name="tutor_calendar" options={{ animation: 'fade' }} />
-            <Stack.Screen name="tutor_sessions" options={{ animation: 'fade' }} />
-            <Stack.Screen name="tutor_profile" options={{ animation: 'fade' }} />
-            <Stack.Screen name="ambassador_home" options={{ animation: 'fade' }} />
-            <Stack.Screen name="ambassador_referrals" options={{ animation: 'fade' }} />
-            <Stack.Screen name="admin_home" options={{ animation: 'fade' }} />
-            <Stack.Screen name="admin_calendar" options={{ animation: 'fade' }} />
-            <Stack.Screen name="admin_tutors" options={{ animation: 'fade' }} />
-            <Stack.Screen name="admin_users" options={{ animation: 'fade' }} />
-            <Stack.Screen name="admin_user" options={{ animation: 'fade' }} />
-            <Stack.Screen name="admin_bookings" options={{ animation: 'fade' }} />
-            <Stack.Screen name="admin_reviews" options={{ animation: 'fade' }} />
-            <Stack.Screen name="admin_reports" options={{ animation: 'fade' }} />
+            <Stack.Screen name="home" options={{ animation: 'none' }} />
+            <Stack.Screen name="student_home" options={{ animation: 'none' }} />
+            <Stack.Screen name="sessions" options={{ animation: 'none' }} />
+            <Stack.Screen name="chats" options={{ animation: 'none' }} />
+            <Stack.Screen name="saved" options={{ animation: 'none' }} />
+            <Stack.Screen name="profile" options={{ animation: 'none' }} />
+            <Stack.Screen name="tutor_home" options={{ animation: 'none' }} />
+            <Stack.Screen name="tutor_calendar" options={{ animation: 'none' }} />
+            <Stack.Screen name="tutor_sessions" options={{ animation: 'none' }} />
+            <Stack.Screen name="tutor_profile" options={{ animation: 'none' }} />
+            <Stack.Screen name="ambassador_home" options={{ animation: 'none' }} />
+            <Stack.Screen name="ambassador_referrals" options={{ animation: 'none' }} />
+            <Stack.Screen name="admin_home" options={{ animation: 'none' }} />
+            <Stack.Screen name="admin_calendar" options={{ animation: 'none' }} />
+            <Stack.Screen name="admin_tutors" options={{ animation: 'none' }} />
+            <Stack.Screen name="admin_users" options={{ animation: 'none' }} />
+            <Stack.Screen name="admin_ambassadors" options={{ animation: 'none' }} />
+            <Stack.Screen name="admin_bookings" options={{ animation: 'none' }} />
+            <Stack.Screen name="admin_reviews" options={{ animation: 'none' }} />
+            <Stack.Screen name="admin_reports" options={{ animation: 'none' }} />
             {/* The only replace INTO a tutor-application step is its back arrow after
                 resuming a draft (lib/stepBack.ts), so it slides the way a back does. */}
             {['t2', 't3', 't4', 't5', 't6', 't7', 't8'].map((name) => (

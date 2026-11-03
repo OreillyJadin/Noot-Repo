@@ -15,6 +15,7 @@ export { Screen, NavTop, Body, ActionBar, AdaptiveRow, BandHeader, type NavTopPr
 export { LargeHeader, ListSection, ListRow, StatusDot, CountPill, STACK_FONT_SCALE, type LargeHeaderProps, type ListSectionProps, type ListRowProps } from './List';
 export { useLargeText, LARGE_TEXT_SCALE, TEXT_CAPS } from './textScale';
 export { TabBar, type TabBarProps } from './TabBar';
+export { TabPressScale } from './TabPressScale';
 export {
   RoleSwitcher,
   ViewingAs,
