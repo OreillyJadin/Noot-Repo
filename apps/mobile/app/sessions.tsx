@@ -11,6 +11,7 @@ import { api, sessionPhase, canReportNoShow } from '@noot/core';
 import type { Booking } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
+import { GraduatedCap } from '../lib/GraduatedCap';
 import { draftFromBooking } from '../lib/bookingDraft';
 import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
 import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
@@ -266,7 +267,7 @@ export default function Sessions() {
                       <Pressable
                         onPress={() => openTutor(tutor)}
                         accessibilityRole="button"
-                        accessibilityLabel={`${tutor.name}${meta.course ? `, ${meta.course}` : ''}${nameDetails ? `, ${nameDetails}` : ''}, ${sessionsLabel}${tutor.verified ? ', verified tutor' : ''}. $${tutor.rate} per hour`}
+                        accessibilityLabel={`${tutor.name}${tutor.year === 'Post Grad' ? ', Graduated' : ''}${meta.course ? `, ${meta.course}` : ''}${nameDetails ? `, ${nameDetails}` : ''}, ${sessionsLabel}${tutor.verified ? ', verified tutor' : ''}. $${tutor.rate} per hour`}
                         style={({ pressed }) => [styles.savedContent, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
                       >
                         <Avatar size={46} uri={tutor.avatarUrl} />
@@ -274,6 +275,7 @@ export default function Sessions() {
                           <View style={styles.rowHead}>
                             <View style={styles.nameWithCheck}>
                               <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
+                              <GraduatedCap year={tutor.year} />
                               {tutor.verified ? (
                                 <Pressable
                                   onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
@@ -347,7 +349,10 @@ export default function Sessions() {
                     <View style={styles.upcomingHead}>
                       <Avatar size={46} uri={tutor?.avatarUrl} />
                       <View style={{ flex: 1, minWidth: 140 }}>
-                        <Text style={[styles.name, { color: t.text }]}>{tutorName}</Text>
+                        <View style={styles.nameWithCheck}>
+                          <Text style={[styles.name, { color: t.text }]}>{tutorName}</Text>
+                          <GraduatedCap year={tutor?.year} />
+                        </View>
                         <Text style={[styles.sub, { color: t.text3 }]}>{b.subject}</Text>
                       </View>
                       <Badge label={tutorName.split(' ')[0] ?? ''} tone="accentSoft" />
@@ -422,7 +427,10 @@ export default function Sessions() {
                   <View style={styles.pastHead}>
                     <Avatar size={44} uri={tutor?.avatarUrl} />
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={[styles.nameSm, { color: t.text }]}>{tutor?.name ?? 'Your tutor'}</Text>
+                      <View style={styles.nameWithCheck}>
+                        <Text style={[styles.nameSm, { color: t.text }]}>{tutor?.name ?? 'Your tutor'}</Text>
+                        <GraduatedCap year={tutor?.year} size={15} />
+                      </View>
                       <Text style={[styles.sub, { color: t.text3 }]}>
                         {b.subject} · {formatSessionTime(b.scheduledAt)}
                       </Text>
@@ -499,8 +507,8 @@ const styles = StyleSheet.create({
   pastBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   rowHead: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, justifyContent: 'space-between', alignItems: 'baseline' },
   nameWithCheck: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
-  name: { fontSize: 16, fontWeight: '600' },
-  nameSm: { fontSize: 15, fontWeight: '600' },
+  name: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
+  nameSm: { fontSize: 15, fontWeight: '600', flexShrink: 1 },
   rate: { fontSize: 15, fontWeight: '700' },
   rateUnit: { fontSize: 11, fontWeight: '500' },
   sub: { fontSize: 13, marginTop: 1 },

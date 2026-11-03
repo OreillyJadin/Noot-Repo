@@ -15,6 +15,7 @@ import { Screen, Body, Chip, Avatar, Button, H2, Label, Ic, ListSection, useThem
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
+import { GraduatedCap } from '../lib/GraduatedCap';
 import { nextFromWindows } from '../lib/availability';
 import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 import { courseForQuery, searchTutors } from '../lib/browse';
@@ -256,7 +257,7 @@ export default function B1() {
                     key={tt.id}
                     onPress={() => open(tt)}
                     accessibilityRole="button"
-                    accessibilityLabel={[`${tt.name}`, tt.verified ? 'verified' : null, `$${tt.rate} per hour`, meta, `next available ${tt.availLabel}`].filter(Boolean).join(', ')}
+                    accessibilityLabel={[`${tt.name}`, tt.year === 'Post Grad' ? 'Graduated' : null, tt.verified ? 'verified' : null, `$${tt.rate} per hour`, meta, `next available ${tt.availLabel}`].filter(Boolean).join(', ')}
                     style={({ pressed }) => [
                       styles.tutorRow,
                       { backgroundColor: pressed ? t.surface2 : 'transparent' },
@@ -267,6 +268,7 @@ export default function B1() {
                       <View style={styles.rowBetween}>
                         <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                           <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 16, fontWeight: '700', color: t.text }}>{tt.name}</Text>
+                          <GraduatedCap year={tt.year} />
                           {tt.verified ? (
                             <Pressable
                               onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}

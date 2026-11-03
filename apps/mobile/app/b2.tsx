@@ -10,6 +10,7 @@ import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { NoSession } from '../lib/NoSession';
 import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
+import { GraduatedCap } from '../lib/GraduatedCap';
 
 export default function B2() {
   const { booking } = useApp();
@@ -61,7 +62,10 @@ function B2Inner() {
       <Body pad={20} contentStyle={{ paddingTop: 0 }}>
         <View style={styles.header}>
           <Avatar size={92} uri={tutor.avatarUrl} />
-          <H1 style={{ fontSize: 24, marginTop: 14 }}>{tutor.name}</H1>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14 }}>
+            <H1 style={{ fontSize: 24, flexShrink: 1 }}>{tutor.name}</H1>
+            <GraduatedCap year={tutor.year} size={23} />
+          </View>
           <Text style={{ fontSize: 14, color: t.text3, marginTop: 3 }}>
             {tutor.year} · {tutor.major}
           </Text>
