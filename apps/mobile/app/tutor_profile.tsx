@@ -23,6 +23,7 @@ import { pickAndUploadAvatar } from '../lib/avatar';
 import Constants from 'expo-constants';
 import { versionLabel } from '../lib/appVersion';
 import { forgetThisDevice } from '../lib/push';
+import { GraduatedCap } from '../lib/GraduatedCap';
 
 export default function TutorProfile() {
   const large = useLargeText();
@@ -166,7 +167,12 @@ export default function TutorProfile() {
                 </Pressable>
               </View>
               <View style={styles.identityText}>
-                {loading ? <Skeleton width={160} height={22} /> : <Text style={[styles.identityName, { color: t.onBand }]}>{meName}</Text>}
+                {loading ? <Skeleton width={160} height={22} /> : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.identityName, { color: t.onBand, flexShrink: 1 }]}>{meName}</Text>
+                    <GraduatedCap year={me?.year} size={20} color={t.onBand} />
+                  </View>
+                )}
                 <Text style={[styles.identitySub, { color: t.onBand }]}>{identitySubtitle}</Text>
                 <View style={styles.inlineStats}>
                   {STATS.map(([number, label], index) => (
