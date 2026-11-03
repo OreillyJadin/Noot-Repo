@@ -19,6 +19,7 @@ import { tutorMeta } from '../lib/tutorMeta';
 import { nudgeCourse } from '../lib/browse';
 import { countdownLabel } from '../lib/countdownLabel';
 import { useSessionClock } from '../lib/useSessionClock';
+import { GraduatedCap } from '../lib/GraduatedCap';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
 function formatWhen(iso: string): string {
@@ -43,7 +44,7 @@ function TutorRow({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${tutor.name}${meta.course ? `, ${meta.course}` : ''}${nameDetails ? `, ${nameDetails}` : ''}, ${sessionsLabel}${tutor.verified ? ', verified tutor' : ''}. $${tutor.rate} per hour`}
+      accessibilityLabel={`${tutor.name}${tutor.year === 'Post Grad' ? ', Graduated' : ''}${meta.course ? `, ${meta.course}` : ''}${nameDetails ? `, ${nameDetails}` : ''}, ${sessionsLabel}${tutor.verified ? ', verified tutor' : ''}. $${tutor.rate} per hour`}
       style={({ pressed }) => [styles.tutorRow, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
     >
       {large ? null : <Avatar size={46} uri={tutor.avatarUrl} />}
@@ -51,6 +52,7 @@ function TutorRow({
         <View style={styles.rowBetween}>
           <View style={styles.tutorNameRow}>
             <Text style={[styles.tutorName, { color: t.text }]}>{tutor.name}</Text>
+            <GraduatedCap year={tutor.year} />
             {tutor.verified ? (
               <Pressable
                 onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
@@ -182,7 +184,10 @@ export default function Home() {
             <AdaptiveRow style={styles.nextTutorRow}>
               <Avatar size={44} uri={next.tutor?.avatarUrl} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.nextName, { color: t.text }]}>{next.tutorName}</Text>
+                <View style={styles.tutorNameRow}>
+                  <Text style={[styles.nextName, { color: t.text }]}>{next.tutorName}</Text>
+                  <GraduatedCap year={next.tutor?.year} />
+                </View>
                 <Text style={[styles.nextMeta, { color: t.text2 }]}>
                   {next.course} · {next.when}
                 </Text>
@@ -308,7 +313,7 @@ const styles = StyleSheet.create({
   nextCard: { padding: 16, gap: 10 },
   nextLabel: { fontSize: 13, fontWeight: '500' },
   nextTutorRow: { alignItems: 'center', gap: 10 },
-  nextName: { fontSize: 16, fontWeight: '700' },
+  nextName: { fontSize: 16, fontWeight: '700', flexShrink: 1 },
   nextMeta: { fontSize: 13, marginTop: 1 },
   sessionMetaLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 7 },
   countdown: { fontSize: 13, fontWeight: '600' },
@@ -336,7 +341,7 @@ const styles = StyleSheet.create({
   emptyTutors: { fontSize: 13, paddingHorizontal: 14, paddingVertical: 12 },
   tutorRow: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
   tutorNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
-  tutorName: { fontSize: 16, fontWeight: '600' },
+  tutorName: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
   tutorRate: { fontSize: 15, fontWeight: '700' },
   tutorMeta: { fontSize: 13, marginTop: 2 },
 });

@@ -9,6 +9,7 @@ import { Screen, Body, BandHeader, Avatar, Ic, TabBar, EmptyState, ListSection, 
 import { api } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
+import { GraduatedCap } from '../lib/GraduatedCap';
 import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
@@ -62,7 +63,7 @@ export default function Saved() {
                   key={tutor.id}
                   onPress={() => open(tutor)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${tutor.name}${meta.course ? `, ${meta.course}` : ''}${nameDetails ? `, ${nameDetails}` : ''}, ${sessionsLabel}${tutor.verified ? ', verified tutor' : ''}. $${tutor.rate} per hour`}
+                  accessibilityLabel={`${tutor.name}${tutor.year === 'Post Grad' ? ', Graduated' : ''}${meta.course ? `, ${meta.course}` : ''}${nameDetails ? `, ${nameDetails}` : ''}, ${sessionsLabel}${tutor.verified ? ', verified tutor' : ''}. $${tutor.rate} per hour`}
                   style={({ pressed }) => [styles.row, { backgroundColor: pressed ? t.surface2 : 'transparent' }]}
                 >
                   <Avatar size={48} uri={tutor.avatarUrl} />
@@ -70,6 +71,7 @@ export default function Saved() {
                     <View style={styles.rowHead}>
                       <View style={styles.nameWithCheck}>
                         <Text style={[styles.name, { color: t.text }]}>{tutor.name}</Text>
+                        <GraduatedCap year={tutor.year} />
                         {tutor.verified ? (
                           <Pressable
                             onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
@@ -112,7 +114,7 @@ const styles = StyleSheet.create({
   count: { fontSize: 13, marginBottom: 2 },
   row: { flexDirection: 'row', gap: 12, alignItems: 'center', padding: 12 },
   rowHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  name: { fontSize: 16, fontWeight: '600' },
+  name: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
   nameWithCheck: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
   rate: { fontSize: 15, fontWeight: '700' },
   rateUnit: { fontSize: 11, fontWeight: '500' },
