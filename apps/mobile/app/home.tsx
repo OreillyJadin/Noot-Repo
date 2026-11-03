@@ -161,6 +161,7 @@ export default function Home() {
         pad={20}
         header={
           <BandHeader
+            watermark
             title="Home"
             subtitle={formatCampusDate(now, { weekday: 'long', month: 'long', day: 'numeric' })}
             overlap={multiRole ? undefined : 56}
