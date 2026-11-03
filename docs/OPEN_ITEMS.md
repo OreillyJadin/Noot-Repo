@@ -69,6 +69,20 @@ production project, Stripe, App Store Connect or the website. File names below a
   path, credit returned on a tutor no-show via `report-no-show`, a tutor-initiated cancel and a
   cancel under 2 hours, two reversals racing an award, `lib/pendingInvite.ts` on real AsyncStorage.
 
+## Waiting on brand assets (marketing partner)
+
+The UI refresh in #163–#166 shipped what needed no new files. These wait on assets from
+Jadin's marketing partner, who is out of town:
+
+- **Marble fonts** (Bold for headings, Light/Regular for body) as .otf/.ttf, plus confirmation
+  the license covers mobile app embedding. One change in `packages/ui/src/Typography.tsx` once
+  loaded with `expo-font`.
+- **`noot_sec_sage.png`** (Secondary Paw) to replace the gecko Home tab icon (`GeckoMark` in
+  `packages/ui/src/TabBar.tsx`).
+- **`noot_wm_sage.png`** (wordmark) for the Home screen header.
+- **"Primary Noot" logo** to replace the `gecko-sage.png` stand-in in
+  `packages/ui/src/GeckoWatermark.tsx`.
+
 ## Decisions for Jadin
 
 - Bump the Terms version for the T6 edits to §9, §11 and §17? `TERMS_VERSION` is still
