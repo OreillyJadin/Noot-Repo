@@ -5,7 +5,6 @@ import React, { createContext, useContext, useMemo } from 'react';
 import { resolveTheme, type Direction, type Theme } from '@noot/theme';
 
 const ThemeContext = createContext<Theme>(resolveTheme('sage', false));
-const DirectionContext = createContext<Direction>('sage');
 
 export interface ThemeProviderProps {
   direction?: Direction;
@@ -15,11 +14,7 @@ export interface ThemeProviderProps {
 
 export function ThemeProvider({ direction = 'sage', dark = false, children }: ThemeProviderProps) {
   const theme = useMemo(() => resolveTheme(direction, dark), [direction, dark]);
-  return <DirectionContext.Provider value={direction}><ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider></DirectionContext.Provider>;
-}
-
-export function useThemeDirection(): Direction {
-  return useContext(DirectionContext);
+  return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme(): Theme {

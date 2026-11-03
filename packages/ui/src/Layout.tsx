@@ -4,7 +4,7 @@ import React from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, StatusBar, StyleSheet, useWindowDimensions, type ViewStyle } from 'react-native';
 import { KeyboardAwareScrollView, type KeyboardAwareScrollViewRef } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme, useThemeDirection } from './ThemeProvider';
+import { useTheme } from './ThemeProvider';
 import { GeckoWatermark } from './GeckoWatermark';
 import { Ic } from './Icon';
 import { TEXT_CAPS, useLargeText } from './textScale';
@@ -66,13 +66,12 @@ export interface BandHeaderProps {
 
 export function BandHeader({ title, subtitle, trailing, children, overlap, watermark = false }: BandHeaderProps) {
   const t = useTheme();
-  const direction = useThemeDirection();
   const insets = useSafeAreaInsets();
   const large = useLargeText();
   return (
     <View style={[styles.bandHeader, { backgroundColor: t.band, paddingTop: insets.top + 8, paddingBottom: 18 + (overlap ?? 0) }]}>
       <View pointerEvents="none" style={[styles.bandOverscroll, { backgroundColor: t.band }]} />
-      {watermark && direction === 'sage' ? <GeckoWatermark /> : null}
+      {watermark ? <GeckoWatermark /> : null}
       <StatusBar barStyle="light-content" />
       <View style={[styles.bandTitleRow, large && styles.bandTitleRowLarge]}>
         <View style={styles.bandTitleText}>

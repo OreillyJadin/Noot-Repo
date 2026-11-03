@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 
-let direction = 'sage';
 const createElement = (type: unknown, props: unknown, ...children: unknown[]) => ({ type, props, children });
 const native = {
   View: 'View', Text: 'Text', StatusBar: 'StatusBar',
@@ -24,7 +23,7 @@ function load(file: string): Record<string, any> {
       if (name === 'react-native') return native;
       if (name === 'react-native-keyboard-controller') return {};
       if (name === 'react-native-safe-area-context') return { useSafeAreaInsets: () => ({ top: 24 }) };
-      if (name === './ThemeProvider') return { useTheme: () => ({}), useThemeDirection: () => direction };
+      if (name === './ThemeProvider') return { useTheme: () => ({}) };
       if (name === './textScale') return { useLargeText: () => false, TEXT_CAPS: {} };
       if (name === './GeckoWatermark') return { GeckoWatermark: 'GeckoWatermark' };
       if (name === './Gecko') return { GeckoMark: 'GeckoMark' };
@@ -58,16 +57,14 @@ test('watermark is an isolated, clipped, decorative 6% layer with no layout or t
   }
 });
 
-test('band watermark is opt-in and only appears in the sage direction, preserving content and layout', () => {
-  for (direction of ['sage', 'crimson']) {
+test('band watermark is controlled only by its opt-in prop, preserving content and layout', () => {
     for (const watermark of [undefined, false, true]) {
       const band = BandHeader({ title: 'Home', children: 'Search', watermark });
       const marks = band.children.filter((child: any) => child?.type === 'GeckoWatermark');
-      assert.equal(marks.length, watermark && direction === 'sage' ? 1 : 0);
+      assert.equal(marks.length, watermark ? 1 : 0);
       assert.equal(band.children.at(-1).children[0], 'Search');
       assert.equal(Object.assign({}, ...band.props.style).overflow, undefined);
     }
-  }
 });
 
 test('empty-state watermark preserves minimal content and optional actions', () => {
