@@ -26,7 +26,7 @@ test('Post Grad cap is outlined, name-sized, theme-aware and labelled Graduated'
   assert.equal(badge.props.accessible, true);
   assert.equal(badge.props.accessibilityRole, 'image');
   assert.equal(badge.props.accessibilityLabel, 'Graduated');
-  assert.equal(badge.children[0].props.name, 'gradCap');
+  assert.equal(badge.children[0].props.name, 'cap');
   assert.equal(badge.children[0].props.size, 16);
   assert.equal(badge.children[0].props.strokeWidth, 1.8);
   assert.equal(badge.children[0].props.color, '#78A070');

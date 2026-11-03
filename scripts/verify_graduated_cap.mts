@@ -20,7 +20,9 @@ for (const screen of ['home', 'student_home', 'b1', 'saved', 'sessions']) {
 }
 const icons = read('packages/ui/src/Icon.tsx');
 assert.equal((read('apps/mobile/app/sessions.tsx').match(/<GraduatedCap year=/g) ?? []).length, 3, 'saved, upcoming and past session names');
-assert.equal(icons.match(/gradCap: '([^']+)'/)?.[1], icons.match(/cap: '([^']+)'/)?.[1]);
+assert.ok(icons.match(/cap: '([^']+)'/)?.[1]);
+assert.doesNotMatch(icons, /gradCap:/);
+assert.match(read('apps/mobile/lib/GraduatedCap.tsx'), /<Ic name="cap"/);
 console.log('PASS: year is selected and mapped for search, profile and saved tutors; no schema changes needed.');
 console.log('PASS: all seven tutor name surfaces use the graduation cap; grouped row labels announce Graduated.');
-console.log('PASS: gradCap uses the approved outlined cap geometry.');
+console.log('PASS: GraduatedCap reuses the existing outlined cap icon without a duplicate.');

@@ -7,7 +7,7 @@ export function GraduatedCap({ year, size = 16, color }: { year?: string | null;
   if (year !== 'Post Grad') return null;
   return (
     <View accessible accessibilityRole="image" accessibilityLabel="Graduated" style={{ flexShrink: 0 }}>
-      <Ic name="gradCap" size={size} color={color ?? t.accent} strokeWidth={1.8} />
+      <Ic name="cap" size={size} color={color ?? t.accent} strokeWidth={1.8} />
     </View>
   );
 }
