@@ -121,6 +121,7 @@ export default function TutorHome() {
         contentStyle={styles.bodyContent}
         header={
           <BandHeader
+            watermark
             title="Home"
             subtitle={formatCampusDate(now, { weekday: 'long', month: 'long', day: 'numeric' })}
             overlap={previewing ? undefined : 56}

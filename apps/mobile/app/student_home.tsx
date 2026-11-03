@@ -12,6 +12,7 @@ import { Screen, Body, BandHeader, ListSection, Avatar, Ic, H2, TabBar, Skeleton
 import { api, type CatalogCourse } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
+import { GraduatedCap } from '../lib/GraduatedCap';
 import { useMe } from '../lib/useMe';
 import { useTabNav } from '../lib/useTabNav';
 import { useCourseSuggestions } from '../lib/useCourseSuggestions';
@@ -48,7 +49,7 @@ function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => voi
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${tutor.name}${tutor.verified ? ', verified tutor' : ''}${meta.course ? `, ${meta.course}` : ''}, $${tutor.rate} per hour`}
+      accessibilityLabel={`${tutor.name}${tutor.year === 'Post Grad' ? ', Graduated' : ''}${tutor.verified ? ', verified tutor' : ''}${meta.course ? `, ${meta.course}` : ''}, $${tutor.rate} per hour`}
       style={({ pressed }) => [styles.rowInner, pressed && { backgroundColor: t.surface2 }]}
     >
         {large ? null : <Avatar size={44} uri={tutor.avatarUrl} />}
@@ -56,6 +57,7 @@ function TutorRow({ tutor, onPress, course }: { tutor: Tutor; onPress: () => voi
           <View style={styles.rowTop}>
             <View style={styles.rowNameWrap}>
               <Text style={[styles.rowName, { color: t.text }]}>{tutor.name}</Text>
+              <GraduatedCap year={tutor.year} />
               {tutor.verified ? (
                 <Pressable
                   onPress={() => Alert.alert('Verified tutor', VERIFIED_EXPLAINER)}
@@ -263,12 +265,13 @@ export default function StudentHome() {
                       key={tutor.id}
                       onPress={() => openTutor(tutor, course)}
                       accessibilityRole="button"
-                      accessibilityLabel={`${course ? `Find ${tutor.name} for ${course}` : `Find ${tutor.name}`}${tutor.verified ? ', verified tutor' : ''}`}
+                      accessibilityLabel={`${course ? `Find ${tutor.name} for ${course}` : `Find ${tutor.name}`}${tutor.year === 'Post Grad' ? ', Graduated' : ''}${tutor.verified ? ', verified tutor' : ''}`}
                       style={styles.miniItem}
                     >
                       <Avatar size={60} uri={tutor.avatarUrl} />
                       <View style={styles.miniNameRow}>
                         <Text numberOfLines={1} style={[styles.miniName, { color: t.text }]}>{tutor.name.split(' ')[0]}</Text>
+                        <GraduatedCap year={tutor.year} size={14} />
                         {tutor.verified ? <Ic name="check" size={12} color={t.good} strokeWidth={2.6} /> : null}
                       </View>
                       {course ? <Text numberOfLines={1} style={[styles.miniCourse, { color: t.accent }]}>{course}</Text> : null}
@@ -343,7 +346,7 @@ const styles = StyleSheet.create({
   rowBody: { flex: 1, minWidth: 0 },
   rowTop: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 },
   rowNameWrap: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 },
-  rowName: { fontSize: 16, fontWeight: '600' },
+  rowName: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
   rowRate: { fontSize: 15, fontWeight: '700' },
   rowRateUnit: { fontSize: 11, fontWeight: '500' },
   rowMetaLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 2 },
