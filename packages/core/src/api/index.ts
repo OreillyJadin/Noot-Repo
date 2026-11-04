@@ -447,6 +447,7 @@ function mapBooking(row: any): Booking {
     creditApplied: num(row.credit_applied),
     platformFee: num(row.platform_fee),
     tutorPayoutAmount: num(row.tutor_payout_amount),
+    payoutFailedAt: row.payout_failed_at ?? null,
     sessionType: row.session_type,
     meetingLink: row.meeting_link ?? null,
     dailyRoomName: row.daily_room_name ?? null,

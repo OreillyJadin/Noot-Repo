@@ -245,6 +245,7 @@ export interface Booking {
   creditApplied: number;
   platformFee: number; // noot's cut
   tutorPayoutAmount: number;
+  payoutFailedAt?: Timestamp | null;
   sessionType: SessionType;
   /** Populated when video (external link at launch, ARCHITECTURE.md §9). */
   meetingLink: string | null;

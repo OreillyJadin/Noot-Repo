@@ -181,11 +181,6 @@ function ChatInner() {
     }
   };
 
-  const notify = () => {
-    // TODO(api): real notification center, backed by @noot/core.
-    Alert.alert('Notifications', 'Built with backend.');
-  };
-
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
       <KeyboardAvoidingView

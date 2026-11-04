@@ -1,6 +1,5 @@
 // S5 My Sessions — ported from screens-tabs.jsx (SessionsTab). Upcoming / Past / Saved
 // segmented tabs. Upcoming, Past and Saved all read live via @noot/core
-// because the backend has no past-sessions endpoint (see TODO(api) below).
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView as HorizontalScrollView, View, Text, StyleSheet, Alert, Pressable, type ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
