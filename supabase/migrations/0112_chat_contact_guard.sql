@@ -1,3 +1,5 @@
+begin;
+
 create or replace function public.contains_contact_info(p_text text)
 returns text language plpgsql immutable set search_path = public as $$
 declare
@@ -83,3 +85,5 @@ $$;
 revoke all on function public.flag_message_contact() from public, anon, authenticated;
 create trigger messages_flag_contact after insert or update of content on public.messages
 for each row execute function public.flag_message_contact();
+
+commit;
