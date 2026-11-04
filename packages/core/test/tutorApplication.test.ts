@@ -39,7 +39,7 @@ test('step 6: skipping the transcript satisfies it; doing neither does not', () 
   assert.ok(!stepComplete(6, missingRequirements({ ...complete, transcriptUploaded: false, transcriptSkipped: false })));
 });
 
-test('step 4: any course under $10/hr (e.g. a new $0 course) blocks it', () => {
+test('step 4: any course under $20/hr (e.g. a new $0 course) blocks it', () => {
   const m = missingRequirements({ ...complete, courses: [{ hourlyRate: 25 }, { hourlyRate: 0 }] });
   assert.deepEqual(m, ['rates']);
   assert.equal(firstIncompleteStep(m), 4);

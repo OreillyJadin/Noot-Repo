@@ -97,3 +97,32 @@ end $$;
 
 revoke execute on function public.set_tutor_courses(jsonb) from public, anon;
 grant execute on function public.set_tutor_courses(jsonb) to authenticated;
+
+-- tutor_application_missing (0038) flags 'rates' when a course sits under the floor:
+-- keep its floor in step with the new bound (a direct insert that omits hourly_rate
+-- still lands at the default 0, which must read as a missing rate).
+create or replace function tutor_application_missing(uid uuid)
+returns text[]
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select array_remove(array[
+    case when coalesce(trim(u.first_name), '') = '' or coalesce(trim(u.last_name), '') = '' then 'name' end,
+    case when u.avatar_url is null then 'photo' end,
+    case when not exists (select 1 from tutor_courses c where c.tutor_id = uid) then 'courses' end,
+    case when not exists (select 1 from tutor_courses c where c.tutor_id = uid)
+           or exists (select 1 from tutor_courses c where c.tutor_id = uid and c.hourly_rate < 20) then 'rates' end,
+    case when not exists (select 1 from tutor_availability a where a.tutor_id = uid) then 'availability' end,
+    case when tp.transcript_url is null and not coalesce(tp.transcript_skipped, false) then 'transcript' end,
+    case when tp.agreement_signed_at is null then 'agreement' end,
+    case when not coalesce(tp.stripe_payouts_enabled, false) then 'payouts' end
+  ], null)
+  from users u
+  left join tutor_profiles tp on tp.user_id = u.id
+  where u.id = uid;
+$$;
+
+-- Internal: takes any uid, so no client may call it (it would reveal another user's progress).
+revoke all on function tutor_application_missing(uuid) from public, anon, authenticated;
