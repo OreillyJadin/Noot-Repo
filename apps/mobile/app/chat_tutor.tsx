@@ -250,7 +250,7 @@ function ChatTutorInner() {
           keyboardDismissMode="on-drag"
         >
           <Text style={[styles.threadHint, { color: t.text3 }]}>
-            This is your full conversation with {other.split(' ')[0]}.
+            This is your full conversation with {other.split(' ')[0]}. Touch and hold a received message to report it.
           </Text>
 
           {messages.map((m, i) => {

@@ -57,7 +57,7 @@ const TUTORS = [
     [['MGT 300', 'A', 28, 48], ['MGT 301', 'A-', 26, 12], ['EC 110', 'A', 22, 9]]],
   ['devon@crimson.ua.edu', 'Devon', 'Reynolds', 'Grad', 'MBA', 'm',
     "First-year MBA and former undergrad TA for MGT 300. I've coached 70+ sessions on this exact course.", 'A', 5.0, 71,
-    [['MGT 300', 'A', 34, 52], ['MGT 410', 'A', 38, 19]]],
+    [['MGT 300', 'A', 34, 52], ['MGT 420', 'A', 38, 19]]],
   ['maya@crimson.ua.edu', 'Maya', 'Patel', 'Junior', 'Marketing', 'f',
     "Junior in Marketing. MGT 300 clicked for me once I stopped memorizing and started drawing the frameworks out.", 'A-', 4.8, 23,
     [['MGT 300', 'A-', 22, 18], ['MKT 300', 'A', 24, 14]]],

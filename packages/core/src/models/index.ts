@@ -141,6 +141,31 @@ export interface ConversationSummary {
 
 export type NotificationType = 'message' | 'booking' | 'system';
 
+export interface GrowthFunnel {
+  signups: number;
+  onboarded: number;
+  searchers: number;
+  searches: number;
+  emptySearches: number;
+  emptyDemand: { term: string; searches: number; users: number }[];
+  profileViewers: number;
+  bookingStarters: number;
+  bookingsRequested: number;
+  requesters: number;
+  accepted: number;
+  acceptedStudents: number;
+  declinedExpired: number;
+  cancelled: number;
+  completed: number;
+  completedStudents: number;
+  reviewed: number;
+  reviewedStudents: number;
+  invitesShared: number;
+  inviteSharers: number;
+  rebook: { students: number; completers: number; rate: number };
+  rebookAllTime: { students: number; completers: number; rate: number };
+}
+
 /** An in-app notification in a user's feed (0014). Created by DB triggers on events. */
 export interface Notification {
   id: UUID;
@@ -281,6 +306,9 @@ export interface ContentReport {
   messageContent?: string | null;
   /** Who wrote the reported message. */
   messageSenderName?: string;
+  reviewContent?: string | null;
+  reviewAuthorName?: string;
+  reviewTutorName?: string;
 }
 
 /** A row from the real UA course catalog (`courses`), used to pick instead of free-type. */

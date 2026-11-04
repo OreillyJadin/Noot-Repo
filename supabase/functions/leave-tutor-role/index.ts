@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { purgeFolder } from '../_shared/storage.ts';
+import { clearTutorDiscovery } from '../_shared/tutorDiscovery.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -51,6 +52,8 @@ serveWithErrorReporting('leave-tutor-role', async (req: Request) => {
         { status: 409, headers: cors },
       );
     }
+
+    await clearTutorDiscovery(db, user.id);
 
     const { error: interviewErr } = await db
       .from('tutor_interviews')
