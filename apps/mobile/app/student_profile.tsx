@@ -119,6 +119,8 @@ export default function StudentProfile() {
       await refresh();
       if (!(await routeAfterAuth(router, setRole)).ok) {
         Alert.alert('Could not save', 'Please sign in and try again.');
+      } else {
+        void api.analytics.track('onboarding_completed', { role: 'student' });
       }
     } catch {
       Alert.alert('Could not save', 'Please sign in and try again.');

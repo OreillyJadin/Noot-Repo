@@ -285,6 +285,7 @@ export default function T9() {
     try {
       // The server re-checks every requirement (0038) — this button can't be the only gate.
       await api.profile.submitTutorApplication();
+      void api.analytics.track('onboarding_completed', { role: 'tutor' });
       router.replace('/t10');
     } catch (e) {
       Alert.alert('Could not submit', errText(e, 'Please check your connection and try again.'));
