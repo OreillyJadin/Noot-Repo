@@ -50,11 +50,11 @@ test('an admin booking is quoted at $0 with no fee, credit or charge', () => {
 });
 
 test('the rate floor the server enforces is the one the app shows', () => {
-  assert.equal(MIN_HOURLY_RATE, 10);
+  assert.equal(MIN_HOURLY_RATE, 20);
 });
 
 test('hourly take-home mirrors server fees for every verification/course combination', () => {
-  for (const rate of [10, 17, 28, 37, 120]) {
+  for (const rate of [20, 27, 34, 61, 120]) {
     for (const verified of [false, true]) {
       for (const taking of [false, true]) {
         assert.deepEqual(tutorHourlyEstimate(rate, verified, taking), {
