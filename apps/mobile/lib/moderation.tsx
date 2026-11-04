@@ -7,7 +7,7 @@
 // Blocking is enforced by the database (migration 0028 extends messages_insert), so these
 // helpers are the affordance, not the security boundary. A hostile client that skipped them
 // still cannot post to a blocked conversation.
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { api, type ReportReason } from '@noot/core';
 import { errText } from './errText';
 
@@ -22,10 +22,17 @@ const REASONS: { key: ReportReason; label: string }[] = [
 /** Ask why, then submit. Resolves true if a report was filed. */
 function pickReason(title: string, message: string): Promise<ReportReason | null> {
   return new Promise((resolve) => {
-    Alert.alert(title, message, [
-      ...REASONS.map((r) => ({ text: r.label, onPress: () => resolve(r.key) })),
-      { text: 'Cancel', style: 'cancel' as const, onPress: () => resolve(null) },
-    ]);
+    const show = (offset: number) => {
+      const pageSize = Platform.OS === 'android' ? 2 : REASONS.length;
+      const reasons = REASONS.slice(offset, offset + pageSize);
+      Alert.alert(title, message, [
+        ...reasons.map((r) => ({ text: r.label, onPress: () => resolve(r.key) })),
+        offset + pageSize < REASONS.length
+          ? { text: 'More reasons…', onPress: () => show(offset + pageSize) }
+          : { text: 'Cancel', style: 'cancel' as const, onPress: () => resolve(null) },
+      ], { cancelable: true, onDismiss: () => resolve(null) });
+    };
+    show(0);
   });
 }
 
@@ -35,6 +42,19 @@ export async function reportMessage(messageId: string): Promise<boolean> {
   if (!reason) return false;
   try {
     await api.moderation.reportMessage(messageId, reason);
+    Alert.alert('Report sent', 'Thanks — our team reviews reports within 24 hours.');
+    return true;
+  } catch (e) {
+    Alert.alert('Could not send the report', errText(e, 'Please try again.'));
+    return false;
+  }
+}
+
+export async function reportReview(reviewId: string): Promise<boolean> {
+  const reason = await pickReason('Report this review', 'What’s wrong with it?');
+  if (!reason) return false;
+  try {
+    await api.moderation.reportReview(reviewId, reason);
     Alert.alert('Report sent', 'Thanks — our team reviews reports within 24 hours.');
     return true;
   } catch (e) {

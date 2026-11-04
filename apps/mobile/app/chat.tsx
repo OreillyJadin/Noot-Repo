@@ -99,6 +99,7 @@ function ChatInner() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
   const [pending, setPending] = useState<OutgoingAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
@@ -144,7 +145,7 @@ function ChatInner() {
     };
   }, [tutorId]);
 
-  const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading && !blocked;
+  const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading && !blocked && !sending;
 
   const addAttachment = async () => {
     if (!convId || uploading) return;
@@ -160,22 +161,23 @@ function ChatInner() {
   const removePending = (i: number) => setPending((p) => p.filter((_, j) => j !== i));
 
   const send = async () => {
+    if (sending) return;
     const text = draft.trim();
     const attachments = pending;
     if ((!text && attachments.length === 0) || !convId) return;
-    setDraft('');
-    setPending([]);
+    setSending(true);
     try {
       const created = await api.chat.sendMessage(convId, text, attachments);
+      setDraft('');
+      setPending([]);
       // Append optimistically; the live subscription guards against a duplicate.
       setMessages((prev) =>
         prev.some((p) => p.id === created.id) ? prev : [...prev, toLocal(created, uid, 'student', 'tutor')],
       );
     } catch (e) {
-      // Restore the draft so a failed send doesn't silently discard what they wrote/attached.
-      setDraft(text);
-      setPending(attachments);
       Alert.alert('Message not sent', errText(e, 'Please try again.'));
+    } finally {
+      setSending(false);
     }
   };
 
@@ -220,7 +222,7 @@ function ChatInner() {
           keyboardDismissMode="on-drag"
         >
           <Text style={[styles.threadHint, { color: t.text3 }]}>
-            This is your full conversation with {other.split(' ')[0]}.
+            This is your full conversation with {other.split(' ')[0]}. Touch and hold a received message to report it.
           </Text>
 
           {messages.map((m, i) => {
@@ -241,7 +243,7 @@ function ChatInner() {
                   key={a.storagePath}
                   a={stagedToLocal(a)}
                   url={urls[a.storagePath]}
-                  onRemove={() => removePending(i)}
+                  onRemove={() => { if (!sending) removePending(i); }}
                 />
               ))}
             </View>
@@ -251,7 +253,7 @@ function ChatInner() {
         <View style={[styles.composer, { backgroundColor: t.surface, borderTopColor: t.border }]}>
           <Pressable
             onPress={addAttachment}
-            disabled={!convId || uploading}
+            disabled={!convId || uploading || sending}
             accessibilityLabel="Attach"
             style={[styles.roundBtn, { backgroundColor: t.surface2, opacity: convId && !uploading ? 1 : 0.5 }]}
           >
@@ -266,7 +268,7 @@ function ChatInner() {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              editable={!blocked}
+              editable={!blocked && !sending}
               placeholder={blocked ? 'You can’t message this person' : `Message ${other.split(' ')[0]}…`}
               placeholderTextColor={t.text3}
               multiline

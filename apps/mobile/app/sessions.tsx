@@ -19,6 +19,7 @@ import { formatSessionTime } from '../lib/formatSessionTime';
 import { useSessionClock } from '../lib/useSessionClock';
 import { JoinVideoButton } from '../lib/JoinVideoButton';
 import { PaymentUpdateBanner } from '../lib/PaymentUpdateBanner';
+import { BookAgainButton } from '../lib/BookAgainButton';
 
 type SegmentKey = 'upcoming' | 'past' | 'saved';
 
@@ -194,7 +195,7 @@ export default function Sessions() {
   };
   const openTutor = (tutor: Tutor, course?: string) => {
     patchBooking({ tutor, course: course || '' });
-    router.push('/b2');
+    router.push('/b2?source=sessions');
   };
 
   const scrollRef = useRef<ScrollView>(null);
@@ -469,6 +470,11 @@ export default function Sessions() {
                       />
                     ) : null}
                   </AdaptiveRow>
+                  {b.status === 'completed' ? (
+                    <View style={{ marginTop: 10 }}>
+                      <BookAgainButton tutorId={b.tutorId} course={b.subject} durationMinutes={b.durationMinutes} />
+                    </View>
+                  ) : null}
                   {tutor && canReportNoShow(b, now) ? (
                     <Button label="Report a no-show" kind="tint" size="sm" full
                       style={{ marginTop: 10 }} onPress={() => reportNoShow(tutor, b)} />
