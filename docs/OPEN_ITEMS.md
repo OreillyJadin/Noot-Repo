@@ -46,8 +46,6 @@ production project, Stripe, App Store Connect or the website. File names below a
 - **Deleting a tutor account leaves the profile live** (T2): `delete-account` leaves
   `tutor_courses`, availability and `approval_status = 'approved'`. Booking a deleted tutor is
   already refused server-side.
-- **Course codes are free text in `tutor_courses`** (T7): no foreign key to `courses`, and
-  "CS100" / "CS 100" can both exist. Only `courses` has a unique constraint.
 - **`tutor_profiles.subjects[]` isn't content-filtered** (T20; left out of `0032` because it's
   picker-only, but the column takes any text).
 - **A failed payout isn't retried** (3.3): `complete-session` on a completed booking returns
