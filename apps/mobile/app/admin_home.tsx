@@ -231,6 +231,10 @@ function AdminHomeScreen() {
           />
         </AdminSection>
 
+        <AdminSection label="Growth">
+          <AdminRow icon="list" title="Growth funnel" subtitle="Discovery, bookings and repeat sessions" onPress={() => router.push('/admin_growth' as never)} />
+        </AdminSection>
+
         <AdminSection label="Ambassadors">
           <AdminRow
             icon="gift"

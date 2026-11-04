@@ -78,9 +78,12 @@ export function InviteView({
   const share = async () => {
     if (!code) return;
     try {
-      await Share.share({
+      const result = await Share.share({
         message: `Join me on noot — book a tutor who already aced your course. Use my invite code ${code} when you sign up: ${SITE_URL}`,
       });
+      if (result.action === Share.sharedAction) {
+        void api.analytics.track('invite_shared', result.activityType ? { channel: result.activityType } : {});
+      }
     } catch {
       /* user dismissed the sheet */
     }

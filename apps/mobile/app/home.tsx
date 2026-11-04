@@ -2,11 +2,11 @@
 // Study hub: next-session countdown, exam nudge, streak/goals, "pick up where you
 // left off". This is a tab root (Home tab). The next session + weekly numbers are
 // real data via @noot/core.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Body, BandHeader, TabBar, Card, Avatar, Ic, ViewingAs, useTheme, useLargeText, AdaptiveRow, ListSection, TEXT_CAPS } from '@noot/ui';
-import { formatCampusDate, formatCampusSession, api } from '@noot/core';
+import { formatCampusDate, formatCampusSession, api, type YourTutor } from '@noot/core';
 import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { useMe } from '../lib/useMe';
@@ -20,6 +20,7 @@ import { nudgeCourse } from '../lib/browse';
 import { countdownLabel } from '../lib/countdownLabel';
 import { useSessionClock } from '../lib/useSessionClock';
 import { GraduatedCap } from '../lib/GraduatedCap';
+import { BookAgainButton } from '../lib/BookAgainButton';
 
 /** scheduledAt ISO → "Tomorrow · 3:00 PM" style label (matches the prototype). */
 function formatWhen(iso: string): string {
@@ -113,6 +114,18 @@ export default function Home() {
     return () => { active = false; };
   }, [reloadKey, now]);
 
+  const [yourTutorsResult, setYourTutorsResult] = useState<{ key: number; items: YourTutor[]; error: boolean } | null>(null);
+  const yourTutors = yourTutorsResult?.items ?? [];
+  const yourTutorsLoading = yourTutorsResult?.key !== reloadKey;
+  const yourTutorsError = !yourTutorsLoading && yourTutorsResult?.error;
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    api.tutors.listYourTutors()
+      .then((items) => { if (active) setYourTutorsResult({ key: reloadKey, items, error: false }); })
+      .catch(() => { if (active) setYourTutorsResult({ key: reloadKey, items: [], error: true }); });
+    return () => { active = false; };
+  }, [reloadKey]));
+
   // "Pick up where you left off" — real tutors from search (student's courses drive it).
   const [tutors, setTutors] = useState<Tutor[]>([]);
   useEffect(() => {
@@ -142,7 +155,7 @@ export default function Home() {
 
   const openTutor = (tutor: Tutor, course: string) => {
     patchBooking({ tutor, course });
-    router.push('/b2');
+    router.push('/b2?source=home');
   };
   const openChat = () => {
     if (!next?.tutor) return;
@@ -240,6 +253,26 @@ export default function Home() {
             </AdaptiveRow>
           </Card>
         )}
+
+        {yourTutorsError ? <Text style={{ color: t.text2 }}>Couldn’t load your tutors. Pull to refresh and try again.</Text> : null}
+        {!yourTutorsLoading && yourTutors.length > 0 ? (
+          <ListSection label="Your tutors">
+            {yourTutors.map(({ tutor, lastBooking }) => (
+              <View key={tutor.userId} style={{ padding: 14, gap: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Avatar size={44} uri={tutor.avatarUrl} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.tutorName, { color: t.text }]}>{tutor.firstName} {tutor.lastName}</Text>
+                    <Text style={{ color: t.text2, fontSize: 13 }}>
+                      Last session: {lastBooking.subject} · {formatCampusDate(lastBooking.scheduledAt, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                  </View>
+                </View>
+                <BookAgainButton tutorId={tutor.userId} course={lastBooking.subject} durationMinutes={lastBooking.durationMinutes} />
+              </View>
+            ))}
+          </ListSection>
+        ) : null}
 
         {/* Course-aware nudge — a course the student takes that a tutor teaches */}
         {nudge ? (

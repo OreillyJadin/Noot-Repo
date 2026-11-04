@@ -39,7 +39,7 @@ await svc.from('user_blocks').delete().or(`blocker_id.eq.${studentId},blocker_id
 // --- reporting ---------------------------------------------------------------------------
 await signIn('student@crimson.ua.edu');
 const conv = await api.chat.getOrCreateConversation(tutorId);
-const msg = await api.chat.sendMessage(conv.id, `report me ${Date.now()}`);
+const msg = await api.chat.sendMessage(conv.id, `report me moderation_${Date.now()}`);
 
 await api.moderation.reportMessage(msg.id, 'harassment', 'test detail');
 const { data: mReports } = await svc.from('content_reports').select('*').eq('target_message_id', msg.id);

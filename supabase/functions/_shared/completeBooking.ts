@@ -1,4 +1,5 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import type Stripe from 'https://esm.sh/stripe@16?target=deno';
 import { assertPayoutReady, assertSessionElapsed } from './booking.ts';
 import { payTutor } from './payouts.ts';
 
@@ -11,6 +12,8 @@ type BookingToComplete = {
   stripe_payment_intent_id: string | null;
   tutor_payout_amount: number;
   price: number;
+  stripe_transfer_id?: string | null;
+  payout_failed_at?: string | null;
 };
 
 export type CompleteResult = {
@@ -37,34 +40,42 @@ export async function completeBooking(
   db: SupabaseClient,
   url: string,
   booking: BookingToComplete,
+  stripeClient?: Stripe,
 ): Promise<CompleteResult> {
   const bookingId = booking.id;
   const paidSession = Number(booking.price) > 0;
-  if (booking.status === 'completed') {
+  const alreadyComplete = booking.status === 'completed';
+  const pi = booking.stripe_payment_intent_id;
+  if (alreadyComplete && (!paidSession || pi?.startsWith('sim_pi_')
+      || (booking.stripe_transfer_id && !booking.payout_failed_at))) {
     if (paidSession) await awardInvites(url, bookingId);
     return { status: 200, body: { status: 'completed', captured: false, alreadyComplete: true } };
   }
-  if (booking.status !== 'confirmed') {
+  if (!alreadyComplete && booking.status !== 'confirmed') {
     return { status: 400, body: { error: `Cannot complete a ${booking.status} session` } };
   }
 
-  assertSessionElapsed(booking.scheduled_at, Number(booking.duration_minutes));
+  if (!alreadyComplete) assertSessionElapsed(booking.scheduled_at, Number(booking.duration_minutes));
 
   const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
-  const pi = booking.stripe_payment_intent_id;
   if (stripeKey && paidSession && !pi) {
     return { status: 409, body: { error: 'This session has no confirmed payment and cannot be completed.' } };
+  }
+  if (alreadyComplete && (!stripeKey || !pi?.startsWith('pi_'))) {
+    return { status: 503, body: { error: 'The session payout cannot be retried right now.' } };
   }
   let captured = false;
   let transferId: string | null = null;
   let chargeId: string | null = null;
 
   if (stripeKey && pi && pi.startsWith('pi_')) {
-    const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
-    const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
-    const currentPi = await stripe.paymentIntents.retrieve(pi);
+    const stripe = stripeClient ?? new (await import('https://esm.sh/stripe@16?target=deno')).default(
+      stripeKey, { apiVersion: '2024-06-20' },
+    );
+    const currentPi = await stripe.paymentIntents.retrieve(pi, { expand: ['latest_charge'] });
 
     if (currentPi.status === 'canceled') {
+      if (alreadyComplete) return { status: 409, body: { error: 'This session has no captured payment to pay out.' } };
       const now = new Date().toISOString();
       const { data: expiredRows, error: expiredError } = await db
         .from('bookings')
@@ -92,6 +103,9 @@ export async function completeBooking(
         },
       };
     }
+    if (currentPi.status !== 'succeeded' && (alreadyComplete || currentPi.status !== 'requires_capture')) {
+      return { status: 409, body: { error: 'This session has no captured payment to pay out.' } };
+    }
 
     const { data: prof } = await db
       .from('tutor_profiles')
@@ -102,14 +116,16 @@ export async function completeBooking(
 
     await assertPayoutReady(stripeKey, connectId);
 
-    const capturedPi = await stripe.paymentIntents.capture(
+    const capturedPi = currentPi.status === 'succeeded' ? currentPi : await stripe.paymentIntents.capture(
       pi,
       { expand: ['latest_charge'] },
       { idempotencyKey: `capture_${bookingId}` },
     );
-    captured = true;
-    const charge = typeof capturedPi.latest_charge === 'string' ? null : capturedPi.latest_charge;
-    chargeId = typeof capturedPi.latest_charge === 'string' ? capturedPi.latest_charge : (charge?.id ?? null);
+    captured = currentPi.status !== 'succeeded';
+    const charge = typeof capturedPi.latest_charge === 'string'
+      ? await stripe.charges.retrieve(capturedPi.latest_charge) : capturedPi.latest_charge;
+    if (!charge?.id || charge.amount_captured <= 0) throw new Error('Captured session charge missing');
+    chargeId = charge.id;
 
     const payout = await payTutor({
       stripe,
@@ -121,15 +137,16 @@ export async function completeBooking(
       idempotencyKey: `transfer_${bookingId}`,
       metadata: { booking_id: bookingId },
     });
-    transferId = payout.transferId;
+    transferId = payout.transferId ?? booking.stripe_transfer_id ?? null;
     if (!payout.complete) {
       const failedAt = new Date().toISOString();
-      const { data: flagged } = await db
+      const { data: flagged, error: flagError } = await db
         .from('bookings')
         .update({ status: 'completed', stripe_charge_id: chargeId, stripe_transfer_id: transferId, payout_failed_at: failedAt })
         .eq('id', bookingId)
-        .eq('status', 'confirmed')
+        .eq('status', alreadyComplete ? 'completed' : 'confirmed')
         .select('id');
+      if (flagError) throw flagError;
       if (!flagged?.length) {
         await db.from('bookings').update({ payout_failed_at: failedAt }).eq('id', bookingId);
         console.error('complete-session: captured, transfer failed and the booking left confirmed meanwhile', bookingId, chargeId);
@@ -140,7 +157,7 @@ export async function completeBooking(
         status: 502,
         body: {
           error: 'The payment was taken but the payout to the tutor failed. Our team has been notified and will complete it.',
-          captured: true,
+          captured,
           payoutFailed: true,
         },
       };
@@ -149,9 +166,9 @@ export async function completeBooking(
 
   const { data: completedRows, error: upError } = await db
     .from('bookings')
-    .update({ status: 'completed', stripe_charge_id: chargeId, stripe_transfer_id: transferId })
+    .update({ status: 'completed', stripe_charge_id: chargeId, stripe_transfer_id: transferId, payout_failed_at: null })
     .eq('id', bookingId)
-    .eq('status', 'confirmed')
+    .eq('status', alreadyComplete ? 'completed' : 'confirmed')
     .select('id');
   if (upError) throw upError;
   if (!completedRows?.length) {
@@ -161,5 +178,5 @@ export async function completeBooking(
 
   if (paidSession) await awardInvites(url, bookingId);
 
-  return { status: 200, body: { status: 'completed', captured, transferId } };
+  return { status: 200, body: { status: 'completed', captured, transferId, ...(alreadyComplete ? { alreadyComplete: true } : {}) } };
 }

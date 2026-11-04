@@ -105,6 +105,7 @@ function ChatTutorInner() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
   const [pending, setPending] = useState<OutgoingAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
@@ -170,7 +171,7 @@ function ChatTutorInner() {
     };
   }, [studentId]);
 
-  const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading && !blocked;
+  const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading && !blocked && !sending;
 
   const addAttachment = async () => {
     if (!convId || uploading) return;
@@ -186,22 +187,23 @@ function ChatTutorInner() {
   const removePending = (i: number) => setPending((p) => p.filter((_, j) => j !== i));
 
   const send = async () => {
+    if (sending) return;
     const text = draft.trim();
     const attachments = pending;
     if ((!text && attachments.length === 0) || !convId) return;
-    setDraft('');
-    setPending([]);
+    setSending(true);
     try {
       const created = await api.chat.sendMessage(convId, text, attachments);
+      setDraft('');
+      setPending([]);
       // Append optimistically; the live subscription guards against a duplicate.
       setMessages((prev) =>
         prev.some((p) => p.id === created.id) ? prev : [...prev, toLocal(created, uid, 'tutor', 'student')],
       );
     } catch (e) {
-      // Restore the draft so a failed send doesn't silently discard what they wrote/attached.
-      setDraft(text);
-      setPending(attachments);
       Alert.alert('Message not sent', errText(e, 'Please try again.'));
+    } finally {
+      setSending(false);
     }
   };
 
@@ -248,7 +250,7 @@ function ChatTutorInner() {
           keyboardDismissMode="on-drag"
         >
           <Text style={[styles.threadHint, { color: t.text3 }]}>
-            This is your full conversation with {other.split(' ')[0]}.
+            This is your full conversation with {other.split(' ')[0]}. Touch and hold a received message to report it.
           </Text>
 
           {messages.map((m, i) => {
@@ -269,7 +271,7 @@ function ChatTutorInner() {
                   key={a.storagePath}
                   a={stagedToLocal(a)}
                   url={urls[a.storagePath]}
-                  onRemove={() => removePending(i)}
+                  onRemove={() => { if (!sending) removePending(i); }}
                 />
               ))}
             </View>
@@ -287,7 +289,7 @@ function ChatTutorInner() {
             {drafts.map((d) => (
               <Pressable
                 key={d.key}
-                onPress={() => setDraft(d.text)}
+                onPress={() => { if (!sending) setDraft(d.text); }}
                 accessibilityRole="button"
                 accessibilityLabel={`Draft a message: ${d.label}`}
                 style={[styles.draftChip, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }]}
@@ -302,7 +304,7 @@ function ChatTutorInner() {
         <View style={[styles.composer, { backgroundColor: t.surface, borderTopColor: t.border }]}>
           <Pressable
             onPress={addAttachment}
-            disabled={!convId || uploading}
+            disabled={!convId || uploading || sending}
             accessibilityLabel="Attach"
             style={[styles.roundBtn, { backgroundColor: t.surface2, opacity: convId && !uploading ? 1 : 0.5 }]}
           >
@@ -317,7 +319,7 @@ function ChatTutorInner() {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              editable={!blocked}
+              editable={!blocked && !sending}
               placeholder={blocked ? 'You can’t message this person' : `Message ${other.split(' ')[0]}…`}
               placeholderTextColor={t.text3}
               multiline
