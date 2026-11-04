@@ -1,16 +1,17 @@
 // B2 Tutor Profile — ported from design_handoff_noot_app/app/screens-booking.jsx (B2).
 // Shows the tutor selected in B1 (booking.tutor); if opened without one it renders
 // <NoSession/> instead of a fake tutor. "Book a session" carries the tutor
-// (+ chosen course) forward into B3. Ratings/reviews are collected but never shown.
-import React from 'react';
+// (+ chosen course) forward into B3.
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, H1, H2, Sub, Ic, ListSection, ListRow, useTheme } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, type ReviewSummary } from '@noot/core';
 import { useApp } from '../lib/store';
 import { NoSession } from '../lib/NoSession';
 import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 import { GraduatedCap } from '../lib/GraduatedCap';
+import { reportReview } from '../lib/moderation';
 
 export default function B2() {
   const { booking } = useApp();
@@ -27,6 +28,19 @@ function B2Inner() {
   const { preview } = useLocalSearchParams<{ preview?: string }>();
   const isPreview = preview === '1';
   const tutor = booking.tutor!;
+  const [reviewState, setReviewState] = useState<{ tutorId: string; rows: ReviewSummary[]; error: boolean } | null>(null);
+  const reviewsLoading = reviewState?.tutorId !== tutor.id;
+  const reviews = !reviewsLoading ? reviewState.rows : [];
+  const reviewError = !reviewsLoading && reviewState.error;
+  useEffect(() => {
+    let active = true;
+    api.reviews.listForTutor(tutor.id).then((rows) => {
+      if (active) setReviewState({ tutorId: tutor.id, rows, error: false });
+    }).catch(() => {
+      if (active) setReviewState({ tutorId: tutor.id, rows: [], error: true });
+    });
+    return () => { active = false; };
+  }, [tutor.id]);
   const minRate = Math.min(...tutor.courses.map((c) => c[2]));
   const activeCourse = booking.course ?? tutor.courses[0]?.[0] ?? '';
 
@@ -116,6 +130,25 @@ function B2Inner() {
               );
             })}
           </ListSection>
+        </Section>
+
+        <Section title="Reviews">
+          {reviewsLoading ? <Sub>Loading reviews…</Sub> : reviewError ? <Sub>Reviews couldn’t be loaded. Please try again later.</Sub> : reviews.length === 0 ? <Sub>No published reviews yet.</Sub> : (
+            <View>
+              {reviews.map((review) => (
+                <View key={review.id} style={{ paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border, gap: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <Text style={{ color: t.text, fontWeight: '600', flex: 1 }}>{review.reviewerName || 'Student'} · {review.rating}/5</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Report this review" hitSlop={8} onPress={() => void reportReview(review.id)} style={{ paddingVertical: 6 }}>
+                      <Text style={{ color: t.accent, fontSize: 13, fontWeight: '600' }}>Report</Text>
+                    </Pressable>
+                  </View>
+                  {review.comment ? <Text style={{ color: t.text2, fontSize: 14, lineHeight: 21 }}>{review.comment}</Text> : null}
+                  <Text style={{ color: t.text3, fontSize: 12 }}>{new Date(review.createdAt).toLocaleDateString()}</Text>
+                </View>
+              ))}
+            </View>
+          )}
         </Section>
 
         {/* Says only what's true for THIS tutor: "confirmed against transcripts" was shown
