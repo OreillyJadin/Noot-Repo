@@ -102,6 +102,16 @@ function AdminReportsScreen() {
                       <Text numberOfLines={4} style={[styles.quoteText, { color: t.text }]}>{report.messageContent}</Text>
                     </View>
                   ) : null}
+                  {report.targetKind === 'review' ? (
+                    <View style={[styles.quote, { backgroundColor: t.surface2 }]}>
+                      <Text style={[styles.meta, { color: t.text2 }]}>
+                        Author: {report.reviewAuthorName || 'Unavailable'} · Tutor: {report.reviewTutorName || 'Unavailable'}
+                      </Text>
+                      <Text style={[styles.quoteText, { color: t.text }]}>
+                        {report.reviewContent || (report.reviewAuthorName ? 'Rating only — no written comment.' : 'Review no longer available.')}
+                      </Text>
+                    </View>
+                  ) : null}
                   {report.detail ? <Text style={[styles.detail, { color: t.text2 }]}>“{report.detail}”</Text> : null}
 
                   <View style={[styles.valueRow, { borderTopColor: t.border }]}>
