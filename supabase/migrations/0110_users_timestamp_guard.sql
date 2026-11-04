@@ -1,3 +1,4 @@
+-- New users columns need an explicit column GRANT to be client-writable.
 -- Column grants reject even explicit NULL/default timestamp writes before RLS or triggers.
 revoke insert, update on public.users from public, anon, authenticated;
 revoke insert (created_at, deleted_at), update (created_at, deleted_at)
