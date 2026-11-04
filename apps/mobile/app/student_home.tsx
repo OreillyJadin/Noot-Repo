@@ -127,7 +127,7 @@ export default function StudentHome() {
   const openSearch = () => router.push('/b1');
   const openTutor = (tutor: Tutor, course?: string) => {
     patchBooking({ tutor, course: course ?? courseFor(tutor) });
-    router.push('/b2');
+    router.push('/b2?source=browse');
   };
   const scrollRef = useRef<ScrollView>(null);
   // Re-tapping the Search tab clears the search + category filter and scrolls up.

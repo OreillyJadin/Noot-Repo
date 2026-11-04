@@ -25,7 +25,7 @@ function B2Inner() {
   const { booking, patchBooking } = useApp();
   // preview=1 → the tutor is viewing their OWN public profile from "Edit tutor
   // profile". Same layout students see, but the booking/save actions are hidden.
-  const { preview } = useLocalSearchParams<{ preview?: string }>();
+  const { preview, source } = useLocalSearchParams<{ preview?: string; source?: string }>();
   const isPreview = preview === '1';
   const tutor = booking.tutor!;
   const [reviewState, setReviewState] = useState<{ tutorId: string; rows: ReviewSummary[]; error: boolean } | null>(null);
@@ -43,10 +43,14 @@ function B2Inner() {
   }, [tutor.id]);
   const minRate = Math.min(...tutor.courses.map((c) => c[2]));
   const activeCourse = booking.course ?? tutor.courses[0]?.[0] ?? '';
+  useEffect(() => {
+    if (!isPreview) void api.analytics.track('tutor_profile_viewed', { tutorId: tutor.id, source: (source ?? 'direct').slice(0, 40) });
+  }, [tutor.id, isPreview, source]);
 
   const book = (courseCode?: string) => {
     if (isPreview) return; // read-only self-preview — can't book yourself
     patchBooking({ tutor, course: courseCode ?? activeCourse });
+    void api.analytics.track('booking_started', { tutorId: tutor.id, courseCode: courseCode ?? activeCourse });
     router.push('/b3');
   };
 

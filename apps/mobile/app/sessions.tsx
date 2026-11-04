@@ -195,7 +195,7 @@ export default function Sessions() {
   };
   const openTutor = (tutor: Tutor, course?: string) => {
     patchBooking({ tutor, course: course || '' });
-    router.push('/b2');
+    router.push('/b2?source=sessions');
   };
 
   const scrollRef = useRef<ScrollView>(null);

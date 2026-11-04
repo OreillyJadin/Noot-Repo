@@ -37,6 +37,7 @@ import type {
   OutgoingAttachment,
   Notification,
   NotificationType,
+  GrowthFunnel,
   RefundStatus,
   ReviewSummary,
   TutorAvailability,
@@ -1652,6 +1653,11 @@ export const api = {
 
   // --- admin (RLS is_admin() already permits these reads; writes go through Edge Functions) ---
   admin: {
+    async growthFunnel(since: string | null, until: string | null): Promise<GrowthFunnel> {
+      const { data, error } = await getSupabase().rpc('admin_growth_funnel', { p_since: since, p_until: until });
+      if (error) throw error;
+      return data as GrowthFunnel;
+    },
     /** Counts for the admin hub, using the same report queue as the reports screen. */
     async hubCounts(): Promise<AdminHubCounts> {
       const sb = getSupabase();
