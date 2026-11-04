@@ -3,7 +3,7 @@
 // held PaymentIntent, transfers the tutor's payout to their Connect account funded from
 // that charge (see _shared/payouts.ts), sets status='completed', then fires
 // award-referral-bonus (non-fatal). Idempotent: a booking
-// already 'completed' is a no-op apart from re-firing the award. Simulated bookings
+// already 'completed' retries an unpaid/failed payout before re-firing the award. Simulated bookings
 // (sim_pi_…) just flip to completed.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
@@ -37,7 +37,7 @@ serveWithErrorReporting('complete-session', async (req: Request) => {
 
     const { data: booking } = await db
       .from('bookings')
-      .select('id, tutor_id, status, scheduled_at, duration_minutes, stripe_payment_intent_id, tutor_payout_amount, price, created_at')
+      .select('id, tutor_id, status, scheduled_at, duration_minutes, stripe_payment_intent_id, stripe_transfer_id, payout_failed_at, tutor_payout_amount, price, created_at')
       .eq('id', bookingId)
       .maybeSingle();
     if (!booking) return Response.json({ error: 'booking not found' }, { status: 404, headers: cors });
