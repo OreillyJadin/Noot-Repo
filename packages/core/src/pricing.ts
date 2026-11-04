@@ -22,7 +22,7 @@ export function tutorPayoutFor(gross: number, gradesVerified: boolean): number {
 }
 
 /** Allowed hourly rate, in whole dollars. Same bounds as the Courses & rates stepper. */
-export const MIN_HOURLY_RATE = 10;
+export const MIN_HOURLY_RATE = 20;
 export const MAX_HOURLY_RATE = 120;
 
 /** Display-only hourly estimate; currently-taking courses never get the verified fee. */

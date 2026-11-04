@@ -126,19 +126,19 @@ try {
   await rejectDirectRate(121);
   await rejectDirectRate(5000);
   await rejectDirectRate(-1);
-  // TUT-4 (0087): the app's $10/hr floor is enforced by the database too.
-  await rejectDirectRate(9);
-  await rejectDirectRate(9.99);
+  // TUT-4 (0103): the app's $20/hr floor is enforced by the database too.
+  await rejectDirectRate(19);
+  await rejectDirectRate(19.99);
   await rejectDirectRate(0);
 
   const directFloor = await tutor.client.from('tutor_courses')
-    .update({ hourly_rate: 10 })
+    .update({ hourly_rate: 20 })
     .eq('tutor_id', tutor.id)
     .eq('course_code', courseCode)
     .select('hourly_rate')
     .maybeSingle();
-  check('direct-10', 'direct update to exactly $10/hr (the floor) succeeds',
-    !directFloor.error && Number(directFloor.data?.hourly_rate) === 10, directFloor.error?.message ?? `stored=${directFloor.data?.hourly_rate}`);
+  check('direct-20', 'direct update to exactly $20/hr (the floor) succeeds',
+    !directFloor.error && Number(directFloor.data?.hourly_rate) === 20, directFloor.error?.message ?? `stored=${directFloor.data?.hourly_rate}`);
 
   const directUpdate = await tutor.client.from('tutor_courses')
     .update({ hourly_rate: 45 })
@@ -156,20 +156,20 @@ try {
   });
   check('rpc-121', 'set_tutor_courses still rejects $121/hr', !!tooHigh.error, tooHigh.error?.message ?? 'accepted');
 
-  for (const low of [9, 0, 0.5]) {
+  for (const low of [19, 0, 9.5]) {
     const tooLow = await tutor.client.rpc('set_tutor_courses', {
       p_courses: [{ course_code: courseCode, grade: 'A', hourly_rate: low, currently_taking: false }],
     });
     const storedLow = await getRate(tutor.id, courseCode);
     check(`rpc-${low}`, `set_tutor_courses rejects $${low}/hr and keeps the stored rate`,
-      !!tooLow.error && /\$10 to \$120/.test(tooLow.error.message) && storedLow === 45,
+      !!tooLow.error && /\$20 to \$120/.test(tooLow.error.message) && storedLow === 45,
       tooLow.error?.message ?? `accepted, stored=${storedLow}`);
   }
   const floorRate = await tutor.client.rpc('set_tutor_courses', {
-    p_courses: [{ course_code: courseCode, grade: 'A', hourly_rate: 10, currently_taking: false }],
+    p_courses: [{ course_code: courseCode, grade: 'A', hourly_rate: 20, currently_taking: false }],
   });
-  check('rpc-10', 'set_tutor_courses accepts exactly $10/hr',
-    !floorRate.error && (await getRate(tutor.id, courseCode)) === 10, floorRate.error?.message ?? `stored=${await getRate(tutor.id, courseCode)}`);
+  check('rpc-20', 'set_tutor_courses accepts exactly $20/hr',
+    !floorRate.error && (await getRate(tutor.id, courseCode)) === 20, floorRate.error?.message ?? `stored=${await getRate(tutor.id, courseCode)}`);
 
   const validRate = await tutor.client.rpc('set_tutor_courses', {
     p_courses: [{ course_code: courseCode, grade: 'A', hourly_rate: 30, currently_taking: false }],
@@ -179,7 +179,7 @@ try {
     !validRate.error && rpcStoredRate === 30,
     validRate.error?.message ?? `stored=${rpcStoredRate}`);
 
-  for (const rate of [500, 0, 9.5]) {
+  for (const rate of [500, 0, 19.5]) {
     const serviceInsert = await svc.from('tutor_courses').insert({
       tutor_id: tutor.id,
       course_code: insertCourseCode,
