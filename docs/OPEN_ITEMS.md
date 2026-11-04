@@ -56,9 +56,6 @@ production project, Stripe, App Store Connect or the website. File names below a
   whether the cash-out admin PR covers the ambassador side.
 - **A new account's name comes from whoever first requests its sign-up link** (3.7):
   `handle_new_user` (`0040`) reads `first_name` / `last_name` from the link request's metadata.
-- **Owners can still write `created_at` / `deleted_at` on their own `users` row** (3.8).
-  `email` is locked (`0071`) and `active_role` / `status` are guarded; the rest of
-  `users_update` has no column restriction.
 - **No auto-complete 24h after a session** — done by the `auto-complete-sessions` cron in
   migration `0092`.
 - **7 `TODO(api)` stubs left in `apps/mobile`**: student name on `tutor_calendar`, booking id
@@ -78,3 +75,9 @@ production project, Stripe, App Store Connect or the website. File names below a
 
 Limits left as they are by decision (won disputes, clawbacks, invite-claim rules, `ua.edu` vs
 `crimson.ua.edu`) are in `ISSUES_2026-10-03.md` §4.
+
+## Completed server guards
+
+- Users `created_at` / `deleted_at` writes (0.6 / 3.8): migration
+  `0110_users_timestamp_guard.sql` restricts client INSERT/UPDATE column privileges;
+  service-role and SECURITY DEFINER lifecycle writes remain available.
