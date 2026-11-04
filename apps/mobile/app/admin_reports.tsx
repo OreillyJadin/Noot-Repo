@@ -87,7 +87,7 @@ function AdminReportsScreen() {
                   <View style={styles.head}>
                     <Avatar size={38} label={initials(report.reporterName || target || 'Noot')} />
                     <View style={styles.person}>
-                      <Text style={[styles.title, { color: t.text }]}>{REASON_LABEL[report.reason] ?? report.reason}</Text>
+                      <Text style={[styles.title, { color: t.text }]}>{report.autoFlagged && report.detail?.includes('Contact info (') ? 'Contact / off-platform payment info' : REASON_LABEL[report.reason] ?? report.reason}</Text>
                       <Text style={[styles.meta, { color: t.text3 }]}>
                         {report.autoFlagged ? 'Flagged automatically' : `Reported by ${report.reporterName}`}
                         {target ? ` · about ${target}` : ''}
@@ -100,6 +100,16 @@ function AdminReportsScreen() {
                   {report.messageContent ? (
                     <View style={[styles.quote, { backgroundColor: t.surface2 }]}>
                       <Text numberOfLines={4} style={[styles.quoteText, { color: t.text }]}>{report.messageContent}</Text>
+                    </View>
+                  ) : null}
+                  {report.targetKind === 'review' ? (
+                    <View style={[styles.quote, { backgroundColor: t.surface2 }]}>
+                      <Text style={[styles.meta, { color: t.text2 }]}>
+                        Author: {report.reviewAuthorName || 'Unavailable'} · Tutor: {report.reviewTutorName || 'Unavailable'}
+                      </Text>
+                      <Text style={[styles.quoteText, { color: t.text }]}>
+                        {report.reviewContent || (report.reviewAuthorName ? 'Rating only — no written comment.' : 'Review no longer available.')}
+                      </Text>
                     </View>
                   ) : null}
                   {report.detail ? <Text style={[styles.detail, { color: t.text2 }]}>“{report.detail}”</Text> : null}

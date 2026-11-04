@@ -17,6 +17,7 @@
 // Storage and messages are cleared explicitly — SQL cascades don't reach object storage.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { purgeFolder } from '../_shared/storage.ts';
+import { clearTutorDiscovery } from '../_shared/tutorDiscovery.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -105,6 +106,8 @@ serveWithErrorReporting('delete-account', async (req: Request) => {
         { status: 409, headers: cors },
       );
     }
+
+    await clearTutorDiscovery(db, uid);
 
     // 1. Files. Avatars and transcripts are keyed {uid}/…; chat attachments are keyed by
     //    conversation, so they're removed per message below.

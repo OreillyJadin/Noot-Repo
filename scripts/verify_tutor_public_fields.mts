@@ -86,14 +86,14 @@ const now = new Date().toISOString();
 for (const [label, p] of [
   ['tutor', svc.from('users').update({ stripe_customer_id: SECRET.stripe_customer_id, year: 'Junior', major: 'Accounting', avatar_url: 'https://example.invalid/tess.jpg' }).eq('id', tutor.id)],
   ['tutor profile', svc.from('tutor_profiles').upsert({
-    user_id: tutor.id, bio: 'Accounting, made bearable.', subjects: ['AC 210'], hourly_rate: 30, rating_avg: 4.5, total_sessions: 12,
+    user_id: tutor.id, bio: 'Accounting, made bearable.', subjects: ['MGT 300'], hourly_rate: 30, rating_avg: 4.5, total_sessions: 12,
     verified_grade: 'A', approval_status: 'approved', submitted_at: now, reviewed_by: admin.id, reviewed_at: now,
     grades_verified_at: now, grades_verified_by: admin.id, transcript_url: SECRET.transcript_url,
     agreement_signed_at: now, agreement_signed_name: SECRET.agreement_signed_name, agreement_version: '2026-01',
     stripe_connect_account_id: SECRET.stripe_connect_account_id, stripe_onboarded_at: now, stripe_charges_enabled: true, stripe_payouts_enabled: true,
   }, { onConflict: 'user_id' })],
   ['tutor role', svc.from('user_roles').upsert({ user_id: tutor.id, role: 'tutor' }, { onConflict: 'user_id,role' })],
-  ['tutor course', svc.from('tutor_courses').insert({ tutor_id: tutor.id, course_code: 'AC 210', grade: 'A', hourly_rate: 30 })],
+  ['tutor course', svc.from('tutor_courses').insert({ tutor_id: tutor.id, course_code: 'MGT 300', grade: 'A', hourly_rate: 30 })],
   ['ambassador profile', svc.from('ambassador_profiles').upsert({ user_id: tutor.id, referral_code: SECRET.referral_code, stripe_connect_account_id: SECRET.stripe_connect_account_id, total_earned: 1234 }, { onConflict: 'user_id' })],
   ['pending profile', svc.from('tutor_profiles').upsert({ user_id: pendingTutor.id, bio: 'not yet', approval_status: 'pending', submitted_at: now, transcript_url: `${pendingTutor.id}/t.pdf` }, { onConflict: 'user_id' })],
   ['deleted profile', svc.from('tutor_profiles').upsert({ user_id: deletedTutor.id, bio: 'was approved', approval_status: 'approved' }, { onConflict: 'user_id' })],
@@ -134,7 +134,7 @@ try {
   check('student: view returns the tutor\'s display fields', !v.error && !!v.data, describe(v));
   const row = (v.data ?? {}) as Record<string, unknown>;
   check('  name / photo / year / major', row.first_name === 'Tess' && row.last_name === 'Tutor' && row.avatar_url === 'https://example.invalid/tess.jpg' && row.year === 'Junior' && row.major === 'Accounting');
-  check('  bio / subjects / rate / rating / sessions', row.bio === 'Accounting, made bearable.' && JSON.stringify(row.subjects) === '["AC 210"]' && Number(row.hourly_rate) === 30 && Number(row.rating_avg) === 4.5 && row.total_sessions === 12);
+  check('  bio / subjects / rate / rating / sessions', row.bio === 'Accounting, made bearable.' && JSON.stringify(row.subjects) === '["MGT 300"]' && Number(row.hourly_rate) === 30 && Number(row.rating_avg) === 4.5 && row.total_sessions === 12);
   check('  Verified badge + approval state', row.grades_verified === true && row.verified_grade === 'A' && row.approval_status === 'approved');
   check('  no value in the row looks like a secret', !Object.values(row).some((x) => typeof x === 'string' && (x.includes('@') || x.startsWith('cus_') || x.startsWith('acct_') || x.endsWith('.pdf') || x === SECRET.agreement_signed_name)), JSON.stringify(row));
   const star = await s.from('tutor_public_profiles').select('*').eq('id', tutor.id).maybeSingle();
@@ -148,7 +148,7 @@ try {
   check('student: a deleted approved tutor is not in the view', noRows(await s.from('tutor_public_profiles').select('id').eq('id', deletedTutor.id)));
   check('student: a non-tutor is not in the view', noRows(await s.from('tutor_public_profiles').select('id').eq('id', bystander.id)));
   const embed = await s.from('tutor_public_profiles').select('id, tutor_courses(course_code, hourly_rate)').eq('id', tutor.id).maybeSingle();
-  check('student: tutor_courses embed through the view works', !embed.error && (embed.data as any)?.tutor_courses?.[0]?.course_code === 'AC 210', describe(embed));
+  check('student: tutor_courses embed through the view works', !embed.error && (embed.data as any)?.tutor_courses?.[0]?.course_code === 'MGT 300', describe(embed));
 
   console.log('\n— student: embeds and RPCs that reach users / tutor_profiles —');
   const viaCourses = await s.from('tutor_courses').select('id, tutor:users!tutor_id(email, stripe_customer_id)').eq('tutor_id', tutor.id).limit(1).maybeSingle();
@@ -174,7 +174,7 @@ try {
   if (!login.ok) throw new Error(login.error);
   const found = (await api.tutors.search()).find((t) => t.userId === tutor.id);
   check('core: tutors.search lists the tutor', !!found);
-  check('  card has name, photo, rate, rating, Verified and courses', found?.firstName === 'Tess' && found?.avatarUrl === 'https://example.invalid/tess.jpg' && found?.hourlyRate === 30 && found?.ratingAvg === 4.5 && found?.verified === true && found?.courses[0]?.courseCode === 'AC 210', JSON.stringify(found));
+  check('  card has name, photo, rate, rating, Verified and courses', found?.firstName === 'Tess' && found?.avatarUrl === 'https://example.invalid/tess.jpg' && found?.hourlyRate === 30 && found?.ratingAvg === 4.5 && found?.verified === true && found?.courses[0]?.courseCode === 'MGT 300', JSON.stringify(found));
   check('  summary carries no secret', !JSON.stringify(found ?? {}).match(/@|cus_|acct_|\.pdf|Secret/));
   const byId = await api.tutors.getById(tutor.id);
   check('core: tutors.getById(tutor) resolves', byId?.userId === tutor.id && byId.bio === 'Accounting, made bearable.');

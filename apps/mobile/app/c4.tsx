@@ -10,6 +10,7 @@ import { Screen, Body, ActionBar, Button, Card, Divider, Ic, HeroIcon, useTheme 
 import { tutorPayoutFor } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { useApp } from '../lib/store';
+import { BookAgainButton } from '../lib/BookAgainButton';
 
 
 export default function C4() {
@@ -98,7 +99,15 @@ export default function C4() {
           </Text>
         </View>
       </Body>
-      <ActionBar>
+      <ActionBar style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+        {!isTutor && tutor && booking.bookingId && booking.status === 'completed' ? (
+          <BookAgainButton
+            tutorId={tutor.id}
+            course={booking.course ?? ''}
+            durationMinutes={booking.lengthMin ?? 60}
+            label={`Book again with ${tutorFirst}`}
+          />
+        ) : null}
         <Button label="Done" kind="secondary" full onPress={() => router.replace(isTutor ? '/tutor_home' : '/home')} />
       </ActionBar>
     </Screen>

@@ -7,7 +7,7 @@
 // under the sort row. Previously the results array was hard-empty until you typed a query, so
 // adjusting a filter appeared to do nothing at all — that was the "filters don't update the
 // results" report, not a broken filter predicate.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -66,11 +66,12 @@ export default function B1() {
   // tutors actually shown (used for the "Next available" line + sorting).
   const [availById, setAvailById] = useState<Record<string, { dayIndex: number; label: string }>>({});
   const [loading, setLoading] = useState(true);
+  const [searchReady, setSearchReady] = useState(false);
   useEffect(() => {
     let active = true;
     api.tutors
       .search({})
-      .then((rows) => { if (active) setTutors(rows.map(toTutor)); })
+      .then((rows) => { if (active) { setTutors(rows.map(toTutor)); setSearchReady(true); } })
       .catch(() => { if (active) setTutors([]); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -138,10 +139,26 @@ export default function B1() {
       (avail === 'any' || (avail === 'today' && tt.availDayIndex === 0) || (avail === 'week' && tt.availDayIndex <= 6)),
   );
   const list = [...filtered].sort(SORTERS[sort]);
+  const lastSearch = useRef('');
+  const resultCount = list.length;
+  const availabilityReady = avail === 'any' || matched.every((tt) => availById[tt.id] !== undefined);
+  useEffect(() => {
+    if (!searchReady || !availabilityReady) return;
+    const key = JSON.stringify([trimmed, maxPrice, avail, resultCount]);
+    const timer = setTimeout(() => {
+      if (lastSearch.current === key) return;
+      lastSearch.current = key;
+      const match = trimmed.match(/^([a-z]{2,5})\s*(\d{3}[a-z]?)$/i);
+      const props = { query: trimmed.slice(0, 300), ...(match ? { courseCode: `${match[1]} ${match[2]}`.toUpperCase() } : {}) };
+      void api.analytics.track('search_performed', { ...props, resultCount });
+      if (resultCount === 0) void api.analytics.track('search_empty', props);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [searchReady, availabilityReady, trimmed, maxPrice, avail, resultCount]);
 
   const open = (tutor: Tutor) => {
     patchBooking({ tutor, course: courseForQuery(tutor, trimmed) });
-    router.push('/b2');
+    router.push('/b2?source=search');
   };
 
   return (
