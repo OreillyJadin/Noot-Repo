@@ -306,6 +306,9 @@ export interface ContentReport {
   messageContent?: string | null;
   /** Who wrote the reported message. */
   messageSenderName?: string;
+  reviewContent?: string | null;
+  reviewAuthorName?: string;
+  reviewTutorName?: string;
 }
 
 /** A row from the real UA course catalog (`courses`), used to pick instead of free-type. */
