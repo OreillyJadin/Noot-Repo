@@ -44,6 +44,7 @@ import type {
   TutorCourse,
   MyTutorProfile,
   TutorSummary,
+  YourTutor,
   TutoringLocation,
   User,
   Cashout,
@@ -1336,6 +1337,53 @@ export const api = {
         .maybeSingle();
       if (error) throw error;
       return data ? mapTutorSummary(data) : null;
+    },
+
+    /** A currently approved, non-deleted tutor, excluding blocks in either direction. */
+    async getForBooking(userId: string): Promise<TutorSummary | null> {
+      const uid = await requireUid();
+      if (uid === userId) return null;
+      const [profile, eligible] = await Promise.all([
+        getSupabase().from('tutor_public_profiles').select(TUTOR_SELECT)
+          .eq('id', userId).eq('approval_status', 'approved').maybeSingle(),
+        getSupabase().rpc('rebookable_tutor_ids', { p_tutor_ids: [userId] }),
+      ]);
+      if (profile.error) throw profile.error;
+      if (eligible.error) throw eligible.error;
+      return profile.data && eligible.data?.length ? mapTutorSummary(profile.data) : null;
+    },
+
+    /** Tutors from the caller's own completed student sessions, most recent first. */
+    async listYourTutors(): Promise<YourTutor[]> {
+      const uid = await requireUid();
+      const latest = new Map<string, Booking>();
+      const pageSize = 500;
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await getSupabase().from('bookings').select('*')
+          .eq('student_id', uid).eq('status', 'completed')
+          .order('scheduled_at', { ascending: false }).order('id', { ascending: false })
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        for (const row of data ?? []) {
+          if (!latest.has(row.tutor_id)) latest.set(row.tutor_id, mapBooking(row));
+        }
+        if ((data ?? []).length < pageSize) break;
+      }
+      if (!latest.size) return [];
+      const eligible = await getSupabase().rpc('rebookable_tutor_ids', { p_tutor_ids: [...latest.keys()] });
+      if (eligible.error) throw eligible.error;
+      const ids = (eligible.data ?? []).map((row: { tutor_id: string }) => row.tutor_id);
+      const tutors = new Map<string, TutorSummary>();
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        const { data, error } = await getSupabase().from('tutor_public_profiles').select(TUTOR_SELECT)
+          .eq('approval_status', 'approved').in('id', ids.slice(offset, offset + 100));
+        if (error) throw error;
+        for (const row of data ?? []) tutors.set(row.id, mapTutorSummary(row));
+      }
+      return [...latest.values()].flatMap((lastBooking) => {
+        const tutor = tutors.get(lastBooking.tutorId);
+        return tutor ? [{ tutor, lastBooking }] : [];
+      });
     },
 
     /** The signed-in student's saved tutors (b2). */
