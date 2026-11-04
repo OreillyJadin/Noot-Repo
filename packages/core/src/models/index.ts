@@ -128,6 +128,11 @@ export interface TutorSummary {
   courses: TutorCourse[];
 }
 
+export interface YourTutor {
+  tutor: TutorSummary;
+  lastBooking: Booking;
+}
+
 /** A conversation plus the counterpart and last message, for the chat list. */
 export interface ConversationSummary {
   id: UUID;
