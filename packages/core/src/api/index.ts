@@ -2638,10 +2638,10 @@ export const api = {
 
     /** The people you've blocked, with names, for the unblock screen. */
     async listBlocked(): Promise<ChatParticipant[]> {
-      const ids = await this.blockedIds();
-      if (!ids.length) return [];
-      const map = await api.chat.listParticipants(ids);
-      return ids.map((id) => map[id]).filter(Boolean) as ChatParticipant[];
+      const { data, error } = await getSupabase().rpc('my_blocked_users');
+      if (error) throw error;
+      return (data ?? []).map((row: { id: string; first_name: string | null; last_initial: string | null; avatar_url: string | null }) =>
+        mapParticipant({ ...row, last_name: row.last_initial }));
     },
 
     /** True if either party has blocked the other — the composer disables on this. */

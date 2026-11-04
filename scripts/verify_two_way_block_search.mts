@@ -23,6 +23,8 @@ async function user(label: string) {
   if (error) throw error;
   const id = data.user!.id;
   made.push(id);
+  const profile = await svc.from('users').update({ first_name: 'BlockTest', last_name: 'Person' }).eq('id', id);
+  if (profile.error) throw profile.error;
   const c = initSupabase({ url: URL, anonKey: ANON });
   clients.push(c);
   const login = await c.auth.signInWithPassword({ email, password: DEV_PASSWORD });
@@ -66,6 +68,32 @@ try {
   await visible(b, a.id, false, 'B cannot see blocker A');
   await visible(b, c.id, false, 'B cannot see blocked C');
   await visible(unrelated, b.id, true, 'unrelated student sees B');
+  const summaries = await a.c.rpc('my_blocked_users');
+  if (summaries.error) throw summaries.error;
+  check('blocker can read only outgoing blocked-user summaries', summaries.data.length === 1 && summaries.data[0].id === b.id);
+  check('RPC exposes only id, first name, last initial and avatar',
+    Object.keys(summaries.data[0]).sort().join(',') === 'avatar_url,first_name,id,last_initial'
+    && summaries.data[0].first_name === 'BlockTest' && summaries.data[0].last_initial === 'P');
+  const incomingOnly = await c.c.rpc('my_blocked_users');
+  if (incomingOnly.error) throw incomingOnly.error;
+  check('incoming block does not expose the blocker', incomingOnly.data.length === 0);
+  const nobody = await unrelated.c.rpc('my_blocked_users');
+  if (nobody.error) throw nobody.error;
+  check('unrelated caller gets an empty block list', nobody.data.length === 0);
+  const apiClient = initSupabase({ url: URL, anonKey: ANON });
+  clients.push(apiClient);
+  const apiLogin = await apiClient.auth.setSession(a.session);
+  if (apiLogin.error) throw apiLogin.error;
+  const blocked = await api.moderation.listBlocked();
+  check('core listBlocked retains the blocked tutor name', blocked.length === 1 && blocked[0].id === b.id
+    && blocked[0].firstName === 'BlockTest' && blocked[0].lastName === 'P' && blocked[0].avatarUrl === null);
+  const studentBlock = await a.c.from('user_blocks').insert({ blocker_id: a.id, blocked_id: unrelated.id });
+  if (studentBlock.error) throw studentBlock.error;
+  const withStudent = await api.moderation.listBlocked();
+  check('core listBlocked also names blocked non-tutors', withStudent.length === 2
+    && withStudent.some(p => p.id === unrelated.id && p.firstName === 'BlockTest' && p.lastName === 'P'));
+  const removeStudentBlock = await a.c.from('user_blocks').delete().eq('blocker_id', a.id).eq('blocked_id', unrelated.id);
+  if (removeStudentBlock.error) throw removeStudentBlock.error;
   const privateBlock = await c.c.from('user_blocks').select('*').eq('blocker_id', b.id);
   if (privateBlock.error) throw privateBlock.error;
   check('incoming block rows stay private', privateBlock.data.length === 0);
@@ -79,9 +107,21 @@ try {
   check('tutor still sees own profile', own.data.length === 1);
   const anon = createClient(URL, ANON, { auth: { persistSession: false } });
   check('anonymous view read denied', !!(await anon.from('tutor_public_profiles').select('id')).error);
+  check('anonymous blocked-user RPC denied', (await anon.rpc('my_blocked_users')).error?.code === '42501');
+  const suspended = await svc.from('users').update({ status: 'suspended' }).eq('id', a.id);
+  if (suspended.error) throw suspended.error;
+  check('suspended caller with existing token denied', (await a.c.rpc('my_blocked_users')).error?.code === '42501');
+  const deleted = await svc.from('users').update({ status: 'active', deleted_at: new Date().toISOString() }).eq('id', a.id);
+  if (deleted.error) throw deleted.error;
+  check('soft-deleted active caller with existing token denied', (await a.c.rpc('my_blocked_users')).error?.code === '42501');
+  const restored = await svc.from('users').update({ deleted_at: null }).eq('id', a.id);
+  if (restored.error) throw restored.error;
   const removed = await a.c.from('user_blocks').delete().eq('blocker_id', a.id).eq('blocked_id', b.id);
   if (removed.error) throw removed.error;
   await visible(a, b.id, true, 'unblocking restores visibility');
+  const afterUnblock = await a.c.rpc('my_blocked_users');
+  if (afterUnblock.error) throw afterUnblock.error;
+  check('unblocking removes the summary', afterUnblock.data.length === 0);
   console.log(`\n${passed} passed, 0 failed`);
 } finally {
   for (const c of clients) await c.auth.signOut({ scope: 'local' });
