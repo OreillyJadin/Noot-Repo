@@ -105,9 +105,7 @@ export async function payTutor(args: PayoutArgs): Promise<PayoutResult> {
     let baseline = refunded;
     const existing: Stripe.Transfer[] = [];
     for await (const transfer of stripe.transfers.list({ transfer_group: bookingId, limit: 100 })) {
-      if ((transfer.metadata?.reason ?? '') !== (metadata.reason ?? '')) {
-        throw new Error('Existing tutor transfer belongs to another booking outcome');
-      }
+      if ((transfer.metadata?.reason ?? '') !== (metadata.reason ?? '')) continue;
       existing.push(transfer);
       if (existing.length === 1 && transfer.metadata?.payout_target_cents !== undefined) {
         target = Number(transfer.metadata.payout_target_cents);

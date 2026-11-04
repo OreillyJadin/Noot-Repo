@@ -62,21 +62,46 @@ try {
   check('second retry is a no-op with exactly one transfer', again.body.alreadyComplete === true && stripe.transfers.length === 1 && stripe.attempts.length === attempts);
 
   let scheduledRetries = 0;
+  let clock = new Date();
   const scheduled = () => autoCompleteBookings(svc, URL, async (db, url, booking) => {
-    if (booking.id !== row.id) return { status: 409, body: { error: 'Unrelated local fixture skipped' } };
+    if (!bookings.includes(booking.id)) return { status: 409, body: { error: 'Unrelated local fixture skipped' } };
     scheduledRetries++;
     return completeBooking(db, url, booking, stripe.stripe);
-  });
+  }, clock);
   await run(svc.from('bookings').update({ stripe_transfer_id: null }).eq('id', row.id));
+  await scheduled();
+  check('cron waits an hour after completion before retrying a missing payout', scheduledRetries === 0);
+  clock = new Date(clock.getTime() + 2 * 3600_000);
   stripe.expireKeys();
   const recovered = await scheduled();
   check('cron dispatches completed bookings with missing transfer records', recovered.status === 200 && scheduledRetries === 1);
   check('missing database transfer record recovers after key expiry without paying again', (await read(row.id)).stripe_transfer_id === stripe.transfers[0].id && stripe.transfers.length === 1 && stripe.attempts.length === attempts);
-  await run(svc.from('bookings').update({ payout_failed_at: new Date().toISOString() }).eq('id', row.id));
+  await run(svc.from('bookings').update({ payout_failed_at: clock.toISOString() }).eq('id', row.id));
+  await scheduled();
+  check('cron waits an hour after a marked failure', scheduledRetries === 1);
+  clock = new Date(clock.getTime() + 2 * 3600_000);
   await scheduled();
   check('cron reconciles failure marker with an existing transfer safely', scheduledRetries === 2 && (await read(row.id)).payout_failed_at === null && stripe.transfers.length === 1);
   await scheduled();
   check('cron no longer selects a successfully paid session', scheduledRetries === 2);
+
+  await run(svc.from('tutor_profiles').update({ stripe_connect_account_id: null }).eq('user_id', tutor));
+  const failures = await run(svc.from('bookings').insert(Array.from({ length: 26 }, (_, i) => ({
+    student_id: student, tutor_id: tutor, status: 'completed', subject: 'CS 100',
+    scheduled_at: new Date(Date.now() - (i + 5) * 3600_000).toISOString(), duration_minutes: 60,
+    price: 20, platform_fee: 2, tutor_payout_amount: 18, session_type: 'in_person',
+    stripe_payment_intent_id: `pi_test_missing_connect_${i}`,
+    cancellation_deadline: new Date(Date.now() - (i + 6) * 3600_000).toISOString(),
+  }))).select('id'));
+  bookings.push(...failures.map(b => b.id));
+  await scheduled();
+  check('permanently failing payouts are capped at 25 per batch', scheduledRetries === 27);
+  const marked = await run(svc.from('bookings').select('payout_failed_at').in('id', failures.map(b => b.id)));
+  check('missing Connect failures persist retry timestamps before throwing', marked.filter(b => Date.parse(b.payout_failed_at) === clock.getTime()).length === 25);
+  await scheduled();
+  check('failed batch backs off so the next waiting payout gets a turn', scheduledRetries === 28);
+  await scheduled();
+  check('permanently failing payouts cannot immediately reclaim the batch', scheduledRetries === 28);
   console.log(`\n${passed} passed, 0 failed`);
 } finally {
   for (const id of bookings) await run(svc.from('bookings').delete().eq('id', id));

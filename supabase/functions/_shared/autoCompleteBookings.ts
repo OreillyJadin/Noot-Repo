@@ -5,11 +5,15 @@ export async function autoCompleteBookings(
   db: SupabaseClient,
   url: string,
   complete: typeof completeBooking = completeBooking,
+  clock = new Date(),
 ): Promise<CompleteResult> {
-  const now = new Date().toISOString();
-  const ended48HoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-  const created6DaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString();
-  const held4DaysAgo = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString();
+  const now = clock.toISOString();
+  const ended48HoursAgo = new Date(clock.getTime() - 48 * 60 * 60 * 1000).toISOString();
+  const created6DaysAgo = new Date(clock.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString();
+  const held4DaysAgo = new Date(clock.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString();
+  const retryBefore = new Date(clock.getTime() - 60 * 60 * 1000).toISOString();
+  // Completion updates updated_at; later edits can conservatively delay a missing payout.
+  const retryDue = `payout_failed_at.lt.${retryBefore},and(payout_failed_at.is.null,stripe_transfer_id.is.null,updated_at.lt.${retryBefore})`;
   const { data: bookings, error: loadError } = await db
     .from('bookings')
     .select('id, tutor_id, status, scheduled_at, scheduled_end, duration_minutes, stripe_payment_intent_id, tutor_payout_amount, price, created_at, hold_placed_at')
@@ -34,8 +38,9 @@ export async function autoCompleteBookings(
     .gt('price', 0)
     .gt('tutor_payout_amount', 0)
     .like('stripe_payment_intent_id', 'pi_%')
-    .or('payout_failed_at.not.is.null,stripe_transfer_id.is.null')
+    .or(retryDue)
     .order('payout_failed_at', { ascending: true, nullsFirst: true })
+    .order('updated_at', { ascending: true })
     .limit(25);
   if (retryError) {
     console.error('auto-complete-sessions: payout retry lookup failed');
@@ -47,6 +52,14 @@ export async function autoCompleteBookings(
   let failed = 0;
   for (const booking of [...(bookings ?? []), ...(retries ?? [])]) {
     try {
+      if (booking.status === 'completed') {
+        // Claim before checking Connect/Stripe, so even early failures back off and rotate.
+        const { data: claimed, error: claimError } = await db.from('bookings')
+          .update({ payout_failed_at: now }).eq('id', booking.id).eq('status', 'completed')
+          .or(retryDue).select('id');
+        if (claimError) throw claimError;
+        if (!claimed?.length) continue;
+      }
       const result = await complete(db, url, booking);
       if (result.body.holdExpired === true) {
         holdExpired += 1;

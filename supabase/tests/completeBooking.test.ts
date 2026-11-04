@@ -140,17 +140,31 @@ test('a reversed completed-session transfer is not paid again after key expiry',
   assert.equal(fake.attempts.length, 1);
 });
 
-test('a conflicting destination or booking outcome fails closed without another payout', async () => {
-  for (const patch of [{ destination: 'acct_other' }, { metadata: { reason: 'student_no_show' } }]) {
-    const { db, booking } = payoutDb();
-    const fake = payoutStripe();
-    await completeBooking(db, url, { ...booking }, fake.stripe);
-    Object.assign(fake.transfers[0], patch);
-    booking.payout_failed_at = new Date().toISOString();
-    fake.expireKeys();
-    assert.equal((await completeBooking(db, url, { ...booking }, fake.stripe)).status, 502);
-    assert.equal(fake.transfers.length, 1);
-    assert.equal(fake.attempts.length, 1);
-    assert(booking.payout_failed_at);
-  }
+test('a conflicting destination fails closed without another payout', async () => {
+  const { db, booking } = payoutDb();
+  const fake = payoutStripe();
+  await completeBooking(db, url, { ...booking }, fake.stripe);
+  fake.transfers[0].destination = 'acct_other';
+  booking.payout_failed_at = new Date().toISOString();
+  fake.expireKeys();
+  assert.equal((await completeBooking(db, url, { ...booking }, fake.stripe)).status, 502);
+  assert.equal(fake.transfers.length, 1);
+  assert.equal(fake.attempts.length, 1);
+  assert(booking.payout_failed_at);
+});
+
+test('other-reason transfers do not block or count toward the completion payout', async () => {
+  const { db, booking } = payoutDb();
+  booking.status = 'completed';
+  const fake = payoutStripe(2000, true);
+  fake.transfers.push({ id: 'tr_compensation', amount: 500, currency: 'usd', destination: 'acct_other',
+    source_transaction: null, metadata: { reason: 'tutor_no_show' } });
+  assert.equal((await completeBooking(db, url, { ...booking }, fake.stripe)).status, 200);
+  assert.equal(fake.transfers.length, 2);
+  assert.equal(fake.transfers[1].amount, 1800);
+  assert.equal(fake.transfers[1].source_transaction, fake.charge.id);
+  booking.payout_failed_at = new Date().toISOString();
+  fake.expireKeys();
+  assert.equal((await completeBooking(db, url, { ...booking }, fake.stripe)).status, 200);
+  assert.equal(fake.attempts.length, 1);
 });
