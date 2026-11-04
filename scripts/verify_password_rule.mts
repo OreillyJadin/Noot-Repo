@@ -25,15 +25,18 @@ const svc = createClient(URL, SERVICE, { auth: { persistSession: false } })
 const tag = `pwrule_${Date.now()}`
 const email = `${tag}@crimson.ua.edu`
 const OLD = 'password123'
+// Test-only bcrypt hash of OLD, imported as a pre-policy account rather than a new password.
+const OLD_HASH = '$2a$06$gf./OJTZ4Zc7Bc5qdeTM6Ol/sMIz3Pkxgntu.PUM/RXh2nMMC23ay'
 
 try {
-  // An account from before the rule: the admin API is how seeds and scripts make them.
-  const made = await svc.auth.admin.createUser({ email, password: OLD, email_confirm: true })
-  step(!made.error, `the admin API still creates an account with an older-style password${made.error ? ` (${made.error.message})` : ''}`)
+  const made = await svc.auth.admin.createUser({ email, password_hash: OLD_HASH, email_confirm: true })
+  step(!made.error, `the admin API imports a legacy bcrypt password hash${made.error ? ` (${made.error.message})` : ''}`)
+  if (made.error) throw made.error
 
   const me = anon()
   const signIn = await me.auth.signInWithPassword({ email, password: OLD })
-  step(!signIn.error, 'an account whose password predates the rule still signs in')
+  step(!signIn.error && !!signIn.data.session, 'an account whose password predates the rule still signs in')
+  if (signIn.error || !signIn.data.session) throw signIn.error ?? new Error('Legacy fixture session missing')
 
   // ---- passwords the server must refuse ----
   const weak: [string, string][] = [
