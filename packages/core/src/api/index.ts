@@ -1280,13 +1280,6 @@ export const api = {
         .then(({ data }) => data.session?.user.id ?? null)
         .catch(() => null);
       if (meId) q = q.neq('id', meId);
-      // Blocking must remove them from search too, not only from chat — otherwise you keep
-      // seeing and can still book someone you blocked.
-      if (meId) {
-        const { data: blocks } = await sb.from('user_blocks').select('blocked_id').eq('blocker_id', meId);
-        const ids = (blocks ?? []).map((b) => b.blocked_id as string);
-        if (ids.length) q = q.not('id', 'in', `(${ids.join(',')})`);
-      }
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []).map(mapTutorSummary);
@@ -2661,10 +2654,10 @@ export const api = {
 
     /** The people you've blocked, with names, for the unblock screen. */
     async listBlocked(): Promise<ChatParticipant[]> {
-      const ids = await this.blockedIds();
-      if (!ids.length) return [];
-      const map = await api.chat.listParticipants(ids);
-      return ids.map((id) => map[id]).filter(Boolean) as ChatParticipant[];
+      const { data, error } = await getSupabase().rpc('my_blocked_users');
+      if (error) throw error;
+      return (data ?? []).map((row: { id: string; first_name: string | null; last_initial: string | null; avatar_url: string | null }) =>
+        mapParticipant({ ...row, last_name: row.last_initial }));
     },
 
     /** True if either party has blocked the other — the composer disables on this. */
