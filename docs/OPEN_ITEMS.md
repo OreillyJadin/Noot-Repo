@@ -50,8 +50,6 @@ production project, Stripe, App Store Connect or the website. File names below a
   "CS100" / "CS 100" can both exist. Only `courses` has a unique constraint.
 - **`tutor_profiles.subjects[]` isn't content-filtered** (T20; left out of `0032` because it's
   picker-only, but the column takes any text).
-- **A failed payout isn't retried** (3.3): `complete-session` on a completed booking returns
-  `alreadyComplete` without retrying the transfer. Check after the payouts-from-charge PR.
 - **Cash-out collects no payout details and shows no status to the ambassador** (3.5). Check
   whether the cash-out admin PR covers the ambassador side.
 - **A new account's name comes from whoever first requests its sign-up link** (3.7):
@@ -62,8 +60,8 @@ production project, Stripe, App Store Connect or the website. File names below a
   on calendar sessions, `b5` → chat, the notification centre in `chat` / `chat_tutor`, the
   exact payout in `c4`, the past-sessions note in `sessions`.
 - No one-tap Copy for the referral code (`expo-clipboard` not added; `DECISIONS_NEEDED` A1).
-- Tests that don't exist yet (`ISSUES_2026-10-03.md` §5): the `complete-session` payout-failure
-  path, credit returned on a tutor no-show via `report-no-show`, a tutor-initiated cancel and a
+- Tests that don't exist yet (`ISSUES_2026-10-03.md` §5): credit returned on a tutor no-show
+  via `report-no-show`, a tutor-initiated cancel and a
   cancel under 2 hours, two reversals racing an award, `lib/pendingInvite.ts` on real AsyncStorage.
 
 ## Decisions for Jadin
