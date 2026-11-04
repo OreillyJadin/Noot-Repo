@@ -31,6 +31,9 @@ const as = async (email: string) => {
 
 const student = await as('student@crimson.ua.edu')
 const tutor = await as('sara@crimson.ua.edu')
+const { error: termsError } = await svc.from('users')
+  .update({ terms_accepted_at: new Date().toISOString() }).in('id', [student.id, tutor.id])
+if (termsError) throw new Error(`setup Terms acceptance: ${termsError.message}`)
 const tag = `badlang_${Date.now()}`
 const SWEAR = `this problem set is fucking impossible ${tag}`
 const CLEAN = `Can we go over the class assignment on Scunthorpe? ${tag}`

@@ -155,7 +155,7 @@ export default function Home() {
 
   const openTutor = (tutor: Tutor, course: string) => {
     patchBooking({ tutor, course });
-    router.push('/b2');
+    router.push('/b2?source=home');
   };
   const openChat = () => {
     if (!next?.tutor) return;

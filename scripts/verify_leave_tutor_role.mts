@@ -225,9 +225,9 @@ try {
       && profileAfter.stripe_onboarded_at !== null
       && Number(profileAfter.rating_avg) === 4.8
       && profileAfter.total_sessions === 12
-      && coursesAfter?.length === 1
-      && availabilityAfter?.length === 1,
-    'profile details, courses, availability, Stripe account/status, and tutor stats are preserved',
+      && coursesAfter?.length === 0
+      && availabilityAfter?.length === 0,
+    'profile details, Stripe account/status, and tutor stats survive while courses and availability are cleared',
   );
   step(interviewAfter?.cancelled_at !== null, 'open tutor interview is cancelled');
   step((filesAfter ?? []).length === 0, 'transcript files are removed from Storage');
