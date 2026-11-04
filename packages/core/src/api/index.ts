@@ -1988,7 +1988,7 @@ export const api = {
     async listReports(): Promise<ContentReport[]> {
       const { data, error } = await getSupabase()
         .from('content_reports')
-        .select('*, reporter:users!reporter_id(first_name,last_name), target:users!target_user_id(first_name,last_name), message:messages!target_message_id(content, sender:users!sender_id(first_name,last_name))')
+        .select('*, reporter:users!reporter_id(first_name,last_name), target:users!target_user_id(first_name,last_name), message:messages!target_message_id(content, sender:users!sender_id(first_name,last_name)), review:reviews!target_review_id(comment, author:users!reviewer_id(first_name,last_name), tutor:users!subject_user_id(first_name,last_name))')
         .eq('status', 'open')
         // A flag whose message has since been deleted has nothing left to show or act on.
         .or('auto_flagged.eq.false,target_message_id.not.is.null,target_kind.eq.user')
@@ -2012,6 +2012,13 @@ export const api = {
         reporterName: `${r.reporter?.first_name ?? ''} ${r.reporter?.last_name ?? ''}`.trim() || 'Someone',
         targetName: r.target ? `${r.target.first_name ?? ''} ${r.target.last_name ?? ''}`.trim() : undefined,
         messageContent: r.message?.content ?? null,
+        reviewContent: r.review?.comment ?? null,
+        reviewAuthorName: r.review?.author
+          ? `${r.review.author.first_name ?? ''} ${r.review.author.last_name ?? ''}`.trim() || 'Deleted account'
+          : undefined,
+        reviewTutorName: r.review?.tutor
+          ? `${r.review.tutor.first_name ?? ''} ${r.review.tutor.last_name ?? ''}`.trim() || 'Deleted account'
+          : undefined,
         messageSenderName: r.message?.sender
           ? `${r.message.sender.first_name ?? ''} ${r.message.sender.last_name ?? ''}`.trim() || undefined
           : undefined,
@@ -2598,6 +2605,15 @@ export const api = {
       const uid = await requireUid();
       const { error } = await getSupabase().from('content_reports').insert({
         reporter_id: uid, target_kind: 'message', target_message_id: messageId,
+        reason, detail: detail?.trim() || null,
+      });
+      if (error) throw error;
+    },
+
+    async reportReview(reviewId: string, reason: ReportReason, detail?: string): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase().from('content_reports').insert({
+        reporter_id: uid, target_kind: 'review', target_review_id: reviewId,
         reason, detail: detail?.trim() || null,
       });
       if (error) throw error;
