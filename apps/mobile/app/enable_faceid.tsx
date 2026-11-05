@@ -60,7 +60,7 @@ export default function EnableFaceId() {
       <View style={styles.body}>
         <View style={styles.hero}>
           <HeroIcon name="lock" size={64} />
-          <Text style={[styles.h1, { color: t.text }]}>Turn on {label}?</Text>
+          <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>Turn on {label}?</Text>
           <Text style={[styles.sub, { color: t.text2 }]}>
             Sign in faster next time without typing your password. You can change this later in Settings.
           </Text>
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, padding: 24, justifyContent: 'space-between' },
   hero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
-  h1: { fontSize: 26, fontWeight: '700', textAlign: 'center' },
+  h1: { fontSize: 26, textAlign: 'center' },
   sub: { fontSize: 15, lineHeight: 21, textAlign: 'center', maxWidth: 320 },
   actions: { gap: 10 },
 });

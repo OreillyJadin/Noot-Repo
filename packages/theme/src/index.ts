@@ -5,7 +5,7 @@
 // typed token objects plus `resolveTheme(direction, dark)` which returns a flat
 // token map — consumable by React Native (StyleSheet), RN Web, and Next.js alike.
 //
-// Brand: sage #78A070 · cream/sand #D0C0A0 · deep charcoal-green #283028.
+// Brand: sage #7EA072 · sand #D7C5A2 · charcoal #2D342E.
 
 export type Direction = 'sage' | 'crimson';
 
@@ -22,6 +22,8 @@ export const DIRECTIONS: DirectionMeta[] = [
 
 export const BODY_FONT =
   '-apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif';
+export const HEADING_FONT = 'NootHeading-Bold';
+export const HEADING_FONT_SEMIBOLD = 'NootHeading-SemiBold';
 
 /** Color + surface tokens for one direction at one light/dark mode. */
 export interface ColorTokens {
@@ -54,6 +56,7 @@ export interface ColorTokens {
 /** Shape/typography tokens shared across a direction's light + dark ramps. */
 export interface ShapeTokens {
   headingFont: string;
+  headingFontSemi: string;
   headingWeight: number;
   headingTracking: string;
   btnRadius: string;
@@ -67,23 +70,22 @@ export interface ThemeDirection extends ShapeTokens {
   dark: ColorTokens;
 }
 
-const HEADING_FONT = BODY_FONT;
-
 export const THEMES: Record<Direction, ThemeDirection> = {
   // ── 1 · SAGE (default) ────────────────────────────────────────────────
   sage: {
     headingFont: HEADING_FONT,
+    headingFontSemi: HEADING_FONT_SEMIBOLD,
     headingWeight: 700,
     headingTracking: '-0.01em',
-    btnRadius: '12px',
+    btnRadius: '999px',
     chipRadius: '999px',
     cardRadius: '14px',
     fieldRadius: '10px',
     light: {
       bg: '#F4F2EC', surface: '#FFFFFF', surface2: '#ECEAE1', surfaceAlt: '#FAF8F2',
-      text: '#283028', text2: '#5A6157', text3: '#9AA093',
-      border: 'rgba(40,48,40,0.12)', borderStrong: 'rgba(40,48,40,0.24)',
-      accent: '#78A070', accentPress: '#5F8758', accentWeak: '#E8EFE3', accentBorder: 'rgba(120,160,112,0.4)',
+      text: '#2D342E', text2: '#5A6157', text3: '#9AA093',
+      border: 'rgba(45,52,46,0.12)', borderStrong: 'rgba(45,52,46,0.24)',
+      accent: '#7EA072', accentPress: '#5F8758', accentWeak: '#E8EFE3', accentBorder: 'rgba(126,160,114,0.4)',
       onAccent: '#FFFFFF', good: '#4F8A4A', goodWeak: '#E5F0E2', danger: '#D23F31', dangerWeak: 'rgba(210,63,49,0.12)',
       band: '#557A4E', onBand: '#FFFFFF',
       shadow: '0 1px 2px rgba(40,48,40,0.05), 0 10px 28px rgba(40,48,40,0.07)',
@@ -116,6 +118,7 @@ export const THEMES: Record<Direction, ThemeDirection> = {
   // `good` stays green: semantic colours must not follow the brand.
   crimson: {
     headingFont: HEADING_FONT,
+    headingFontSemi: HEADING_FONT_SEMIBOLD,
     headingWeight: 700,
     headingTracking: '-0.022em',
     btnRadius: '10px',
@@ -162,6 +165,7 @@ export function resolveTheme(direction: Direction = 'sage', dark = false): Theme
   return {
     ...c,
     headingFont: t.headingFont,
+    headingFontSemi: t.headingFontSemi,
     headingWeight: t.headingWeight,
     headingTracking: t.headingTracking,
     btnRadius: t.btnRadius,

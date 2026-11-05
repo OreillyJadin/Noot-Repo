@@ -55,7 +55,7 @@ export default function C1() {
       <Body pad={24}>
         <View style={styles.heroWrap}>
           <HeroIcon name="check" size={72} />
-          <Text style={[styles.h1, { color: t.text }]}>How did your session go?</Text>
+          <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>How did your session go?</Text>
           <Text style={[styles.sub, { color: t.text2 }]}>
             Your {course} session just wrapped up. Take a few seconds to rate {rateTarget}.
           </Text>
@@ -92,7 +92,7 @@ export default function C1() {
 
 const styles = StyleSheet.create({
   heroWrap: { alignItems: 'center', paddingTop: 30 },
-  h1: { fontSize: 26, fontWeight: '700', marginTop: 20, maxWidth: 280, textAlign: 'center' },
+  h1: { fontSize: 26, marginTop: 20, maxWidth: 280, textAlign: 'center' },
   sub: { fontSize: 15, lineHeight: 21, marginTop: 8, maxWidth: 260, textAlign: 'center' },
   courseRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   courseText: { fontSize: 15, fontWeight: '600' },

@@ -198,7 +198,7 @@ export default function TutorHome() {
           <Card raised style={[styles.nextCard, { marginTop: previewing ? 0 : -56 }]}>
             <View style={styles.emptyCard}>
               <Text style={[styles.nextLabel, { color: t.text2 }]}>No upcoming sessions</Text>
-              <Text style={[styles.emptyTitle, { color: t.text }]}>You&apos;re all caught up</Text>
+              <Text style={[styles.emptyTitle, { color: t.text, fontFamily: t.headingFont }]}>You&apos;re all caught up</Text>
               <Text style={[styles.nextMeta, { color: t.text2 }]}>Open your availability so students can book you.</Text>
               <Pressable onPress={() => router.push('/edit_availability')} accessibilityRole="button" style={styles.emptyAvailability}>
                 <Text style={[styles.nextActionLabel, { color: t.accent }]}>Set availability</Text>
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
   nextContent: { padding: 16 },
   emptyCard: { padding: 16, gap: 8 },
   nextLabel: { fontSize: 13 },
-  emptyTitle: { fontSize: 18, fontWeight: '700' },
+  emptyTitle: { fontSize: 18 },
   emptyAvailability: { minHeight: 46, justifyContent: 'center' },
   nextTutorRow: { alignItems: 'center', gap: 10, marginVertical: 12 },
   nextName: { fontSize: 17, fontWeight: '600' },

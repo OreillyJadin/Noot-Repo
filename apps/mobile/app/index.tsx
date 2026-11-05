@@ -14,7 +14,7 @@ export default function Landing() {
   // At large text the header scrolls with the page instead of pinning a third of the screen.
   const header = (
     <View style={[styles.header, large && styles.headerInline]}>
-      <Text style={[styles.wordmark, { color: t.text }]}>noot</Text>
+      <Text style={[styles.wordmark, { color: t.text, fontFamily: t.headingFont }]}>noot</Text>
       <View style={styles.headerActions}>
         <Button label="Log In" kind="ghost" onPress={() => router.push('/signin')} />
         <Button label="Sign Up" onPress={() => router.push('/signup')} />
@@ -28,7 +28,7 @@ export default function Landing() {
         {large ? header : null}
         <View style={[styles.hero, { backgroundColor: t.accent }]}>
           <Text style={[styles.badge, { color: t.onAccent, borderColor: t.onAccent }]}>.edu verified</Text>
-          <Text maxFontSizeMultiplier={TEXT_CAPS.screenTitle} style={[styles.heroTitle, { color: t.onAccent }, large && styles.heroTitleLarge]}>Peer tutoring.{'\n'}Built for campus life.</Text>
+          <Text maxFontSizeMultiplier={TEXT_CAPS.screenTitle} style={[styles.heroTitle, { color: t.onAccent, fontFamily: t.headingFont }, large && styles.heroTitleLarge]}>Peer tutoring.{'\n'}Built for campus life.</Text>
           <Text style={[styles.heroSub, { color: t.onAccent }]}>
             Same classes, same professors, same syllabus — from students who already aced them.
           </Text>
@@ -58,11 +58,11 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 },
   headerInline: { paddingHorizontal: 0, paddingVertical: 0 },
   headerActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, flexShrink: 1 },
-  wordmark: { fontSize: 22, fontWeight: '700', letterSpacing: -1 },
+  wordmark: { fontSize: 22, letterSpacing: -1 },
   body: { padding: 20, gap: 16 },
   hero: { borderRadius: 20, padding: 22, gap: 10 },
   badge: { alignSelf: 'flex-start', fontSize: 11, fontWeight: '700', borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, opacity: 0.9 },
-  heroTitle: { fontSize: 28, fontWeight: '700', lineHeight: 34 },
+  heroTitle: { fontSize: 28, lineHeight: 34 },
   // A fixed lineHeight scales with the full font scale but the capped title doesn't, so drop it.
   heroTitleLarge: { lineHeight: undefined },
   heroSub: { fontSize: 14, lineHeight: 20, opacity: 0.92, maxWidth: 300 },

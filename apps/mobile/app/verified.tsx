@@ -22,7 +22,7 @@ export default function Verified() {
           <Text style={[styles.h2, { color: t.text }]}>Email verified</Text>
         </View>
 
-        <Text style={[styles.h1, { color: t.text }]}>Three quick steps to get you matched.</Text>
+        <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>Three quick steps to get you matched.</Text>
 
         <View style={{ marginTop: 20 }}>
           <ListSection>
@@ -52,6 +52,6 @@ const styles = StyleSheet.create({
   body: { padding: 22, gap: 8 },
   verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
   h2: { fontSize: 17, fontWeight: '700' },
-  h1: { fontSize: 28, fontWeight: '700', maxWidth: 300, lineHeight: 34 },
+  h1: { fontSize: 28, maxWidth: 300, lineHeight: 34 },
   actionBar: { padding: 20 },
 });

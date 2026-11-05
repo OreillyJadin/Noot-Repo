@@ -80,7 +80,7 @@ export default function CommunityGuidelines() {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text maxFontSizeMultiplier={TEXT_CAPS.screenTitle} style={[styles.h1, { color: t.text }]}>Community Guidelines</Text>
+        <Text maxFontSizeMultiplier={TEXT_CAPS.screenTitle} style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>Community Guidelines</Text>
         <Text style={[styles.sub, { color: t.text2 }]}>
           The promises everyone on noot makes, whether you learn, tutor or refer friends. You agree
           once, and it covers every side of your account.
@@ -143,7 +143,7 @@ export default function CommunityGuidelines() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { padding: 20, gap: 18, paddingTop: 32, paddingBottom: 28 },
-  h1: { fontSize: 26, fontWeight: '700' },
+  h1: { fontSize: 26 },
   sub: { fontSize: 15, lineHeight: 21 },
   section: { gap: 8 },
   sectionTitle: { fontSize: 17, fontWeight: '700' },
