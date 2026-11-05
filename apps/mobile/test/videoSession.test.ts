@@ -27,16 +27,22 @@ test('video join closes after grace period or cancellation and handles invalid d
   assert.equal(videoJoinState({ ...booking, scheduledAt: 'invalid' }, start).enabled, false);
 });
 
-test('virtual quick reply retains existing replies and names the unique meeting code without a URL', () => {
+test('virtual quick reply distinguishes an unpublished link from one that is ready', () => {
   const context = { studentFirstName: '', tutorFirstName: '', course: '', location: '', when: '', sessionType: 'video' as const };
-  const drafts = tutorSessionDrafts({ ...context, dailyRoomName: booking.dailyRoomName });
+  const drafts = tutorSessionDrafts({
+    ...context,
+    dailyRoomName: booking.dailyRoomName,
+    videoLinkSentAt: booking.videoLinkSentAt,
+  });
   const virtual = drafts.find((d) => d.key === 'virtual')!;
   assert.equal(virtual.label, 'Virtual session setup');
-  assert.match(virtual.text, /Your meeting code is NOOT-ABCD1234/);
-  assert.match(virtual.text, /1 hour before/);
+  assert.match(virtual.text, /Your private link is ready/);
+  assert.match(virtual.text, /Meeting code: NOOT-ABCD1234/);
+  assert.doesNotMatch(virtual.text, /1 hour before/);
   assert.doesNotMatch(virtual.text, /https:|\?t=/);
   assert.deepEqual(drafts.slice(1).map((d) => d.key), ['location', 'intro', 'bring']);
   const notReady = tutorSessionDrafts(context)[0]!;
+  assert.match(notReady.text, /1 hour before/);
   assert.doesNotMatch(notReady.text, /undefined|null|NOOT-/);
 });
 
