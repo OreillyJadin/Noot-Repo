@@ -11,7 +11,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import { Button, useTheme } from '@noot/ui';
+import { Button, WordmarkImage, useTheme } from '@noot/ui';
 import { auth } from '@noot/core';
 import { useApp } from './store';
 import { routeAfterAuth, ACCOUNT_UNAVAILABLE } from './postAuth';
@@ -88,7 +88,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       {phase === 'open' ? <GraduationPrompt /> : null}
       {phase !== 'open' ? (
         <View style={[StyleSheet.absoluteFill, styles.overlay, { backgroundColor: t.bg }]}>
-          <Text style={[styles.brand, { color: t.text }]}>noot</Text>
+          <WordmarkImage size={34} color={t.text} />
           {!failed ? (
             <ActivityIndicator size="large" color={t.accent} />
           ) : (
@@ -110,7 +110,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   overlay: { alignItems: 'center', justifyContent: 'center', gap: 20, padding: 24 },
-  brand: { fontSize: 34, fontWeight: '700', letterSpacing: -1 },
   actions: { gap: 10, width: '100%', maxWidth: 320 },
   hint: { fontSize: 15, textAlign: 'center' },
 });

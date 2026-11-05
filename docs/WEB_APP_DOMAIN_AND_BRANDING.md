@@ -97,26 +97,17 @@ account, and Stripe rejects a payment when the two keys come from different acco
   `apps/mobile/app/_layout.tsx`. Body text stays on the system font (`BODY_FONT`).
 - **Wordmark + gecko:** `packages/ui/src/Brand.tsx` and the gecko icon, already in the app.
 
-### Swapping Outfit for Marble (when the license is confirmed)
+### Branding decision (2026-11-05, Jadin and Jacob)
 
-The site's headline font is **Marble** (`Marble-Bold.ttf`, `Marble-Light.ttf`). Its metadata
-says "Typeface by Unitype © 2025 All Rights Reserved" and points to
-https://www.mozatype.com/license/. Website licenses usually don't cover embedding in an app, so
-the app ships **Outfit** (SIL OFL, `apps/mobile/assets/fonts/OFL.txt`) as a stand-in.
-
-**Ask Jacob:** does his Marble license cover embedding in a mobile app (iOS/Android) and a web
-app? Get the license file or receipt and save it with the fonts.
-
-If yes:
-1. Get the licensed `.ttf`/`.otf` files from Jacob, not the ones on the website.
-2. Add them to `apps/mobile/assets/fonts/` (e.g. `Marble-Bold.ttf`; there's no SemiBold, so use
-   Bold or Light for `NootHeading-SemiBold`, whichever reads better).
-3. In `apps/mobile/app/_layout.tsx`, point the two `useFonts` entries at the new files. Keep the
-   keys `NootHeading-Bold` / `NootHeading-SemiBold`, so nothing else changes.
-4. Delete the Outfit files and `OFL.txt` if nothing uses them, and add Marble's license.
-5. Check sizes. Marble's metrics differ from Outfit's, so screenshot the landing, sign-in and
-   band headers at phone and laptop widths and adjust `lineHeight` where text clips.
-6. New EAS build: the fonts are bundled natively. The web picks them up on the next deploy.
+- App headings use **Montserrat** under the SIL Open Font License. The system font remains in
+  use for body text (SF Pro on iOS).
+- The app wordmark is Jacob's Marble-made PNG from trynoot.com. His Envato Elements license
+  covers its use as a logo.
+- Do not bundle Marble `.ttf` or `.otf` files. Envato's terms prohibit incorporating or
+  distributing the font within an End Product.
+- Using Marble for live text would require an app-embedding license purchased directly from
+  its author, Umitype.
+- To change the wordmark, replace `packages/ui/assets/noot-wordmark.png`.
 
 ### Optional later
 

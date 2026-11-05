@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
   autoLine: { lineHeight: undefined },
   h1: { fontSize: 32, lineHeight: 38, letterSpacing: -0.5 },
   h2: { fontSize: 20, lineHeight: 25, letterSpacing: -0.2 },
-  eyebrow: { fontSize: 13, fontWeight: '600' },
+  eyebrow: { fontSize: 13, fontWeight: '500' },
   sub: { fontSize: 15, lineHeight: 22 },
-  label: { fontSize: 12, fontWeight: '600', marginBottom: 6 },
+  label: { fontSize: 12, fontWeight: '500', marginBottom: 6 },
 });
