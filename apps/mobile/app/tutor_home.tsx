@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Body, BandHeader, TabBar, Card, Avatar, Ic, H2, Button, ViewingAs, useTheme, useLargeText, AdaptiveRow, ListSection, ListRow, CountPill, type IconName } from '@noot/ui';
-import { api, formatCampusDate, type Booking } from '@noot/core';
+import { api, formatCampusDate, type Booking, type TutorDemand } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
 import { useMe, firstName } from '../lib/useMe';
@@ -44,6 +44,7 @@ export default function TutorHome() {
   const [busyRequest, setBusyRequest] = useState<string | null>(null);
   // Live dashboard numbers + counterparty names.
   const [stats, setStats] = useState<{ sessionsTaught: number; earnedThisWeek: number } | null>(null);
+  const [demand, setDemand] = useState<TutorDemand | null>(null);
   const [names, setNames] = useState<Record<string, { firstName: string; lastName: string }>>({});
   useEffect(() => {
     let active = true;
@@ -55,6 +56,14 @@ export default function TutorHome() {
     api.tutorStats().then((s) => { if (active) setStats(s); }).catch(() => {});
     return () => { active = false; };
   }, [reloadKey, now]);
+
+  useEffect(() => {
+    let active = true;
+    if (!previewing) {
+      api.tutorDemand().then((result) => { if (active) setDemand(result); }).catch(() => {});
+    }
+    return () => { active = false; };
+  }, [reloadKey, previewing]);
 
   useEffect(() => {
     let active = true;
@@ -247,6 +256,42 @@ export default function TutorHome() {
           </ListSection>
         </View>
 
+        {!previewing && demand ? (
+          <View style={styles.section}>
+            <H2 style={styles.sectionTitle}>Demand this week</H2>
+            <ListSection>
+              <View style={[styles.demandProfile, { borderBottomColor: t.border }]}>
+                <Text style={[styles.demandViewCount, { color: t.text }]}>{demand.profileViews}</Text>
+                <Text style={[styles.demandViewLabel, { color: t.text2 }]}>
+                  {demand.profileViews === 1 ? 'profile view' : 'profile views'}
+                </Text>
+                <Text style={[styles.demandViewerLabel, { color: t.text2 }]}>
+                  {demand.uniqueViewers} {demand.uniqueViewers === 1 ? 'student viewed' : 'students viewed'} your profile
+                </Text>
+              </View>
+              {demand.openRequests.length === 0 ? (
+                <Text style={[styles.demandEmpty, { color: t.text3 }]}>No new requests for your courses</Text>
+              ) : demand.openRequests.map((request, index) => (
+                <Pressable
+                  key={request.courseCode}
+                  accessibilityRole="button"
+                  onPress={() => router.push('/edit_availability')}
+                  style={[
+                    styles.demandCourse,
+                    { borderBottomColor: t.border },
+                    index === demand.openRequests.length - 1 ? { borderBottomWidth: 0 } : null,
+                  ]}
+                >
+                  <Text style={[styles.demandCourseTitle, { color: t.text }]}>
+                    {request.requests} {request.requests === 1 ? 'student wants' : 'students want'} help with {request.courseCode}
+                  </Text>
+                  <Text style={[styles.demandCourseSubtitle, { color: t.text2 }]}>Add availability so they can book</Text>
+                </Pressable>
+              ))}
+            </ListSection>
+          </View>
+        ) : null}
+
         <View style={styles.section}>
           <H2 style={styles.sectionTitle}>Manage</H2>
           <ListSection>
@@ -297,5 +342,13 @@ const styles = StyleSheet.create({
   weekStat: { flex: 1, padding: 14, gap: 2 },
   weekNumber: { fontSize: 24, fontWeight: '700' },
   weekLabel: { fontSize: 13 },
+  demandProfile: { padding: 14, gap: 2, borderBottomWidth: StyleSheet.hairlineWidth },
+  demandViewCount: { fontSize: 24, fontWeight: '700' },
+  demandViewLabel: { fontSize: 13 },
+  demandViewerLabel: { fontSize: 13, marginTop: 2 },
+  demandCourse: { minHeight: 58, justifyContent: 'center', padding: 14, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth },
+  demandCourseTitle: { fontSize: 15, fontWeight: '600' },
+  demandCourseSubtitle: { fontSize: 13 },
+  demandEmpty: { padding: 14, fontSize: 13 },
   earningsLink: { fontSize: 14, fontWeight: '600' },
 });

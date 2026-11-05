@@ -112,6 +112,10 @@ export function targetFor(
     return { role, route: { pathname: '/sessions', params: { tab: 'past' } } };
   }
 
+  if (n.type === 'system' && n.data.event === 'tutor_weekly_digest') {
+    return { role: 'tutor', route: '/tutor_home' };
+  }
+
   if (n.type === 'system' && (n.data.interviewId || n.data.scheduledAt)) {
     return { role: 'tutor', route: '/tutor_home' };
   }

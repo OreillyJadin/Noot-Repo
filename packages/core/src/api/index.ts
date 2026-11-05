@@ -14,6 +14,7 @@ import { getSupabase } from '../supabase';
 import { notifyUserChanged } from '../changes';
 import { normalizeCourseQuery } from '../courseSearch';
 import { mapAdminCourseRequest, mapCourseRequest } from '../courseRequests';
+import { mapTutorDemand } from '../tutorDemand';
 import { mergeAvailabilityWindows } from '../availability';
 import {
   friendlyStorageError,
@@ -39,6 +40,7 @@ import type {
   Notification,
   NotificationType,
   GrowthFunnel,
+  TutorDemand,
   CourseRequest,
   AdminCourseRequest,
   RefundStatus,
@@ -1542,6 +1544,12 @@ export const api = {
       noShowCount: noShows.length,
       cancelRate: denom ? (cancelled.length + noShows.length) / denom : 0,
     };
+  },
+
+  async tutorDemand(): Promise<TutorDemand> {
+    const { data, error } = await getSupabase().rpc('my_tutor_demand');
+    if (error) throw error;
+    return mapTutorDemand(data);
   },
 
   /** Live study stats for the signed-in student, derived from their real bookings. */
