@@ -86,7 +86,7 @@ export default function SetPassword() {
         keyboardDismissMode="on-drag"
         bottomOffset={24}
       >
-        <Text style={[styles.h1, { color: t.text }]}>
+        <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>
           {isReset ? 'Set a new password' : 'Create your password'}
         </Text>
         <Text style={[styles.sub, { color: t.text2 }]}>
@@ -159,7 +159,7 @@ export default function SetPassword() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   body: { padding: 20, gap: 16, paddingTop: 40 },
-  h1: { fontSize: 26, fontWeight: '700' },
+  h1: { fontSize: 26 },
   sub: { fontSize: 15, lineHeight: 21 },
   rule: { fontSize: 12, lineHeight: 17, marginTop: -6 },
   termsRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginTop: 4 },

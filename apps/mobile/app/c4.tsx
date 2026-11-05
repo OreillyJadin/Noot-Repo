@@ -71,7 +71,7 @@ export default function C4() {
       <Body pad={24}>
         <View style={styles.heroWrap}>
           <HeroIcon name={isTutor ? 'dollar' : 'check'} size={72} />
-          <Text style={[styles.h1, { color: t.text }]}>Thanks for the feedback.</Text>
+          <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>Thanks for the feedback.</Text>
           {isTutor ? (
             <Text style={[styles.sub, { color: t.text2, maxWidth: 270 }]}>
               {payout.message}
@@ -144,7 +144,7 @@ export default function C4() {
 
 const styles = StyleSheet.create({
   heroWrap: { alignItems: 'center', paddingTop: 24 },
-  h1: { fontSize: 26, fontWeight: '700', marginTop: 20, textAlign: 'center' },
+  h1: { fontSize: 26, marginTop: 20, textAlign: 'center' },
   sub: { fontSize: 15, lineHeight: 21, marginTop: 10, textAlign: 'center' },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   rowBetweenBaseline: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },

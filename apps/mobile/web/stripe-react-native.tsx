@@ -110,7 +110,7 @@ function PaymentModal({ stripe, sheet, onDone }: { stripe: Promise<Stripe | null
         <Pressable accessibilityLabel="Cancel payment" style={styles.backdrop} onPress={cancel} />
         <View style={[styles.card, { backgroundColor: t.surface }]}>
           <ScrollView contentContainerStyle={styles.body}>
-            <Text style={[styles.title, { color: t.text }]}>{sheet.mode === 'setup' ? 'Save a card' : 'Pay with card'}</Text>
+            <Text style={[styles.title, { color: t.text, fontFamily: t.headingFont }]}>{sheet.mode === 'setup' ? 'Save a card' : 'Pay with card'}</Text>
             {loadFailed ? (
               <Text style={{ color: t.danger, fontSize: 14 }}>Stripe could not load. Check your connection and try again.</Text>
             ) : (
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.4)' },
   card: { width: '100%', maxWidth: 480, maxHeight: '90%', borderRadius: 18, overflow: 'hidden' },
   body: { padding: 22, gap: 16 },
-  title: { fontSize: 19, fontWeight: '700' },
+  title: { fontSize: 19 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
   button: { minHeight: 44, paddingHorizontal: 18, borderRadius: 12, justifyContent: 'center' },
   primary: { minWidth: 140, alignItems: 'center' },

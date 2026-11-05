@@ -109,7 +109,7 @@ export default function C3() {
       <Body pad={20}>
         <View style={styles.header}>
           <Avatar size={72} label={student.first[0]} />
-          <Text style={[styles.h2, { color: t.text }]}>{student.name}</Text>
+          <Text style={[styles.h2, { color: t.text, fontFamily: t.headingFont }]}>{student.name}</Text>
           <Text style={[styles.headerMeta, { color: t.text3 }]}>{booking.course || ''}</Text>
         </View>
 
@@ -164,7 +164,7 @@ export default function C3() {
 
 const styles = StyleSheet.create({
   header: { alignItems: 'center' },
-  h2: { fontSize: 19, fontWeight: '700', marginTop: 12 },
+  h2: { fontSize: 19, marginTop: 12 },
   headerMeta: { fontSize: 13, marginTop: 2 },
   stars: { flexDirection: 'row', gap: 8, justifyContent: 'center' },
   starTap: { padding: 2 },

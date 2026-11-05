@@ -22,7 +22,7 @@ export default function UnderAge() {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={[styles.title, { color: t.text }]}>noot is only available to people 18 and older</Text>
+        <Text style={[styles.title, { color: t.text, fontFamily: t.headingFont }]}>noot is only available to people 18 and older</Text>
         <Text style={[styles.body, { color: t.text2 }]}>
           If you think this is a mistake, contact{' '}
           <Text
@@ -43,6 +43,6 @@ export default function UnderAge() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { flexGrow: 1, justifyContent: 'center', padding: 20, gap: 18 },
-  title: { fontSize: 26, fontWeight: '700', lineHeight: 34 },
+  title: { fontSize: 26, lineHeight: 34 },
   body: { fontSize: 15, lineHeight: 22 },
 });

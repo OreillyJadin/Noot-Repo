@@ -37,7 +37,7 @@ export default function Role() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={[styles.h1, { color: t.text }]}>How will you start?</Text>
+        <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>How will you start?</Text>
         <Text style={[styles.sub, { color: t.text2 }]}>
           One account holds both. Add the other role anytime from your profile.
         </Text>
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
   back: { fontSize: 16, fontWeight: '600', minWidth: 48 },
   navTitle: { fontSize: 16, fontWeight: '700' },
   body: { padding: 20, gap: 10 },
-  h1: { fontSize: 25, fontWeight: '700' },
+  h1: { fontSize: 25 },
   sub: { fontSize: 15, lineHeight: 21 },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { fontSize: 17, fontWeight: '700' },

@@ -106,7 +106,7 @@ export default function AuthCallback() {
       {error ? (
         <View style={styles.center}>
           <Text style={{ fontSize: 40 }}>⚠️</Text>
-          <Text style={[styles.title, { color: t.text }]}>
+          <Text style={[styles.title, { color: t.text, fontFamily: t.headingFont }]}>
             {unreachable ? "Couldn't load your account" : "Couldn't sign you in"}
           </Text>
           <Text style={[styles.sub, { color: t.text2 }]}>{error}</Text>
@@ -136,6 +136,6 @@ export default function AuthCallback() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24 },
-  title: { fontSize: 20, fontWeight: '700' },
+  title: { fontSize: 20 },
   sub: { fontSize: 15, lineHeight: 21, textAlign: 'center', maxWidth: 320 },
 });

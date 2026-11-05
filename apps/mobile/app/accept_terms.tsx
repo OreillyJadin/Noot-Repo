@@ -64,7 +64,7 @@ export default function AcceptTerms() {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
       <ScrollView contentContainerStyle={styles.body}>
-        <Text style={[styles.h1, { color: t.text }]}>One thing before you continue</Text>
+        <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>One thing before you continue</Text>
         <Text style={[styles.sub, { color: t.text2 }]}>
           Using noot means agreeing to how we keep it safe for everyone. Please read and accept the terms below.
         </Text>
@@ -111,7 +111,7 @@ export default function AcceptTerms() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   body: { padding: 20, gap: 16, paddingTop: 40 },
-  h1: { fontSize: 26, fontWeight: '700' },
+  h1: { fontSize: 26 },
   sub: { fontSize: 15, lineHeight: 21 },
   termsRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginTop: 4 },
   box: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
