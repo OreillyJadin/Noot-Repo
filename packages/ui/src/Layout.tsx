@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   bandTitleText: { flex: 1, minWidth: 0 },
   bandTitle: { fontSize: 34, lineHeight: 41, letterSpacing: -0.6 },
   bandTitleAutoLine: { lineHeight: undefined },
-  bandSubtitle: { fontSize: 13, fontWeight: '500', marginBottom: 2 },
+  bandSubtitle: { fontSize: 13, fontWeight: '400', marginBottom: 2 },
   bandChildren: { marginTop: 12 },
   actionBar: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: 1, flexDirection: 'row', gap: 10, alignItems: 'center' },
 });
