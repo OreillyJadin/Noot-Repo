@@ -35,7 +35,7 @@ export function DateOfBirthPicker({ value, onChange }: DateOfBirthPickerProps) {
         width: '100%',
         padding: '8px 14px',
         fontSize: 16,
-        fontFamily: 'inherit',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
         color: value ? t.text : t.text3,
         backgroundColor: t.surface,
         border: `1.5px solid ${t.borderStrong}`,
