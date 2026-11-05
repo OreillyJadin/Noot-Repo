@@ -28,6 +28,16 @@ test('header color tokens have readable contrast in every theme direction and mo
   }
 });
 
+test('danger event colors are available in every theme direction and mode', () => {
+  for (const { id } of DIRECTIONS) {
+    for (const dark of [false, true]) {
+      const theme = resolveTheme(id, dark);
+      assert.equal(theme.danger, dark ? '#FF6B5E' : '#D23F31');
+      assert.equal(theme.dangerWeak, dark ? 'rgba(255,107,94,0.16)' : 'rgba(210,63,49,0.12)');
+    }
+  }
+});
+
 test('only sage and crimson directions remain, with shared body and heading fonts', () => {
   assert.deepEqual(DIRECTIONS.map(({ id }) => id), ['sage', 'crimson']);
   const sage = resolveTheme('sage');

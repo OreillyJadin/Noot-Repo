@@ -94,8 +94,8 @@ export function TutorStatusBanner({
     // Large text: no icon and the action drops under the copy, so the text keeps the full width.
     <View style={[styles.row, large && styles.rowStacked]}>
       {large ? null : (
-        <View style={[styles.icon, { backgroundColor: t.accent }]}>
-          <Ic name={copy.icon} size={17} color={t.onAccent} strokeWidth={1.9} />
+        <View style={[styles.icon, { backgroundColor: upcoming ? t.danger : t.accent }]}>
+          <Ic name={copy.icon} size={17} color={upcoming ? t.surface : t.onAccent} strokeWidth={1.9} />
         </View>
       )}
       <View style={large ? undefined : { flex: 1 }}>
@@ -117,7 +117,13 @@ export function TutorStatusBanner({
   );
 
   // Pending has no action — don't render a pressable that would do nothing when tapped.
-  const style = [styles.wrap, { backgroundColor: t.accentWeak, borderColor: t.accentBorder }];
+  const style = [
+    styles.wrap,
+    {
+      backgroundColor: upcoming ? t.dangerWeak : t.accentWeak,
+      borderColor: upcoming ? t.danger : t.accentBorder,
+    },
+  ];
   return copy.cta ? (
     <Pressable onPress={onApply} accessibilityRole="button" accessibilityLabel={copy.cta} style={style}>
       {body}
