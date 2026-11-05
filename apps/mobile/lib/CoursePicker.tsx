@@ -111,6 +111,7 @@ export function CoursePicker({
                     {c.courseTitle}
                     {c.creditHours ? ` · ${c.creditHours} hr` : ''}
                   </Text>
+                  {c.hasTutor ? <Text style={[styles.available, { color: t.good }]}>Tutors available</Text> : null}
                 </View>
                 {already ? (
                   <Text style={[styles.added, { color: t.text3 }]}>Added</Text>
@@ -142,6 +143,7 @@ const styles = StyleSheet.create({
   result: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 13, paddingVertical: 11, borderBottomWidth: 1 },
   code: { fontSize: 14.5, fontWeight: '700' },
   title: { fontSize: 12, marginTop: 1 },
+  available: { fontSize: 11, fontWeight: '600', marginTop: 3 },
   added: { fontSize: 12, fontWeight: '600' },
   empty: { fontSize: 13, padding: 14, textAlign: 'center' },
   hint: { fontSize: 12, paddingHorizontal: 2 },

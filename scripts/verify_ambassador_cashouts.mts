@@ -121,6 +121,53 @@ try {
   check('ambassador reads only their own (3 rows)', ((await amb.c.from('credit_cashouts').select('id')).data ?? []).length === 3);
   check('another student reads none of them', ((await other.c.from('credit_cashouts').select('id')).data ?? []).length === 0);
   check('admin reads them via RLS', ((await admin.c.from('credit_cashouts').select('id').eq('user_id', amb.uid)).data ?? []).length === 3);
+  const studentPayingAt = new Date().toISOString();
+  const studentTransferId = `tr_student_${Date.now()}`;
+  const studentCashout = await svc.from('credit_cashouts')
+    .insert({ user_id: other.uid, amount_cents: 1000, paying_at: studentPayingAt, stripe_transfer_id: studentTransferId })
+    .select('id')
+    .single();
+  check('service role creates payout-detail visibility fixture', !studentCashout.error && !!studentCashout.data, studentCashout.error?.message);
+  const ownPayoutFields = studentCashout.data
+    ? await other.c.from('credit_cashouts')
+      .select('id, paying_at, pay_unknown_at, stripe_transfer_id')
+      .eq('id', studentCashout.data.id)
+      .maybeSingle()
+    : null;
+  check(
+    'student can read payout details on their own cash-out',
+    !studentCashout.error && !!ownPayoutFields && !ownPayoutFields.error &&
+      ownPayoutFields.data?.id === studentCashout.data?.id &&
+      Date.parse(ownPayoutFields.data?.paying_at ?? '') === Date.parse(studentPayingAt) &&
+      ownPayoutFields.data?.pay_unknown_at === null &&
+      ownPayoutFields.data?.stripe_transfer_id === studentTransferId,
+    studentCashout.error?.message ?? ownPayoutFields?.error?.message ?? JSON.stringify(ownPayoutFields?.data),
+  );
+  const anotherPayoutFields = await other.c.from('credit_cashouts')
+    .select('id, paying_at, pay_unknown_at, stripe_transfer_id')
+    .eq('id', cid1)
+    .maybeSingle();
+  check(
+    'student cannot read payout details on another user’s cash-out',
+    !anotherPayoutFields.error && anotherPayoutFields.data === null,
+    anotherPayoutFields.error?.message ?? JSON.stringify(anotherPayoutFields.data),
+  );
+  const studentCashoutRows = await other.c.from('credit_cashouts')
+    .select('status, amount_cents')
+    .eq('user_id', other.uid)
+    .in('status', ['paid', 'pending']);
+  const studentCashoutTotals = ((studentCashoutRows.data ?? []) as Record<string, unknown>[])
+    .reduce<{ paidCents: number; pendingCents: number }>((totals, row) => {
+      const cents = Number(row.amount_cents ?? 0);
+      if (row.status === 'paid') totals.paidCents += cents;
+      if (row.status === 'pending') totals.pendingCents += cents;
+      return totals;
+    }, { paidCents: 0, pendingCents: 0 });
+  check(
+    'student cash-out totals include only their own rows despite another user’s rows',
+    !studentCashoutRows.error && studentCashoutTotals.paidCents === 0 && studentCashoutTotals.pendingCents === 1000,
+    studentCashoutRows.error?.message ?? JSON.stringify(studentCashoutTotals),
+  );
   noRows(await amb.c.from('credit_cashouts').update({ status: 'paid' }).eq('id', cid1).select(), 'ambassador cannot mark their own paid');
   noRows(await amb.c.from('credit_cashouts').insert({ user_id: amb.uid, amount_cents: 1000 }).select(), 'ambassador cannot insert a cash-out directly');
   noRows(await amb.c.from('credit_cashouts').delete().eq('id', cid1).select(), 'ambassador cannot delete a cash-out');

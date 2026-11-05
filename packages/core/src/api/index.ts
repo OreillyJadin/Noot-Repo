@@ -12,8 +12,11 @@ import { tutorEarnedAmount } from '../earnings';
 import { SESSION_LOOKBACK_MS, isUpcomingSession, isPastSession } from '../sessionTiming';
 import { getSupabase } from '../supabase';
 import { notifyUserChanged } from '../changes';
-import { normalizeCourseQuery, rankCourseMatches } from '../courseSearch';
+import { normalizeCourseQuery } from '../courseSearch';
+import { mapAdminCourseRequest, mapCourseRequest } from '../courseRequests';
+import { mapTutorDemand } from '../tutorDemand';
 import { mergeAvailabilityWindows } from '../availability';
+import { mapCashout } from '../cashout';
 import {
   friendlyStorageError,
   MIME_BY_EXT,
@@ -38,6 +41,9 @@ import type {
   Notification,
   NotificationType,
   GrowthFunnel,
+  TutorDemand,
+  CourseRequest,
+  AdminCourseRequest,
   RefundStatus,
   ReviewSummary,
   TutorAvailability,
@@ -428,6 +434,8 @@ function mapTutorSummary(row: any): TutorSummary {
     totalSessions: row.total_sessions ?? 0,
     verifiedGrade: row.verified_grade ?? null,
     verified: row.grades_verified === true,
+    responseRate: numOrNull(row.response_rate),
+    responseMinutes: numOrNull(row.response_median_minutes),
     courses: (row.tutor_courses ?? []).map(mapTutorCourse),
   };
 }
@@ -627,6 +635,7 @@ function mapCatalogCourse(row: any): CatalogCourse {
     subjectName: row.subject_name ?? '',
     creditHours: row.credit_hours ?? null,
     collegeName: row.college_name ?? '',
+    hasTutor: Boolean(row.has_tutor),
   };
 }
 
@@ -689,6 +698,7 @@ function mapMessage(row: any): Message {
 const TUTOR_SELECT = `
   id, first_name, last_name, year, major, avatar_url,
   bio, subjects, hourly_rate, rating_avg, total_sessions, verified_grade, grades_verified, approval_status,
+  response_rate, response_median_minutes,
   tutor_courses ( id, tutor_id, course_code, grade, currently_taking, hourly_rate, sessions, created_at )
 `;
 
@@ -798,16 +808,6 @@ export interface SubmitRatingInput {
 // ---------------------------------------------------------------------------
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped Supabase row, like the mappers above */
-function mapCashout(row: Record<string, unknown>): Cashout {
-  return {
-    id: row.id as string,
-    amountCents: Number(row.amount_cents ?? 0),
-    status: row.status as Cashout['status'],
-    createdAt: row.created_at as string,
-    paidAt: (row.paid_at as string | null) ?? null,
-    rejectedAt: (row.rejected_at as string | null) ?? null,
-  };
-}
 function mapAmbassadorProfile(row: any): AmbassadorProfile {
   return {
     id: row.id,
@@ -1547,6 +1547,12 @@ export const api = {
     };
   },
 
+  async tutorDemand(): Promise<TutorDemand> {
+    const { data, error } = await getSupabase().rpc('my_tutor_demand');
+    if (error) throw error;
+    return mapTutorDemand(data);
+  },
+
   /** Live study stats for the signed-in student, derived from their real bookings. */
   async studentStats(): Promise<{ sessionsCompleted: number; upcomingCount: number; hoursLearned: number }> {
     const uid = await requireUid();
@@ -1699,11 +1705,30 @@ export const api = {
     async cashouts(): Promise<Cashout[]> {
       const { data, error } = await getSupabase()
         .from('credit_cashouts')
-        .select('id, amount_cents, status, created_at, paid_at, rejected_at')
+        .select('id, amount_cents, status, created_at, paid_at, rejected_at, paying_at, pay_unknown_at, stripe_transfer_id')
         .order('created_at', { ascending: false })
         .limit(20);
       if (error) throw error;
       return ((data ?? []) as Record<string, unknown>[]).map(mapCashout);
+    },
+
+    async cashoutTotals(): Promise<{ paidCents: number; pendingCents: number }> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('credit_cashouts')
+        .select('status, amount_cents')
+        .eq('user_id', uid)
+        .in('status', ['paid', 'pending']);
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).reduce<{ paidCents: number; pendingCents: number }>(
+        (totals, row) => {
+          const cents = Number(row.amount_cents ?? 0);
+          if (row.status === 'paid') totals.paidCents += cents;
+          if (row.status === 'pending') totals.pendingCents += cents;
+          return totals;
+        },
+        { paidCents: 0, pendingCents: 0 },
+      );
     },
   },
 
@@ -1713,6 +1738,11 @@ export const api = {
       const { data, error } = await getSupabase().rpc('admin_growth_funnel', { p_since: since, p_until: until });
       if (error) throw error;
       return data as GrowthFunnel;
+    },
+    async courseRequests(): Promise<AdminCourseRequest[]> {
+      const { data, error } = await getSupabase().rpc('admin_course_requests');
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map(mapAdminCourseRequest);
     },
     /** Counts for the admin hub, using the same report queue as the reports screen. */
     async hubCounts(): Promise<AdminHubCounts> {
@@ -2787,22 +2817,12 @@ export const api = {
      */
     async search(query: string, limit = 25): Promise<CatalogCourse[]> {
       const q = normalizeCourseQuery(query);
-      const active = () => getSupabase().from('courses').select(CATALOG_SELECT).eq('is_active', true);
-      if (!q) {
-        const { data, error } = await active().order('course_code').limit(limit);
-        if (error) throw error;
-        return (data ?? []).map(mapCatalogCourse);
-      }
-      const byCode = await active().ilike('course_code', `${q}%`).order('course_code').limit(limit);
-      if (byCode.error) throw byCode.error;
-      const first = (byCode.data ?? []).map(mapCatalogCourse);
-      if (first.length >= limit) return first;
-      const anywhere = await active()
-        .or(`course_code.ilike.%${q}%,course_title.ilike.%${q}%,subject_name.ilike.%${q}%`)
-        .order('course_code')
-        .limit(limit);
-      if (anywhere.error) throw anywhere.error;
-      return rankCourseMatches(first, (anywhere.data ?? []).map(mapCatalogCourse), limit);
+      const { data, error } = await getSupabase().rpc('search_courses', {
+        p_query: q,
+        p_limit: limit,
+      });
+      if (error) throw error;
+      return (data ?? []).map(mapCatalogCourse);
     },
 
     /**
@@ -2834,6 +2854,26 @@ export const api = {
       const out: Record<string, CatalogCourse> = {};
       for (const row of data ?? []) out[row.course_code] = mapCatalogCourse(row);
       return out;
+    },
+  },
+
+  courseRequests: {
+    async request(courseCode: string): Promise<CourseRequest> {
+      const { data, error } = await getSupabase().rpc('request_course_tutor', { p_course_code: courseCode });
+      if (error) throw error;
+      return mapCourseRequest(data as Record<string, unknown>);
+    },
+
+    async listMine(): Promise<CourseRequest[]> {
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await getSupabase()
+        .from('course_requests')
+        .select('id, course_code, status, created_at')
+        .eq('status', 'open')
+        .gt('created_at', cutoff)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map(mapCourseRequest);
     },
   },
 
