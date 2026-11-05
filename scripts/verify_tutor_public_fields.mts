@@ -33,7 +33,7 @@ function check(name: string, ok: boolean, detail = '') {
 const VIEW_COLUMNS = [
   'id', 'first_name', 'last_name', 'year', 'major', 'avatar_url',
   'bio', 'subjects', 'hourly_rate', 'rating_avg', 'total_sessions', 'verified_grade',
-  'grades_verified', 'approval_status',
+  'grades_verified', 'approval_status', 'response_rate', 'response_median_minutes',
 ];
 // Everything else that lives on those rows — owner, admin and service_role only.
 const USERS_SENSITIVE = ['email', 'stripe_customer_id', 'status', 'active_role', 'courses', 'gender', 'date_of_birth', 'terms_accepted_at', 'password_set_at'];

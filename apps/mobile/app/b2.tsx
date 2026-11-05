@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, H1, H2, Sub, Ic, ListSection, ListRow, useTheme } from '@noot/ui';
-import { api, type ReviewSummary } from '@noot/core';
+import { api, responseLabel, type ReviewSummary } from '@noot/core';
 import { useApp } from '../lib/store';
 import { NoSession } from '../lib/NoSession';
 import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
@@ -28,6 +28,7 @@ function B2Inner() {
   const { preview, source } = useLocalSearchParams<{ preview?: string; source?: string }>();
   const isPreview = preview === '1';
   const tutor = booking.tutor!;
+  const response = responseLabel(tutor.responseMinutes);
   const [reviewState, setReviewState] = useState<{ tutorId: string; rows: ReviewSummary[]; error: boolean } | null>(null);
   const reviewsLoading = reviewState?.tutorId !== tutor.id;
   const reviews = !reviewsLoading ? reviewState.rows : [];
@@ -89,7 +90,9 @@ function B2Inner() {
           </Text>
           <View style={styles.headerStats}>
             <Text style={{ fontSize: 14, color: t.text2 }}>
-              {tutor.sessions} sessions completed
+              {tutor.sessions === 0
+                ? 'New on noot'
+                : `${tutor.sessions} ${tutor.sessions === 1 ? 'session' : 'sessions'} completed`}
             </Text>
             {tutor.verified ? (
               <Pressable
@@ -104,12 +107,41 @@ function B2Inner() {
                 </View>
               </Pressable>
             ) : null}
+            {tutor.verified && tutor.verifiedGrade ? (
+              <View style={[styles.gradeChip, { backgroundColor: t.goodWeak, borderColor: t.good }]}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: t.good }}>
+                  Verified {tutor.verifiedGrade} grade
+                </Text>
+              </View>
+            ) : null}
           </View>
+          {tutor.responseRate != null ? (
+            <Text style={{ fontSize: 12, color: t.text2, marginTop: 6, textAlign: 'center' }}>
+              {response
+                ? `${response} · responds to ${tutor.responseRate}% of requests`
+                : `Responds to ${tutor.responseRate}% of requests`}
+            </Text>
+          ) : null}
         </View>
 
-        <Section title="About">
-          <Sub style={{ fontSize: 14 }}>{tutor.bio}</Sub>
-        </Section>
+        {tutor.bio.trim() ? (
+          <Section title="About">
+            <Sub style={{ fontSize: 14 }}>{tutor.bio}</Sub>
+          </Section>
+        ) : isPreview ? (
+          <Pressable
+            onPress={() => router.push('/edit_tutor')}
+            accessibilityRole="button"
+            accessibilityLabel="Add a short intro so students know how you teach"
+          >
+            <Card style={[styles.introPrompt, { borderColor: t.border }]}>
+              <Text style={{ flex: 1, fontSize: 14, color: t.text }}>
+                Add a short intro so students know how you teach
+              </Text>
+              <Ic name="chevron" size={16} color={t.text3} strokeWidth={1.8} />
+            </Card>
+          </Pressable>
+        ) : null}
 
         <Section title="Courses & rates">
           <ListSection>
@@ -210,6 +242,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   header: { alignItems: 'center' },
-  headerStats: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  headerStats: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12 },
   verifiedCard: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14 },
+  gradeChip: { borderRadius: 999, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4 },
+  introPrompt: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderWidth: 1 },
 });

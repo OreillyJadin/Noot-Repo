@@ -3,6 +3,7 @@
 export * from './models';
 export { ACADEMIC_YEAR_OPTIONS, academicYearLabel, currentAcademicYear, validGraduationYear, graduationPromptDue } from './graduation';
 export { sessionPhase, isUpcomingSession, isPastSession, canReportNoShow } from './sessionTiming';
+export * from './tutorResponse';
 export { tutorEarnedAmount, studentPaidAmount, type StudentPayment } from './earnings';
 export * from './campusTime';
 export {
