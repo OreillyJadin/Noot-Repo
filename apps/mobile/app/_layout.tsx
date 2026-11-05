@@ -123,9 +123,9 @@ function ThemedApp() {
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    'NootHeading-Bold': require('../assets/fonts/Outfit-Bold.ttf'),
+    'NootHeading-Bold': require('../assets/fonts/Montserrat-Bold.ttf'),
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    'NootHeading-SemiBold': require('../assets/fonts/Outfit-SemiBold.ttf'),
+    'NootHeading-SemiBold': require('../assets/fonts/Montserrat-SemiBold.ttf'),
   });
 
   useEffect(() => {
