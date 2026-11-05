@@ -57,7 +57,7 @@ test('all role tab buttons scale only the icon and dispatch immediately, includi
     react: { ...react, useRef: (current: unknown) => ({ current }), useEffect: () => {}, useSyncExternalStore: () => null },
     'react-native': { ...native, Platform: { OS: 'ios' }, useWindowDimensions: () => ({ width: 1280 }) }, './ThemeProvider': theme,
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },
-    './textScale': { TEXT_CAPS: {} }, './Icon': { Ic: 'Ic' }, './Gecko': { GeckoMark: 'GeckoMark' }, './TabPressScale': { TabPressScale: 'TabPressScale' },
+    './textScale': { TEXT_CAPS: {} }, './Icon': { Ic: 'Ic' }, './Gecko': { GeckoMark: 'GeckoMark' }, './Brand': { WordmarkImage: 'WordmarkImage' }, './TabPressScale': { TabPressScale: 'TabPressScale' },
   });
   for (const [role, count] of [['student', 5], ['tutor', 5], ['ambassador', 3], ['admin', 3], [undefined, 5], ['unexpected', 5]] as const) {
     const pressedKeys: string[] = [];
@@ -85,7 +85,7 @@ test('wide web hides the bottom bar (the side nav takes over); phone-width web k
       react: { ...react, useRef: (current: unknown) => ({ current }), useEffect: () => {}, useSyncExternalStore: () => null },
       'react-native': { ...native, Platform: { OS: 'web' }, useWindowDimensions: () => ({ width }) }, './ThemeProvider': theme,
       'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },
-      './textScale': { TEXT_CAPS: {} }, './Icon': { Ic: 'Ic' }, './Gecko': { GeckoMark: 'GeckoMark' }, './TabPressScale': { TabPressScale: 'TabPressScale' },
+      './textScale': { TEXT_CAPS: {} }, './Icon': { Ic: 'Ic' }, './Gecko': { GeckoMark: 'GeckoMark' }, './Brand': { WordmarkImage: 'WordmarkImage' }, './TabPressScale': { TabPressScale: 'TabPressScale' },
     });
     const bar = TabBar({ role: 'student', active: 'home', onTab: () => {} });
     assert.equal(bar === null, hidden, `width ${width}`);
