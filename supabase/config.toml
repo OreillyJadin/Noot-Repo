@@ -35,6 +35,7 @@ site_url = "http://localhost:8081"
 # `noot://**` is the one that matters in production — the app passes the deep link as
 # emailRedirectTo, and if it isn't allow-listed GoTrue silently falls back to site_url.
 # Cloud mirrors this in Dashboard → Auth → URL Configuration (separate from this file).
+# The hosted web app's address goes there too (docs/WEB_HOSTING.md); locally the web app is :8081.
 additional_redirect_urls = [
   "http://localhost:8081", "http://localhost:8081/**",
   "noot://", "noot://**",
