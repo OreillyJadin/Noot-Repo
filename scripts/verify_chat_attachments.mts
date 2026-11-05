@@ -35,6 +35,8 @@ const PNG = new Uint8Array([
   0x42, 0x60, 0x82,
 ]);
 const NOTES = new TextEncoder().encode('week 3 problem set — show your work\n');
+const PDF = new TextEncoder().encode('%PDF-1.4\n% attachment verifier\n');
+const DOCX = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]);
 
 async function signIn(email: string) {
   const r = await auth.signInWithPassword(email, DEV_PASSWORD);
@@ -51,11 +53,17 @@ console.log(`conversation ${conv.id}\n  student ${studentId}\n  tutor   ${tutorI
 
 const img = await api.chat.uploadAttachment(conv.id, PNG.buffer, 'diagram.png', 'image/png');
 const doc = await api.chat.uploadAttachment(conv.id, NOTES.buffer, 'notes.txt', 'text/plain');
-check('uploadAttachment classifies kind from mime', img.kind === 'image' && doc.kind === 'file', `${img.kind}/${doc.kind}`);
+const word = await api.chat.uploadAttachment(
+  conv.id,
+  DOCX.buffer,
+  'worksheet.docx',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+);
+check('uploadAttachment classifies kind from mime', img.kind === 'image' && doc.kind === 'file' && word.kind === 'file', `${img.kind}/${doc.kind}/${word.kind}`);
 check('attachment keyed under the conversation', img.storagePath.startsWith(`${conv.id}/`), img.storagePath);
 
-const sent = await api.chat.sendMessage(conv.id, 'Here are my notes', [img, doc]);
-check('sendMessage returns the message with attachments', sent.attachmentCount === 2 && sent.attachments?.length === 2);
+const sent = await api.chat.sendMessage(conv.id, 'Here are my notes', [img, doc, word]);
+check('sendMessage returns the image, text file, and .docx', sent.attachmentCount === 3 && sent.attachments?.length === 3);
 
 // Attachment-only message (content '') must be allowed — that's the whole point of the feature.
 const imgOnly = await api.chat.uploadAttachment(conv.id, PNG.buffer, 'whiteboard.png', 'image/png');
@@ -74,9 +82,16 @@ check('empty message with no attachments is rejected', rejected);
 await signIn('sara@crimson.ua.edu');
 const asTutor = await api.chat.listMessages(conv.id);
 const withAtt = asTutor.find((m) => m.id === sent.id);
-check('counterpart sees the attachments', withAtt?.attachments?.length === 2, `${withAtt?.attachments?.length} embedded`);
-check('attachment metadata survives the round trip',
-  withAtt?.attachments?.some((a) => a.filename === 'diagram.png' && a.sizeBytes === PNG.byteLength && a.mimeType === 'image/png') ?? false);
+check('counterpart sees the attachments', withAtt?.attachments?.length === 3, `${withAtt?.attachments?.length} embedded`);
+const imageMetadataSurvives = withAtt?.attachments?.some(
+  (a) => a.filename === 'diagram.png' && a.sizeBytes === PNG.byteLength && a.mimeType === 'image/png',
+);
+const docxMetadataSurvives = withAtt?.attachments?.some(
+  (a) => a.filename === 'worksheet.docx'
+    && a.sizeBytes === DOCX.byteLength
+    && a.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+);
+check('attachment metadata survives the round trip', !!imageMetadataSurvives && !!docxMetadataSurvives);
 
 const urls = await api.chat.attachmentUrls([img.storagePath, doc.storagePath]);
 const fetched = await fetch(urls[img.storagePath]!);
@@ -86,6 +101,66 @@ check('counterpart can read the file via a signed URL',
 
 const pub = await fetch(sb.storage.from('chat-attachments').getPublicUrl(img.storagePath).data.publicUrl);
 check('bucket is NOT publicly readable', !pub.ok, `HTTP ${pub.status}`);
+
+const tutorPdf = await api.chat.uploadAttachment(conv.id, PDF.buffer, 'worksheet.pdf', 'application/pdf');
+const tutorSent = await api.chat.sendMessage(conv.id, 'Here is the worksheet', [tutorPdf]);
+check('tutor uploads and sends a PDF', tutorSent.attachmentCount === 1 && tutorSent.attachments?.[0]?.mimeType === 'application/pdf');
+
+await signIn('student@crimson.ua.edu');
+const asStudent = await api.chat.listMessages(conv.id);
+const tutorPdfMessage = asStudent.find((m) => m.id === tutorSent.id);
+check('student can list the tutor-sent PDF', tutorPdfMessage?.attachments?.some((a) => a.storagePath === tutorPdf.storagePath) ?? false);
+const studentPdfUrls = await api.chat.attachmentUrls([tutorPdf.storagePath]);
+const studentPdfUrl = studentPdfUrls[tutorPdf.storagePath];
+check('student can sign the tutor-sent PDF', !!studentPdfUrl);
+const studentPdfResponse = studentPdfUrl ? await fetch(studentPdfUrl) : null;
+const studentPdfBytes = studentPdfResponse ? new Uint8Array(await studentPdfResponse.arrayBuffer()) : new Uint8Array();
+check('student can read the signed tutor PDF',
+  !!studentPdfResponse?.ok && studentPdfBytes.length === PDF.byteLength && studentPdfBytes[0] === 0x25,
+  `${studentPdfBytes.length} bytes`);
+
+const { data: otherConversations, error: conversationsError } = await svc.from('conversations')
+  .select('id').neq('id', conv.id).limit(1);
+if (conversationsError) throw conversationsError;
+const otherConversationId = otherConversations?.[0]?.id as string | undefined;
+if (!otherConversationId) throw new Error('Expected another conversation for the attachment path check');
+
+type AttachmentInsert = {
+  message_id: string;
+  storage_path: string;
+  kind: 'image' | 'file';
+  filename: string;
+  size_bytes: number | null;
+  mime_type: string | null;
+};
+const validAttachment: AttachmentInsert = {
+  message_id: sent.id,
+  storage_path: `${conv.id}/valid.pdf`,
+  kind: 'file',
+  filename: 'valid.pdf',
+  size_bytes: 1,
+  mime_type: 'application/pdf',
+};
+const expectAttachmentRejected = async (name: string, overrides: Partial<AttachmentInsert>) => {
+  const { data, error } = await sb.from('message_attachments')
+    .insert({ ...validAttachment, ...overrides })
+    .select('id')
+    .maybeSingle();
+  if (data?.id) await svc.from('message_attachments').delete().eq('id', data.id);
+  check(name, error?.code === '23514', error ? `${error.code}: ${error.message}` : 'insert succeeded');
+};
+await expectAttachmentRejected('attachment path to another conversation is rejected', {
+  storage_path: `${otherConversationId}/forbidden.pdf`,
+});
+await expectAttachmentRejected('disallowed attachment MIME type is rejected', {
+  storage_path: `${conv.id}/payload.exe`,
+  filename: 'payload.exe',
+  mime_type: 'application/x-msdownload',
+});
+await expectAttachmentRejected('attachment kind/MIME mismatch is rejected', {
+  storage_path: `${conv.id}/wrong-kind.pdf`,
+  kind: 'image',
+});
 
 // --- an outsider must see nothing --------------------------------------------------------
 // A third seeded user who is not a participant in this conversation.
