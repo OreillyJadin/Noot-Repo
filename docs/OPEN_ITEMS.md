@@ -68,7 +68,7 @@ production project, Stripe, App Store Connect or the website. File names below a
 
 - Create the Cloudflare Pages project for the web app and set its env vars.
 - Add the Pages address (`https://<name>.pages.dev/**`) to Supabase → Auth → URL Configuration → Redirect URLs.
-- Custom domain for the web app: deferred.
+- Custom domain `app.trynoot.com`, DNS record and Marble font swap: `docs/WEB_APP_DOMAIN_AND_BRANDING.md`.
 
 ## Decisions for Jadin
 

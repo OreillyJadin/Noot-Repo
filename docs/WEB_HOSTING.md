@@ -3,7 +3,7 @@
 The web app is `apps/mobile` exported as a static single-page app
 (`pnpm --filter @noot/mobile build:web` → `apps/mobile/dist/`). It talks to the same Supabase
 project and Stripe account as the phone app, so an account works on both. `apps/web` (the
-Next.js marketing site at trynoot.com) is separate and unaffected.
+Next.js marketing site) is separate and unaffected; trynoot.com itself is Jacob's WordPress site.
 
 ## Host: Cloudflare Pages (recommended)
 
@@ -12,7 +12,7 @@ Next.js marketing site at trynoot.com) is separate and unaffected.
 - With no top-level `404.html` in the output (our export has none), Pages serves
   `index.html` for unknown paths, which is the SPA fallback deep links like
   `/auth-callback?code=…` and `/tutor_profile` need. Nothing to configure.
-- The custom domain is deferred; Pages can add one later without changing the build.
+- Custom domain `app.trynoot.com`: see `docs/WEB_APP_DOMAIN_AND_BRANDING.md`. Pages adds it without changing the build.
 
 ### Steps for Jadin (one time)
 
