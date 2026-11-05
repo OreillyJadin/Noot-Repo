@@ -475,6 +475,9 @@ export interface Cashout {
   createdAt: string;
   paidAt: string | null;
   rejectedAt: string | null;
+  payingAt: string | null;
+  payUnknownAt: string | null;
+  transferRef: string | null;
 }
 
 /** An ambassador the team hasn't approved yet (admin_ambassador_queue). */

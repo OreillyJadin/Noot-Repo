@@ -16,6 +16,7 @@ import { normalizeCourseQuery } from '../courseSearch';
 import { mapAdminCourseRequest, mapCourseRequest } from '../courseRequests';
 import { mapTutorDemand } from '../tutorDemand';
 import { mergeAvailabilityWindows } from '../availability';
+import { mapCashout } from '../cashout';
 import {
   friendlyStorageError,
   MIME_BY_EXT,
@@ -800,16 +801,6 @@ export interface SubmitRatingInput {
 // ---------------------------------------------------------------------------
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped Supabase row, like the mappers above */
-function mapCashout(row: Record<string, unknown>): Cashout {
-  return {
-    id: row.id as string,
-    amountCents: Number(row.amount_cents ?? 0),
-    status: row.status as Cashout['status'],
-    createdAt: row.created_at as string,
-    paidAt: (row.paid_at as string | null) ?? null,
-    rejectedAt: (row.rejected_at as string | null) ?? null,
-  };
-}
 function mapAmbassadorProfile(row: any): AmbassadorProfile {
   return {
     id: row.id,
@@ -1707,11 +1698,30 @@ export const api = {
     async cashouts(): Promise<Cashout[]> {
       const { data, error } = await getSupabase()
         .from('credit_cashouts')
-        .select('id, amount_cents, status, created_at, paid_at, rejected_at')
+        .select('id, amount_cents, status, created_at, paid_at, rejected_at, paying_at, pay_unknown_at, stripe_transfer_id')
         .order('created_at', { ascending: false })
         .limit(20);
       if (error) throw error;
       return ((data ?? []) as Record<string, unknown>[]).map(mapCashout);
+    },
+
+    async cashoutTotals(): Promise<{ paidCents: number; pendingCents: number }> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('credit_cashouts')
+        .select('status, amount_cents')
+        .eq('user_id', uid)
+        .in('status', ['paid', 'pending']);
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).reduce<{ paidCents: number; pendingCents: number }>(
+        (totals, row) => {
+          const cents = Number(row.amount_cents ?? 0);
+          if (row.status === 'paid') totals.paidCents += cents;
+          if (row.status === 'pending') totals.pendingCents += cents;
+          return totals;
+        },
+        { paidCents: 0, pendingCents: 0 },
+      );
     },
   },
 
