@@ -45,6 +45,8 @@ export function Button({
   const large = useLargeText();
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled }}
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
       style={({ pressed }) => [
