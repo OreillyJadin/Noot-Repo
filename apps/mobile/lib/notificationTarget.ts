@@ -112,8 +112,16 @@ export function targetFor(
     return { role, route: { pathname: '/sessions', params: { tab: 'past' } } };
   }
 
+  if (n.type === 'system' && n.data.event === 'tutor_weekly_digest') {
+    return { role: 'tutor', route: '/tutor_home' };
+  }
+
   if (n.type === 'system' && (n.data.interviewId || n.data.scheduledAt)) {
     return { role: 'tutor', route: '/tutor_home' };
+  }
+
+  if (n.type === 'system' && n.data.event === 'course_request_covered' && typeof n.data.courseCode === 'string') {
+    return { role: 'student', route: `/b1?q=${encodeURIComponent(n.data.courseCode)}` };
   }
 
   return { role: ctx.currentRole, route: '/notifications' };

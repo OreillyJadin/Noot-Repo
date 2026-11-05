@@ -173,6 +173,15 @@ export interface GrowthFunnel {
   rebookAllTime: { students: number; completers: number; rate: number };
 }
 
+export interface TutorDemand {
+  profileViews: number;
+  uniqueViewers: number;
+  openRequests: { courseCode: string; requests: number }[];
+  openRequestTotal: number;
+  earned: number;
+  sessionsCompleted: number;
+}
+
 /** An in-app notification in a user's feed (0014). Created by DB triggers on events. */
 export interface Notification {
   id: UUID;
@@ -331,6 +340,23 @@ export interface CatalogCourse {
   subjectName: string;
   creditHours: string | null;
   collegeName: string;
+  /** At least one approved, active, non-deleted tutor teaches this course. */
+  hasTutor: boolean;
+}
+
+export interface CourseRequest {
+  id: UUID;
+  courseCode: string;
+  status: 'open' | 'fulfilled' | 'expired';
+  createdAt: Timestamp;
+}
+
+export interface AdminCourseRequest {
+  courseCode: string;
+  courseTitle: string;
+  requests: number;
+  latestAt: Timestamp;
+  covered: boolean;
 }
 
 /** A campus location available for in-person tutoring sessions. */
