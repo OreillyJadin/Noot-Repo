@@ -8,6 +8,7 @@
 // Both functions call resolveBooking() and use ONLY what it returns. Nothing about money
 // or tutor eligibility is read from the request body.
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { MIN_BOOKING_LEAD_HOURS } from './acceptance.ts';
 import { splitPrice, studentFeeFor } from './fees.ts';
 import { getPayoutStatus, type PayoutStatus } from './connect.ts';
 
@@ -27,6 +28,7 @@ export type ResolveBookingInput = {
   courseCode: unknown;
   durationMinutes: unknown;
   scheduledAt: unknown;
+  minLeadMs?: number;
 };
 
 /**
@@ -64,9 +66,9 @@ export type ResolvedBooking = {
 /** Thrown for anything the client is allowed to be told about. */
 export class BookingError extends Error {
   status: number;
-  /** Marks the slot-taken failures so a caller can release the card hold they left behind. */
-  reason?: 'slot_taken' | 'outside_availability';
-  constructor(message: string, status = 400, reason?: 'slot_taken' | 'outside_availability') {
+  /** Marks failures where a caller may release an unclaimed card hold. */
+  reason?: 'slot_taken' | 'too_soon' | 'outside_availability';
+  constructor(message: string, status = 400, reason?: 'slot_taken' | 'too_soon' | 'outside_availability') {
     super(message);
     this.name = 'BookingError';
     this.status = status;
@@ -192,6 +194,10 @@ export async function resolveBooking(
   if (Number.isNaN(scheduled.getTime())) throw new BookingError('scheduledAt is not a valid date');
   const now = Date.now();
   if (scheduled.getTime() <= now) throw new BookingError('That time is in the past');
+  const minLeadMs = input.minLeadMs ?? MIN_BOOKING_LEAD_HOURS * 60 * 60 * 1000;
+  if (scheduled.getTime() < now + minLeadMs) {
+    throw new BookingError('Sessions need to be booked at least 2 hours ahead', 400, 'too_soon');
+  }
   if (scheduled.getTime() > now + BOOKING_HORIZON_DAYS * 24 * 60 * 60 * 1000) {
     throw new BookingError(`Sessions can only be booked up to ${BOOKING_HORIZON_DAYS} days ahead`);
   }

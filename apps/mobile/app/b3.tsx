@@ -20,7 +20,7 @@ import {
   useTheme,
   type IconName,
 } from '@noot/ui';
-import { campusInstant, addCampusDays, api, type BusyTime, type TutorAvailability, type TutoringLocation } from '@noot/core';
+import { campusInstant, addCampusDays, MIN_BOOKING_LEAD_HOURS, api, type BusyTime, type TutorAvailability, type TutoringLocation } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe, firstName } from '../lib/useMe';
 import { BOOKABLE_DAYS, MONTHS } from '../lib/data';
@@ -89,7 +89,10 @@ function B3Inner() {
   const [day, setDay] = useState<number>(booking.dayIndex ?? 0);
   const [slot, setSlot] = useState<string | null>(booking.slot ?? null);
   const [length, setLength] = useState<number>(booking.lengthMin ?? 60);
-  const slots = useMemo(() => slotsFromWindows(windows, length), [windows, length]);
+  const slots = useMemo(
+    () => slotsFromWindows(windows, length, new Date(), MIN_BOOKING_LEAD_HOURS * 60),
+    [windows, length],
+  );
   const booked = useMemo(() => bookedSlots(slots, busy, length), [slots, busy, length]);
   const hasWeeklySlots = BOOKABLE_DAYS.some(
     (d) => (slots[d.i]?.length ?? 0) > 0,
@@ -351,6 +354,9 @@ function B3Inner() {
               );
             })}
           </View>
+          <Text style={{ fontSize: 12, color: t.text3, marginTop: 8 }}>
+            Sessions can be booked at least 2 hours ahead.
+          </Text>
           {daySlots.length === 0 || fullyBooked ? (
             <Text style={{ fontSize: 13, color: t.text3, paddingVertical: 4 }}>
               {fullyBooked
