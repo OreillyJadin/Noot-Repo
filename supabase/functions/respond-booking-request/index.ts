@@ -105,6 +105,7 @@ serveWithErrorReporting('respond-booking-request', async (req: Request) => {
               conversation_id: conversation.id,
               sender_id: booking.student_id,
               content: requestNote,
+              is_system: true,
             });
             if (requestNoteError) {
               console.error('respond-booking-request: request note insert failed', bookingId, requestNoteError.message);
@@ -118,6 +119,7 @@ serveWithErrorReporting('respond-booking-request', async (req: Request) => {
             conversation_id: conversation.id,
             sender_id: user.id,
             content: `Accepted your ${booking.subject} session — see you ${when}!`,
+            is_system: true,
           });
           if (messageError) console.error('respond-booking-request: acceptance message failed', bookingId, messageError.message);
         }
