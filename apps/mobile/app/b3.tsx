@@ -351,6 +351,9 @@ function B3Inner() {
               );
             })}
           </View>
+          <Text style={{ fontSize: 12, color: t.text3, marginTop: 8 }}>
+            Sessions can be booked at least 2 hours ahead.
+          </Text>
           {daySlots.length === 0 || fullyBooked ? (
             <Text style={{ fontSize: 13, color: t.text3, paddingVertical: 4 }}>
               {fullyBooked

@@ -8,6 +8,7 @@
 // Both functions call resolveBooking() and use ONLY what it returns. Nothing about money
 // or tutor eligibility is read from the request body.
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { MIN_BOOKING_LEAD_HOURS } from './acceptance.ts';
 import { splitPrice, studentFeeFor } from './fees.ts';
 import { getPayoutStatus, type PayoutStatus } from './connect.ts';
 
@@ -192,6 +193,9 @@ export async function resolveBooking(
   if (Number.isNaN(scheduled.getTime())) throw new BookingError('scheduledAt is not a valid date');
   const now = Date.now();
   if (scheduled.getTime() <= now) throw new BookingError('That time is in the past');
+  if (scheduled.getTime() < now + MIN_BOOKING_LEAD_HOURS * 60 * 60 * 1000) {
+    throw new BookingError('Sessions need to be booked at least 2 hours ahead');
+  }
   if (scheduled.getTime() > now + BOOKING_HORIZON_DAYS * 24 * 60 * 60 * 1000) {
     throw new BookingError(`Sessions can only be booked up to ${BOOKING_HORIZON_DAYS} days ahead`);
   }

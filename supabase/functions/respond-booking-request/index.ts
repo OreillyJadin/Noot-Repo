@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { SHORT_NOTICE_ACCEPT_CUTOFF_HOURS } from '../_shared/acceptance.ts';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { isBlockedBetween } from '../_shared/booking.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
@@ -65,12 +66,22 @@ serveWithErrorReporting('respond-booking-request', async (req: Request) => {
       if (!booking.accept_by || now.getTime() >= new Date(booking.accept_by).getTime()) {
         return Response.json({ error: 'This request has expired' }, { status: 409, headers: cors });
       }
+      const earliestStart = new Date(
+        now.getTime() + SHORT_NOTICE_ACCEPT_CUTOFF_HOURS * 60 * 60 * 1000,
+      ).toISOString();
+      if (new Date(booking.scheduled_at).getTime() <= new Date(earliestStart).getTime()) {
+        return Response.json(
+          { error: 'This request is too close to the start time to accept' },
+          { status: 409, headers: cors },
+        );
+      }
       const { data: updated, error: updateError } = await db
         .from('bookings')
         .update({ status: 'confirmed', accepted_at: now.toISOString() })
         .eq('id', bookingId)
         .eq('status', 'pending')
         .gt('accept_by', now.toISOString())
+        .gt('scheduled_at', earliestStart)
         .select('id')
         .maybeSingle();
       if (updateError) throw updateError;

@@ -20,6 +20,7 @@ const studentEmail = `err039-student-${emailTag}@crimson.ua.edu`;
 const otherEmail = `err039-other-${emailTag}@crimson.ua.edu`;
 const bookings: string[] = [];
 const intents: string[] = [];
+const availabilityIds: string[] = [];
 let pass = 0;
 let fail = 0;
 const step = (name: string, ok: boolean, detail = '') => {
@@ -78,6 +79,39 @@ const chicagoWeekday = (days: number) => {
     Number(local.month) - 1,
     Number(local.day) + days,
   )).getUTCDay();
+};
+const localParts = (date: Date) =>
+  Object.fromEntries(chicagoFormatter.formatToParts(date).map((part) => [part.type, part.value]));
+const addShortNoticeAvailability = async () => {
+  const durationMinutes = 30;
+  const nowMs = Date.now();
+  let scheduledAtMs = nowMs + 2.5 * 3_600_000;
+  let local = localParts(new Date(scheduledAtMs));
+  let startMinute = Number(local.hour) * 60 + Number(local.minute);
+  if (startMinute + durationMinutes > 24 * 60) {
+    scheduledAtMs -= (startMinute + durationMinutes - 24 * 60) * 60_000;
+    local = localParts(new Date(scheduledAtMs));
+    startMinute = Number(local.hour) * 60 + Number(local.minute);
+  }
+  if (scheduledAtMs - nowMs < 2 * 3_600_000 || scheduledAtMs - nowMs >= 3 * 3_600_000) {
+    throw new Error('Could not place a short-notice fixture between two and three hours from now');
+  }
+  const time = (minute: number) =>
+    `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+  const dayOfWeek = new Date(Date.UTC(
+    Number(local.year),
+    Number(local.month) - 1,
+    Number(local.day),
+  )).getUTCDay();
+  const { data, error } = await admin.from('tutor_availability').insert({
+    tutor_id: tutorId,
+    day_of_week: dayOfWeek,
+    start_time: time(startMinute),
+    end_time: time(startMinute + durationMinutes),
+  }).select('id').single();
+  if (error || !data) throw error ?? new Error('Could not create short-notice availability');
+  availabilityIds.push(data.id);
+  return new Date(scheduledAtMs).toISOString();
 };
 const call = async (name: string, body: unknown, token?: string) => {
   const response = await fetch(`${URL}/functions/v1/${name}`, {
@@ -211,6 +245,56 @@ try {
   step('booking stores the session price and service fee', Number(pending?.price) === sessionPrice &&
     Number(pending?.student_fee) === expectedStudentFee,
     `stored $${pending?.price} session + $${pending?.student_fee} fee`);
+
+  stage = 'verify minimum booking lead time and short-notice deadline';
+  const ninetyMinuteAt = hoursFromNow(1.5);
+  const tooSoonIntent = await call('create-payment-intent', {
+    tutorId, courseCode, durationMinutes: 60, scheduledAt: ninetyMinuteAt,
+  }, studentToken);
+  step('create-payment-intent rejects a booking 90 minutes out',
+    tooSoonIntent.status === 400 && /at least 2 hours ahead/i.test(String(tooSoonIntent.body.error)),
+    `HTTP ${tooSoonIntent.status}: ${tooSoonIntent.body.error ?? ''}`);
+  const tooSoonConfirm = await call('confirm-booking', {
+    tutorId, courseCode, durationMinutes: 60, scheduledAt: ninetyMinuteAt,
+    sessionType: 'in_person', paymentIntentId: `sim_pi_lead_time_${crypto.randomUUID()}`,
+  }, studentToken);
+  step('confirm-booking rejects a booking 90 minutes out',
+    tooSoonConfirm.status === 400 && /at least 2 hours ahead/i.test(String(tooSoonConfirm.body.error)),
+    `HTTP ${tooSoonConfirm.status}: ${tooSoonConfirm.body.error ?? ''}`);
+
+  const shortNoticeAt = await addShortNoticeAvailability();
+  const shortNoticePi = await api.createPaymentIntent({
+    tutorId, courseCode, durationMinutes: 30, scheduledAt: shortNoticeAt,
+  });
+  intents.push(shortNoticePi.paymentIntentId);
+  if (shortNoticePi.paymentIntentId.startsWith('pi_')) await authorizeHold(shortNoticePi.paymentIntentId);
+  const shortNoticeBooking = await api.bookings.confirm({
+    tutorId, courseCode, scheduledAt: shortNoticeAt, durationMinutes: 30, sessionType: 'in_person',
+    paymentIntentId: shortNoticePi.paymentIntentId,
+  });
+  bookings.push(shortNoticeBooking.bookingId);
+  const { data: shortNoticeRow, error: shortNoticeError } = await admin.from('bookings')
+    .select('scheduled_at,accept_by').eq('id', shortNoticeBooking.bookingId).single();
+  if (shortNoticeError) throw shortNoticeError;
+  const shortNoticeStart = new Date(shortNoticeAt).getTime();
+  const shortNoticeLead = shortNoticeStart - Date.now();
+  step('a booking about two and a half hours out has a deadline one hour before start',
+    shortNoticeLead >= 2 * 3_600_000 && shortNoticeLead < 3 * 3_600_000 &&
+    Math.abs(
+      new Date(shortNoticeRow.accept_by).getTime() - (new Date(shortNoticeRow.scheduled_at).getTime() - 3_600_000),
+    ) <= 60_000,
+    `lead=${Math.round(shortNoticeLead / 60_000)} minutes, accept_by=${shortNoticeRow.accept_by}`);
+  const { error: shortNoticeRescheduleError } = await admin.from('bookings')
+    .update({ scheduled_at: hoursFromNow(50 / 60) }).eq('id', shortNoticeBooking.bookingId);
+  if (shortNoticeRescheduleError) throw shortNoticeRescheduleError;
+  const tooCloseAccept = await call(
+    'respond-booking-request',
+    { bookingId: shortNoticeBooking.bookingId, action: 'accept' },
+    tutorToken,
+  );
+  step('tutor cannot accept a request 50 minutes before start',
+    tooCloseAccept.status === 409 && /too close to the start time to accept/i.test(String(tooCloseAccept.body.error)),
+    `HTTP ${tooCloseAccept.status}: ${tooCloseAccept.body.error ?? ''}`);
 
   stage = 'verify overlapping slot and response authorization';
   await auth.signInWithPassword(otherEmail, PASSWORD);
@@ -378,6 +462,7 @@ try {
   console.error(`Verification setup/error at ${stage}:`, e);
   fail++;
 } finally {
+  if (availabilityIds.length) await admin.from('tutor_availability').delete().in('id', availabilityIds);
   for (const bookingId of bookings) {
     await admin.from('notifications').delete().contains('data', { bookingId });
   }

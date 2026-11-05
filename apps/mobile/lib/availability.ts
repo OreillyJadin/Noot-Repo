@@ -1,7 +1,7 @@
 // Turns a tutor's recurring weekly availability windows (api.tutors.getAvailability)
 // into the concrete per-day slot maps the booking + calendar screens render. This is
 // the real replacement for the old client-side slotsFor() mock generator.
-import { campusInstant, campusParts, campusSlotISO, formatCampusTime, mergeAvailabilityWindows, type BusyTime, type TutorAvailability } from '@noot/core';
+import { campusInstant, campusParts, campusSlotISO, formatCampusTime, mergeAvailabilityWindows, MIN_BOOKING_LEAD_HOURS, type BusyTime, type TutorAvailability } from '@noot/core';
 import { DAYS, MONTHS, buildDays } from './data';
 
 /** "14:00" / "14:30" → minutes since midnight. */
@@ -24,14 +24,13 @@ export function fmtSlot(min: number): string {
  * window: { dayIndex -> ["12:00 PM", "1:00 PM", …] }. Days with no matching window are
  * omitted (so the picker can grey them out).
  *
- * Slots earlier than now on day 0 ("Today") are dropped: the booking picker defaults to
- * a day, so offering a time that has already passed sends the student all the way to
- * payment before the server refuses it with "That time is in the past".
+ * Slots starting less than MIN_BOOKING_LEAD_HOURS from now are dropped throughout the
+ * calendar, so the picker cannot offer a time the server will refuse at checkout.
  */
 export function slotsFromWindows(windows: TutorAvailability[], lengthMin = 60, now = new Date()): Record<number, string[]> {
   const map: Record<number, string[]> = {};
   const mergedWindows = mergeAvailabilityWindows(windows);
-  const minutesNow = campusParts(now).minutes;
+  const earliestStart = now.getTime() + MIN_BOOKING_LEAD_HOURS * 60 * 60_000;
   for (const d of buildDays(now)) {
     const dayWindows = mergedWindows.filter((w) => w.dayOfWeek === d.dowNum);
     if (dayWindows.length === 0) continue;
@@ -39,9 +38,9 @@ export function slotsFromWindows(windows: TutorAvailability[], lengthMin = 60, n
     for (const w of dayWindows) {
       const end = parseHM(w.endTime);
       for (let m = parseHM(w.startTime); m + lengthMin <= end; m += 60) {
-        if (d.i === 0 && m <= minutesNow) continue; // already passed today
         try {
           const at = campusInstant({ year: d.year, month: MONTHS.indexOf(d.month) + 1, day: d.dom }, m);
+          if (at.getTime() < earliestStart) continue;
           const endParts = campusParts(at.getTime() + lengthMin * 60_000);
           if (endParts.day !== d.dom || endParts.minutes > end) continue;
           starts.add(m);
