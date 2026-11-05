@@ -103,6 +103,9 @@ try {
   check('normal authenticated message is not a system message', normalMessage.is_system === false);
   check('normal authenticated message creates exactly one message notification',
     await countNotifications(tutor.id, 'message', conversationId) === 1);
+  const { error: clearMessageNotificationError } = await db.from('notifications').delete()
+    .eq('user_id', tutor.id).eq('type', 'message').contains('data', { conversationId });
+  if (clearMessageNotificationError) throw clearMessageNotificationError;
 
   const { error: forgedInsertError } = await student.client.from('messages').insert({
     conversation_id: conversationId,
@@ -172,6 +175,13 @@ try {
   check('student receives exactly one Video session ready notification', readyCount === 1);
   check('video system message creates no message notification for student',
     await countNotifications(student.id, 'message', conversationId) === 0);
+  const { count: tutorReadyCount, error: tutorReadyError } = await db.from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', tutor.id).eq('title', 'Video session ready').contains('data', { bookingId: booking.id });
+  if (tutorReadyError) throw tutorReadyError;
+  check('tutor receives exactly one Video session ready notification', tutorReadyCount === 1);
+  check('video system message creates no message notification for tutor',
+    await countNotifications(tutor.id, 'message', conversationId) === 0);
 } catch (error) {
   failed++;
   console.error('FAIL verification error', error);
