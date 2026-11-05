@@ -11,7 +11,7 @@
     "web": "expo start --web",
     "build:web": "expo export --platform web",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint app lib"
+    "lint": "eslint app lib web"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.16",
