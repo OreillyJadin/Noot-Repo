@@ -82,10 +82,13 @@ const chicagoWeekday = (days: number) => {
 };
 const localParts = (date: Date) =>
   Object.fromEntries(chicagoFormatter.formatToParts(date).map((part) => [part.type, part.value]));
-const addShortNoticeAvailability = async () => {
-  const durationMinutes = 30;
+const addAvailabilityAtLead = async (
+  leadMinutes: number,
+  durationMinutes: number,
+  minimumLeadMinutes: number,
+) => {
   const nowMs = Date.now();
-  let scheduledAtMs = nowMs + 2.5 * 3_600_000;
+  let scheduledAtMs = nowMs + leadMinutes * 60_000;
   let local = localParts(new Date(scheduledAtMs));
   let startMinute = Number(local.hour) * 60 + Number(local.minute);
   if (startMinute + durationMinutes > 24 * 60) {
@@ -93,8 +96,8 @@ const addShortNoticeAvailability = async () => {
     local = localParts(new Date(scheduledAtMs));
     startMinute = Number(local.hour) * 60 + Number(local.minute);
   }
-  if (scheduledAtMs - nowMs < 2 * 3_600_000 || scheduledAtMs - nowMs >= 3 * 3_600_000) {
-    throw new Error('Could not place a short-notice fixture between two and three hours from now');
+  if (scheduledAtMs - nowMs < minimumLeadMinutes * 60_000) {
+    throw new Error(`Could not place an availability fixture at least ${minimumLeadMinutes} minutes ahead`);
   }
   const time = (minute: number) =>
     `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
@@ -109,7 +112,7 @@ const addShortNoticeAvailability = async () => {
     start_time: time(startMinute),
     end_time: time(startMinute + durationMinutes),
   }).select('id').single();
-  if (error || !data) throw error ?? new Error('Could not create short-notice availability');
+  if (error || !data) throw error ?? new Error('Could not create availability');
   availabilityIds.push(data.id);
   return new Date(scheduledAtMs).toISOString();
 };
@@ -262,7 +265,26 @@ try {
     tooSoonConfirm.status === 400 && /at least 2 hours ahead/i.test(String(tooSoonConfirm.body.error)),
     `HTTP ${tooSoonConfirm.status}: ${tooSoonConfirm.body.error ?? ''}`);
 
-  const shortNoticeAt = await addShortNoticeAvailability();
+  const graceAt = await addAvailabilityAtLead(112, 1, 106);
+  const graceConfirm = await call('confirm-booking', {
+    tutorId, courseCode, durationMinutes: 1, scheduledAt: graceAt,
+    sessionType: 'in_person', paymentIntentId: `sim_pi_checkout_grace_${crypto.randomUUID()}`,
+  }, studentToken);
+  if (typeof graceConfirm.body.bookingId === 'string') bookings.push(graceConfirm.body.bookingId);
+  step('confirm-booking accepts a booking about 1h52 out in simulated mode',
+    graceConfirm.status === 200 && typeof graceConfirm.body.bookingId === 'string',
+    `HTTP ${graceConfirm.status}: ${graceConfirm.body.error ?? ''}`);
+
+  const belowGraceAt = hoursFromNow(1 + 40 / 60);
+  const belowGraceConfirm = await call('confirm-booking', {
+    tutorId, courseCode, durationMinutes: 1, scheduledAt: belowGraceAt,
+    sessionType: 'in_person', paymentIntentId: `sim_pi_checkout_expired_${crypto.randomUUID()}`,
+  }, studentToken);
+  step('confirm-booking rejects a booking about 1h40 out',
+    belowGraceConfirm.status === 400 && /at least 2 hours ahead/i.test(String(belowGraceConfirm.body.error)),
+    `HTTP ${belowGraceConfirm.status}: ${belowGraceConfirm.body.error ?? ''}`);
+
+  const shortNoticeAt = await addAvailabilityAtLead(150, 30, 120);
   const shortNoticePi = await api.createPaymentIntent({
     tutorId, courseCode, durationMinutes: 30, scheduledAt: shortNoticeAt,
   });

@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   ACCEPT_CUTOFF_HOURS,
   ACCEPT_WINDOW_HOURS,
+  CHECKOUT_GRACE_MINUTES,
   MIN_BOOKING_LEAD_HOURS,
   SHORT_NOTICE_ACCEPT_CUTOFF_HOURS,
   acceptDeadline,
@@ -48,14 +49,15 @@ test('a booking exactly two hours out gives the tutor one hour to respond', () =
   );
 });
 
-test('all allowed start times leave the tutor and student at least one hour', () => {
+test('all allowed start times leave the tutor at least 45 minutes and the student an hour', () => {
   const now = Date.UTC(2026, 0, 1);
   const furthestStart = 14 * 24 * hour;
   const step = 5 * 60 * 1000;
-  for (let offset = MIN_BOOKING_LEAD_HOURS * hour; offset <= furthestStart; offset += step) {
+  const minimumLead = MIN_BOOKING_LEAD_HOURS * hour - CHECKOUT_GRACE_MINUTES * 60 * 1000;
+  for (let offset = minimumLead; offset <= furthestStart; offset += step) {
     const scheduledAt = now + offset;
     const deadline = acceptDeadline(now, scheduledAt).getTime();
-    assert.ok(deadline - now >= SHORT_NOTICE_ACCEPT_CUTOFF_HOURS * hour, `tutor response window at ${offset}ms`);
+    assert.ok(deadline - now >= (60 - CHECKOUT_GRACE_MINUTES) * 60 * 1000, `tutor response window at ${offset}ms`);
     assert.ok(scheduledAt - deadline >= SHORT_NOTICE_ACCEPT_CUTOFF_HOURS * hour, `student notice window at ${offset}ms`);
   }
 });

@@ -1,4 +1,5 @@
 export const MIN_BOOKING_LEAD_HOURS = 2;
+export const CHECKOUT_GRACE_MINUTES = 15;
 export const ACCEPT_WINDOW_HOURS = 12;
 export const ACCEPT_CUTOFF_HOURS = 2;
 export const SHORT_NOTICE_ACCEPT_CUTOFF_HOURS = 1;
