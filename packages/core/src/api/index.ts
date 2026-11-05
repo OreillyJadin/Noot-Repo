@@ -2280,8 +2280,8 @@ export const api = {
 
   // --- bookings (trust-sensitive writes → Edge Functions, see ARCHITECTURE.md §5) ---
   bookings: {
-    joinVideo(bookingId: string): Promise<{ url: string }> {
-      return invokeFn('join-video-session', { bookingId });
+    joinVideo(bookingId: string, opts?: { device?: 'phone' | 'computer' }): Promise<{ url: string }> {
+      return invokeFn('join-video-session', { bookingId, ...(opts ?? {}) });
     },
 
     createPaymentUpdate(bookingId: string): Promise<{
