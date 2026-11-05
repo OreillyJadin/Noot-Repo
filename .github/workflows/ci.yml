@@ -163,6 +163,7 @@ jobs:
             verify_tutor_busy_times
             verify_tutor_session_detail_ui
             verify_tutor_public_fields
+            verify_tutor_response_stats
             verify_tutor_avatar
             verify_tutor_rate_bounds
             verify_tutor_standing

@@ -1,11 +1,11 @@
 // TH Tutor Home (Dashboard) — ported from screens-home.jsx (TutorHome).
 // Lightweight dashboard: next session + payout countdown, weekly stats, quick
 // management actions. Tab root (tutor Home tab).
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, type ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Body, BandHeader, TabBar, Card, Avatar, Ic, H2, Button, ViewingAs, useTheme, useLargeText, AdaptiveRow, ListSection, ListRow, CountPill, type IconName } from '@noot/ui';
-import { api, formatCampusDate, type Booking } from '@noot/core';
+import { api, formatCampusDate, type Booking, type TutorSummary } from '@noot/core';
 import { useApp } from '../lib/store';
 import { draftFromBooking } from '../lib/bookingDraft';
 import { useMe, firstName } from '../lib/useMe';
@@ -37,6 +37,15 @@ export default function TutorHome() {
   // APPLICATION state, not the role: the tutor role only lands when an admin approves, so a
   // role check would keep saying "preview" to someone who is already a verified tutor.
   const previewing = tutorStatus !== 'approved';
+  const [ownTutor, setOwnTutor] = useState<TutorSummary | null>(null);
+  const meId = me?.id;
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void (meId ? api.tutors.getById(meId) : Promise.resolve(null))
+      .then((profile) => { if (active) setOwnTutor(profile); })
+      .catch(() => { if (active) setOwnTutor(null); });
+    return () => { active = false; };
+  }, [meId]));
 
   // Next confirmed session and pending requests from the live API.
   const [next, setNext] = useState<Booking | null>(null);
@@ -222,6 +231,20 @@ export default function TutorHome() {
                   </View>
                 );
               })}
+            </ListSection>
+          </View>
+        ) : null}
+
+        {ownTutor && ownTutor.bio.trim().length < 40 ? (
+          <View style={styles.section}>
+            <ListSection>
+              <ListRow
+                size="regular"
+                icon="user"
+                title="Add an intro to your profile"
+                subtitle="Say what you teach, your grade in the course and how you run a session"
+                onPress={() => router.push('/edit_tutor')}
+              />
             </ListSection>
           </View>
         ) : null}
