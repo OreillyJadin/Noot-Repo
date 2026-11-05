@@ -240,9 +240,14 @@ export interface ReferralBonus {
 export type SessionType = 'video' | 'in_person';
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
 export type RefundStatus = 'not_applicable' | 'refunded' | 'not_refunded';
+export type BookingSeriesStatus = 'pending' | 'active' | 'stopped' | 'completed' | 'ended' | 'cancelled';
 
 export interface Booking {
   id: UUID;
+  seriesId: UUID | null;
+  seriesIndex: number | null;
+  seriesStatus: BookingSeriesStatus | null;
+  seriesWeeks: number | null;
   studentId: UUID;
   tutorId: UUID;
   subject: string;

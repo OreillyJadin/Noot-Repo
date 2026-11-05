@@ -47,6 +47,10 @@ serveWithErrorReporting('confirm-booking', async (req) => {
     if (inactiveResponse) return inactiveResponse;
 
     const body = await req.json().catch(() => ({}));
+    const repeatWeeks = body?.repeatWeeks;
+    if (repeatWeeks !== undefined && (!Number.isInteger(repeatWeeks) || repeatWeeks < 2 || repeatWeeks > 12)) {
+      return Response.json({ error: 'repeatWeeks must be an integer from 2 to 12.' }, { status: 400, headers: cors });
+    }
 
     const {
       courseCode,
@@ -135,6 +139,10 @@ serveWithErrorReporting('confirm-booking', async (req) => {
       throw e;
     }
 
+    if (repeatWeeks !== undefined && new Date(resolved.scheduledAt).getTime() < Date.now() + 24 * 60 * 60 * 1000) {
+      return Response.json({ error: 'Weekly sessions require the first session to be at least 24 hours away.' }, { status: 400, headers: cors });
+    }
+
     // Verify the held PaymentIntent really covers this booking. Without this the amount
     // Stripe authorized and the amount we pay the tutor are unrelated numbers.
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
@@ -146,10 +154,13 @@ serveWithErrorReporting('confirm-booking', async (req) => {
     let storedSetupIntentId: string | null = null;
     let paymentMethodId: string | null = null;
     let holdPlacedAt: string | null = null;
-    const deferred = Boolean(setupIntentId) ||
+    const deferred = repeatWeeks !== undefined || Boolean(setupIntentId) ||
       new Date(resolved.scheduledAt).getTime() > Date.now() + IMMEDIATE_HOLD_DAYS * 86400000;
     const adminFree = await isAdmin(userClient);
     if (adminFree) {
+      if (repeatWeeks !== undefined) {
+        return Response.json({ error: "Repeat weekly isn't available on this booking." }, { status: 400, headers: cors });
+      }
       resolved = freeBookingFor(resolved);
       storedPaymentIntentId = null;
     } else if (deferred && stripeKey) {
@@ -169,6 +180,8 @@ serveWithErrorReporting('confirm-booking', async (req) => {
           meta?.course_code !== resolved.courseCode || meta?.scheduled_at !== resolved.scheduledAt ||
           meta?.duration_minutes !== String(resolved.durationMinutes) ||
           meta?.student_fee_cents !== String(Math.round(resolved.studentFee * 100)) ||
+          (repeatWeeks !== undefined && meta?.repeat_weeks !== String(repeatWeeks)) ||
+          (repeatWeeks === undefined && meta?.repeat_weeks !== undefined && meta.repeat_weeks !== '') ||
           claimed === null || meta?.amount !== String(resolved.amountCents - claimed)) {
         return Response.json({ error: 'That saved payment does not match this session.' }, { status: 400, headers: cors });
       }
@@ -219,8 +232,13 @@ serveWithErrorReporting('confirm-booking', async (req) => {
       holdPlacedAt = new Date(pi.created * 1000).toISOString();
     } else {
       // No Stripe configured (local/dev) — create-payment-intent returned a simulated id.
+      if (repeatWeeks !== undefined &&
+          (typeof setupIntentId !== 'string' || !setupIntentId.startsWith('sim_seti_'))) {
+        return Response.json({ error: 'Save a payment method for this weekly series first.' }, { status: 400, headers: cors });
+      }
       storedSetupIntentId = deferred ? (setupIntentId ?? 'sim_seti_' + crypto.randomUUID()) : null;
       storedPaymentIntentId = storedSetupIntentId ?? paymentIntentId ?? 'sim_pi_' + crypto.randomUUID();
+      if (repeatWeeks !== undefined) paymentMethodId = 'sim_pm_' + crypto.randomUUID();
       holdPlacedAt = deferred ? null : new Date().toISOString();
       const { data: bal } = await db.rpc('credit_balance_cents', { p_user: studentId });
       creditCents = creditToApply(Number(bal ?? 0), resolved.amountCents);
@@ -276,6 +294,37 @@ serveWithErrorReporting('confirm-booking', async (req) => {
 
     const cancellationDeadline = cancellationDeadlineFor(new Date(resolved.scheduledAt)).toISOString();
     const acceptBy = acceptDeadline(Date.now(), new Date(resolved.scheduledAt).getTime()).toISOString();
+    let seriesId: string | null = null;
+
+    if (repeatWeeks !== undefined) {
+      const { data: series, error: seriesError } = await db.from('booking_series').insert({
+        student_id: studentId,
+        tutor_id: resolved.tutorId,
+        subject: resolved.courseCode,
+        first_scheduled_at: resolved.scheduledAt,
+        duration_minutes: resolved.durationMinutes,
+        session_type: sessionType,
+        location: sessionType === 'video' ? null : location ?? null,
+        price: resolved.price,
+        student_fee: resolved.studentFee,
+        platform_fee: resolved.platformFee,
+        tutor_payout_amount: resolved.tutorPayout,
+        weeks: repeatWeeks,
+        stripe_setup_intent_id: storedSetupIntentId,
+        stripe_payment_method_id: paymentMethodId,
+      }).select('id').single();
+      if (seriesError) {
+        if (creditCents > 0) {
+          const { error: backErr } = await db.from('credit_ledger').insert({
+            user_id: studentId, amount_cents: creditCents, kind: 'adjustment', payment_intent_id: storedPaymentIntentId,
+          });
+          if (backErr && backErr.code !== '23505') console.error('confirm-booking: credit NOT returned after failed series insert', storedPaymentIntentId, backErr.message);
+        }
+        if (releaseHold) await releaseHold().catch((e) => console.error('confirm-booking: release hold failed', String(e)));
+        throw seriesError;
+      }
+      seriesId = series.id;
+    }
 
     const insertBooking = () =>
       db
@@ -304,6 +353,8 @@ serveWithErrorReporting('confirm-booking', async (req) => {
         stripe_payment_method_id: paymentMethodId,
         hold_due_at: storedSetupIntentId ? new Date(new Date(resolved.scheduledAt).getTime() - 48 * 3600000).toISOString() : null,
         hold_placed_at: holdPlacedAt,
+        series_id: seriesId,
+        series_index: seriesId ? 0 : null,
         })
       .select('id')
       .single();
@@ -316,6 +367,10 @@ serveWithErrorReporting('confirm-booking', async (req) => {
       firstTry.error?.code === '40P01' ? await insertBooking() : firstTry;
 
     if (bookingError) {
+      if (seriesId) {
+        const { error: deleteSeriesError } = await db.from('booking_series').delete().eq('id', seriesId);
+        if (deleteSeriesError) console.error('confirm-booking: could not remove orphan series', seriesId, deleteSeriesError.message);
+      }
       // Another confirm with this PaymentIntent got there first (bookings_one_per_payment_intent).
       // Its booking uses the hold and any credit — leave both alone.
       if (bookingError.code === '23505' && (bookingError.message.includes('bookings_one_per_payment_intent') || bookingError.message.includes('stripe_setup_intent_id'))) {
@@ -361,6 +416,7 @@ serveWithErrorReporting('confirm-booking', async (req) => {
         studentFee: resolved.studentFee,
         acceptBy,
         free: adminFree,
+        ...(seriesId ? { seriesId } : {}),
       },
       { headers: cors },
     );

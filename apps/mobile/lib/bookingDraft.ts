@@ -7,6 +7,10 @@ import type { BookingDraft } from './store';
 export function draftFromBooking(b: Booking): Partial<BookingDraft> {
   return {
     bookingId: b.id,
+    seriesId: b.seriesId,
+    seriesIndex: b.seriesIndex,
+    seriesStatus: b.seriesStatus,
+    seriesWeeks: b.seriesWeeks,
     studentId: b.studentId,
     tutorId: b.tutorId,
     course: b.subject,
@@ -41,6 +45,10 @@ export function draftFromBooking(b: Booking): Partial<BookingDraft> {
 export function blankSessionFields(): Partial<BookingDraft> {
   return {
     bookingId: undefined,
+    seriesId: undefined,
+    seriesIndex: undefined,
+    seriesStatus: undefined,
+    seriesWeeks: undefined,
     studentId: undefined,
     tutorId: undefined,
     course: undefined,

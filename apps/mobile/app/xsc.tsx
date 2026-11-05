@@ -31,6 +31,7 @@ import { useApp, type BookingDraft } from '../lib/store';
 import { DAYS, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 import { sessionDayAndTime } from '../lib/formatSessionTime';
+import { draftFromBooking } from '../lib/bookingDraft';
 
 function money(n: number): string {
   return '$' + n.toFixed(2).replace('.00', '');
@@ -96,7 +97,7 @@ function XStudentCancelInner() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { booking } = useApp();
+  const { booking, patchBooking } = useApp();
   const tutor = booking.tutor!;
   const cost = baseCost(booking, tutor);
   const sessionPrice = booking.price ?? cost;
@@ -115,6 +116,7 @@ function XStudentCancelInner() {
     booking.status === 'pending' ? 'early' : hoursUntil == null ? null : hoursUntil >= 12 ? 'early' : hoursUntil >= 2 ? 'mid' : 'late';
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [stoppingSeries, setStoppingSeries] = useState(false);
   // When a real booking is cancelled, the server decides the refund %; prefer it.
   const [serverRefund, setServerRefund] = useState<number | null>(null);
   const tobj = TIERS.find((x) => x.id === tier) ?? null;
@@ -132,6 +134,37 @@ function XStudentCancelInner() {
     : null;
   const tierRefund = tobj ? refundCentsFor(Math.round(tobj.refundPct * 100)) / 100 : null;
   const refund = serverRefund ?? (booking.status === 'pending' ? paidCents / 100 : tierRefund);
+  const canStopSeries = !!booking.seriesId && !!booking.seriesWeeks &&
+    (booking.seriesStatus === 'pending' || booking.seriesStatus === 'active');
+
+  const stopSeries = () => Alert.alert(
+    'Stop weekly sessions?',
+    "Future weeks won't be booked. Sessions already booked stay on your calendar. Cancel them separately if needed.",
+    [
+      { text: 'Keep series', style: 'cancel' },
+      {
+        text: 'Stop weekly sessions',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setStoppingSeries(true);
+            try {
+              await api.bookings.stopSeries(booking.seriesId!);
+              patchBooking({ seriesStatus: 'stopped' });
+              if (booking.bookingId) {
+                const refreshed = await api.bookings.get(booking.bookingId);
+                if (refreshed) patchBooking(draftFromBooking(refreshed));
+              }
+            } catch (error) {
+              Alert.alert('Could not stop weekly sessions', error instanceof Error ? error.message : 'Please try again.');
+            } finally {
+              setStoppingSeries(false);
+            }
+          })();
+        },
+      },
+    ],
+  );
 
   const onCancel = async () => {
     // Demo path: no real booking (e.g. reached via the dev launcher) — keep tier UI.
@@ -186,6 +219,14 @@ function XStudentCancelInner() {
       <NavTop onBack={() => router.back()} title="Cancel session" />
       <Body pad={20}>
         <SessionStrip booking={booking} tutor={tutor} />
+        {canStopSeries ? (
+          <Card style={{ marginTop: 14, padding: 14, gap: 10 }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>
+              Weekly · week {(booking.seriesIndex ?? 0) + 1} of {booking.seriesWeeks}
+            </Text>
+            <Button kind="secondary" full label="Stop weekly sessions" disabled={stoppingSeries} onPress={stopSeries} />
+          </Card>
+        ) : null}
 
         <View style={styles.demoRow}>
           <Eyebrow style={{ color: t.text3 }}>

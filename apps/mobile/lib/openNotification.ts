@@ -38,6 +38,7 @@ export async function openNotification(
 
   let conversation: Conversation | null = null;
   let booking: Booking | null = null;
+  let series: Awaited<ReturnType<typeof api.bookings.getSeries>> = null;
   let tutor: ReturnType<typeof toTutor> | null = null;
   let canRate = false;
   if (n.type === 'message' && typeof n.data.conversationId === 'string') {
@@ -80,9 +81,15 @@ export async function openNotification(
         canRate = false;
       }
     }
+  } else if (n.type === 'booking' && typeof n.data.seriesId === 'string') {
+    try {
+      series = await api.bookings.getSeries(n.data.seriesId);
+    } catch {
+      series = null;
+    }
   }
 
-  const target = targetFor(n, { uid, currentRole: ctx.currentRole, conversation, booking, tutor, canRate });
+  const target = targetFor(n, { uid, currentRole: ctx.currentRole, conversation, booking, series, tutor, canRate });
   let replacedHome = false;
   if (target.role !== ctx.currentRole) {
     void api.profile.setActiveRole(target.role).catch(() => {});

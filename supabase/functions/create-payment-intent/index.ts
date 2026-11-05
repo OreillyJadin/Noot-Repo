@@ -45,6 +45,10 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
     if (inactiveResponse) return inactiveResponse;
 
     const body = await req.json().catch(() => ({}));
+    const repeatWeeks = body?.repeatWeeks;
+    if (repeatWeeks !== undefined && (!Number.isInteger(repeatWeeks) || repeatWeeks < 2 || repeatWeeks > 12)) {
+      return Response.json({ error: 'repeatWeeks must be an integer from 2 to 12.' }, { status: 400, headers: cors });
+    }
     await requireBookingAge(db, user.id, body?.tutorId);
     let resolved = await resolveBooking(db, {
       studentId: user.id,
@@ -54,7 +58,14 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
       scheduledAt: body?.scheduledAt,
     });
 
+    if (repeatWeeks !== undefined && new Date(resolved.scheduledAt).getTime() < Date.now() + 24 * 60 * 60 * 1000) {
+      return Response.json({ error: 'Weekly sessions require the first session to be at least 24 hours away.' }, { status: 400, headers: cors });
+    }
+
     if (await isAdmin(userClient)) {
+      if (repeatWeeks !== undefined) {
+        return Response.json({ error: "Repeat weekly isn't available on this booking." }, { status: 400, headers: cors });
+      }
       resolved = freeBookingFor(resolved);
       return Response.json(
         {
@@ -78,7 +89,8 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
     const { data: bal } = await db.rpc('credit_balance_cents', { p_user: user.id });
     const creditCents = creditToApply(Number(bal ?? 0), resolved.amountCents);
     const chargeCents = resolved.amountCents - creditCents;
-    const deferred = new Date(resolved.scheduledAt).getTime() > Date.now() + IMMEDIATE_HOLD_DAYS * 86400000;
+    const deferred = repeatWeeks !== undefined ||
+      new Date(resolved.scheduledAt).getTime() > Date.now() + IMMEDIATE_HOLD_DAYS * 86400000;
 
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
 
@@ -145,6 +157,7 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
           student_fee_cents: String(Math.round(resolved.studentFee * 100)),
           credit_cents: String(creditCents),
           amount: String(chargeCents),
+          ...(repeatWeeks !== undefined ? { repeat_weeks: String(repeatWeeks) } : {}),
         },
       });
       return Response.json({
