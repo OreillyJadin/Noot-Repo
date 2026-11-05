@@ -12,6 +12,7 @@
   "include": [
     "app",
     "web",
+    "e2e",
     "lib/**/*.web.ts",
     "lib/**/*.web.tsx",
     "*.ts",

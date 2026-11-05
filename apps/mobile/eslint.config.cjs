@@ -1,6 +1,7 @@
 const reactHooks = require('eslint-plugin-react-hooks');
 
 module.exports = [
+  { ignores: ['e2e/report/**', 'e2e/results/**'] },
   ...require('@noot/config'),
   reactHooks.configs.flat.recommended,
   {
