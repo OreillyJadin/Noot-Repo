@@ -293,6 +293,17 @@ function byteLength(data: Blob | ArrayBuffer | Uint8Array): number {
   return data.size;
 }
 
+function truncateFilename(filename: string, maxLength: number): string {
+  if (filename.length <= maxLength) return filename;
+  const extensionIndex = filename.lastIndexOf('.');
+  const extension = extensionIndex > 0 ? filename.slice(extensionIndex) : '';
+  const preservedExtension = extension.length > maxLength
+    ? `.${extension.slice(-(maxLength - 1))}`
+    : extension;
+  const base = extensionIndex > 0 ? filename.slice(0, extensionIndex) : filename;
+  return `${base.slice(0, maxLength - preservedExtension.length)}${preservedExtension}`;
+}
+
 /**
  * Write bytes to `{bucket}/{uid}/{email}.{ext}`, then delete anything else in that folder so
  * each user keeps exactly one current file per bucket. The `{uid}` folder is load-bearing —
@@ -2559,7 +2570,7 @@ export const api = {
       return {
         storagePath,
         kind: type.startsWith('image/') ? 'image' : 'file',
-        filename: filename || safeName,
+        filename: truncateFilename(filename || safeName, 200),
         sizeBytes: size,
         mimeType: type,
       };
