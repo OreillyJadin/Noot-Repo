@@ -285,7 +285,7 @@ function emailFileName(email: string): string {
 }
 
 /** Columns of `messages` — spelled out so embeds can be appended without pulling `*`. */
-const MESSAGE_SELECT = 'id, conversation_id, sender_id, content, read_at, created_at, attachment_count';
+const MESSAGE_SELECT = 'id, conversation_id, sender_id, content, read_at, created_at, attachment_count, is_system';
 
 /** Bytes in an upload body — used to reject empty files before they hit Storage. */
 function byteLength(data: Blob | ArrayBuffer | Uint8Array): number {
@@ -682,6 +682,7 @@ function mapMessage(row: any): Message {
     readAt: row.read_at ?? null,
     createdAt: row.created_at,
     attachmentCount: row.attachment_count ?? 0,
+    isSystem: row.is_system === true,
     ...(row.message_attachments
       ? { attachments: (row.message_attachments as any[]).map(mapAttachment) }
       : {}),

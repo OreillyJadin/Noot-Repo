@@ -16,6 +16,7 @@ export interface DraftContext {
   when: string;
   sessionType?: 'video' | 'in_person';
   dailyRoomName?: string | null;
+  videoLinkSentAt?: string | null;
 }
 
 export interface SessionDraft {
@@ -46,8 +47,9 @@ export function tutorSessionDrafts(c: DraftContext): SessionDraft[] {
     ...(c.sessionType === 'video' ? [{
       key: 'virtual' as const,
       label: 'Virtual session setup',
-      text: "We're meeting on Noot video. Your private link and meeting code will show up here 1 hour before we start, and you can join from the session page." +
-        (c.dailyRoomName ? ` Your meeting code is ${c.dailyRoomName.toUpperCase()}.` : ''),
+      text: c.videoLinkSentAt && c.dailyRoomName
+        ? `We're meeting on Noot video. Your private link is ready: tap "Join video session" on the session page. Meeting code: ${c.dailyRoomName.toUpperCase()}.`
+        : "We're meeting on Noot video. Your private link and meeting code will show up here 1 hour before we start, and you can join from the session page.",
     }] : []),
     { key: 'location', label: 'Confirm meeting spot', text: location },
     {

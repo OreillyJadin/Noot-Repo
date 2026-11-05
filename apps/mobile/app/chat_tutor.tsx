@@ -126,6 +126,7 @@ function ChatTutorInner() {
         location: booking.location ?? '',
         sessionType: booking.sessionType,
         dailyRoomName: booking.dailyRoomName,
+        videoLinkSentAt: booking.videoLinkSentAt,
         when: booking.scheduledAt
           ? formatCampusSessionWhen(booking.scheduledAt)
           : '',
