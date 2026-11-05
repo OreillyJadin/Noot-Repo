@@ -19,9 +19,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { isAdmin, requireActiveUser } from '../_shared/auth.ts';
 import { BookingAgeError, requireBookingAge } from '../_shared/age.ts';
+import { CHECKOUT_GRACE_MINUTES, MIN_BOOKING_LEAD_HOURS, acceptDeadline } from '../_shared/acceptance.ts';
 import { BookingError, freeBookingFor, IMMEDIATE_HOLD_DAYS, resolveBooking, SLOT_TAKEN_NOT_CHARGED, type ResolvedBooking } from '../_shared/booking.ts';
 import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
-import { acceptDeadline } from '../_shared/acceptance.ts';
 import { creditToApply, parseCreditCents } from '../_shared/credits.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
@@ -100,14 +100,12 @@ serveWithErrorReporting('confirm-booking', async (req) => {
         courseCode,
         durationMinutes: body?.durationMinutes,
         scheduledAt: body?.scheduledAt,
+        minLeadMs: MIN_BOOKING_LEAD_HOURS * 60 * 60 * 1000 - CHECKOUT_GRACE_MINUTES * 60 * 1000,
       });
     } catch (e) {
-      // The competing booking was inserted before resolveBooking read the clashes — this
-      // request loses the slot outright, so its authorized hold would just sit on the
-      // card. Release it when it provably belongs to this student for this session and
-      // no booking is using it; on any doubt leave it (cancel is unconditional below
-      // that point) and surface the original "slot taken" message.
-      if (e instanceof BookingError && e.reason === 'slot_taken') {
+      // An early validation failure can leave an authorized hold unused. Release it
+      // only when it belongs to this student and tutor and no booking uses it.
+      if (e instanceof BookingError && (e.reason === 'slot_taken' || e.reason === 'too_soon')) {
         try {
           const earlyStripeKey = Deno.env.get('STRIPE_SECRET_KEY');
           if (earlyStripeKey && typeof paymentIntentId === 'string' && paymentIntentId.startsWith('pi_')) {
@@ -129,11 +127,17 @@ serveWithErrorReporting('confirm-booking', async (req) => {
               await stripe.paymentIntents.cancel(paymentIntentId, {}, {
                 idempotencyKey: `release_unbooked_${paymentIntentId}`,
               });
-              return Response.json({ error: SLOT_TAKEN_NOT_CHARGED }, { status: 409, headers: cors });
+              if (e.reason === 'slot_taken') {
+                return Response.json({ error: SLOT_TAKEN_NOT_CHARGED }, { status: 409, headers: cors });
+              }
+              return Response.json(
+                { error: `${e.message}. You weren’t charged.` },
+                { status: e.status, headers: cors },
+              );
             }
           }
         } catch (releaseErr) {
-          console.error('confirm-booking: could not release hold after lost slot race', String(releaseErr));
+          console.error('confirm-booking: could not release unused hold after booking validation failure', String(releaseErr));
         }
       }
       throw e;

@@ -387,6 +387,7 @@ export interface Message {
   content: string;
   readAt: Timestamp | null;
   createdAt: Timestamp;
+  isSystem: boolean;
   /** Denormalized on the row, so a preview can be rendered without loading `attachments`. */
   attachmentCount: number;
   /** Present on reads that embed them (listMessages); absent on lightweight rows. */

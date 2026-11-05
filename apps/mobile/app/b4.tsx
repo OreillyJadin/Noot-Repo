@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, H2, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
 import { useStripe } from '@stripe/stripe-react-native';
 import Constants from 'expo-constants';
-import { formatCampusTime, campusSlotISO, tryCampusSlotISO, api, bookingQuote, FunctionError, STUDENT_UNDER_AGE_MESSAGE } from '@noot/core';
+import { formatCampusTime, campusSlotISO, tryCampusSlotISO, api, bookingQuote, FunctionError, STUDENT_UNDER_AGE_MESSAGE, SHORT_NOTICE_HOURS } from '@noot/core';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { DAYS, MONTHS } from '../lib/data';
@@ -19,7 +19,7 @@ import { DateOfBirthPicker } from '../lib/DateOfBirthPicker';
 import { isValidDob } from '../lib/age';
 import { isDeferredCheckout } from '../lib/paymentTiming';
 
-const SHORT_NOTICE_MS = 3 * 60 * 60 * 1000;
+const SHORT_NOTICE_MS = SHORT_NOTICE_HOURS * 60 * 60 * 1000;
 
 type Status = 'idle' | 'processing';
 
@@ -330,7 +330,7 @@ function B4Inner() {
           <Card flat style={{ marginTop: 14, padding: 12, backgroundColor: t.accentWeak, borderColor: t.accentBorder, flexDirection: 'row', gap: 9 }}>
             <Ic name="alert" size={16} color={t.accent} strokeWidth={1.8} />
             <Text style={{ flex: 1, color: t.text2, fontSize: 12.5, lineHeight: 18 }}>
-              Short notice: {booking.tutor?.name.split(' ')[0] ?? 'Your tutor'} may not be able to accept in time. If they don&apos;t, you won&apos;t be charged.
+              Short notice: {booking.tutor?.name.split(' ')[0] ?? 'Your tutor'} has until 1 hour before the session to accept. If they don&apos;t, you won&apos;t be charged.
             </Text>
           </Card>
         ) : null}
