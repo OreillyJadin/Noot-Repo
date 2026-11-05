@@ -8,6 +8,7 @@ import { useTheme } from './ThemeProvider';
 import { TEXT_CAPS } from './textScale';
 import { Ic, type IconName } from './Icon';
 import { GeckoMark } from './Gecko';
+import { WordmarkImage } from './Brand';
 import { TabPressScale } from './TabPressScale';
 
 type Tab = { label: string; icon: IconName | 'home'; key: string };
@@ -172,7 +173,7 @@ function SideNav() {
     <View style={[styles.side, { backgroundColor: t.surface, borderRightColor: t.border }]} role="navigation">
       <View style={styles.sideBrand}>
         <GeckoMark size={40} />
-        <Text style={[styles.sideBrandText, { color: t.text, fontFamily: t.headingFont }]}>noot</Text>
+        <WordmarkImage size={22} color={t.text} />
       </View>
       {tabs.map((tab) => {
         const on = nav.active === tab.key;
@@ -211,7 +212,6 @@ const styles = StyleSheet.create({
   columnInner: { flex: 1, width: '100%', maxWidth: CONTENT_MAX_WIDTH, borderLeftWidth: 1, borderRightWidth: 1 },
   side: { width: 232, paddingHorizontal: 14, paddingTop: 20, gap: 4, borderRightWidth: 1 },
   sideBrand: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 8, paddingBottom: 18 },
-  sideBrandText: { fontSize: 22, letterSpacing: -0.5 },
   sideItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 12, minHeight: 46, borderRadius: 12 },
   sideLabel: { fontSize: 16 },
 });

@@ -1,15 +1,36 @@
-// Brand marks — ported from app/kit.jsx (Wordmark, HeroIcon). Wordmark pairs the gecko
-// brand image (GeckoMark) with the lowercase "noot" lockup; HeroIcon uses an accent
+// Brand marks — the Marble wordmark pairs with the gecko mark; HeroIcon uses an accent
 // circle + icon.
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { Image, View, StyleSheet } from 'react-native';
 import { useTheme } from './ThemeProvider';
 import { Ic, type IconName } from './Icon';
 import { GeckoMark } from './Gecko';
 
+// Metro bundles images through require(); there's no import form for a static asset here.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const NOOT_WORDMARK = require('../assets/noot-wordmark.png');
+
 export interface WordmarkProps {
   size?: number;
   tone?: 'ink' | 'sage' | 'cream';
+}
+
+export interface WordmarkImageProps {
+  size: number;
+  color: string;
+}
+
+export function WordmarkImage({ size, color }: WordmarkImageProps) {
+  const height = size * 0.6;
+  return (
+    <Image
+      source={NOOT_WORDMARK}
+      resizeMode="contain"
+      accessibilityRole="image"
+      accessibilityLabel="noot"
+      style={{ width: height * (1200 / 333), height, tintColor: color }}
+    />
+  );
 }
 
 export function Wordmark({ size = 22, tone = 'ink' }: WordmarkProps) {
@@ -18,7 +39,7 @@ export function Wordmark({ size = 22, tone = 'ink' }: WordmarkProps) {
   return (
     <View style={styles.wordmark}>
       <GeckoMark size={size * 1.05} />
-      <Text style={{ fontSize: size, letterSpacing: -1, color, fontFamily: t.headingFont }}>noot</Text>
+      <WordmarkImage size={size} color={color} />
     </View>
   );
 }
