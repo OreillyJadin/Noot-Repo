@@ -89,6 +89,7 @@ try {
     createUser('student'),
     createUser('student'),
   ]);
+  const suspendedViewer = await createUser('student');
   const bookingStudents = await Promise.all([
     createUser('student'),
     createUser('student'),
@@ -124,6 +125,10 @@ try {
   must(coursesError, 'create tutor courses');
 
   const now = new Date();
+  const { error: suspendViewerError } = await service.from('users')
+    .update({ status: 'suspended' })
+    .eq('id', suspendedViewer.id);
+  must(suspendViewerError, 'suspend profile view fixture');
   const oldRequestAt = new Date(now.getTime() - 31 * 24 * 60 * 60 * 1000).toISOString();
   const { error: requestError } = await service.from('course_requests').insert([
     { student_id: students[0]!.id, course_code: courseA, created_at: now.toISOString() },
@@ -136,10 +141,18 @@ try {
   must(requestError, 'create course request fixtures');
 
   const { error: viewError } = await service.from('analytics_events').insert([
-    { user_id: students[0]!.id, event: 'tutor_profile_viewed', props: { tutorId: tutor.id } },
-    { user_id: students[0]!.id, event: 'tutor_profile_viewed', props: { tutorId: tutor.id } },
-    { user_id: students[1]!.id, event: 'tutor_profile_viewed', props: { tutorId: tutor.id } },
-    { user_id: tutor.id, event: 'tutor_profile_viewed', props: { tutorId: tutor.id } },
+    ...Array.from({ length: 5 }, () => ({
+      user_id: students[0]!.id,
+      event: 'tutor_profile_viewed',
+      props: { tutorId: tutor.id },
+      created_at: now.toISOString(),
+    })),
+    {
+      user_id: tutor.id,
+      event: 'tutor_profile_viewed',
+      props: { tutorId: tutor.id },
+      created_at: now.toISOString(),
+    },
   ]);
   must(viewError, 'create profile view fixtures');
 
@@ -206,8 +219,32 @@ try {
   const tutorLogin = await core.auth.signInWithPassword({ email: tutor.email, password: DEV_PASSWORD });
   must(tutorLogin.error, 'sign in fixture tutor');
   const demand = await api.tutorDemand();
-  pass('profile views count other viewers and exclude self-views',
-    demand.profileViews === 3 && demand.uniqueViewers === 2);
+  pass('five same-day profile views from one active viewer count as one',
+    demand.profileViews === 1 && demand.uniqueViewers === 1);
+  pass('profile views exclude self-views', demand.profileViews === 1 && demand.uniqueViewers === 1);
+
+  const { error: otherViewerError } = await service.from('analytics_events').insert({
+    user_id: students[1]!.id,
+    event: 'tutor_profile_viewed',
+    props: { tutorId: tutor.id },
+    created_at: now.toISOString(),
+  });
+  must(otherViewerError, 'create second active viewer event');
+  const demandWithOtherViewer = await api.tutorDemand();
+  pass('a second active viewer counts once',
+    demandWithOtherViewer.profileViews === 2 && demandWithOtherViewer.uniqueViewers === 2);
+
+  const { error: suspendedViewError } = await service.from('analytics_events').insert({
+    user_id: suspendedViewer.id,
+    event: 'tutor_profile_viewed',
+    props: { tutorId: tutor.id },
+    created_at: now.toISOString(),
+  });
+  must(suspendedViewError, 'create suspended viewer event');
+  const demandWithSuspendedViewer = await api.tutorDemand();
+  pass('a suspended viewer event is excluded from both counts',
+    demandWithSuspendedViewer.profileViews === 2 && demandWithSuspendedViewer.uniqueViewers === 2);
+
   const requestsByCourse = new Map(demand.openRequests.map((request) => [request.courseCode, request.requests]));
   pass('open requests include only active requests for the tutor’s courses and other requesters',
     demand.openRequests.length === 2 &&
@@ -244,7 +281,7 @@ try {
   pass('digest notification includes demand sections and the weekly event',
     firstNotifications[0]?.data?.event === 'tutor_weekly_digest' &&
     firstNotifications[0]?.data?.weekStart != null &&
-    firstNotifications[0]?.body.includes('3 times by 2 students') &&
+    firstNotifications[0]?.body.includes('2 times by 2 students') &&
     firstNotifications[0]?.body.includes(`${courseA}: 2 requests`) &&
     firstNotifications[0]?.body.includes(`${courseB}: 1 request`) &&
     firstNotifications[0]?.body.includes('You earned $49.88 this week.') &&

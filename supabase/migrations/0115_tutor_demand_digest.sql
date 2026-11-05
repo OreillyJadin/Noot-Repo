@@ -50,13 +50,21 @@ stable
 security definer
 set search_path = public
 as $$
-  with views as (
+  with daily_profile_views as (
+    select distinct
+      ae.user_id,
+      (ae.created_at at time zone 'America/Chicago')::date as viewed_on
+    from public.analytics_events ae
+    join public.users viewer on viewer.id = ae.user_id
+    where ae.event = 'tutor_profile_viewed'
+      and ae.props ->> 'tutorId' = p_tutor::text
+      and ae.user_id <> p_tutor
+      and ae.created_at >= p_since
+      and viewer.status = 'active'
+      and viewer.deleted_at is null
+  ), views as (
     select count(*)::integer as profile_views, count(distinct user_id)::integer as unique_viewers
-    from public.analytics_events
-    where event = 'tutor_profile_viewed'
-      and props ->> 'tutorId' = p_tutor::text
-      and user_id <> p_tutor
-      and created_at >= p_since
+    from daily_profile_views
   ), course_counts as (
     select cr.course_code, count(*)::integer as requests
     from public.course_requests cr

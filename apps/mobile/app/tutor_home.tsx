@@ -63,7 +63,7 @@ export default function TutorHome() {
       api.tutorDemand().then((result) => { if (active) setDemand(result); }).catch(() => {});
     }
     return () => { active = false; };
-  }, [reloadKey, previewing]);
+  }, [reloadKey, previewing, now]);
 
   useEffect(() => {
     let active = true;
