@@ -2,7 +2,7 @@
 // Usage: node e2e/serve.mjs <dir> <port>
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { extname, join, normalize, resolve } from 'node:path';
+import { extname, join, normalize, resolve, sep } from 'node:path';
 
 const root = resolve(process.argv[2] ?? 'dist');
 const port = Number(process.argv[3] ?? 8081);
@@ -15,7 +15,7 @@ const TYPES = {
 createServer(async (req, res) => {
   const path = normalize(decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname));
   let file = join(root, path);
-  if (!file.startsWith(root)) file = join(root, 'index.html');
+  if (!file.startsWith(root + sep)) file = join(root, 'index.html');
   try {
     if (!(await stat(file)).isFile()) throw new Error('dir');
   } catch {
