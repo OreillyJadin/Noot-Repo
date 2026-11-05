@@ -64,6 +64,12 @@ production project, Stripe, App Store Connect or the website. File names below a
   via `report-no-show`, a tutor-initiated cancel and a
   cancel under 2 hours, two reversals racing an award, `lib/pendingInvite.ts` on real AsyncStorage.
 
+## Web app (Jadin, see `docs/WEB_HOSTING.md`)
+
+- Create the Cloudflare Pages project for the web app and set its env vars.
+- Add the Pages address (`https://<name>.pages.dev/**`) to Supabase → Auth → URL Configuration → Redirect URLs.
+- Custom domain for the web app: deferred.
+
 ## Decisions for Jadin
 
 - Bump the Terms version for the T6 edits to §9, §11 and §17? `TERMS_VERSION` is still
