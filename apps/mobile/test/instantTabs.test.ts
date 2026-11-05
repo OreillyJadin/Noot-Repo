@@ -54,7 +54,8 @@ test('tab icon feedback uses native 100ms scale and cancels interrupted/unmounte
 
 test('all role tab buttons scale only the icon and dispatch immediately, including active reselects', () => {
   const { TabBar } = load('packages/ui/src/TabBar.tsx', {
-    react, 'react-native': native, './ThemeProvider': theme,
+    react: { ...react, useRef: (current: unknown) => ({ current }), useEffect: () => {}, useSyncExternalStore: () => null },
+    'react-native': { ...native, Platform: { OS: 'ios' }, useWindowDimensions: () => ({ width: 1280 }) }, './ThemeProvider': theme,
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },
     './textScale': { TEXT_CAPS: {} }, './Icon': { Ic: 'Ic' }, './Gecko': { GeckoMark: 'GeckoMark' }, './TabPressScale': { TabPressScale: 'TabPressScale' },
   });
@@ -75,6 +76,19 @@ test('all role tab buttons scale only the icon and dispatch immediately, includi
       tab.props.onPress();
       assert.equal(pressedKeys.at(-1), tab.props.key);
     }
+  }
+});
+
+test('wide web hides the bottom bar (the side nav takes over); phone-width web keeps it', () => {
+  for (const [width, hidden] of [[1280, true], [899, false], [390, false]] as const) {
+    const { TabBar } = load('packages/ui/src/TabBar.tsx', {
+      react: { ...react, useRef: (current: unknown) => ({ current }), useEffect: () => {}, useSyncExternalStore: () => null },
+      'react-native': { ...native, Platform: { OS: 'web' }, useWindowDimensions: () => ({ width }) }, './ThemeProvider': theme,
+      'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 0 }) },
+      './textScale': { TEXT_CAPS: {} }, './Icon': { Ic: 'Ic' }, './Gecko': { GeckoMark: 'GeckoMark' }, './TabPressScale': { TabPressScale: 'TabPressScale' },
+    });
+    const bar = TabBar({ role: 'student', active: 'home', onTab: () => {} });
+    assert.equal(bar === null, hidden, `width ${width}`);
   }
 });
 
