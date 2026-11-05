@@ -1,5 +1,5 @@
 // Verify that a tutor's interview with the noot team blocks their time for booking (ERR-032)
-// against the LOCAL stack, through @noot/core exactly as the app books and reschedules.
+// against the LOCAL stack, through @noot/core exactly as the app creates holds, confirms, and reschedules.
 //
 // The demo tutor (sara) is approved AND given an interview here, which the admin screen
 // never does (it only schedules applicants, who can't be booked) but the database allows.
@@ -41,6 +41,45 @@ const signIn = async (email: string) => {
   if (!r.ok) throw new Error(`sign in as ${email}: ${r.error}`)
 }
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e))
+const campusFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+})
+const campusParts = (date: Date) => Object.fromEntries(
+  campusFormatter.formatToParts(date).map((part) => [part.type, part.value]),
+)
+const campusSlot = (days: number, minutes: number) => {
+  const local = campusParts(new Date())
+  const date = new Date(Date.UTC(
+    Number(local.year), Number(local.month) - 1, Number(local.day) + days,
+  ))
+  const target = Date.UTC(
+    date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(),
+    Math.floor(minutes / 60), minutes % 60,
+  )
+  let instant = target
+  for (let i = 0; i < 4; i++) {
+    const parts = campusParts(new Date(instant))
+    const represented = Date.UTC(
+      Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+      Number(parts.hour), Number(parts.minute), Number(parts.second),
+    )
+    const adjusted = instant + target - represented
+    if (adjusted === instant) break
+    instant = adjusted
+  }
+  return new Date(instant).getTime()
+}
+const campusWeekday = (days: number) => {
+  const local = campusParts(new Date())
+  return new Date(Date.UTC(
+    Number(local.year), Number(local.month) - 1, Number(local.day) + days,
+  )).getUTCDay()
+}
+const minuteOf = (time: string) => {
+  const [hour, minute] = time.slice(0, 5).split(':').map(Number)
+  return hour * 60 + minute
+}
 
 const { data: tutor } = await svc.from('users').select('id').eq('email', 'sara@crimson.ua.edu').single()
 const tutorId = tutor!.id as string
@@ -48,9 +87,42 @@ const { data: tc } = await svc.from('tutor_courses').select('course_code').eq('t
 const courseCode = tc!.course_code as string
 await svc.from('tutor_profiles').update({ stripe_charges_enabled: true }).eq('user_id', tutorId)
 
-// 5:00 AM four days out: inside the booking horizon, and an hour nobody's seed data uses.
-const d = new Date(); d.setDate(d.getDate() + 4); d.setHours(5, 0, 0, 0)
-const T = d.getTime()
+const { data: availability, error: availabilityError } = await svc.from('tutor_availability')
+  .select('day_of_week,start_time,end_time').eq('tutor_id', tutorId)
+if (availabilityError) throw availabilityError
+const { data: existingBookings, error: bookingsError } = await svc.from('bookings')
+  .select('scheduled_at,duration_minutes').eq('tutor_id', tutorId)
+  .in('status', ['pending', 'confirmed'])
+if (bookingsError) throw bookingsError
+let T = 0
+for (let days = 1; days <= 6 && !T; days++) {
+  const weekday = campusWeekday(days)
+  for (const window of availability ?? []) {
+    if (Number(window.day_of_week) !== weekday) continue
+    const startMinute = minuteOf(window.start_time as string)
+    const endMinute = minuteOf(window.end_time as string)
+    for (let minute = startMinute; minute + 240 <= endMinute; minute += 60) {
+      const candidate = campusSlot(days, minute + 60)
+      const testStart = candidate - 60 * 60_000
+      const testEnd = candidate + 180 * 60_000
+      const overlapsBooking = (existingBookings ?? []).some((booking) => {
+        const bookingStart = new Date(booking.scheduled_at as string).getTime()
+        const bookingEnd = bookingStart + Number(booking.duration_minutes) * 60_000
+        return bookingStart < testEnd && testStart < bookingEnd
+      })
+      if (
+        testStart > Date.now() + 2 * 60 * 60_000 &&
+        candidate < Date.now() + 6 * 86_400_000 &&
+        !overlapsBooking
+      ) {
+        T = candidate
+        break
+      }
+    }
+    if (T) break
+  }
+}
+if (!T) throw new Error('Could not find an unbooked four-hour stretch inside Sara’s availability in the next six days')
 const iso = (offsetMin: number) => new Date(T + offsetMin * 60 * 1000).toISOString()
 const holds: string[] = []
 /** Ask to book the tutor for an hour starting `offsetMin` from the interview. Null if accepted. */
@@ -64,6 +136,7 @@ const tryBook = async (offsetMin: number, durationMinutes = 60): Promise<string 
   }
 }
 let bookingId = ''
+const unexpectedBookingIds: string[] = []
 
 try {
   // The seeded tutor may already have a live interview; this run replaces and then removes it.
@@ -81,25 +154,46 @@ try {
   const around = await tryBook(-60, 180)
   step(around === BUSY, 'nor a long session that contains it')
 
+  const beforeHoldCount = holds.length
   const before = await tryBook(-60)
+  const beforePi = holds[beforeHoldCount] ?? null
   const after = await tryBook(60)
   step(before === null && after === null, `the hour before and the hour after are still bookable${before || after ? `: ${before ?? after}` : ''}`)
 
+  if (beforePi) {
+    if (beforePi.startsWith('pi_')) await authorizeHold(beforePi)
+    const blockedConfirm = await api.bookings.confirm({
+      tutorId, courseCode, scheduledAt: iso(0), durationMinutes: 60, sessionType: 'in_person',
+      message: 'verify_interview_block', paymentIntentId: beforePi,
+    }).then(
+      ({ bookingId: id }) => { unexpectedBookingIds.push(id); return null },
+      errMsg,
+    )
+    step(typeof blockedConfirm === 'string' && /(booked|pick another)/i.test(blockedConfirm),
+      `confirm-booking also refuses the interview hour: "${blockedConfirm ?? 'request unexpectedly succeeded'}"`)
+  } else {
+    step(false, 'confirm-booking interview-block check needs a hold for the free hour before the interview')
+  }
+
   // ---- moving an existing session onto the interview ----
-  const pi = holds[holds.length - 1]!
-  if (pi.startsWith('pi_')) await authorizeHold(pi)
-  const confirmed = await api.bookings.confirm({
-    tutorId, courseCode, scheduledAt: iso(60), durationMinutes: 60, sessionType: 'in_person',
-    message: 'verify_interview_block', paymentIntentId: pi,
-  })
-  bookingId = confirmed.bookingId
-  await signIn('sara@crimson.ua.edu')
-  await api.bookings.respond({ bookingId, action: 'accept' })
-  await signIn('student@crimson.ua.edu')
-  const move = await api.bookings.reschedule({ bookingId, action: 'propose', newScheduledAt: iso(0) }).then(() => null, errMsg)
-  step(move === BUSY_MOVE, `an existing session cannot be moved onto the interview: "${move}"`)
-  const moveOk = await api.bookings.reschedule({ bookingId, action: 'propose', newScheduledAt: iso(180) }).then(() => null, errMsg)
-  step(moveOk === null, `but it can be moved to a free time${moveOk ? `: ${moveOk}` : ''}`)
+  const pi = holds[holds.length - 1]
+  if (pi) {
+    if (pi.startsWith('pi_')) await authorizeHold(pi)
+    const confirmed = await api.bookings.confirm({
+      tutorId, courseCode, scheduledAt: iso(60), durationMinutes: 60, sessionType: 'in_person',
+      message: 'verify_interview_block', paymentIntentId: pi,
+    })
+    bookingId = confirmed.bookingId
+    await signIn('sara@crimson.ua.edu')
+    await api.bookings.respond({ bookingId, action: 'accept' })
+    await signIn('student@crimson.ua.edu')
+    const move = await api.bookings.reschedule({ bookingId, action: 'propose', newScheduledAt: iso(0) }).then(() => null, errMsg)
+    step(move === BUSY_MOVE, `an existing session cannot be moved onto the interview: "${move}"`)
+    const moveOk = await api.bookings.reschedule({ bookingId, action: 'propose', newScheduledAt: iso(120) }).then(() => null, errMsg)
+    step(moveOk === null, `but it can be moved to a free time${moveOk ? `: ${moveOk}` : ''}`)
+  } else {
+    step(false, 'a hold after the interview is needed to test rescheduling')
+  }
 
   // ---- once the interview is off, the hour is free again ----
   await signIn('admin@crimson.ua.edu')
@@ -113,6 +207,9 @@ try {
   for (const id of holds) if (id.startsWith('pi_')) await cancelHold(id).catch(() => {})
   if (bookingId) {
     await svc.from('bookings').delete().eq('id', bookingId)
+  }
+  if (unexpectedBookingIds.length) {
+    await svc.from('bookings').delete().in('id', unexpectedBookingIds)
   }
 }
 

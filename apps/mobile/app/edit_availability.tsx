@@ -14,13 +14,15 @@
 // Contiguous selected hours are merged into a single window on save (09,10,11 → 09:00–12:00)
 // so the stored shape stays the same handful of rows it always was, and existing saved
 // windows load back correctly whatever granularity they were written at.
-import React, { useEffect, useState } from 'react';
-import { Text, Alert, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, Alert, StyleSheet } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, useTheme } from '@noot/ui';
-import { api } from '@noot/core';
+import { api, formatCampusTime, type TutorInterview } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { AvailabilityEditor } from '../lib/AvailabilityEditor';
+import { INTERVIEW_MINUTES } from '../lib/interviewBlock';
+import { interviewLabel } from '../lib/interviewSlots';
 import { emptyGrid, gridFromWindows, windowsFromGrid, type WeekGrid } from '../lib/weekGrid';
 
 export default function EditAvailability() {
@@ -30,6 +32,8 @@ export default function EditAvailability() {
   const [av, setAv] = useState<WeekGrid>(emptyGrid);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [interview, setInterview] = useState<TutorInterview | null>(null);
+  const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
     if (!me) return;
@@ -44,6 +48,29 @@ export default function EditAvailability() {
     // re-seeding on every re-read would wipe edits in progress.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setNow(Date.now());
+      if (!me?.id) {
+        setInterview(null);
+        return;
+      }
+      let active = true;
+      const timer = setInterval(() => { if (active) setNow(Date.now()); }, 30_000);
+      api.profile
+        .getMyInterview()
+        .then((iv) => { if (active) setInterview(iv); })
+        .catch(() => { /* availability editing still works without an interview notice */ });
+      return () => { active = false; clearInterval(timer); };
+    }, [me?.id]),
+  );
+
+  const interviewAt = interview ? new Date(interview.scheduledAt) : null;
+  const interviewEnd = interviewAt
+    ? new Date(interviewAt.getTime() + INTERVIEW_MINUTES * 60 * 1000)
+    : null;
+  const hasLiveInterview = interviewAt !== null && interviewEnd !== null && now !== null && interviewEnd.getTime() > now;
 
   const save = async () => {
     if (saving) return;
@@ -63,6 +90,16 @@ export default function EditAvailability() {
     <Screen>
       <NavTop title="Set availability" onBack={() => router.back()} />
       <Body>
+        {hasLiveInterview && interviewAt && interviewEnd ? (
+          <View style={[styles.interviewCard, { backgroundColor: t.dangerWeak, borderColor: t.danger }]}>
+            <Text style={[styles.interviewTitle, { color: t.text }]}>
+              Interview with noot · {interviewLabel(interviewAt)} – {formatCampusTime(interviewEnd)}
+            </Text>
+            <Text style={[styles.interviewBody, { color: t.text2 }]}>
+              This hour is blocked and can't be booked.
+            </Text>
+          </View>
+        ) : null}
         <Text style={[styles.intro, { color: t.text2 }]}>
           Your typical week, hour by hour. Students can request any hour you turn on. To block or open a single day, use the{' '}
           <Text onPress={() => router.push('/tutor_calendar')} style={{ color: t.accent, fontWeight: '600' }}>
@@ -81,5 +118,8 @@ export default function EditAvailability() {
 }
 
 const styles = StyleSheet.create({
+  interviewCard: { borderWidth: 1, borderRadius: 14, padding: 12, marginBottom: 12 },
+  interviewTitle: { fontSize: 13.5, fontWeight: '700', lineHeight: 19 },
+  interviewBody: { fontSize: 12, lineHeight: 17, marginTop: 4 },
   intro: { fontSize: 13, lineHeight: 19.5, marginBottom: 4 },
 });
