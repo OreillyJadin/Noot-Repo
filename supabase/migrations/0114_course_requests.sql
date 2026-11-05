@@ -124,12 +124,15 @@ security definer
 set search_path = public
 as $$
 begin
-  update public.course_requests
-     set status = 'fulfilled',
-         fulfilled_at = now()
-   where student_id = new.student_id
-     and course_code = new.subject
-     and status = 'open';
+  if new.status in ('confirmed', 'completed')
+     and (tg_op = 'INSERT' or old.status is distinct from new.status) then
+    update public.course_requests
+       set status = 'fulfilled',
+           fulfilled_at = now()
+     where student_id = new.student_id
+       and course_code = new.subject
+       and status = 'open';
+  end if;
   return new;
 exception when others then
   raise warning 'Could not fulfill course request for booking %: %', new.id, sqlerrm;
@@ -138,7 +141,7 @@ end;
 $$;
 revoke all on function public.fulfill_course_request_after_booking() from public, anon, authenticated;
 create trigger fulfill_course_request_after_booking
-  after insert on public.bookings
+  after insert or update of status on public.bookings
   for each row execute function public.fulfill_course_request_after_booking();
 
 create or replace function public.notify_course_requesters(p_tutor uuid)
@@ -235,6 +238,27 @@ create trigger notify_course_requesters_after_approval
   when (new.approval_status = 'approved' and old.approval_status is distinct from new.approval_status)
   execute function public.notify_course_requesters_after_approval();
 
+create or replace function public.notify_course_requesters_after_user_reactivation()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform public.notify_course_requesters(new.id);
+  return new;
+exception when others then
+  raise warning 'Could not notify course requesters after tutor reactivation: %', sqlerrm;
+  return new;
+end;
+$$;
+revoke all on function public.notify_course_requesters_after_user_reactivation() from public, anon, authenticated;
+create trigger notify_course_requesters_after_user_reactivation
+  after update of status on public.users
+  for each row
+  when (old.status is distinct from 'active' and new.status = 'active' and new.deleted_at is null)
+  execute function public.notify_course_requesters_after_user_reactivation();
+
 create or replace function public.search_courses(p_query text, p_limit int default 25)
 returns table (
   course_code text,
@@ -277,7 +301,7 @@ begin
       and u.status = 'active'
   ), matched as (
     select c.*,
-      covered.course_code is not null as has_tutor,
+      auth.uid() is not null and covered.course_code is not null as has_tutor,
       case
         when v_query <> '' and c.course_code ilike v_query || '%' escape '\' then 0
         else 1

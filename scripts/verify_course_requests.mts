@@ -138,11 +138,12 @@ try {
   const coveredCode = pair[1][0]!;
   const uncoveredCode = pair[1][1]!;
   const otherCodes = unoffered.filter((code) => code !== coveredCode && code !== uncoveredCode);
-  if (otherCodes.length < 6) throw new Error('At least six additional unused real catalog codes are required');
+  if (otherCodes.length < 7) throw new Error('At least seven additional unused real catalog codes are required');
   const requestCodes = [uncoveredCode, ...otherCodes.slice(0, 3)];
   const approvalCode = otherCodes[3]!;
   const coveredRequestCode = otherCodes[4]!;
   const staleCode = otherCodes[5]!;
+  const reactivationCode = otherCodes[6]!;
   pass(`selected real, seed-unoffered catalog codes (${prefix})`);
 
   const studentOne = await createFixtureUser('student-one');
@@ -240,6 +241,13 @@ try {
   pass('course search returns covered course before uncovered course with accurate flags',
     coveredIndex >= 0 && uncoveredIndex >= 0 && coveredIndex < uncoveredIndex &&
     search[coveredIndex]?.hasTutor === true && search[uncoveredIndex]?.hasTutor === false);
+  const anonCoveredSearch = await anon.rpc('search_courses', { p_query: coveredCode, p_limit: 5 });
+  pass('anonymous course search hides tutor coverage',
+    !anonCoveredSearch.error &&
+    (anonCoveredSearch.data ?? []).find((course) => course.course_code === coveredCode)?.has_tutor === false);
+  const studentCoveredSearch = await api.courses.search(coveredCode, 5);
+  pass('authenticated course search reports tutor coverage',
+    studentCoveredSearch.find((course) => course.courseCode === coveredCode)?.hasTutor === true);
   const byCode = await api.courses.byCodes([coveredCode, uncoveredCode]);
   pass('byCodes marks course coverage unknown as false',
     byCode[coveredCode]?.hasTutor === false && byCode[uncoveredCode]?.hasTutor === false);
@@ -263,6 +271,34 @@ try {
   must(coveredRequest.error);
   pass('a student may create a request even when the course is already covered',
     coveredRequest.data?.created === true);
+
+  await addTutorCourse(tutorOne.id, reactivationCode);
+  const activeTutorCourseSearch = await api.courses.search(reactivationCode, 5);
+  pass('approved tutor course is covered before suspension',
+    activeTutorCourseSearch.find((course) => course.courseCode === reactivationCode)?.hasTutor === true);
+  must((await service.from('users').update({ status: 'suspended' }).eq('id', tutorOne.id)).error);
+  const reactivationCourseSearch = await studentTwoClient.rpc('search_courses', {
+    p_query: reactivationCode,
+    p_limit: 5,
+  });
+  pass('suspended tutor’s course is uncovered for a student request',
+    !reactivationCourseSearch.error &&
+    (reactivationCourseSearch.data ?? []).find((course) => course.course_code === reactivationCode)?.has_tutor === false);
+  const reactivationRequest = await studentTwoClient.rpc('request_course_tutor', {
+    p_course_code: reactivationCode,
+  });
+  must(reactivationRequest.error);
+  pass('student can request a suspended tutor’s uncovered course',
+    reactivationRequest.data?.created === true);
+  pass('suspended tutor course has not notified requesters',
+    await notificationCount(studentTwo.id, reactivationCode) === 0);
+  must((await service.from('users').update({ status: 'active' }).eq('id', tutorOne.id)).error);
+  pass('reactivating an approved tutor notifies its requester',
+    await notificationCount(studentTwo.id, reactivationCode) === 1);
+  must((await service.from('users').update({ status: 'suspended' }).eq('id', tutorOne.id)).error);
+  must((await service.from('users').update({ status: 'active' }).eq('id', tutorOne.id)).error);
+  pass('repeated tutor reactivation does not send a duplicate notification',
+    await notificationCount(studentTwo.id, reactivationCode) === 1);
 
   const adminClient = await signIn(admin.email);
   const setting = await service.from('app_settings').select('value').eq('key', 'require_admin_mfa').single();
@@ -304,15 +340,57 @@ try {
     platform_fee: 6,
     tutor_payout_amount: 24,
     session_type: 'in_person',
+    status: 'pending',
     location: 'UA campus',
     cancellation_deadline: new Date(Date.now()).toISOString(),
   }).select('id').single();
   must(booking.error);
   bookingIds.push(booking.data!.id);
+  const pendingRequest = await service.from('course_requests').select('status, fulfilled_at')
+    .eq('student_id', studentOne.id).eq('course_code', coveredCode).single();
+  must(pendingRequest.error);
+  pass('pending booking leaves the course request open',
+    pendingRequest.data!.status === 'open' && pendingRequest.data!.fulfilled_at === null);
+
+  const declinedBooking = await service.from('bookings').update({
+    status: 'cancelled',
+    cancelled_at: new Date().toISOString(),
+    cancelled_by_role: 'tutor',
+    cancelled_from_status: 'pending',
+    cancel_reason: 'tutor_declined',
+  }).eq('id', booking.data!.id).select('id').single();
+  must(declinedBooking.error);
+  const afterDecline = await service.from('course_requests').select('status, fulfilled_at')
+    .eq('student_id', studentOne.id).eq('course_code', coveredCode).single();
+  must(afterDecline.error);
+  pass('declined booking leaves the course request open',
+    afterDecline.data!.status === 'open' && afterDecline.data!.fulfilled_at === null);
+
+  const confirmationBooking = await service.from('bookings').insert({
+    student_id: studentOne.id,
+    tutor_id: tutorOne.id,
+    subject: coveredCode,
+    scheduled_at: bookingAt.toISOString(),
+    duration_minutes: 60,
+    price: 30,
+    platform_fee: 6,
+    tutor_payout_amount: 24,
+    session_type: 'in_person',
+    status: 'pending',
+    location: 'UA campus',
+    cancellation_deadline: new Date(Date.now()).toISOString(),
+  }).select('id').single();
+  must(confirmationBooking.error);
+  bookingIds.push(confirmationBooking.data!.id);
+  const confirmedBooking = await service.from('bookings').update({
+    status: 'confirmed',
+    accepted_at: new Date().toISOString(),
+  }).eq('id', confirmationBooking.data!.id).select('id').single();
+  must(confirmedBooking.error);
   const fulfilled = await service.from('course_requests').select('status, fulfilled_at')
     .eq('student_id', studentOne.id).eq('course_code', coveredCode).single();
   must(fulfilled.error);
-  pass('booking insert fulfills the student’s matching request',
+  pass('confirmed booking fulfills the student’s matching request',
     fulfilled.data!.status === 'fulfilled' && !!fulfilled.data!.fulfilled_at);
 
   const staleCreatedAt = new Date(Date.now() - 31 * 86400000).toISOString();

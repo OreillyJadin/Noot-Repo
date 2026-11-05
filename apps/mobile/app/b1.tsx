@@ -150,10 +150,10 @@ export default function B1() {
     let active = true;
     const mine = ++requestSearchSeq.current;
     const timer = setTimeout(() => {
-      Promise.all([api.courses.search(trimmed, 3), api.courseRequests.listMine()])
+      Promise.all([api.courses.search(trimmed, 25), api.courseRequests.listMine()])
         .then(([courses, requests]) => {
           if (!active || requestSearchSeq.current !== mine) return;
-          setRequestMatches(courses.filter((course) => !course.hasTutor));
+          setRequestMatches(courses.filter((course) => !course.hasTutor).slice(0, 3));
           setRequestedCourseCodes(Object.fromEntries(requests.map((request) => [request.courseCode, true])));
           setRequestMatchesQuery(trimmed);
         })
