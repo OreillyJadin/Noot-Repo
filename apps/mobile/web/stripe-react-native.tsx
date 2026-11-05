@@ -32,7 +32,10 @@ interface Ctx {
 const StripeCtx = createContext<Ctx | null>(null);
 
 export function StripeProvider({ publishableKey, children }: { publishableKey: string; children: React.ReactNode; [key: string]: unknown }) {
-  const stripePromise = useMemo(() => (publishableKey ? loadStripe(publishableKey) : null), [publishableKey]);
+  const stripePromise = useMemo(
+    () => (publishableKey ? loadStripe(publishableKey).catch(() => null) : null),
+    [publishableKey],
+  );
   const pending = useRef<Sheet | null>(null);
   const [open, setOpen] = useState<{ sheet: Sheet; resolve: (r: SheetResult) => void } | null>(null);
 
@@ -83,6 +86,12 @@ export function useStripe(): Ctx {
 function PaymentModal({ stripe, sheet, onDone }: { stripe: Promise<Stripe | null>; sheet: Sheet; onDone: (r: SheetResult) => void }) {
   const t = useTheme();
   const { dark } = useThemePref();
+  const [loadFailed, setLoadFailed] = useState(false);
+  useEffect(() => {
+    let active = true;
+    stripe.then((s) => { if (active && !s) setLoadFailed(true); }, () => { if (active) setLoadFailed(true); });
+    return () => { active = false; };
+  }, [stripe]);
   const appearance: Appearance = {
     theme: dark ? 'night' : 'stripe',
     variables: {
@@ -102,9 +111,13 @@ function PaymentModal({ stripe, sheet, onDone }: { stripe: Promise<Stripe | null
         <View style={[styles.card, { backgroundColor: t.surface }]}>
           <ScrollView contentContainerStyle={styles.body}>
             <Text style={[styles.title, { color: t.text }]}>{sheet.mode === 'setup' ? 'Save a card' : 'Pay with card'}</Text>
-            <Elements stripe={stripe} options={{ clientSecret: sheet.clientSecret, appearance }}>
-              <PaymentForm sheet={sheet} onDone={onDone} onCancel={cancel} />
-            </Elements>
+            {loadFailed ? (
+              <Text style={{ color: t.danger, fontSize: 14 }}>Stripe could not load. Check your connection and try again.</Text>
+            ) : (
+              <Elements stripe={stripe} options={{ clientSecret: sheet.clientSecret, appearance }}>
+                <PaymentForm sheet={sheet} onDone={onDone} onCancel={cancel} />
+              </Elements>
+            )}
           </ScrollView>
         </View>
       </View>

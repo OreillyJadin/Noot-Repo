@@ -795,6 +795,11 @@ export interface CreatePaymentIntentInput {
   durationMinutes: number;
   scheduledAt: string;
   repeatWeeks?: number;
+  /**
+   * Card only, no redirect-based methods: the web app confirms in place and would lose the
+   * booking if a payment method sent the browser away. Native builds leave it unset.
+   */
+  cardOnly?: boolean;
 }
 
 export interface RescheduleBookingInput {

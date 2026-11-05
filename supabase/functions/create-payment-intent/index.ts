@@ -46,6 +46,9 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
 
     const body = await req.json().catch(() => ({}));
     const repeatWeeks = body?.repeatWeeks;
+    // The web app (optional; older builds never send it): a redirect-based method would
+    // leave the page before confirm-booking runs, so it gets cards only.
+    const cardOnly = body?.cardOnly === true;
     if (repeatWeeks !== undefined && (!Number.isInteger(repeatWeeks) || repeatWeeks < 2 || repeatWeeks > 12)) {
       return Response.json({ error: 'repeatWeeks must be an integer from 2 to 12.' }, { status: 400, headers: cors });
     }
@@ -174,7 +177,7 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
       currency: 'usd',
       capture_method: 'manual', // held until session completion (captured in complete-session)
       customer: customerId,
-      automatic_payment_methods: { enabled: true },
+      ...(cardOnly ? { payment_method_types: ['card'] } : { automatic_payment_methods: { enabled: true } }),
       // confirm-booking re-derives the price and checks it against this metadata, so a
       // PaymentIntent can't be reused for a different tutor, course, or duration.
       metadata: {

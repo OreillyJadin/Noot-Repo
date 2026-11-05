@@ -16,6 +16,11 @@ module.exports = [
     // The web stand-in for the native PaymentSheet SDK: Stripe.js is its web equivalent
     // (on-device UI holding only the publishable key), so the same exception applies.
     files: ['web/stripe-react-native.tsx'],
-    rules: { 'no-restricted-imports': 'off' },
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [{
+        group: ['@supabase/*'],
+        message: 'Import Supabase only inside packages/core or supabase/functions. Elsewhere, use @noot/core.',
+      }] }],
+    },
   },
 ];
