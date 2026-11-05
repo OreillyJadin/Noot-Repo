@@ -1,7 +1,7 @@
 // Verify the connect-return Edge Function (ERR-002) against the LOCAL stack: the https
 // address Stripe sends a tutor back to after payout onboarding. It must answer a plain
 // browser request (no session, so JWT verification is off) and may only ever redirect into
-// the app — never to an address the caller supplies.
+// the app — never to an address the caller supplies — or, for the web app, show fixed text.
 //
 // Needs: supabase start && supabase functions serve
 //   pnpm dlx tsx scripts/verify_connect_return.mts
@@ -37,6 +37,16 @@ for (const bad of ['https://evil.example', '//evil.example', 'noot://somewhere-e
 
 const post = await hit('?to=https://evil.example', 'POST')
 step(n++, post.status === 302 && post.location === 'noot://connect-return', `POST with an outside URL → ${post.location}`)
+
+// The web app's tab (connect-onboarding-link returnTo: 'web'): a plain-text "close this tab"
+// page instead of a noot:// redirect, which a laptop browser can't follow.
+for (const [to, words] of [['web', 'Payout setup is saved'], ['web-refresh', 'link expired']] as const) {
+  const res = await fetch(`${BASE}?to=${to}`, { redirect: 'manual' })
+  const body = await res.text()
+  step(n++, res.status === 200 && !res.headers.get('location') && body.includes(words) &&
+    (res.headers.get('content-type') ?? '').startsWith('text/plain'),
+    `to=${to} → ${res.status} ${JSON.stringify(body.slice(0, 40))}`)
+}
 
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

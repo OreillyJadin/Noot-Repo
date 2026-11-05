@@ -795,6 +795,11 @@ export interface CreatePaymentIntentInput {
   durationMinutes: number;
   scheduledAt: string;
   repeatWeeks?: number;
+  /**
+   * Card only, no redirect-based methods: the web app confirms in place and would lose the
+   * booking if a payment method sent the browser away. Native builds leave it unset.
+   */
+  cardOnly?: boolean;
 }
 
 export interface RescheduleBookingInput {
@@ -2410,8 +2415,12 @@ export const api = {
   // --- Stripe Connect (tutor payouts, see ARCHITECTURE.md §8) ---
   connect: {
     /** Create/reuse the tutor's Express account and return a hosted onboarding URL. */
-    onboardingLink(): Promise<{ url: string | null; accountId?: string; simulated?: boolean }> {
-      return invokeFn('connect-onboarding-link');
+    /**
+     * `returnTo: 'web'` makes Stripe end on a "close this tab" page instead of redirecting
+     * to the app's noot:// address (the web app opens onboarding in a browser tab).
+     */
+    onboardingLink(opts?: { returnTo?: 'web' }): Promise<{ url: string | null; accountId?: string; simulated?: boolean }> {
+      return opts ? invokeFn('connect-onboarding-link', opts) : invokeFn('connect-onboarding-link');
     },
     /**
      * Same account, but a client secret for Stripe's in-app onboarding form instead of a
