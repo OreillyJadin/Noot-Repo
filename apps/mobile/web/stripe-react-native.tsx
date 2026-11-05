@@ -18,16 +18,6 @@ export function useStripe() {
   };
 }
 
-export function ConnectComponentsProvider({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
-}
-
-export function ConnectAccountOnboarding(_props: unknown) {
-  return null;
-}
-
-export function loadConnectAndInitialize(_params: unknown) {
-  return {};
-}
-
-export type StripeConnectInstance = Record<string, never>;
+// Payout onboarding (ConnectAccountOnboarding & co.) is deliberately absent: web has its
+// own lib/PayoutSetupHost.web.tsx, which registers no host, so openPayoutSetup() falls back
+// to Stripe's hosted page instead of waiting on a component that can never exit.

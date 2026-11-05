@@ -12,6 +12,8 @@
   "include": [
     "app",
     "web",
+    "lib/**/*.web.ts",
+    "lib/**/*.web.tsx",
     "*.ts",
     "*.tsx"
   ]
