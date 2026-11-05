@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { api, type GrowthFunnel } from '@noot/core';
+import { api, type AdminCourseRequest, type GrowthFunnel } from '@noot/core';
 import { Body, Button, Chip, NavTop, Screen, Skeleton, useTheme } from '@noot/ui';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
 import { AdminRow, AdminSection } from '../lib/adminUi';
@@ -13,6 +13,8 @@ function GrowthScreen() {
   const [retry, setRetry] = useState(0);
   const [data, setData] = useState<GrowthFunnel | null>(null);
   const [error, setError] = useState(false);
+  const [courseRequests, setCourseRequests] = useState<AdminCourseRequest[] | null>(null);
+  const [courseRequestsError, setCourseRequestsError] = useState(false);
   useEffect(() => {
     let active = true;
     const until = new Date();
@@ -22,6 +24,13 @@ function GrowthScreen() {
       .catch(() => { if (active) setError(true); });
     return () => { active = false; };
   }, [range, retry]);
+  useEffect(() => {
+    let active = true;
+    api.admin.courseRequests()
+      .then((value) => { if (active) setCourseRequests(value); })
+      .catch(() => { if (active) setCourseRequestsError(true); });
+    return () => { active = false; };
+  }, []);
   const selectRange = (days: 7 | 30 | null) => {
     if (days === range) return;
     setData(null);
@@ -66,6 +75,22 @@ function GrowthScreen() {
             </AdminSection>
             <AdminSection label="Unmet demand · top empty searches">
               {data.emptyDemand.length ? data.emptyDemand.map((item) => <AdminRow key={item.term} title={item.term} count={item.searches} subtitle={`${item.users} unique searchers`} />) : <AdminRow title="No empty searches recorded" muted />}
+            </AdminSection>
+            <AdminSection label="Unmet demand · open course requests · open now">
+              {courseRequestsError
+                ? <AdminRow title="Could not load open course requests" muted />
+                : courseRequests === null
+                  ? <Skeleton height={64} />
+                  : courseRequests.length
+                    ? courseRequests.map((item) => (
+                      <AdminRow
+                        key={item.courseCode}
+                        title={`${item.courseCode} · ${item.courseTitle}`}
+                        count={item.requests}
+                        subtitle={item.covered ? 'Tutor now available' : 'No tutor yet'}
+                      />
+                    ))
+                    : <AdminRow title="No open course requests" muted />}
             </AdminSection>
           </>
         )}

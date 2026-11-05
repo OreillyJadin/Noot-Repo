@@ -18,10 +18,10 @@ function check(name: string, ok: boolean, detail = '') {
 
 initSupabase({ url: URL, anonKey: ANON });
 
-// Signed OUT first: course search runs before signup (the landing/browse path), and the
-// 0023 policy has no `to` clause, so anon must be able to read the catalog.
-const anonHits = await api.courses.search('MATH', 5);
-check('anon can search the catalog', anonHits.length > 0, `${anonHits.length} hits`);
+// Course search is now guarded by is_active_user(), so anonymous callers must be denied.
+let anonDenied = false;
+try { await api.courses.search('MATH', 5); } catch { anonDenied = true; }
+check('anonymous course search is denied', anonDenied);
 
 const signIn = await auth.signInWithPassword('student@crimson.ua.edu', DEV_PASSWORD);
 if (!signIn.ok) throw new Error(signIn.error);

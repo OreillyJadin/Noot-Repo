@@ -122,6 +122,7 @@ jobs:
             verify_cancel_payout_ui
             verify_chat_attachments
             verify_course_catalog
+            verify_course_requests
             verify_credits
             verify_deferred_hold
             verify_definer_lockdown
