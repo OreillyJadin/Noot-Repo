@@ -448,6 +448,7 @@ export interface Cashout {
   paidAt: string | null;
   rejectedAt: string | null;
   payingAt: string | null;
+  payUnknownAt: string | null;
   transferRef: string | null;
 }
 

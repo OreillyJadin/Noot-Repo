@@ -152,6 +152,22 @@ try {
     !anotherPayoutFields.error && anotherPayoutFields.data === null,
     anotherPayoutFields.error?.message ?? JSON.stringify(anotherPayoutFields.data),
   );
+  const studentCashoutRows = await other.c.from('credit_cashouts')
+    .select('status, amount_cents')
+    .eq('user_id', other.uid)
+    .in('status', ['paid', 'pending']);
+  const studentCashoutTotals = ((studentCashoutRows.data ?? []) as Record<string, unknown>[])
+    .reduce<{ paidCents: number; pendingCents: number }>((totals, row) => {
+      const cents = Number(row.amount_cents ?? 0);
+      if (row.status === 'paid') totals.paidCents += cents;
+      if (row.status === 'pending') totals.pendingCents += cents;
+      return totals;
+    }, { paidCents: 0, pendingCents: 0 });
+  check(
+    'student cash-out totals include only their own rows despite another user’s rows',
+    !studentCashoutRows.error && studentCashoutTotals.paidCents === 0 && studentCashoutTotals.pendingCents === 1000,
+    studentCashoutRows.error?.message ?? JSON.stringify(studentCashoutTotals),
+  );
   noRows(await amb.c.from('credit_cashouts').update({ status: 'paid' }).eq('id', cid1).select(), 'ambassador cannot mark their own paid');
   noRows(await amb.c.from('credit_cashouts').insert({ user_id: amb.uid, amount_cents: 1000 }).select(), 'ambassador cannot insert a cash-out directly');
   noRows(await amb.c.from('credit_cashouts').delete().eq('id', cid1).select(), 'ambassador cannot delete a cash-out');

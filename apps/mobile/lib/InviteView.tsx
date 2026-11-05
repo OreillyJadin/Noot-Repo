@@ -25,9 +25,11 @@ const cashoutStatusLabel = (cashout: Cashout) => cashout.status === 'paid'
   ? 'Sent to your payout account'
   : cashout.status === 'rejected'
     ? 'Returned to your credit'
-    : cashout.payingAt
-      ? 'Sending to your payout account'
-      : 'Waiting for the noot team';
+    : cashout.payUnknownAt
+      ? 'Payment being confirmed'
+      : cashout.payingAt
+        ? 'Sending to your payout account'
+        : 'Waiting for the noot team';
 
 export const dollars = (cents: number) => `$${(cents / 100).toFixed(2).replace(/\.00$/, '')}`;
 
@@ -61,6 +63,7 @@ export function InviteView({
   const [bump, setBump] = useState(0);
   const [payouts, setPayouts] = useState<{ connected: boolean; chargesEnabled: boolean } | null>(null);
   const [cashouts, setCashouts] = useState<Cashout[]>([]);
+  const [cashoutTotals, setCashoutTotals] = useState({ paidCents: 0, pendingCents: 0 });
   const [settingUp, setSettingUp] = useState(false);
   const payoutReady = !!payouts?.chargesEnabled; // transfers active = we can send them money
 
@@ -78,6 +81,7 @@ export function InviteView({
       api.credits.ambassadorApproved().then((a) => { if (alive) setApproved(a); }).catch(() => {});
       api.credits.cashable().then((c) => { if (alive) setCashable(c); }).catch(() => {});
       api.credits.cashouts().then((l) => { if (alive) setCashouts(l); }).catch(() => {});
+      api.credits.cashoutTotals().then((totals) => { if (alive) setCashoutTotals(totals); }).catch(() => {});
       api.connect.status().then((s) => { if (alive) setPayouts(s); }).catch(() => { if (alive) setPayouts({ connected: false, chargesEnabled: false }); });
       api.credits
         .history()
@@ -397,9 +401,9 @@ export function InviteView({
             <>
               {sectionLabel('Your cash-outs', { marginTop: 22, marginBottom: 10 })}
               <Text style={[styles.cashoutTotals, { color: t.text3 }]}>
-                Cashed out {dollars(cashouts.filter((c) => c.status === 'paid').reduce((sum, c) => sum + c.amountCents, 0))}
-                {cashouts.some((c) => c.status === 'pending')
-                  ? ` · ${dollars(cashouts.filter((c) => c.status === 'pending').reduce((sum, c) => sum + c.amountCents, 0))} on the way`
+                Cashed out {dollars(cashoutTotals.paidCents)}
+                {cashoutTotals.pendingCents > 0
+                  ? ` · ${dollars(cashoutTotals.pendingCents)} pending`
                   : ''}
               </Text>
               <Card style={{ paddingVertical: 4, paddingHorizontal: 16 }}>

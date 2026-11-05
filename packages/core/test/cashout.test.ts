@@ -22,8 +22,11 @@ test('mapCashout maps payment progress and a shortened transfer reference', () =
     paidAt: null,
     rejectedAt: null,
     payingAt: '2026-11-05T01:00:00.000Z',
+    payUnknownAt: '2026-11-05T02:00:00.000Z',
     transferRef: '12345678',
   });
-  assert.equal(mapCashout({ ...row, paying_at: null, stripe_transfer_id: null }).payingAt, row.pay_unknown_at);
+  const unknown = mapCashout({ ...row, paying_at: null });
+  assert.equal(unknown.payingAt, null);
+  assert.equal(unknown.payUnknownAt, row.pay_unknown_at);
   assert.equal(mapCashout({ ...row, stripe_transfer_id: null }).transferRef, null);
 });

@@ -1689,6 +1689,25 @@ export const api = {
       if (error) throw error;
       return ((data ?? []) as Record<string, unknown>[]).map(mapCashout);
     },
+
+    async cashoutTotals(): Promise<{ paidCents: number; pendingCents: number }> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('credit_cashouts')
+        .select('status, amount_cents')
+        .eq('user_id', uid)
+        .in('status', ['paid', 'pending']);
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).reduce<{ paidCents: number; pendingCents: number }>(
+        (totals, row) => {
+          const cents = Number(row.amount_cents ?? 0);
+          if (row.status === 'paid') totals.paidCents += cents;
+          if (row.status === 'pending') totals.pendingCents += cents;
+          return totals;
+        },
+        { paidCents: 0, pendingCents: 0 },
+      );
+    },
   },
 
   // --- admin (RLS is_admin() already permits these reads; writes go through Edge Functions) ---
