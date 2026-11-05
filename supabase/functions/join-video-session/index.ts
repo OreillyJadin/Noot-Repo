@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
-import { videoJoinUrl, videoWindow } from '../_shared/daily.ts';
+import { applyRoomAccess, videoJoinUrl, videoWindow } from '../_shared/daily.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -22,7 +22,10 @@ serveWithErrorReporting('join-video-session', async (req: Request) => {
     const db = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const inactive = await requireActiveUser(db, user.id, cors);
     if (inactive) return inactive;
-    const { bookingId } = await req.json().catch(() => ({}));
+    const { bookingId, device } = await req.json().catch(() => ({}));
+    if (device !== undefined && device !== 'phone' && device !== 'computer') {
+      return Response.json({ error: "device must be 'phone' or 'computer'" }, { status: 400, headers: cors });
+    }
     if (typeof bookingId !== 'string' || !/^[\da-f]{8}(-[\da-f]{4}){3}-[\da-f]{12}$/i.test(bookingId)) {
       return Response.json({ error: 'A valid bookingId is required' }, { status: 400, headers: cors });
     }
@@ -39,7 +42,19 @@ serveWithErrorReporting('join-video-session', async (req: Request) => {
     }
     const { data: profile, error: profileError } = await db.from('users').select('first_name').eq('id', user.id).single();
     if (profileError) throw profileError;
-    const joinUrl = await videoJoinUrl(b.meeting_link, b.daily_room_name, user.id, profile.first_name || 'Noot participant', window.exp);
+    try {
+      await applyRoomAccess(b.daily_room_name);
+    } catch (error) {
+      console.error('join-video-session: could not apply room access', String(error));
+    }
+    const joinUrl = await videoJoinUrl(
+      b.meeting_link,
+      b.daily_room_name,
+      user.id,
+      profile.first_name || 'Noot participant',
+      window.exp,
+      device,
+    );
     return Response.json({ url: joinUrl }, { headers: cors });
   } catch {
     return Response.json({ error: 'Unable to open your video session. Please try again.' }, { status: 503, headers: cors });

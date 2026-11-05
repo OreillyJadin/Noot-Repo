@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, Share, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { api, type Booking } from '@noot/core';
@@ -40,12 +40,39 @@ export function JoinVideoButton({ bookingId }: { bookingId: string }) {
       Alert.alert('Video session', error instanceof Error ? error.message : 'Unable to open your video session. Please try again.');
     } finally { setBusy(false); }
   };
+  const shareComputerLink = async () => {
+    setBusy(true);
+    try {
+      const { url } = await api.bookings.joinVideo(bookingId, { device: 'computer' });
+      await Share.share({ message: url });
+    } catch (error) {
+      Alert.alert('Video session', error instanceof Error ? error.message : 'Unable to open your video session. Please try again.');
+    } finally { setBusy(false); }
+  };
+  const confirmComputerShare = () => Alert.alert(
+    'Share your screen from a computer',
+    "Phones can't share their screen in Noot video. Send this private link to your own computer (AirDrop, Notes or email yourself) and open it there to share your screen. Don't forward it — it's only for you, and it expires when the session ends.",
+    [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Continue', onPress: () => { void shareComputerLink(); } },
+    ],
+  );
   return (
     <View style={{ gap: 6, marginTop: 12 }}>
       <Button label={busy ? 'Opening…' : loadFailed ? 'Retry video details' : state.label}
         full kind="secondary" size="sm" disabled={busy || (!loadFailed && !state.enabled)} onPress={join} />
       {state.enabled && booking?.dailyRoomName ? (
-        <Text style={{ color: t.text3, fontSize: 12 }}>Meeting code: {booking.dailyRoomName.toUpperCase()}</Text>
+        <View style={{ alignItems: 'flex-start', gap: 2 }}>
+          <Text style={{ color: t.text3, fontSize: 12 }}>Meeting code: {booking.dailyRoomName.toUpperCase()}</Text>
+          <Button
+            label="Share your screen from a computer"
+            kind="ghost"
+            size="sm"
+            disabled={busy}
+            style={{ minHeight: 28, paddingHorizontal: 0 }}
+            onPress={confirmComputerShare}
+          />
+        </View>
       ) : null}
     </View>
   );

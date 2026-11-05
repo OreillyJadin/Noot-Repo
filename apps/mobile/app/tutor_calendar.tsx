@@ -19,11 +19,6 @@ import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { INTERVIEW_MINUTES, interviewBlockedSlots, interviewRange } from '../lib/interviewBlock';
 
-// Something the noot team put on the calendar, not the tutor or a student: neither the
-// accent of open times nor the green of a booked session's pay.
-const ADMIN_EVENT = '#5B6CC2';
-const ADMIN_EVENT_WEAK = 'rgba(91,108,194,0.14)';
-
 const CAL_TIMES = ['9:00 AM', '10:30 AM', '12:00 PM', '1:30 PM', '3:00 PM', '4:30 PM', '6:00 PM', '7:30 PM'];
 
 interface CalSession {
@@ -251,7 +246,7 @@ export default function TutorCalendar() {
                   {interviewDay === d.i && (
                     // A square, so it still reads apart from the round dots on the selected day,
                     // where every marker is the same light colour.
-                    <View style={[styles.dot, { borderRadius: 1, backgroundColor: on ? t.onAccent : ADMIN_EVENT }]} />
+                    <View style={[styles.dot, { borderRadius: 1, backgroundColor: on ? t.onAccent : t.danger }]} />
                   )}
                   {nOpen > 0 && (
                     <View
@@ -280,9 +275,9 @@ export default function TutorCalendar() {
         </View>
         <Text style={[styles.dayLabel, { color: t.text2 }]}>{dayObj.label}</Text>
         {interview && interviewAt && interviewDay === day ? (
-          <View style={[styles.interviewCard, { backgroundColor: ADMIN_EVENT_WEAK, borderColor: ADMIN_EVENT }]}>
-            <View style={[styles.interviewIcon, { backgroundColor: ADMIN_EVENT }]}>
-              <Ic name="cal" size={16} color="#FFFFFF" strokeWidth={1.9} />
+          <View style={[styles.interviewCard, { backgroundColor: t.dangerWeak, borderColor: t.danger }]}>
+            <View style={[styles.interviewIcon, { backgroundColor: t.danger }]}>
+              <Ic name="cal" size={16} color={t.surface} strokeWidth={1.9} />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.sessionName, { color: t.text }]}>Interview with noot</Text>
@@ -329,9 +324,9 @@ export default function TutorCalendar() {
                     <Ic name="chevR" size={16} color={t.text3} strokeWidth={2} />
                   </Card>
                 ) : isBlocked ? (
-                  <View style={[styles.openSlot, { backgroundColor: ADMIN_EVENT_WEAK, borderColor: ADMIN_EVENT }]}>
+                  <View style={[styles.openSlot, { backgroundColor: t.dangerWeak, borderColor: t.danger }]}>
                     <View style={styles.openSlotLeft}>
-                      <View style={[styles.dotSm, { backgroundColor: ADMIN_EVENT }]} />
+                      <View style={[styles.dotSm, { backgroundColor: t.danger }]} />
                       <Text style={[styles.openSlotLabel, { color: t.text }]}>Interview with noot</Text>
                     </View>
                     <Text style={[styles.openSlotHint, { color: t.text3 }]}>Not bookable</Text>
