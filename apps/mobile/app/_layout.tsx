@@ -19,6 +19,7 @@ import { PushRegistrar } from '../lib/PushRegistrar';
 import { PushOpener } from '../lib/PushOpener';
 import { BookingConfirmedHost } from '../lib/BookingConfirmedHost';
 import { PayoutSetupHost } from '../lib/PayoutSetupHost';
+import { WebAlertHost } from '../lib/WebAlertHost';
 import { largeSecureStore } from '../lib/secureStorage';
 import { ThemePrefProvider, useThemePref } from '../lib/themePref';
 import { initSentry, trackSentryUser } from '../lib/sentry';
@@ -92,6 +93,7 @@ function ThemedApp() {
         </AuthGate>
         {/* Stripe's in-app payout form. Needs the native Stripe module, so not in Expo Go. */}
         {inExpoGo ? null : <PayoutSetupHost />}
+        <WebAlertHost />
       </MeProvider>
     </AppProvider>
   );
