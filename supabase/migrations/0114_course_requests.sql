@@ -254,7 +254,7 @@ declare
   v_query text := trim(coalesce(p_query, ''));
   v_limit int := greatest(1, least(coalesce(p_limit, 25), 50));
 begin
-  if not public.is_active_user() then
+  if auth.uid() is not null and not public.is_active_user() then
     raise exception 'account is not active' using errcode = '42501';
   end if;
 
@@ -267,14 +267,23 @@ begin
     from public.courses c
     where c.is_active
     order by c.course_code, c.catalog_year desc, c.course_id
+  ), covered as (
+    select distinct tc.course_code
+    from public.tutor_courses tc
+    join public.tutor_profiles tp on tp.user_id = tc.tutor_id
+    join public.users u on u.id = tc.tutor_id
+    where tp.approval_status = 'approved'
+      and u.deleted_at is null
+      and u.status = 'active'
   ), matched as (
     select c.*,
-      public.course_is_covered(c.course_code) as has_tutor,
+      covered.course_code is not null as has_tutor,
       case
         when v_query <> '' and c.course_code ilike v_query || '%' escape '\' then 0
         else 1
       end as code_prefix_rank
     from catalog c
+    left join covered on covered.course_code = c.course_code
     where v_query = ''
        or c.course_code ilike v_query || '%' escape '\'
        or c.course_code ilike '%' || v_query || '%' escape '\'
@@ -288,8 +297,8 @@ begin
    limit v_limit;
 end;
 $$;
-revoke all on function public.search_courses(text, int) from public, anon;
-grant execute on function public.search_courses(text, int) to authenticated;
+revoke all on function public.search_courses(text, int) from public;
+grant execute on function public.search_courses(text, int) to anon, authenticated;
 
 create or replace function public.admin_course_requests()
 returns table (

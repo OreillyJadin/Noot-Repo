@@ -190,7 +190,8 @@ try {
   const anonAdminQuery = await anon.rpc('admin_course_requests');
   pass('anonymous admin aggregate is denied', !!anonAdminQuery.error);
   const anonSearch = await anon.rpc('search_courses', { p_query: prefix, p_limit: 5 });
-  pass('anonymous course search RPC is denied', !!anonSearch.error);
+  pass('anonymous course search returns catalog results',
+    !anonSearch.error && (anonSearch.data ?? []).length > 0);
   const studentAdminQuery = await core.rpc('admin_course_requests');
   pass('student is denied the admin course-request aggregate', studentAdminQuery.error?.code === '42501');
 
