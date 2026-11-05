@@ -124,6 +124,7 @@ function B4Inner() {
         durationMinutes: lengthMin,
         scheduledAt,
         repeatWeeks: repeating ? repeatWeeks : undefined,
+        cardOnly: Platform.OS === 'web' ? true : undefined,
       });
       setServerDeferred(!!pi.deferred);
 
