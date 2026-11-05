@@ -148,6 +148,10 @@ try {
       const join = await call('join-video-session', token, { bookingId: id });
       check(`${label} can join with a simulated participant token`, join.status === 200 && join.body.url === `${b.meeting_link}?t=sim`);
     }
+    const computerJoin = await call('join-video-session', s.token, { bookingId: id, device: 'computer' });
+    check('computer join creates a simulated participant token', computerJoin.status === 200 && computerJoin.body.url === `${b.meeting_link}?t=sim`);
+    const unsupportedDevice = await call('join-video-session', s.token, { bookingId: id, device: 'tablet' });
+    check('unsupported join device is rejected', unsupportedDevice.status === 400);
     await db.from('users').update({ status: 'suspended' }).eq('id', s.id).throwOnError();
     check('inactive participant cannot join', (await call('join-video-session', s.token, { bookingId: id })).status === 403);
     await db.from('users').update({ status: 'active' }).eq('id', s.id).throwOnError();
