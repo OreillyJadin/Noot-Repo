@@ -171,6 +171,15 @@ export interface GrowthFunnel {
   rebookAllTime: { students: number; completers: number; rate: number };
 }
 
+export interface TutorDemand {
+  profileViews: number;
+  uniqueViewers: number;
+  openRequests: { courseCode: string; requests: number }[];
+  openRequestTotal: number;
+  earned: number;
+  sessionsCompleted: number;
+}
+
 /** An in-app notification in a user's feed (0014). Created by DB triggers on events. */
 export interface Notification {
   id: UUID;
