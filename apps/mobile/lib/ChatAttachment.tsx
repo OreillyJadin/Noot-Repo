@@ -19,10 +19,12 @@ export function ChatAttachmentView({
   attachment,
   mine,
   url,
+  onLongPress,
 }: {
   attachment: ChatAttachmentViewItem;
   mine: boolean;
   url?: string;
+  onLongPress?: () => void;
 }) {
   const t = useTheme();
   const iconName: IconName = attachment.kind === 'image' ? 'image' : 'doc';
@@ -36,8 +38,10 @@ export function ChatAttachmentView({
 
   return (
     <Pressable
-      onPress={openAttachment}
-      disabled={!url}
+      onPress={url ? openAttachment : undefined}
+      onLongPress={onLongPress}
+      delayLongPress={400}
+      disabled={!url && !onLongPress}
       accessibilityRole="button"
       accessibilityLabel={`Open ${attachment.name}`}
     >

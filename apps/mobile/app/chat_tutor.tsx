@@ -353,7 +353,15 @@ function Bubble({
       accessibilityHint={mine ? undefined : 'Long press to report this message'}
       style={[styles.bubbleWrap, { alignSelf: mine ? 'flex-end' : 'flex-start', alignItems: mine ? 'flex-end' : 'flex-start' }]}
     >
-      {m.attach?.map((a, i) => <ChatAttachmentView key={i} attachment={a} mine={mine} url={urls[a.storagePath]} />)}
+      {m.attach?.map((a, i) => (
+        <ChatAttachmentView
+          key={i}
+          attachment={a}
+          mine={mine}
+          url={urls[a.storagePath]}
+          onLongPress={mine ? undefined : onReport}
+        />
+      ))}
       {m.text ? (
         <View
           style={[

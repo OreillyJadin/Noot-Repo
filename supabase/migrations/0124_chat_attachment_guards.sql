@@ -33,7 +33,7 @@ begin
   v_prefix := v_conversation_id::text || '/';
   if new.storage_path is null
      or left(new.storage_path, char_length(v_prefix)) <> v_prefix
-     or position('..' in new.storage_path) > 0 then
+     or new.storage_path ~ '(^|/)\.\.(/|$)' then
     raise exception 'Attachment path must belong to its conversation'
       using errcode = '23514';
   end if;

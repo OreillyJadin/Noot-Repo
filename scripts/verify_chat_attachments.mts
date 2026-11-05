@@ -65,6 +65,21 @@ check('attachment keyed under the conversation', img.storagePath.startsWith(`${c
 const sent = await api.chat.sendMessage(conv.id, 'Here are my notes', [img, doc, word]);
 check('sendMessage returns the image, text file, and .docx', sent.attachmentCount === 3 && sent.attachments?.length === 3);
 
+const longFilename = `${'a'.repeat(250)}.pdf`;
+const longNamePdf = await api.chat.uploadAttachment(conv.id, PDF.buffer, longFilename, 'application/pdf');
+const longNameMessage = await api.chat.sendMessage(conv.id, 'Here is the long-name worksheet', [longNamePdf]);
+check('long attachment filename is capped and keeps its extension',
+  longNamePdf.filename.length === 200
+    && longNamePdf.filename.endsWith('.pdf')
+    && longNameMessage.attachments?.[0]?.filename === longNamePdf.filename,
+  `${longNamePdf.filename.length} characters`);
+
+const doubleDotPdf = await api.chat.uploadAttachment(conv.id, PDF.buffer, 'lab..final.pdf', 'application/pdf');
+const doubleDotMessage = await api.chat.sendMessage(conv.id, 'Here is the double-dot worksheet', [doubleDotPdf]);
+check('double dots within an attachment filename upload and send',
+  doubleDotPdf.filename === 'lab..final.pdf'
+    && doubleDotMessage.attachments?.[0]?.filename === 'lab..final.pdf');
+
 // Attachment-only message (content '') must be allowed — that's the whole point of the feature.
 const imgOnly = await api.chat.uploadAttachment(conv.id, PNG.buffer, 'whiteboard.png', 'image/png');
 const bare = await api.chat.sendMessage(conv.id, '', [imgOnly]);
@@ -151,6 +166,9 @@ const expectAttachmentRejected = async (name: string, overrides: Partial<Attachm
 };
 await expectAttachmentRejected('attachment path to another conversation is rejected', {
   storage_path: `${otherConversationId}/forbidden.pdf`,
+});
+await expectAttachmentRejected('attachment path traversal segment is rejected', {
+  storage_path: `${conv.id}/../${otherConversationId}/x.pdf`,
 });
 await expectAttachmentRejected('disallowed attachment MIME type is rejected', {
   storage_path: `${conv.id}/payload.exe`,
