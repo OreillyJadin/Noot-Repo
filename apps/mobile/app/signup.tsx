@@ -104,7 +104,7 @@ export default function SignUp() {
       >
         {!sent ? (
           <>
-            <Text style={[styles.h1, { color: t.text }]}>Create your account</Text>
+            <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>Create your account</Text>
 
             <Text style={[styles.sub, { color: t.text2 }]}>noot is closed to verified students.</Text>
 
@@ -160,7 +160,7 @@ export default function SignUp() {
           </>
         ) : (
           <>
-            <Text style={[styles.h1, { color: t.text }]}>Check your inbox</Text>
+            <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>Check your inbox</Text>
             <Text style={[styles.sub, { color: t.text2 }]}>
               We sent a verification link and a code to {email || 'your email'}. {OPEN_LINK_HERE}, or
               enter the code below, to continue and set your password.
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   back: { fontSize: 16, fontWeight: '600', minWidth: 48 },
   navTitle: { fontSize: 16, fontWeight: '700' },
   body: { padding: 20, gap: 16 },
-  h1: { fontSize: 26, fontWeight: '700' },
+  h1: { fontSize: 26 },
   sub: { fontSize: 15, lineHeight: 21 },
   hint: { fontSize: 13, textAlign: 'center' },
   dateOfBirth: { gap: 8 },

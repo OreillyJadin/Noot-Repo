@@ -55,7 +55,7 @@ export default function ForgotPassword() {
       >
         {!sent ? (
           <>
-            <Text style={[styles.h1, { color: t.text }]}>Forgot your password?</Text>
+            <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>Forgot your password?</Text>
             <Text style={[styles.sub, { color: t.text2 }]}>
               Enter your campus email and we&apos;ll send you a link to set a new one.
             </Text>
@@ -71,7 +71,7 @@ export default function ForgotPassword() {
           </>
         ) : (
           <>
-            <Text style={[styles.h1, { color: t.text }]}>Check your inbox</Text>
+            <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>Check your inbox</Text>
             <Text style={[styles.sub, { color: t.text2 }]}>
               We sent a reset link and a code to {email}. {OPEN_LINK_HERE}, or enter the code below,
               to set a new password.
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
   back: { fontSize: 16, fontWeight: '600', minWidth: 48 },
   navTitle: { fontSize: 16, fontWeight: '700' },
   body: { padding: 20, gap: 16 },
-  h1: { fontSize: 26, fontWeight: '700' },
+  h1: { fontSize: 26 },
   sub: { fontSize: 15, lineHeight: 21 },
   link: { fontSize: 14, fontWeight: '600', textAlign: 'center', marginTop: 6 },
 });
