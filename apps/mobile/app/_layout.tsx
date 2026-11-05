@@ -7,7 +7,7 @@ import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { StatusBar } from 'expo-status-bar';
-import { ThemeProvider } from '@noot/ui';
+import { ThemeProvider, WideShell } from '@noot/ui';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import Constants from 'expo-constants';
 import { initSupabase } from '@noot/core';
@@ -60,6 +60,7 @@ function ThemedApp() {
           <BookingConfirmedHost />
           {/* Tab roots switch instantly; tab bars provide press-scale feedback.
               Drill-down screens (booking, edit, etc.) keep the default push slide. */}
+          <WideShell>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="guidelines" options={{ gestureEnabled: false }} />
             <Stack.Screen name="age_gate" options={{ gestureEnabled: false }} />
@@ -90,6 +91,7 @@ function ThemedApp() {
               <Stack.Screen key={name} name={name} options={{ animationTypeForReplace: 'pop' }} />
             ))}
           </Stack>
+          </WideShell>
         </AuthGate>
         {/* Stripe's in-app payout form. Needs the native Stripe module, so not in Expo Go. */}
         {inExpoGo ? null : <PayoutSetupHost />}
