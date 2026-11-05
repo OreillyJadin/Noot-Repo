@@ -1,9 +1,11 @@
 // Root layout — initializes Supabase and wraps the app in the theme.
 // expo-router: this file is the nav root. Model the handoff's stack here
 // (tabs-as-roots, onboarding locked after completion — ARCHITECTURE.md §12).
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { StatusBar } from 'expo-status-bar';
@@ -23,6 +25,8 @@ import { WebAlertHost } from '../lib/WebAlertHost';
 import { largeSecureStore } from '../lib/secureStorage';
 import { ThemePrefProvider, useThemePref } from '../lib/themePref';
 import { initSentry, trackSentryUser } from '../lib/sentry';
+
+void SplashScreen.preventAutoHideAsync();
 
 initSentry();
 
@@ -117,6 +121,19 @@ function ThemedApp() {
 }
 
 export default function RootLayout() {
+  const [loaded, error] = useFonts({
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    'NootHeading-Bold': require('../assets/fonts/Outfit-Bold.ttf'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    'NootHeading-SemiBold': require('../assets/fonts/Outfit-SemiBold.ttf'),
+  });
+
+  useEffect(() => {
+    if (loaded || error) void SplashScreen.hideAsync();
+  }, [loaded, error]);
+
+  if (!loaded && !error) return null;
+
   return (
     <SafeAreaProvider>
       <KeyboardProvider>

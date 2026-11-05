@@ -79,7 +79,7 @@ export function BandHeader({ title, subtitle, trailing, children, overlap, water
           <Text
             accessibilityRole="header"
             maxFontSizeMultiplier={TEXT_CAPS.screenTitle}
-            style={[styles.bandTitle, { color: t.onBand }, large && styles.bandTitleAutoLine]}
+            style={[styles.bandTitle, { color: t.onBand, fontFamily: t.headingFont }, large && styles.bandTitleAutoLine]}
           >
             {title}
           </Text>
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   bandTitleRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 },
   bandTitleRowLarge: { flexDirection: 'column', alignItems: 'stretch' },
   bandTitleText: { flex: 1, minWidth: 0 },
-  bandTitle: { fontSize: 34, lineHeight: 41, fontWeight: '700', letterSpacing: -0.6 },
+  bandTitle: { fontSize: 34, lineHeight: 41, letterSpacing: -0.6 },
   bandTitleAutoLine: { lineHeight: undefined },
   bandSubtitle: { fontSize: 13, fontWeight: '500', marginBottom: 2 },
   bandChildren: { marginTop: 12 },

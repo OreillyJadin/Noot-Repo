@@ -13,12 +13,12 @@ interface TypoProps {
 export function H1({ children, style }: TypoProps) {
   const t = useTheme();
   const large = useLargeText();
-  return <Text maxFontSizeMultiplier={TEXT_CAPS.screenTitle} style={[styles.h1, { color: t.text }, style, large && styles.autoLine]}>{children}</Text>;
+  return <Text maxFontSizeMultiplier={TEXT_CAPS.screenTitle} style={[styles.h1, { color: t.text, fontFamily: t.headingFont }, style, large && styles.autoLine]}>{children}</Text>;
 }
 export function H2({ children, style }: TypoProps) {
   const t = useTheme();
   const large = useLargeText();
-  return <Text maxFontSizeMultiplier={TEXT_CAPS.heading} style={[styles.h2, { color: t.text }, style, large && styles.autoLine]}>{children}</Text>;
+  return <Text maxFontSizeMultiplier={TEXT_CAPS.heading} style={[styles.h2, { color: t.text, fontFamily: t.headingFontSemi }, style, large && styles.autoLine]}>{children}</Text>;
 }
 export function Eyebrow({ children, style }: TypoProps) {
   const t = useTheme();
@@ -39,8 +39,8 @@ export function Label({ children, style }: TypoProps) {
 
 const styles = StyleSheet.create({
   autoLine: { lineHeight: undefined },
-  h1: { fontSize: 32, lineHeight: 38, fontWeight: '700', letterSpacing: -0.5 },
-  h2: { fontSize: 20, lineHeight: 25, fontWeight: '600', letterSpacing: -0.2 },
+  h1: { fontSize: 32, lineHeight: 38, letterSpacing: -0.5 },
+  h2: { fontSize: 20, lineHeight: 25, letterSpacing: -0.2 },
   eyebrow: { fontSize: 13, fontWeight: '600' },
   sub: { fontSize: 15, lineHeight: 22 },
   label: { fontSize: 12, fontWeight: '600', marginBottom: 6 },

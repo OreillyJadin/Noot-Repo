@@ -18,7 +18,7 @@ export function Wordmark({ size = 22, tone = 'ink' }: WordmarkProps) {
   return (
     <View style={styles.wordmark}>
       <GeckoMark size={size * 1.05} />
-      <Text style={{ fontSize: size, fontWeight: '700', letterSpacing: -1, color }}>noot</Text>
+      <Text style={{ fontSize: size, letterSpacing: -1, color, fontFamily: t.headingFont }}>noot</Text>
     </View>
   );
 }

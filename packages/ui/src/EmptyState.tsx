@@ -24,7 +24,7 @@ export function EmptyState({ icon = 'search', title, subtitle, actionLabel, onAc
       <View style={[styles.iconWrap, { backgroundColor: t.surface, borderColor: t.border }]}>
         <Ic name={icon} size={26} color={t.text3} strokeWidth={1.6} />
       </View>
-      <Text style={[styles.title, { color: t.text }]}>{title}</Text>
+      <Text style={[styles.title, { color: t.text, fontFamily: t.headingFontSemi }]}>{title}</Text>
       {subtitle ? <Text style={[styles.sub, { color: t.text3 }]}>{subtitle}</Text> : null}
       {actionLabel && onAction ? (
         <View style={styles.action}>
@@ -38,7 +38,7 @@ export function EmptyState({ icon = 'search', title, subtitle, actionLabel, onAc
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 48, paddingHorizontal: 24, gap: 8 },
   iconWrap: { width: 64, height: 64, borderRadius: 32, borderWidth: 1, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  title: { fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  title: { fontSize: 16, textAlign: 'center' },
   sub: { fontSize: 14, lineHeight: 20, textAlign: 'center', maxWidth: 300 },
   action: { marginTop: 10 },
 });
