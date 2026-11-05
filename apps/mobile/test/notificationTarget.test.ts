@@ -256,6 +256,15 @@ test('an interview system notice opens tutor home', () => {
   }
 });
 
+test('a course coverage notice opens the matching course search as a student', () => {
+  const target = targetFor(notice('system', {
+    event: 'course_request_covered',
+    courseCode: 'MATH 125',
+  }), { uid: 'student-1', currentRole: 'tutor', now });
+  assert.equal(target.role, 'student');
+  assert.equal(target.route, '/b1?q=MATH%20125');
+});
+
 test('an unknown notification opens the feed in the current role', () => {
   const target = targetFor(notice('unknown'), { uid: 'student-1', currentRole: 'ambassador', now });
   assert.equal(target.role, 'ambassador');

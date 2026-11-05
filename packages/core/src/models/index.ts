@@ -329,6 +329,23 @@ export interface CatalogCourse {
   subjectName: string;
   creditHours: string | null;
   collegeName: string;
+  /** At least one approved, active, non-deleted tutor teaches this course. */
+  hasTutor: boolean;
+}
+
+export interface CourseRequest {
+  id: UUID;
+  courseCode: string;
+  status: 'open' | 'fulfilled' | 'expired';
+  createdAt: Timestamp;
+}
+
+export interface AdminCourseRequest {
+  courseCode: string;
+  courseTitle: string;
+  requests: number;
+  latestAt: Timestamp;
+  covered: boolean;
 }
 
 /** A campus location available for in-person tutoring sessions. */

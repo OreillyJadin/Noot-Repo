@@ -12,7 +12,8 @@ import { tutorEarnedAmount } from '../earnings';
 import { SESSION_LOOKBACK_MS, isUpcomingSession, isPastSession } from '../sessionTiming';
 import { getSupabase } from '../supabase';
 import { notifyUserChanged } from '../changes';
-import { normalizeCourseQuery, rankCourseMatches } from '../courseSearch';
+import { normalizeCourseQuery } from '../courseSearch';
+import { mapAdminCourseRequest, mapCourseRequest } from '../courseRequests';
 import { mergeAvailabilityWindows } from '../availability';
 import {
   friendlyStorageError,
@@ -38,6 +39,8 @@ import type {
   Notification,
   NotificationType,
   GrowthFunnel,
+  CourseRequest,
+  AdminCourseRequest,
   RefundStatus,
   ReviewSummary,
   TutorAvailability,
@@ -622,6 +625,7 @@ function mapCatalogCourse(row: any): CatalogCourse {
     subjectName: row.subject_name ?? '',
     creditHours: row.credit_hours ?? null,
     collegeName: row.college_name ?? '',
+    hasTutor: Boolean(row.has_tutor),
   };
 }
 
@@ -1707,6 +1711,11 @@ export const api = {
       if (error) throw error;
       return data as GrowthFunnel;
     },
+    async courseRequests(): Promise<AdminCourseRequest[]> {
+      const { data, error } = await getSupabase().rpc('admin_course_requests');
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map(mapAdminCourseRequest);
+    },
     /** Counts for the admin hub, using the same report queue as the reports screen. */
     async hubCounts(): Promise<AdminHubCounts> {
       const sb = getSupabase();
@@ -2755,22 +2764,12 @@ export const api = {
      */
     async search(query: string, limit = 25): Promise<CatalogCourse[]> {
       const q = normalizeCourseQuery(query);
-      const active = () => getSupabase().from('courses').select(CATALOG_SELECT).eq('is_active', true);
-      if (!q) {
-        const { data, error } = await active().order('course_code').limit(limit);
-        if (error) throw error;
-        return (data ?? []).map(mapCatalogCourse);
-      }
-      const byCode = await active().ilike('course_code', `${q}%`).order('course_code').limit(limit);
-      if (byCode.error) throw byCode.error;
-      const first = (byCode.data ?? []).map(mapCatalogCourse);
-      if (first.length >= limit) return first;
-      const anywhere = await active()
-        .or(`course_code.ilike.%${q}%,course_title.ilike.%${q}%,subject_name.ilike.%${q}%`)
-        .order('course_code')
-        .limit(limit);
-      if (anywhere.error) throw anywhere.error;
-      return rankCourseMatches(first, (anywhere.data ?? []).map(mapCatalogCourse), limit);
+      const { data, error } = await getSupabase().rpc('search_courses', {
+        p_query: q,
+        p_limit: limit,
+      });
+      if (error) throw error;
+      return (data ?? []).map(mapCatalogCourse);
     },
 
     /**
@@ -2802,6 +2801,26 @@ export const api = {
       const out: Record<string, CatalogCourse> = {};
       for (const row of data ?? []) out[row.course_code] = mapCatalogCourse(row);
       return out;
+    },
+  },
+
+  courseRequests: {
+    async request(courseCode: string): Promise<CourseRequest> {
+      const { data, error } = await getSupabase().rpc('request_course_tutor', { p_course_code: courseCode });
+      if (error) throw error;
+      return mapCourseRequest(data as Record<string, unknown>);
+    },
+
+    async listMine(): Promise<CourseRequest[]> {
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await getSupabase()
+        .from('course_requests')
+        .select('id, course_code, status, created_at')
+        .eq('status', 'open')
+        .gt('created_at', cutoff)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map(mapCourseRequest);
     },
   },
 

@@ -116,5 +116,9 @@ export function targetFor(
     return { role: 'tutor', route: '/tutor_home' };
   }
 
+  if (n.type === 'system' && n.data.event === 'course_request_covered' && typeof n.data.courseCode === 'string') {
+    return { role: 'student', route: `/b1?q=${encodeURIComponent(n.data.courseCode)}` };
+  }
+
   return { role: ctx.currentRole, route: '/notifications' };
 }

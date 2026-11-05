@@ -35,6 +35,7 @@ function AdminHomeScreen() {
   const isAdmin = !!me?.roles?.includes('admin');
   const [counts, setCounts] = useState<AdminHubCounts | null>(null);
   const [events, setEvents] = useState<AdminCalendarEvent[]>([]);
+  const [openCourseRequestCount, setOpenCourseRequestCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [eventsLoading, setEventsLoading] = useState(true);
 
@@ -63,6 +64,10 @@ function AdminHomeScreen() {
         })
         .catch(() => { if (alive) setEvents([]); })
         .finally(() => { if (alive) setEventsLoading(false); });
+      api.admin
+        .courseRequests()
+        .then((value) => { if (alive) setOpenCourseRequestCount(value.length); })
+        .catch(() => { if (alive) setOpenCourseRequestCount(null); });
       return () => { alive = false; };
     }, []),
   );
@@ -232,7 +237,13 @@ function AdminHomeScreen() {
         </AdminSection>
 
         <AdminSection label="Growth">
-          <AdminRow icon="list" title="Growth funnel" subtitle="Discovery, bookings and repeat sessions" onPress={() => router.push('/admin_growth' as never)} />
+          <AdminRow
+            icon="list"
+            title="Growth funnel"
+            subtitle={openCourseRequestCount ? `${openCourseRequestCount} course${openCourseRequestCount === 1 ? '' : 's'} with open requests` : 'Discovery, bookings and repeat sessions'}
+            count={openCourseRequestCount && openCourseRequestCount > 0 ? openCourseRequestCount : undefined}
+            onPress={() => router.push('/admin_growth' as never)}
+          />
         </AdminSection>
 
         <AdminSection label="Ambassadors">
