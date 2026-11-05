@@ -42,6 +42,7 @@ const triggerFns: string[] = [
   'handle_new_user', 'enforce_active_role', 'notify_on_booking', 'notify_on_message',
   'on_ambassador_approved', 'on_ambassador_role_added', 'set_updated_at',
   'set_booking_scheduled_end', 'log_admin_write',
+  'sync_booking_series_first_booking',
   ...(hasRlsAuto ? ['rls_auto_enable'] : []),
 ]
 // Other locked-down functions, with dummy args of the right types.
@@ -55,6 +56,10 @@ const lockedFns: [string, Record<string, unknown>][] = [
   ['sign_tutor_agreement', { signed_name: 'Test Name', version: '2026-01-01' }],
   ['submit_tutor_application', {}],
   ['send_message_with_attachments', { p_conversation_id: crypto.randomUUID(), p_content: 'hi', p_attachments: [] }],
+  ['return_booking_credit', { p_booking: crypto.randomUUID(), p_percent: 100 }],
+  ['request_create_series_bookings', {}],
+  // The authenticated stop RPC is intentionally callable only by a series participant.
+  ['stop_booking_series', { p_series: crypto.randomUUID() }],
 ]
 
 const refused = async (client: typeof anon, name: string, args: Record<string, unknown>) => {
@@ -107,6 +112,10 @@ const studentClient = createClient(URL, ANON, { auth: { persistSession: false } 
 {
   const { data, error } = await studentClient.rpc('is_conversation_participant', { cid: crypto.randomUUID() })
   step('2d', !error && typeof data === 'boolean', `ALLOW is_conversation_participant(random uuid) → ${error?.message ?? `returned ${data}`}`)
+}
+{
+  const { error } = await studentClient.rpc('stop_booking_series', { p_series: crypto.randomUUID() })
+  step('2e', error?.code === 'P0002', `ALLOW authenticated stop RPC execution while rejecting a non-existent series → ${error?.code ?? 'no error'}`)
 }
 
 // 3) check_invite_code stays callable signed out: true for a real code, false for a bad one.
