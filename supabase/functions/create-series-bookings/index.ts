@@ -5,6 +5,25 @@ import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const HORIZON_MS = 13 * 24 * 60 * 60 * 1000;
 
+type BookingSeries = {
+  id: string;
+  student_id: string;
+  tutor_id: string;
+  subject: string;
+  first_scheduled_at: string;
+  duration_minutes: number;
+  price: number;
+  student_fee: number;
+  platform_fee: number;
+  tutor_payout_amount: number;
+  session_type: string;
+  location: string | null;
+  weeks: number;
+  next_index: number;
+  stripe_setup_intent_id: string;
+  stripe_payment_method_id: string;
+};
+
 serveWithErrorReporting('create-series-bookings', async (req: Request) => {
   const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!service || req.headers.get('Authorization') !== `Bearer ${service}`) {
@@ -43,7 +62,7 @@ serveWithErrorReporting('create-series-bookings', async (req: Request) => {
   };
 
   const notifyBoth = async (
-    series: Record<string, any>,
+    series: BookingSeries,
     title: string,
     body: string,
     bookingId?: string,
@@ -54,7 +73,7 @@ serveWithErrorReporting('create-series-bookings', async (req: Request) => {
     ]);
   };
 
-  const advance = async (series: Record<string, any>, index: number, status?: string) => {
+  const advance = async (series: BookingSeries, index: number, status?: string) => {
     const update: Record<string, unknown> = { next_index: index + 1 };
     if (status) update.status = status;
     const { data, error } = await db.from('booking_series').update(update)

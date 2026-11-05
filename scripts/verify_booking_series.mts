@@ -5,9 +5,15 @@ import { DEV_PASSWORD } from './_devPassword.mjs';
 import { bookingTime, createBookingTutor } from './_booking_test.mts';
 
 const URL = 'http://127.0.0.1:54321';
-const ANON = process.env.SUPABASE_ANON_KEY ??
+const statusEnv = execFileSync('supabase', ['status', '--output', 'env'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+const statusValue = (name: string) => {
+  const line = statusEnv.split(/\r?\n/).find((entry) => entry.startsWith(`${name}=`));
+  if (!line) return undefined;
+  return line.slice(name.length + 1).trim().replace(/^(['"])(.*)\1$/, '$2');
+};
+const ANON = process.env.SUPABASE_ANON_KEY || statusValue('ANON_KEY') ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY ??
+const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY || statusValue('SERVICE_ROLE_KEY') ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
 const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
 const mode = process.env.ER010_INTEGRATION;
