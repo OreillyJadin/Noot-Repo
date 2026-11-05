@@ -97,9 +97,55 @@ function usePublishTabBar(props: TabBarProps, enabled: boolean) {
 }
 
 export function TabBar(props: TabBarProps) {
+  const { active, onTab, role = 'student' } = props;
+  const t = useTheme();
+  const insets = useSafeAreaInsets();
   const wide = useWideLayout();
   usePublishTabBar(props, wide);
-  return wide ? null : <BottomBar {...props} />;
+  if (wide) return null;
+  const tabs = TAB_SETS[role] ?? STUDENT;
+  return (
+    <View style={[styles.bar, { paddingBottom: insets.bottom + 8, backgroundColor: t.surface, borderTopColor: t.border }]}>
+      {tabs.map((tab) => {
+        const on = active === tab.key;
+        const color = on ? t.accent : t.text3;
+        return (
+          <Pressable
+            key={tab.key}
+            onPress={() => onTab(tab.key)}
+            style={styles.tab}
+            // Active tab stays focusable and pressable (never disabled) — pressing
+            // it again scrolls to top / soft-resets the page, so we advertise that.
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={tab.label}
+            accessibilityHint={on ? 'Scroll to top and reset this page' : `Go to ${tab.label}`}
+          >
+            {({ pressed }) => (
+              <>
+                <TabPressScale pressed={pressed}>
+                  {tab.icon === 'home' ? (
+                    <GeckoMark size={44} style={{ margin: -10, opacity: on ? 1 : 0.55 }} />
+                  ) : (
+                    <Ic name={tab.icon} size={24} color={color} strokeWidth={on ? 2.1 : 1.7} />
+                  )}
+                </TabPressScale>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
+                  maxFontSizeMultiplier={TEXT_CAPS.tabLabel}
+                  style={[styles.label, { color, fontWeight: on ? '600' : '500' }]}
+                >
+                  {tab.label}
+                </Text>
+              </>
+            )}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 }
 
 /** Wide web only: side nav (for screens with a TabBar) + centered column. Otherwise a pass-through. */
@@ -149,54 +195,6 @@ function SideNav() {
               <Ic name={tab.icon} size={22} color={color} strokeWidth={on ? 2.1 : 1.7} />
             )}
             <Text style={[styles.sideLabel, { color, fontWeight: on ? '700' : '500' }]}>{tab.label}</Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-function BottomBar({ active, onTab, role = 'student' }: TabBarProps) {
-  const t = useTheme();
-  const insets = useSafeAreaInsets();
-  const tabs = TAB_SETS[role] ?? STUDENT;
-  return (
-    <View style={[styles.bar, { paddingBottom: insets.bottom + 8, backgroundColor: t.surface, borderTopColor: t.border }]}>
-      {tabs.map((tab) => {
-        const on = active === tab.key;
-        const color = on ? t.accent : t.text3;
-        return (
-          <Pressable
-            key={tab.key}
-            onPress={() => onTab(tab.key)}
-            style={styles.tab}
-            // Active tab stays focusable and pressable (never disabled) — pressing
-            // it again scrolls to top / soft-resets the page, so we advertise that.
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            accessibilityLabel={tab.label}
-            accessibilityHint={on ? 'Scroll to top and reset this page' : `Go to ${tab.label}`}
-          >
-            {({ pressed }) => (
-              <>
-                <TabPressScale pressed={pressed}>
-                  {tab.icon === 'home' ? (
-                    <GeckoMark size={44} style={{ margin: -10, opacity: on ? 1 : 0.55 }} />
-                  ) : (
-                    <Ic name={tab.icon} size={24} color={color} strokeWidth={on ? 2.1 : 1.7} />
-                  )}
-                </TabPressScale>
-                <Text
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.75}
-                  maxFontSizeMultiplier={TEXT_CAPS.tabLabel}
-                  style={[styles.label, { color, fontWeight: on ? '600' : '500' }]}
-                >
-                  {tab.label}
-                </Text>
-              </>
-            )}
           </Pressable>
         );
       })}
