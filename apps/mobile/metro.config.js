@@ -12,6 +12,8 @@ const config = getSentryExpoConfig(__dirname);
 // stand-ins in ./web. iOS and Android resolve the real packages, untouched.
 const WEB_SHIMS = {
   '@stripe/stripe-react-native': path.resolve(__dirname, 'web/stripe-react-native.tsx'),
+  'react-native-keyboard-controller': path.resolve(__dirname, 'web/keyboard-controller.tsx'),
+  'expo-web-browser': path.resolve(__dirname, 'web/expo-web-browser.ts'),
 };
 
 const upstreamResolve = config.resolver.resolveRequest;
