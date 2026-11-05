@@ -55,6 +55,25 @@ end;
 $$;
 revoke all on function public.refresh_tutor_response_stats(uuid) from public, anon, authenticated;
 
+create function public.refresh_all_tutor_response_stats()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_tutor uuid;
+begin
+  for v_tutor in
+    select tutor_id from public.tutor_response_stats
+  loop
+    perform public.refresh_tutor_response_stats(v_tutor);
+  end loop;
+end;
+$$;
+revoke all on function public.refresh_all_tutor_response_stats() from public, anon, authenticated;
+grant execute on function public.refresh_all_tutor_response_stats() to service_role;
+
 create function public.refresh_tutor_response_stats_on_booking()
 returns trigger
 language plpgsql
@@ -120,3 +139,17 @@ comment on view public.tutor_public_profiles is
   'SEC-006: the only fields of an approved tutor that other signed-in users may read. Add a column here only if the app shows it to everyone.';
 revoke all on public.tutor_public_profiles from public, anon;
 grant select on public.tutor_public_profiles to authenticated, service_role;
+
+do $schedule$
+begin
+  if exists (select 1 from pg_catalog.pg_extension where extname = 'pg_cron') then
+    perform cron.schedule(
+      'tutor-response-stats-refresh',
+      '15 9 * * *',
+      $$select public.refresh_all_tutor_response_stats()$$
+    );
+  end if;
+exception when undefined_function or invalid_schema_name then
+  raise notice 'pg_cron is unavailable; tutor response stats were not scheduled';
+end
+$schedule$;

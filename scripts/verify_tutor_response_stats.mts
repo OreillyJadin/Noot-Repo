@@ -208,6 +208,25 @@ try {
     mapped?.responseRate === 75 && mapped.responseMinutes === 30,
     JSON.stringify(mapped && { responseRate: mapped.responseRate, responseMinutes: mapped.responseMinutes }),
   );
+
+  const { error: backdateError } = await service.from('bookings')
+    .update({ created_at: new Date(now - 91 * 24 * 60 * 60_000).toISOString() })
+    .eq('tutor_id', tutor.id);
+  check('fixture bookings can age out without changing booking response fields', !backdateError, backdateError?.message);
+  const refreshAll = await service.rpc('refresh_all_tutor_response_stats');
+  check('service role can refresh all tutor response stats', !refreshAll.error, refreshAll.error?.message);
+  const agedOutStats = await studentClient
+    .from('tutor_public_profiles')
+    .select('response_rate, response_median_minutes')
+    .eq('id', tutor.id)
+    .maybeSingle();
+  check(
+    'daily refresh clears public response fields after bookings age out',
+    !agedOutStats.error && agedOutStats.data?.response_rate === null &&
+      agedOutStats.data?.response_median_minutes === null,
+    agedOutStats.error?.message ?? JSON.stringify(agedOutStats.data),
+  );
+
   await auth.signOut();
   await studentClient.auth.signOut();
 } finally {

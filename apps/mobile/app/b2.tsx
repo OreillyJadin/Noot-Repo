@@ -115,9 +115,11 @@ function B2Inner() {
               </View>
             ) : null}
           </View>
-          {response && tutor.responseRate != null ? (
+          {tutor.responseRate != null ? (
             <Text style={{ fontSize: 12, color: t.text2, marginTop: 6, textAlign: 'center' }}>
-              {response} · responds to {tutor.responseRate}% of requests
+              {response
+                ? `${response} · responds to ${tutor.responseRate}% of requests`
+                : `Responds to ${tutor.responseRate}% of requests`}
             </Text>
           ) : null}
         </View>
