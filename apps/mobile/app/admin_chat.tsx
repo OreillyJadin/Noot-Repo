@@ -31,6 +31,7 @@ import {
 } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { pickAndUploadChatAttachment } from '../lib/chatAttachments';
+import { ChatAttachmentView } from '../lib/ChatAttachment';
 import { useAttachmentUrls } from '../lib/useAttachmentUrls';
 import { separatorLabel } from '../lib/chatTime';
 import { errText } from '../lib/errText';
@@ -75,12 +76,6 @@ function toLocal(m: ApiMessage, uid: string | null): Message {
 /** Staged (uploaded, not yet sent) attachment → the local chip shape. */
 function stagedToLocal(a: OutgoingAttachment): Attachment {
   return { name: a.filename, kind: a.kind, size: a.sizeBytes, storagePath: a.storagePath };
-}
-
-function fmtSize(b: number): string {
-  if (b < 1024) return `${b} B`;
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
-  return `${(b / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function displayName(p: ChatParticipant | undefined): string {
@@ -341,7 +336,7 @@ function Row({
       )}
       <View style={[styles.bubbleWrap, { alignItems: m.mine ? 'flex-end' : 'flex-start' }]}>
         {showSender && <Text style={[styles.senderName, { color: t.text3 }]}>{name}</Text>}
-        {m.attach?.map((a, i) => <AttachView key={i} a={a} mine={m.mine} url={urls[a.storagePath]} />)}
+        {m.attach?.map((a, i) => <ChatAttachmentView key={i} attachment={a} mine={m.mine} url={urls[a.storagePath]} />)}
         {m.text ? (
           <View
             style={[
@@ -354,36 +349,6 @@ function Row({
             <Text style={{ color: m.mine ? t.onAccent : t.text, fontSize: 15, lineHeight: 21 }}>{m.text}</Text>
           </View>
         ) : null}
-      </View>
-    </View>
-  );
-}
-
-// Attachment rendered inside a sent message. Images show inline once their signed URL
-// resolves; everything else (and an image still resolving) stays the icon + name row.
-function AttachView({ a, mine, url }: { a: Attachment; mine: boolean; url?: string }) {
-  const t = useTheme();
-  const iconName: IconName = a.kind === 'image' ? 'image' : 'doc';
-
-  if (a.kind === 'image' && url) {
-    return (
-      <Image
-        source={{ uri: url }}
-        accessibilityLabel={a.name}
-        resizeMode="cover"
-        style={[styles.attachImage, { backgroundColor: t.surface2 }]}
-      />
-    );
-  }
-
-  return (
-    <View style={[styles.attachView, { backgroundColor: mine ? t.accent : t.surface2 }]}>
-      <Ic name={iconName} size={20} color={mine ? t.onAccent : t.accent} strokeWidth={1.7} />
-      <View style={{ minWidth: 0 }}>
-        <Text numberOfLines={1} style={[styles.attachName, { color: mine ? t.onAccent : t.text }]}>{a.name}</Text>
-        {a.size != null && (
-          <Text style={[styles.attachSize, { color: mine ? t.onAccent : t.text }]}>{fmtSize(a.size)}</Text>
-        )}
       </View>
     </View>
   );
@@ -426,11 +391,6 @@ const styles = StyleSheet.create({
   bubbleWrap: { maxWidth: '78%', gap: 5 },
   senderName: { fontSize: 11.5, fontWeight: '600', marginBottom: 1, paddingHorizontal: 2 },
   bubble: { paddingHorizontal: 13, paddingVertical: 9 },
-
-  attachView: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 14 },
-  attachName: { fontSize: 13.5, fontWeight: '600', maxWidth: 150 },
-  attachSize: { fontSize: 11, opacity: 0.75 },
-  attachImage: { width: 200, height: 200, borderRadius: 14 },
 
   pendingRow: { alignSelf: 'flex-end', flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end', maxWidth: '80%' },
   attachChip: { position: 'relative', flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },
