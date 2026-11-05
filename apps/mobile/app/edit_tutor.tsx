@@ -111,7 +111,7 @@ export default function EditTutorProfile() {
           multiline
           value={about}
           onChangeText={setAbout}
-          hint="What students see on your profile. Mention the professor and how you run sessions."
+          hint="e.g. I got an A in MATH 125 and tutor with practice problems from past exams."
         />
 
         <ListSection>

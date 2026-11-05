@@ -125,6 +125,8 @@ export interface TutorSummary {
   verifiedGrade: string | null;
   /** Grades checked by an admin (tutor_profiles.grades_verified_at) — the Verified badge. */
   verified: boolean;
+  responseRate: number | null;
+  responseMinutes: number | null;
   courses: TutorCourse[];
 }
 

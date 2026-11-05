@@ -433,6 +433,8 @@ function mapTutorSummary(row: any): TutorSummary {
     totalSessions: row.total_sessions ?? 0,
     verifiedGrade: row.verified_grade ?? null,
     verified: row.grades_verified === true,
+    responseRate: numOrNull(row.response_rate),
+    responseMinutes: numOrNull(row.response_median_minutes),
     courses: (row.tutor_courses ?? []).map(mapTutorCourse),
   };
 }
@@ -690,6 +692,7 @@ function mapMessage(row: any): Message {
 const TUTOR_SELECT = `
   id, first_name, last_name, year, major, avatar_url,
   bio, subjects, hourly_rate, rating_avg, total_sessions, verified_grade, grades_verified, approval_status,
+  response_rate, response_median_minutes,
   tutor_courses ( id, tutor_id, course_code, grade, currently_taking, hourly_rate, sessions, created_at )
 `;
 

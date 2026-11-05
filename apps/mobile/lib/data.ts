@@ -74,6 +74,8 @@ export interface Tutor {
   verified: boolean;
   /** The grade on record, if any ('' when none — never invented). */
   verifiedGrade: string;
+  responseRate: number | null;
+  responseMinutes: number | null;
   /** Public profile photo URL, or null to fall back to the generic avatar. */
   avatarUrl: string | null;
   next: number;
@@ -114,6 +116,8 @@ export function toTutor(s: TutorSummary): Tutor {
     rate,
     verified: s.verified,
     verifiedGrade: s.verifiedGrade ?? '',
+    responseRate: s.responseRate,
+    responseMinutes: s.responseMinutes,
     avatarUrl: s.avatarUrl,
     next: 0,
     nextLabel: '',
