@@ -23,6 +23,7 @@ export function targetFor(
     currentRole: Role;
     conversation?: Conversation | null;
     booking?: Booking | null;
+    series?: { studentId: string; tutorId: string } | null;
     tutor?: Tutor | null;
     canRate?: boolean;
     now?: number;
@@ -46,6 +47,10 @@ export function targetFor(
   if (n.type === 'booking') {
     const booking = ctx.booking;
     if (!booking) {
+      if (ctx.series) {
+        const role: Role = ctx.series.tutorId === ctx.uid ? 'tutor' : 'student';
+        return { role, route: role === 'tutor' ? '/tutor_sessions' : '/sessions' };
+      }
       return {
         role: ctx.currentRole,
         route: ctx.currentRole === 'tutor' ? '/tutor_sessions' : '/sessions',

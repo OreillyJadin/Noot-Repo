@@ -3,7 +3,7 @@
 // policy notes. Reads the booking draft from useApp() with safe fallbacks so
 // nothing renders undefined if a student lands here without going through B3.
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, StyleSheet, Alert, Platform, Modal } from 'react-native';
+import { View, Text, Pressable, Switch, ActivityIndicator, StyleSheet, Alert, Platform, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, ActionBar, Button, Card, H2, Eyebrow, Divider, Ic, useTheme } from '@noot/ui';
@@ -64,8 +64,13 @@ function B4Inner() {
   }, []);
   const quote = bookingQuote({ hourlyRate: rate, durationMinutes: lengthMin, creditBalanceCents: balanceCents, adminFree: isAdmin });
   const { feeCents, creditCents, free } = quote;
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [repeatWeeks, setRepeatWeeks] = useState(4);
+  const repeatEligible = !free && !!previewScheduledAt &&
+    new Date(previewScheduledAt).getTime() >= Date.now() + 24 * 60 * 60 * 1000;
+  const repeating = repeatEligible && repeatEnabled;
   const [serverDeferred, setServerDeferred] = useState<boolean | null>(null);
-  const deferred = !free && (serverDeferred ?? isDeferredCheckout(previewScheduledAt));
+  const deferred = !free && (repeating || (serverDeferred ?? isDeferredCheckout(previewScheduledAt)));
   const cost = dollars(quote.priceCents);
   const due = dollars(quote.dueCents);
 
@@ -75,6 +80,7 @@ function B4Inner() {
     ['Date', dayObj.label],
     ['Time', `${previewScheduledAt ? formatCampusTime(previewScheduledAt) : slot} · ${lenLabel}`],
     ['Location', location],
+    ...(repeating ? [['Weekly sessions', `${repeatWeeks} weeks`] as [string, string]] : []),
   ];
 
   const { initPaymentSheet, presentPaymentSheet, isPlatformPaySupported } = useStripe();
@@ -117,6 +123,7 @@ function B4Inner() {
         courseCode: course,
         durationMinutes: lengthMin,
         scheduledAt,
+        repeatWeeks: repeating ? repeatWeeks : undefined,
       });
       setServerDeferred(!!pi.deferred);
 
@@ -171,7 +178,7 @@ function B4Inner() {
       // re-derived this from the location's display string, which broke as soon as that
       // copy changed. Existing 'video' rows still render — we just don't sell them.
       const sessionType: 'video' | 'in_person' = booking.sessionType ?? 'in_person';
-      const { bookingId, acceptBy } = await api.bookings.confirm({
+      const { bookingId, acceptBy, seriesId } = await api.bookings.confirm({
         tutorId: booking.tutor.id,
         courseCode: course,
         scheduledAt,
@@ -182,8 +189,12 @@ function B4Inner() {
         message: booking.message,
         paymentIntentId: pi.paymentIntentId ?? undefined,
         setupIntentId: pi.setupIntentId ?? undefined,
+        repeatWeeks: repeating ? repeatWeeks : undefined,
       });
-      patchBooking({ bookingId, acceptBy, scheduledAt });
+      patchBooking({
+        bookingId, acceptBy, scheduledAt,
+        ...(seriesId ? { seriesId, seriesIndex: 0, seriesStatus: 'pending' as const, seriesWeeks: repeatWeeks } : {}),
+      });
       router.push('/b5');
     } catch (err) {
       setStatus('idle');
@@ -276,6 +287,45 @@ function B4Inner() {
           </View>
         </Card>
 
+        {repeatEligible ? (
+          <Card style={{ marginTop: 14, padding: 14 }}>
+            <View style={styles.repeatRow}>
+              <Text style={{ flex: 1, fontSize: 15, fontWeight: '600', color: t.text }}>Repeat weekly</Text>
+              <Switch value={repeatEnabled} onValueChange={setRepeatEnabled} />
+            </View>
+            {repeatEnabled ? (
+              <View style={{ gap: 12, marginTop: 12 }}>
+                <View style={styles.repeatRow}>
+                  <Text style={{ fontSize: 14, color: t.text2 }}>Total sessions</Text>
+                  <View style={styles.stepper}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Fewer weekly sessions"
+                      disabled={repeatWeeks <= 2}
+                      onPress={() => setRepeatWeeks((weeks) => Math.max(2, weeks - 1))}
+                      style={[styles.stepButton, { borderColor: t.border, opacity: repeatWeeks <= 2 ? 0.4 : 1 }]}
+                    ><Text style={{ color: t.text, fontSize: 18 }}>−</Text></Pressable>
+                    <Text style={{ color: t.text, fontSize: 15, fontWeight: '600' }}>{repeatWeeks}</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="More weekly sessions"
+                      disabled={repeatWeeks >= 12}
+                      onPress={() => setRepeatWeeks((weeks) => Math.min(12, weeks + 1))}
+                      style={[styles.stepButton, { borderColor: t.border, opacity: repeatWeeks >= 12 ? 0.4 : 1 }]}
+                    ><Text style={{ color: t.text, fontSize: 18 }}>+</Text></Pressable>
+                  </View>
+                </View>
+                <Text style={{ color: t.text2, fontSize: 12.5, lineHeight: 19 }}>
+                  Your card is saved and each week is held 2 days before that session.{'\n'}
+                  The tutor accepts once.{'\n'}
+                  Credit applies to the first session only.{'\n'}
+                  You can stop the series anytime.
+                </Text>
+              </View>
+            ) : null}
+          </Card>
+        ) : null}
+
         {startsSoon ? (
           <Card flat style={{ marginTop: 14, padding: 12, backgroundColor: t.accentWeak, borderColor: t.accentBorder, flexDirection: 'row', gap: 9 }}>
             <Ic name="alert" size={16} color={t.accent} strokeWidth={1.8} />
@@ -352,7 +402,7 @@ function B4Inner() {
       </Body>
 
       <ActionBar>
-        <Button label={free ? 'Confirm booking' : deferred ? 'Save card & request session' : `Confirm & pay $${due}`} full onPress={pay} disabled={status === 'processing'} />
+        <Button label={free ? 'Confirm booking' : repeating ? 'Save card & request sessions' : deferred ? 'Save card & request session' : `Confirm & pay $${due}`} full onPress={pay} disabled={status === 'processing'} />
       </ActionBar>
 
       <Modal
@@ -416,6 +466,9 @@ function B4Inner() {
 
 const styles = StyleSheet.create({
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 },
+  repeatRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  stepButton: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 16 },
   securedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   heldRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 16, paddingHorizontal: 2 },
   policyCard: { marginTop: 14, padding: 14 },

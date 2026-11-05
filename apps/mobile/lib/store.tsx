@@ -15,6 +15,10 @@ export interface BookingDraft {
   /** Set once a real booking exists (confirm-booking, or an item from listUpcoming) —
    *  the completion (C*) and change (X*) flows act on this id. */
   bookingId?: string;
+  seriesId?: string | null;
+  seriesIndex?: number | null;
+  seriesStatus?: 'pending' | 'active' | 'stopped' | 'completed' | 'ended' | 'cancelled' | null;
+  seriesWeeks?: number | null;
   tutorId?: string;
   /** The session's student (tutor-side screens resolve their name via resolve-participants).
    *  Optional — when absent, useCounterpart falls back to the first booking counterparty. */

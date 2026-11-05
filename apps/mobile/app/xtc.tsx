@@ -13,6 +13,7 @@ import { DAYS, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
 import { sessionDayAndTime } from '../lib/formatSessionTime';
+import { draftFromBooking } from '../lib/bookingDraft';
 
 function money(n: number): string {
   return '$' + n.toFixed(2).replace('.00', '');
@@ -64,13 +65,45 @@ function XTutorCancelInner() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { booking } = useApp();
+  const { booking, patchBooking } = useApp();
   const student = useCounterpart(booking.studentId);
   const tutor = booking.tutor!;
   const cost = baseCost(booking, tutor);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [stoppingSeries, setStoppingSeries] = useState(false);
   const [cancelsThisMonth, setCancelsThisMonth] = useState<number | null>(null);
+  const canStopSeries = !!booking.seriesId && !!booking.seriesWeeks &&
+    (booking.seriesStatus === 'pending' || booking.seriesStatus === 'active');
+
+  const stopSeries = () => Alert.alert(
+    'Stop weekly sessions?',
+    "Future weeks won't be booked. Sessions already booked stay on your calendar. Cancel them separately if needed.",
+    [
+      { text: 'Keep series', style: 'cancel' },
+      {
+        text: 'Stop weekly sessions',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setStoppingSeries(true);
+            try {
+              await api.bookings.stopSeries(booking.seriesId!);
+              patchBooking({ seriesStatus: 'stopped' });
+              if (booking.bookingId) {
+                const refreshed = await api.bookings.get(booking.bookingId);
+                if (refreshed) patchBooking(draftFromBooking(refreshed));
+              }
+            } catch (error) {
+              Alert.alert('Could not stop weekly sessions', error instanceof Error ? error.message : 'Please try again.');
+            } finally {
+              setStoppingSeries(false);
+            }
+          })();
+        },
+      },
+    ],
+  );
 
   useEffect(() => {
     let active = true;
@@ -128,6 +161,14 @@ function XTutorCancelInner() {
       <NavTop onBack={() => router.back()} title="Cancel session" />
       <Body pad={20}>
         <SessionStrip booking={booking} tutor={tutor} who="tutor" studentName={student.name} />
+        {canStopSeries ? (
+          <Card style={{ marginTop: 14, padding: 14, gap: 10 }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: t.text }}>
+              Weekly · week {(booking.seriesIndex ?? 0) + 1} of {booking.seriesWeeks}
+            </Text>
+            <Button kind="secondary" full label="Stop weekly sessions" disabled={stoppingSeries} onPress={stopSeries} />
+          </Card>
+        ) : null}
 
         <Card style={{ marginTop: 16, padding: 16 }}>
           <View style={[styles.rowBetween, { marginBottom: 10 }]}>

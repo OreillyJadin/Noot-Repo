@@ -433,8 +433,13 @@ function mapTutorSummary(row: any): TutorSummary {
 }
 
 function mapBooking(row: any): Booking {
+  const relation = Array.isArray(row.booking_series) ? row.booking_series[0] : row.booking_series;
   return {
     id: row.id,
+    seriesId: row.series_id ?? null,
+    seriesIndex: row.series_index == null ? null : Number(row.series_index),
+    seriesStatus: relation?.status ?? null,
+    seriesWeeks: relation?.weeks == null ? null : Number(relation.weeks),
     studentId: row.student_id,
     tutorId: row.tutor_id,
     subject: row.subject,
@@ -758,6 +763,7 @@ export interface ConfirmBookingInput {
   /** The confirmed payment, or saved card for a later session; omitted for a free booking. */
   paymentIntentId?: string | null;
   setupIntentId?: string | null;
+  repeatWeeks?: number;
 }
 
 /** The booking being paid for. The server derives the amount from these (T5). */
@@ -766,6 +772,7 @@ export interface CreatePaymentIntentInput {
   courseCode: string;
   durationMinutes: number;
   scheduledAt: string;
+  repeatWeeks?: number;
 }
 
 export interface RescheduleBookingInput {
@@ -1354,7 +1361,7 @@ export const api = {
       const latest = new Map<string, Booking>();
       const pageSize = 500;
       for (let offset = 0; ; offset += pageSize) {
-        const { data, error } = await getSupabase().from('bookings').select('*')
+        const { data, error } = await getSupabase().from('bookings').select('*,booking_series!bookings_series_id_fkey(status,weeks)')
           .eq('student_id', uid).eq('status', 'completed')
           .order('scheduled_at', { ascending: false }).order('id', { ascending: false })
           .range(offset, offset + pageSize - 1);
@@ -1429,7 +1436,7 @@ export const api = {
     const now = Date.now();
     let query = getSupabase()
       .from('bookings')
-      .select('*')
+      .select('*,booking_series!bookings_series_id_fkey(status,weeks)')
       .in('status', ['pending', 'confirmed'])
       .gte('scheduled_at', new Date(now - SESSION_LOOKBACK_MS).toISOString());
     query = side
@@ -1451,7 +1458,7 @@ export const api = {
     const nowMs = Date.now();
     let query = getSupabase()
       .from('bookings')
-      .select('*')
+      .select('*,booking_series!bookings_series_id_fkey(status,weeks)')
       .in('status', ['confirmed', 'completed', 'cancelled', 'no_show']);
     query = side
       ? query.eq(side === 'student' ? 'student_id' : 'tutor_id', uid)
@@ -2266,11 +2273,36 @@ export const api = {
       await requireUid();
       const { data, error } = await getSupabase()
         .from('bookings')
-        .select('*')
+        .select('*,booking_series!bookings_series_id_fkey(status,weeks)')
         .eq('id', id)
         .maybeSingle();
       if (error) throw error;
       return data ? mapBooking(data) : null;
+    },
+
+    async getSeries(id: string): Promise<{
+      id: string;
+      studentId: string;
+      tutorId: string;
+      status: string;
+      weeks: number;
+    } | null> {
+      await requireUid();
+      const { data, error } = await getSupabase().from('booking_series')
+        .select('id,student_id,tutor_id,status,weeks').eq('id', id).maybeSingle();
+      if (error) throw error;
+      return data ? {
+        id: data.id,
+        studentId: data.student_id,
+        tutorId: data.tutor_id,
+        status: data.status,
+        weeks: Number(data.weeks),
+      } : null;
+    },
+
+    async stopSeries(seriesId: string): Promise<void> {
+      const { error } = await getSupabase().rpc('stop_booking_series', { p_series: seriesId });
+      if (error) throw error;
     },
 
     /** Count this tutor's confirmed-session cancellations in the last 30 days. */
@@ -2290,7 +2322,7 @@ export const api = {
     /** Create a pending booking request with a confirmed payment or saved card. */
     confirm(
       input: ConfirmBookingInput,
-    ): Promise<{ bookingId: string; price: number; studentFee: number; acceptBy: string; free?: boolean }> {
+    ): Promise<{ bookingId: string; price: number; studentFee: number; acceptBy: string; free?: boolean; seriesId?: string }> {
       return invokeFn('confirm-booking', input as unknown as Record<string, unknown>);
     },
 
