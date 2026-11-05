@@ -43,6 +43,17 @@ export async function sendMagicLink(email: string, redirectTo?: string): Promise
  * `?token_hash=&type=` (verifyOtp) fallback, and is idempotent — if a session is
  * already live (re-mount / StrictMode double-run) it just reports success.
  */
+/**
+ * The PKCE verifier lives in the storage of the browser/app that asked for the email, so a link
+ * opened anywhere else (asked on a laptop, tapped on a phone) can't be exchanged. Say that
+ * plainly instead of supabase-js's developer message; the emailed code still works there.
+ */
+export function linkErrorMessage(raw: string): string {
+  return /code verifier/i.test(raw)
+    ? 'This link has to be opened in the same browser or app you asked for it from. Open it there, or type the code from the email on that screen instead.'
+    : raw;
+}
+
 export async function completeAuthFromUrl(url: string): Promise<SignInResult> {
   const sb = getSupabase();
   // Already signed in (e.g. this effect ran twice) — nothing to exchange.
@@ -68,7 +79,7 @@ export async function completeAuthFromUrl(url: string): Promise<SignInResult> {
   const code = params.get('code');
   if (code) {
     const { error } = await sb.auth.exchangeCodeForSession(code);
-    return error ? { ok: false, error: error.message } : { ok: true };
+    return error ? { ok: false, error: linkErrorMessage(error.message) } : { ok: true };
   }
 
   const tokenHash = params.get('token_hash');

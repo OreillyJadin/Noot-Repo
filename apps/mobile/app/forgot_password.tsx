@@ -2,7 +2,7 @@
 // /auth-callback with a `flow=recovery` marker, which the callback uses to route the
 // user into the set-password step (reset mode) rather than sign-up onboarding.
 import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -12,6 +12,8 @@ import { auth } from '@noot/core';
 import { EmailCodeEntry } from '../lib/EmailCodeEntry';
 import { authLinks } from '../lib/authLinks';
 
+
+const OPEN_LINK_HERE = Platform.OS === 'web' ? 'Open the link in this browser' : 'Tap the link on this phone';
 export default function ForgotPassword() {
   const t = useTheme();
   const router = useRouter();
@@ -71,7 +73,7 @@ export default function ForgotPassword() {
           <>
             <Text style={[styles.h1, { color: t.text }]}>Check your inbox</Text>
             <Text style={[styles.sub, { color: t.text2 }]}>
-              We sent a reset link and a code to {email}. Tap the link on this phone, or enter the code below,
+              We sent a reset link and a code to {email}. {OPEN_LINK_HERE}, or enter the code below,
               to set a new password.
             </Text>
             <EmailCodeEntry
