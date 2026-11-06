@@ -15,7 +15,7 @@ serveWithErrorReporting('release-booking-holds', async (req: Request) => {
     .select('id, stripe_payment_intent_id')
     .eq('status', 'cancelled')
     .or(
-      'cancel_reason.in.(tutor_declined,tutor_no_response,payment_failed),and(stripe_setup_intent_id.not.is.null,refund_percent.eq.100),and(cancel_reason.is.null,accept_by.not.is.null,accepted_at.is.null,refund_percent.eq.100)',
+      'extends_booking_id.not.is.null,cancel_reason.in.(tutor_declined,tutor_no_response,payment_failed),and(stripe_setup_intent_id.not.is.null,refund_percent.eq.100),and(cancel_reason.is.null,accept_by.not.is.null,accepted_at.is.null,refund_percent.eq.100)',
     )
     .not('stripe_payment_intent_id', 'is', null)
     .is('hold_released_at', null)

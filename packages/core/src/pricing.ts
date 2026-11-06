@@ -11,6 +11,12 @@ export function studentFeeFor(price: number): number {
   return round2(price * STUDENT_FEE_RATE);
 }
 
+export function extensionQuoteFor(parentPrice: number, parentDurationMinutes: number, minutes: 30 | 60) {
+  const price = round2(parentPrice * minutes / parentDurationMinutes);
+  const studentFee = studentFeeFor(price);
+  return { price, studentFee, total: round2(price + studentFee) };
+}
+
 export function feeRateFor(gradesVerified: boolean): number {
   return gradesVerified ? VERIFIED_FEE_RATE : UNVERIFIED_FEE_RATE;
 }

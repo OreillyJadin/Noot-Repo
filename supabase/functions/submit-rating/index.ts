@@ -48,11 +48,14 @@ serveWithErrorReporting('submit-rating', async (req: Request) => {
     // Load the booking.
     const { data: booking, error: bookingErr } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, status')
+      .select('id, student_id, tutor_id, status, extends_booking_id')
       .eq('id', bookingId)
       .single();
     if (bookingErr || !booking) {
       return Response.json({ error: 'Booking not found' }, { status: 404, headers: cors });
+    }
+    if (booking.extends_booking_id) {
+      return Response.json({ error: 'Manage this from the main session' }, { status: 400, headers: cors });
     }
 
     // Verify the caller is a party to the booking.

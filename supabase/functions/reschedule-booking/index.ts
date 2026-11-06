@@ -14,6 +14,7 @@ import {
   interviewClash,
 } from '../_shared/booking.ts';
 import { cancellationDeadlineFor, lockedRefundPercentOnAccept } from '../_shared/cancellation.ts';
+import { cancelParentExtensions } from '../_shared/extensions.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -60,7 +61,7 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
     const { data: booking, error: loadErr } = await db
       .from('bookings')
       .select(
-        'id, student_id, tutor_id, subject, status, dispute_status, scheduled_at, duration_minutes, reschedule_proposed_at, reschedule_proposed_by, reschedule_waive_late_fee, locked_refund_percent, stripe_payment_intent_id, hold_placed_at, created_at',
+        'id, student_id, tutor_id, subject, status, dispute_status, scheduled_at, duration_minutes, reschedule_proposed_at, reschedule_proposed_by, reschedule_waive_late_fee, locked_refund_percent, stripe_payment_intent_id, hold_placed_at, created_at, extends_booking_id',
       )
       .eq('id', bookingId)
       .single();
@@ -69,6 +70,9 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
     }
     if (booking.student_id !== user.id && booking.tutor_id !== user.id) {
       return Response.json({ error: 'Not a party to this booking' }, { status: 403, headers: cors });
+    }
+    if (booking.extends_booking_id) {
+      return Response.json({ error: 'Manage this from the main session' }, { status: 400, headers: cors });
     }
     if (booking.dispute_status === 'flagged') {
       return Response.json({ error: 'This session is under review by the noot team.' }, { status: 409, headers: cors });
@@ -275,6 +279,10 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
       }
       if (error) throw error;
       if (!moved) return Response.json({ error: 'This session changed. Refresh and try again.' }, { status: 409, headers: cors });
+      try { await cancelParentExtensions(db, bookingId); }
+      catch (extensionError) {
+        console.error('reschedule-booking: extension cancellation failed', bookingId, String(extensionError));
+      }
       // TODO(stripe): no money movement — schedule change only.
       await notifyOtherParty(
         'Session moved',

@@ -45,16 +45,25 @@ serveWithErrorReporting('resolve-dispute', async (req: Request) => {
     )) {
       return Response.json({ error: 'Invalid dispute outcome' }, { status: 400, headers: cors });
     }
+    const { data: targetBooking, error: targetError } = await db.from('bookings')
+      .select('extends_booking_id').eq('id', bookingId).maybeSingle();
+    if (targetError) throw targetError;
+    if (targetBooking?.extends_booking_id) {
+      return Response.json({ error: 'Manage this from the main session' }, { status: 400, headers: cors });
+    }
 
     let settlementBody: Record<string, unknown> | null = null;
     if (action === 'resolve' && outcome) {
       const { data: booking, error: bookingError } = await db.from('bookings')
-        .select('id, tutor_id, status, dispute_status, scheduled_at, duration_minutes, stripe_payment_intent_id, stripe_transfer_id, payout_failed_at, tutor_payout_amount, price, created_at')
+        .select('id, tutor_id, status, dispute_status, scheduled_at, duration_minutes, stripe_payment_intent_id, stripe_transfer_id, payout_failed_at, tutor_payout_amount, price, created_at, extends_booking_id')
         .eq('id', bookingId).maybeSingle();
       if (bookingError) throw bookingError;
       if (!booking) return Response.json({ error: 'booking not found' }, { status: 404, headers: cors });
       if (booking.dispute_status !== 'flagged') {
         return Response.json({ error: 'Only flagged sessions can be settled with an outcome' }, { status: 409, headers: cors });
+      }
+      if (booking.extends_booking_id) {
+        return Response.json({ error: 'Manage this from the main session' }, { status: 400, headers: cors });
       }
       const result = outcome === 'completed'
         ? await completeBooking(db, url, booking)

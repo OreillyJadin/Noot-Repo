@@ -249,8 +249,23 @@ export interface BookingAttendance {
   unavailable?: boolean;
 }
 
+export interface BookingExtension {
+  id: UUID;
+  extendsBookingId: UUID;
+  status: BookingStatus;
+  durationMinutes: number;
+  price: number;
+  studentFee: number;
+  tutorPayoutAmount: number;
+  acceptBy: Timestamp | null;
+  acceptedAt: Timestamp | null;
+  cancelReason: Booking['cancelReason'];
+}
+
 export interface Booking {
   id: UUID;
+  extendsBookingId?: UUID | null;
+  extensions?: BookingExtension[];
   seriesId: UUID | null;
   seriesIndex: number | null;
   seriesStatus: BookingSeriesStatus | null;

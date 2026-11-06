@@ -1,6 +1,6 @@
 import type { Booking } from './models';
 
-type SessionTiming = Pick<Booking, 'status' | 'scheduledAt' | 'durationMinutes'>;
+type SessionTiming = Pick<Booking, 'status' | 'scheduledAt' | 'durationMinutes' | 'extensions'>;
 
 // resolveBooking in _shared/booking.ts caps duration at 480 minutes.
 export const SESSION_LOOKBACK_MS = 480 * 60_000;
@@ -10,7 +10,9 @@ export function sessionPhase(booking: SessionTiming, now = Date.now()): 'upcomin
   const start = new Date(booking.scheduledAt).getTime();
   if (!Number.isFinite(start) || !Number.isFinite(booking.durationMinutes) || booking.durationMinutes <= 0) return null;
   if (now < start) return 'upcoming';
-  return now < start + booking.durationMinutes * 60_000 ? 'active' : 'ended';
+  const extension = booking.extensions?.find((item) => item.status === 'confirmed');
+  const duration = booking.durationMinutes + (extension?.durationMinutes ?? 0);
+  return now < start + duration * 60_000 ? 'active' : 'ended';
 }
 
 export function isUpcomingSession(booking: SessionTiming, now = Date.now()): boolean {
@@ -24,7 +26,9 @@ export function isPastSession(booking: SessionTiming, now = Date.now()): boolean
 }
 
 export function canReportNoShow(booking: SessionTiming, now = Date.now()): boolean {
-  const end = new Date(booking.scheduledAt).getTime() + booking.durationMinutes * 60_000;
+  const extension = booking.extensions?.find((item) => item.status === 'confirmed');
+  const end = new Date(booking.scheduledAt).getTime() +
+    (booking.durationMinutes + (extension?.durationMinutes ?? 0)) * 60_000;
   // Mirror report-no-show's current 48-hour window; the server remains authoritative.
   return sessionPhase(booking, now) === 'ended' && now <= end + 48 * 3_600_000;
 }

@@ -16,6 +16,7 @@ serveWithErrorReporting('video-rooms', async (req: Request) => {
   const { data: bookings, error } = await db.from('bookings')
     .select('id, scheduled_at, duration_minutes, daily_room_name, meeting_link')
     .eq('session_type', 'video').eq('status', 'confirmed').is('video_link_sent_at', null)
+    .is('extends_booking_id', null)
     .is('daily_room_deleted_at', null)
     .or('stripe_payment_intent_id.not.is.null,and(price.eq.0,student_fee.eq.0)')
     .lte('scheduled_at', new Date(now + 3_600_000).toISOString())
@@ -42,6 +43,7 @@ serveWithErrorReporting('video-rooms', async (req: Request) => {
   }
   const { data: terminal, error: cleanupError } = await db.from('bookings').select('id, daily_room_name')
     .eq('session_type', 'video').in('status', ['cancelled', 'completed', 'no_show'])
+    .is('extends_booking_id', null)
     .not('daily_room_name', 'is', null).is('daily_room_deleted_at', null).limit(100);
   if (cleanupError) return Response.json({ error: 'Could not load video cleanup' }, { status: 500 });
   for (const booking of terminal ?? []) {

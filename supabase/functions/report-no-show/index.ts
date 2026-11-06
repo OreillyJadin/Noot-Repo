@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { BookingError, NO_SHOW_WINDOW_HOURS, assertSessionElapsed } from '../_shared/booking.ts';
 import { fetchAttendance, classifyAttendance } from '../_shared/daily.ts';
+import { effectiveDurationMinutes } from '../_shared/extensions.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -38,12 +39,15 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
       return Response.json({ error: "party must be 'student' or 'tutor'" }, { status: 400, headers: cors });
     }
     const { data: booking, error } = await db.from('bookings')
-      .select('id, student_id, tutor_id, subject, status, scheduled_at, duration_minutes, session_type, daily_room_name, dispute_status, no_show_claimed_at')
+      .select('id, student_id, tutor_id, subject, status, scheduled_at, duration_minutes, session_type, daily_room_name, dispute_status, no_show_claimed_at, extends_booking_id')
       .eq('id', bookingId).maybeSingle();
     if (error || !booking) return Response.json({ error: 'Booking not found' }, { status: 404, headers: cors });
     const isStudent = booking.student_id === user.id;
     const isTutor = booking.tutor_id === user.id;
     if (!isStudent && !isTutor) return Response.json({ error: 'Not a party to this booking' }, { status: 403, headers: cors });
+    if (booking.extends_booking_id) {
+      return Response.json({ error: 'Manage this from the main session' }, { status: 400, headers: cors });
+    }
     if (booking.dispute_status === 'flagged') return Response.json({ error: REVIEW_MESSAGE }, { status: 409, headers: cors });
     if (party === 'tutor' ? !isStudent : !isTutor) {
       return Response.json({ error: 'Only the other party may report a no-show' }, { status: 403, headers: cors });
@@ -52,11 +56,12 @@ serveWithErrorReporting('report-no-show', async (req: Request) => {
       return Response.json({ error: `Cannot report a no-show on a ${booking.status} session` }, { status: 409, headers: cors });
     }
     if (booking.no_show_claimed_at) return Response.json({ error: 'A no-show claim is already open' }, { status: 409, headers: cors });
-    assertSessionElapsed(booking.scheduled_at, Number(booking.duration_minutes), { withinHours: NO_SHOW_WINDOW_HOURS });
+    const duration = await effectiveDurationMinutes(db, booking.id, Number(booking.duration_minutes));
+    assertSessionElapsed(booking.scheduled_at, duration, { withinHours: NO_SHOW_WINDOW_HOURS });
 
     const evidence = booking.session_type === 'video' && booking.daily_room_name
       ? await fetchAttendance(
-        booking.daily_room_name, booking.scheduled_at, Number(booking.duration_minutes), booking.student_id, booking.tutor_id,
+        booking.daily_room_name, booking.scheduled_at, duration, booking.student_id, booking.tutor_id,
       )
       : null;
     const checkedAt = new Date().toISOString();
