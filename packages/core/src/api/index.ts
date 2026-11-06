@@ -29,6 +29,7 @@ import type {
   AmbassadorProfile,
   Booking,
   BookingAttendance,
+  BookingExtension,
   BusyTime,
   CatalogCourse,
   ContentReport,
@@ -217,6 +218,7 @@ export interface AdminBooking {
   status: string;
   price: number;
   studentFee: number;
+  extensions: Pick<BookingExtension, 'id' | 'status' | 'durationMinutes' | 'price' | 'studentFee'>[];
   disputeStatus: string;
   disputeReason: string | null;
   noShowClaimParty: NoShowParty | null;
@@ -474,6 +476,8 @@ function mapBooking(row: any): Booking {
   const relation = Array.isArray(row.booking_series) ? row.booking_series[0] : row.booking_series;
   return {
     id: row.id,
+    extendsBookingId: row.extends_booking_id ?? null,
+    extensions: [],
     seriesId: row.series_id ?? null,
     seriesIndex: row.series_index == null ? null : Number(row.series_index),
     seriesStatus: relation?.status ?? null,
@@ -540,6 +544,36 @@ function mapBooking(row: any): Booking {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+async function attachExtensions(bookings: Booking[]): Promise<Booking[]> {
+  const parents = bookings.filter((booking) => !booking.extendsBookingId);
+  const parentIds = parents.map((booking) => booking.id);
+  if (!parentIds.length) return parents;
+  const { data, error } = await getSupabase().from('bookings')
+    .select('id, extends_booking_id, status, duration_minutes, price, student_fee, tutor_payout_amount, accept_by, accepted_at, cancel_reason')
+    .in('extends_booking_id', parentIds)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  const byParent = new Map<string, BookingExtension[]>();
+  for (const row of data ?? []) {
+    const extension: BookingExtension = {
+      id: row.id,
+      extendsBookingId: row.extends_booking_id,
+      status: row.status,
+      durationMinutes: Number(row.duration_minutes),
+      price: num(row.price),
+      studentFee: num(row.student_fee),
+      tutorPayoutAmount: num(row.tutor_payout_amount),
+      acceptBy: row.accept_by ?? null,
+      acceptedAt: row.accepted_at ?? null,
+      cancelReason: row.cancel_reason ?? null,
+    };
+    const rows = byParent.get(extension.extendsBookingId) ?? [];
+    rows.push(extension);
+    byParent.set(extension.extendsBookingId, rows);
+  }
+  return parents.map((booking) => ({ ...booking, extensions: byParent.get(booking.id) ?? [] }));
 }
 
 type AdminUserHistoryPayload = {
@@ -903,6 +937,23 @@ export const REMINDER_CHOICES = [5, 10, 15, 30, 60, 120, 1440] as const;
 export const DEFAULT_REMINDERS = [60] as const;
 
 export const api = {
+  requestExtension(bookingId: string, minutes: 30 | 60): Promise<{
+    bookingId: string;
+    parentBookingId: string;
+    status: string;
+    minutes: 30 | 60;
+    price: number;
+    studentFee: number;
+    total: number;
+    acceptBy: string;
+  }> {
+    return invokeFn('request-extension', { bookingId, minutes });
+  },
+
+  respondExtension(bookingId: string, accept: boolean): Promise<{ status: string; bookingId: string }> {
+    return invokeFn('respond-extension', { bookingId, accept });
+  },
+
   async touchLastActive(): Promise<void> {
     const { error } = await getSupabase().rpc('touch_last_active');
     if (error) throw error;
@@ -1441,7 +1492,7 @@ export const api = {
       const pageSize = 500;
       for (let offset = 0; ; offset += pageSize) {
         const { data, error } = await getSupabase().from('bookings').select('*,booking_series!bookings_series_id_fkey(status,weeks)')
-          .eq('student_id', uid).eq('status', 'completed')
+          .eq('student_id', uid).eq('status', 'completed').is('extends_booking_id', null)
           .order('scheduled_at', { ascending: false }).order('id', { ascending: false })
           .range(offset, offset + pageSize - 1);
         if (error) throw error;
@@ -1523,7 +1574,8 @@ export const api = {
       : query.or(`student_id.eq.${uid},tutor_id.eq.${uid}`);
     const { data, error } = await query.order('scheduled_at', { ascending: true });
     if (error) throw error;
-    return (data ?? []).map(mapBooking).filter((booking) => isUpcomingSession(booking, now));
+    const parents = (data ?? []).filter((row) => !row.extends_booking_id).map(mapBooking);
+    return (await attachExtensions(parents)).filter((booking) => isUpcomingSession(booking, now));
   },
 
   /**
@@ -1544,7 +1596,8 @@ export const api = {
       : query.or(`student_id.eq.${uid},tutor_id.eq.${uid}`);
     const { data, error } = await query.order('scheduled_at', { ascending: false });
     if (error) throw error;
-    return (data ?? []).map(mapBooking).filter((booking) => isPastSession(booking, nowMs));
+    const parents = (data ?? []).filter((row) => !row.extends_booking_id).map(mapBooking);
+    return (await attachExtensions(parents)).filter((booking) => isPastSession(booking, nowMs));
   },
 
   /**
@@ -1580,17 +1633,18 @@ export const api = {
     const sb = getSupabase();
     const { data, error } = await sb
       .from('bookings')
-      .select('status, refund_status, cancelled_by_role, cancelled_from_status, no_show_party, scheduled_at, tutor_payout_amount, refund_percent, refunded_cents, price, student_fee, credit_applied, duration_minutes')
+      .select('status, refund_status, cancelled_by_role, cancelled_from_status, no_show_party, scheduled_at, tutor_payout_amount, refund_percent, refunded_cents, price, student_fee, credit_applied, duration_minutes, extends_booking_id')
       .eq('tutor_id', uid);
     if (error) throw error;
     const rows = data ?? [];
-    const completed = rows.filter((r) => r.status === 'completed');
+    const completed = rows.filter((r) => r.status === 'completed' && !r.extends_booking_id);
     const cancelled = rows.filter((r) =>
+      !r.extends_booking_id &&
       r.status === 'cancelled' &&
       r.cancelled_by_role === 'tutor' &&
       r.cancelled_from_status === 'confirmed',
     );
-    const noShows = rows.filter((r) => r.no_show_party === 'tutor');
+    const noShows = rows.filter((r) => !r.extends_booking_id && r.no_show_party === 'tutor');
     const weekAgo = Date.now() - 7 * 86_400_000;
     const earnings = rows
       .filter((r) => r.status === 'completed' || r.status === 'cancelled' || r.status === 'no_show')
@@ -1611,7 +1665,9 @@ export const api = {
     const earnedThisWeek = earnings
       .filter((r) => new Date(r.scheduledAt).getTime() >= weekAgo)
       .reduce((s, r) => s + r.cents, 0) / 100;
-    const hoursTaught = completed.reduce((s, r) => s + num(r.duration_minutes) / 60, 0);
+    const hoursTaught = rows
+      .filter((r) => r.status === 'completed')
+      .reduce((s, r) => s + num(r.duration_minutes) / 60, 0);
     const { data: prof } = await sb.from('tutor_profiles').select('rating_avg').eq('user_id', uid).maybeSingle();
     const denom = completed.length + cancelled.length + noShows.length;
     return {
@@ -1638,17 +1694,22 @@ export const api = {
     const nowMs = Date.now();
     const { data, error } = await getSupabase()
       .from('bookings')
-      .select('status, cancel_reason, scheduled_at, duration_minutes')
+      .select('id, status, cancel_reason, scheduled_at, duration_minutes, extends_booking_id')
       .eq('student_id', uid);
     if (error) throw error;
     const rows = data ?? [];
     const isPast = (r: { scheduled_at: string }) => new Date(r.scheduled_at).getTime() < nowMs;
-    const completed = rows.filter((r) => r.status === 'completed' || (r.status === 'confirmed' && isPast(r as { scheduled_at: string })));
+    const completed = rows.filter((r) => !r.extends_booking_id && (r.status === 'completed' || (r.status === 'confirmed' && isPast(r as { scheduled_at: string }))));
     const upcoming = rows.filter((r) =>
+      !r.extends_booking_id &&
       (r.status === 'pending' || r.status === 'confirmed') &&
       !isPast(r as { scheduled_at: string }),
     );
-    const hoursLearned = completed.reduce((s, r) => s + num(r.duration_minutes) / 60, 0);
+    const parentIds = completed.map((r) => r.id).filter(Boolean);
+    const hoursLearned = completed.reduce((s, r) => s + num(r.duration_minutes) / 60, 0) +
+      rows.filter((r) => !!r.extends_booking_id && parentIds.includes(r.extends_booking_id as string)
+        && (r.status === 'completed' || r.status === 'confirmed'))
+        .reduce((s, r) => s + num(r.duration_minutes) / 60, 0);
     return { sessionsCompleted: completed.length, upcomingCount: upcoming.length, hoursLearned };
   },
 
@@ -2223,10 +2284,30 @@ export const api = {
       const { data, error } = await sb
         .from('bookings')
         .select('id, student_id, tutor_id, subject, scheduled_at, status, price, student_fee, dispute_status, dispute_reason, no_show_claim_party, no_show_claimed_at, no_show_contested_at, no_show_contest_note, completion_claimed_at, completion_objected_at, completion_objection_note, attendance')
+        .is('extends_booking_id', null)
         .order('scheduled_at', { ascending: false })
         .limit(100);
       if (error) throw error;
       const rows = data ?? [];
+      const { data: extensionRows, error: extensionError } = rows.length
+        ? await sb.from('bookings')
+          .select('id, extends_booking_id, status, duration_minutes, price, student_fee')
+          .in('extends_booking_id', rows.map((booking) => booking.id))
+        : { data: [], error: null };
+      if (extensionError) throw extensionError;
+      const extensionsByParent = new Map<string, AdminBooking['extensions']>();
+      for (const row of extensionRows ?? []) {
+        const parentId = row.extends_booking_id as string;
+        const items = extensionsByParent.get(parentId) ?? [];
+        items.push({
+          id: row.id,
+          status: row.status,
+          durationMinutes: Number(row.duration_minutes),
+          price: num(row.price),
+          studentFee: num(row.student_fee),
+        });
+        extensionsByParent.set(parentId, items);
+      }
       const ids = [...new Set(rows.flatMap((b) => [b.student_id, b.tutor_id]))];
       const { data: users } = ids.length
         ? await sb.from('users').select('id, first_name, last_name').in('id', ids)
@@ -2241,6 +2322,7 @@ export const api = {
         status: b.status,
         price: num(b.price),
         studentFee: num(b.student_fee),
+        extensions: extensionsByParent.get(b.id) ?? [],
         disputeStatus: b.dispute_status ?? 'none',
         disputeReason: b.dispute_reason ?? null,
         noShowClaimParty: b.no_show_claim_party ?? null,
@@ -2278,6 +2360,7 @@ export const api = {
           .from('bookings')
           .select('id, student_id, tutor_id, subject, scheduled_at, duration_minutes, status, dispute_status')
           .gte('scheduled_at', fromIso)
+          .is('extends_booking_id', null)
           .lt('scheduled_at', toIso)
           .order('scheduled_at', { ascending: true })
           .order('id', { ascending: true })
@@ -2417,7 +2500,9 @@ export const api = {
         .eq('id', id)
         .maybeSingle();
       if (error) throw error;
-      return data ? mapBooking(data) : null;
+      if (!data) return null;
+      const booking = mapBooking(data);
+      return booking.extendsBookingId ? booking : (await attachExtensions([booking]))[0] ?? booking;
     },
 
     async getSeries(id: string): Promise<{

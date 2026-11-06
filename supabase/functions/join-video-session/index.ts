@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { applyRoomAccess, videoJoinUrl, videoWindow } from '../_shared/daily.ts';
+import { effectiveDurationMinutes } from '../_shared/extensions.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -34,7 +35,12 @@ serveWithErrorReporting('join-video-session', async (req: Request) => {
     if (!b || (b.student_id !== user.id && b.tutor_id !== user.id)) {
       return Response.json({ error: 'Only session participants can join' }, { status: 403, headers: cors });
     }
-    const window = videoWindow(b.scheduled_at, b.duration_minutes);
+    if (b.extends_booking_id) {
+      return Response.json({ error: 'Join from the main session' }, { status: 400, headers: cors });
+    }
+    const effectiveDuration = await effectiveDurationMinutes(db, b.id, Number(b.duration_minutes));
+    const window = videoWindow(b.scheduled_at, effectiveDuration);
+    const tokenWindow = videoWindow(b.scheduled_at, Number(b.duration_minutes) + 60);
     const now = Date.now() / 1000;
     if (b.session_type !== 'video' || b.status !== 'confirmed' || !b.daily_room_name || !b.meeting_link ||
       !b.video_link_sent_at || b.daily_room_deleted_at || now < window.nbf || now > window.exp) {
@@ -52,7 +58,7 @@ serveWithErrorReporting('join-video-session', async (req: Request) => {
       b.daily_room_name,
       user.id,
       profile.first_name || 'Noot participant',
-      window.exp,
+      tokenWindow.exp,
       device,
     );
     return Response.json({ url: joinUrl }, { headers: cors });

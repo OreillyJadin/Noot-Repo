@@ -40,6 +40,7 @@ export {
   MIN_HOURLY_RATE,
   MAX_HOURLY_RATE,
   bookingQuote,
+  extensionQuoteFor,
   type BookingQuote,
 } from './pricing';
 export { UA_MAJORS, searchMajors, type Major } from './data/uaMajors';

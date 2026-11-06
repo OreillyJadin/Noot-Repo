@@ -14,6 +14,7 @@ serveWithErrorReporting('place-booking-holds', async (req: Request) => {
   if (expiryError) throw expiryError;
   const { data: bookings, error } = await db.from('bookings').select('*')
     .in('status', ['pending', 'confirmed']).not('stripe_setup_intent_id', 'is', null)
+    .is('extends_booking_id', null)
     .is('stripe_payment_intent_id', null).is('hold_failed_at', null)
     .lte('hold_due_at', new Date().toISOString()).order('hold_due_at').limit(50);
   if (error) throw error;

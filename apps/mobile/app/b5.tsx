@@ -9,6 +9,7 @@ import { useApp } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
 import { formatSessionTime } from '../lib/formatSessionTime';
 import { JoinVideoButton } from '../lib/JoinVideoButton';
+import { SessionExtensionPanel } from '../lib/SessionExtensionPanel';
 
 export default function B5() {
   const { bookingId: rawBookingId } = useLocalSearchParams<{ bookingId?: string | string[] }>();
@@ -168,6 +169,7 @@ function ConfirmedMode({ bookingId }: { bookingId: string }) {
         </View>
 
         {booking.sessionType === 'video' ? <JoinVideoButton bookingId={booking.id} /> : null}
+        <SessionExtensionPanel booking={booking} role="student" counterpartName={tutor.name} now={Date.now()} />
         <View style={styles.actionRow}>
           <Button label="Message" kind="secondary" size="md" style={{ flex: 1 }} onPress={openChat} />
           <Button label="View session" kind="secondary" size="md" style={{ flex: 1 }} onPress={() => router.replace('/sessions')} />

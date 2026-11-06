@@ -9,6 +9,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { BookingError, assertSessionElapsed } from '../_shared/booking.ts';
 import { completeBooking } from '../_shared/completeBooking.ts';
+import { effectiveDurationMinutes } from '../_shared/extensions.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -37,16 +38,20 @@ serveWithErrorReporting('complete-session', async (req: Request) => {
 
     const { data: booking } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, subject, status, scheduled_at, duration_minutes, stripe_payment_intent_id, stripe_transfer_id, payout_failed_at, tutor_payout_amount, price, created_at, dispute_status, completion_claimed_at')
+      .select('id, student_id, tutor_id, subject, status, scheduled_at, duration_minutes, stripe_payment_intent_id, stripe_transfer_id, payout_failed_at, tutor_payout_amount, price, created_at, dispute_status, completion_claimed_at, extends_booking_id')
       .eq('id', bookingId)
       .maybeSingle();
     if (!booking) return Response.json({ error: 'booking not found' }, { status: 404, headers: cors });
     if (booking.tutor_id !== user.id) return Response.json({ error: 'forbidden' }, { status: 403, headers: cors });
+    if (booking.extends_booking_id) {
+      return Response.json({ error: 'Manage this from the main session' }, { status: 400, headers: cors });
+    }
     if (booking.dispute_status === 'flagged') {
       return Response.json({ error: 'This session is under review by the noot team.' }, { status: 409, headers: cors });
     }
     if (booking.status === 'confirmed') {
-      assertSessionElapsed(booking.scheduled_at, Number(booking.duration_minutes));
+      const duration = await effectiveDurationMinutes(db, booking.id, Number(booking.duration_minutes));
+      assertSessionElapsed(booking.scheduled_at, duration);
       if (booking.completion_claimed_at) {
         return Response.json({
           status: 'completion_pending',

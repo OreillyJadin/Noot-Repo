@@ -1,7 +1,7 @@
 // Run: pnpm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bookingQuote, creditToApply, MIN_CHARGE_CENTS, MIN_HOURLY_RATE, tutorHourlyEstimate } from '../src/pricing.ts';
+import { bookingQuote, creditToApply, extensionQuoteFor, MIN_CHARGE_CENTS, MIN_HOURLY_RATE, tutorHourlyEstimate } from '../src/pricing.ts';
 import * as server from '../../../supabase/functions/_shared/credits.ts';
 import { splitPrice, feeRateFor } from '../../../supabase/functions/_shared/fees.ts';
 
@@ -47,6 +47,12 @@ test('the checkout quote matches the server: price, 17% fee, credit, due', () =>
 test('an admin booking is quoted at $0 with no fee, credit or charge', () => {
   const q = bookingQuote({ hourlyRate: 28, durationMinutes: 60, creditBalanceCents: 5000, adminFree: true });
   assert.deepEqual(q, { priceCents: 0, feeCents: 0, creditCents: 0, dueCents: 0, free: true });
+});
+
+test('extension quotes prorate the session price and add the standard student fee', () => {
+  assert.deepEqual(extensionQuoteFor(60, 60, 30), { price: 30, studentFee: 5.1, total: 35.1 });
+  assert.deepEqual(extensionQuoteFor(60, 60, 60), { price: 60, studentFee: 10.2, total: 70.2 });
+  assert.deepEqual(extensionQuoteFor(0, 60, 30), { price: 0, studentFee: 0, total: 0 });
 });
 
 test('the rate floor the server enforces is the one the app shows', () => {

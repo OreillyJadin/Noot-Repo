@@ -170,7 +170,10 @@ function BookingRow({
   const t = useTheme();
   const action = booking.disputeStatus === 'none' ? 'Flag' : null;
   const color = booking.disputeStatus === 'flagged' ? '#C2783A' : statusColor(booking.status, t);
-  const amount = `$${(booking.price + booking.studentFee).toFixed(2).replace(/\.00$/, '')}`;
+  const activeExtensionAmount = booking.extensions
+    .filter((extension) => extension.status === 'confirmed' || extension.status === 'completed')
+    .reduce((sum, extension) => sum + extension.price + extension.studentFee, 0);
+  const amount = `$${(booking.price + booking.studentFee + activeExtensionAmount).toFixed(2).replace(/\.00$/, '')}`;
   const subtitle = `${booking.subject} · ${when(booking.scheduledAt)}`;
   const evidence = booking.attendance
     ? booking.attendance.unavailable
@@ -180,6 +183,12 @@ function BookingRow({
   const detail = (
     <View style={{ gap: 5 }}>
       {booking.disputeReason ? <Text style={[styles.reason, { color: t.text2 }]}>{booking.disputeReason}</Text> : null}
+      {booking.extensions.map((extension) => (
+        <Text key={extension.id} style={[styles.reason, { color: t.text2 }]}>
+          +{extension.durationMinutes} min extension · {extension.status} · $
+          {(extension.price + extension.studentFee).toFixed(2).replace(/\.00$/, '')}
+        </Text>
+      ))}
       {booking.noShowClaimParty ? (
         <Text style={[styles.reason, { color: t.text2 }]}>
           No-show claim: {booking.noShowClaimParty} reported absent

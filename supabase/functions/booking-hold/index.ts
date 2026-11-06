@@ -30,6 +30,9 @@ serveWithErrorReporting('booking-hold', async (req: Request) => {
     const { data: booking, error } = await db.from('bookings').select('*').eq('id', bookingId).single();
     if (error || !booking) return Response.json({ error: 'Booking not found' }, { status: 404, headers: cors });
     if (booking.student_id !== user.id) return Response.json({ error: 'Only the student can update payment' }, { status: 403, headers: cors });
+    if (booking.extends_booking_id) {
+      return Response.json({ error: 'Manage this from the main session' }, { status: 400, headers: cors });
+    }
     if (action === 'attach' && typeof paymentIntentId === 'string' && booking.stripe_payment_intent_id === paymentIntentId) {
       return Response.json({ ok: true }, { headers: cors });
     }

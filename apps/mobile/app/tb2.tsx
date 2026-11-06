@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Screen, NavTop, Body, Card, Avatar, Divider, Eyebrow, Button, Ic, ListSection, ListRow, StatusDot, useTheme } from '@noot/ui';
 import { api, feeRateFor } from '@noot/core';
+import type { Booking } from '@noot/core';
 import { useMe } from '../lib/useMe';
 import { useApp, type BookingDraft } from '../lib/store';
 import { toTutor, type Tutor } from '../lib/data';
@@ -16,6 +17,8 @@ import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
 import { formatSessionTime } from '../lib/formatSessionTime';
 import { JoinVideoButton } from '../lib/JoinVideoButton';
+import { SessionExtensionPanel } from '../lib/SessionExtensionPanel';
+import { useSessionClock } from '../lib/useSessionClock';
 
 
 function sessionFacts(booking: BookingDraft, scheduledAt: string, tutor: Tutor, gradesVerified: boolean) {
@@ -42,6 +45,7 @@ function sessionFacts(booking: BookingDraft, scheduledAt: string, tutor: Tutor, 
 }
 
 export default function TB2() {
+  const now = useSessionClock();
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -51,7 +55,19 @@ export default function TB2() {
   // own profile for the rates. (It used to take the first search result — always some other
   // tutor, since search excludes you — and show their rates as your earnings.)
   const [moreOpen, setMoreOpen] = useState(false);
+  const [sessionRecord, setSessionRecord] = useState<Booking | null>(null);
   const { me, gradesVerified } = useMe();
+  useEffect(() => {
+    if (!booking.bookingId) {
+      setSessionRecord(null);
+      return;
+    }
+    let active = true;
+    api.bookings.get(booking.bookingId).then((row) => {
+      if (active) setSessionRecord(row);
+    }).catch(() => { /* keep the session details usable offline */ });
+    return () => { active = false; };
+  }, [booking.bookingId]);
   useEffect(() => {
     if (booking.tutor || !me) return; // draft already carries the tutor
     let active = true;
@@ -136,6 +152,17 @@ export default function TB2() {
             />
           </ListSection>
           {f.online && booking.bookingId ? <JoinVideoButton bookingId={booking.bookingId} /> : null}
+          {sessionRecord ? (
+            <SessionExtensionPanel
+              booking={sessionRecord}
+              role="tutor"
+              counterpartName={student.name}
+              now={now}
+              onUpdated={() => {
+                void api.bookings.get(sessionRecord.id).then((row) => { if (row) setSessionRecord(row); });
+              }}
+            />
+          ) : null}
         </View>
 
         {/* student's message + focus */}

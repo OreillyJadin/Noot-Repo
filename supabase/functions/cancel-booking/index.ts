@@ -10,6 +10,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { assertPayoutReady } from '../_shared/booking.ts';
 import { lateCancelTutorPayoutCents, studentCancelRefundPercentWithLock } from '../_shared/cancellation.ts';
+import { cancelParentExtensions } from '../_shared/extensions.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 import { otherOutcomeTransferExists, payTutor } from '../_shared/payouts.ts';
 import { capturedRefundCents, chargeRefundedCents, chargeRefundPercent, refundOwedCents } from '../_shared/refunds.ts';
@@ -49,23 +50,25 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     // Load booking.
     const { data: booking, error: loadError } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, subject, scheduled_at, locked_refund_percent, status, dispute_status, price, student_fee, credit_applied, tutor_payout_amount, stripe_payment_intent_id, stripe_setup_intent_id')
+      .select('id, student_id, tutor_id, subject, scheduled_at, locked_refund_percent, status, dispute_status, price, student_fee, credit_applied, tutor_payout_amount, stripe_payment_intent_id, stripe_setup_intent_id, extends_booking_id')
       .eq('id', bookingId)
       .single();
 
     if (loadError || !booking) {
       return Response.json({ error: 'Booking not found' }, { status: 404, headers: cors });
     }
-
-    // Verify the caller is a party to the booking.
-    const isStudent = booking.student_id === user.id;
-    const isTutor = booking.tutor_id === user.id;
-    if (!isStudent && !isTutor) {
+    if (booking.student_id !== user.id && booking.tutor_id !== user.id) {
       return Response.json(
         { error: 'Not authorized to cancel this booking' },
         { status: 403, headers: cors },
       );
     }
+    if (booking.extends_booking_id) {
+      return Response.json({ error: 'Manage this from the main session' }, { status: 400, headers: cors });
+    }
+
+    const isStudent = booking.student_id === user.id;
+    const isTutor = booking.tutor_id === user.id;
 
     if (booking.dispute_status === 'flagged') {
       return Response.json({ error: 'This session is under review by the noot team.' }, { status: 409, headers: cors });
@@ -115,6 +118,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
         p_percent: 100,
       });
       if (creditError) console.error('cancel-booking: pending credit return failed', bookingId);
+      await cancelParentExtensions(db, bookingId);
 
       let holdReleased = noRealHold;
       if (paymentIntentId?.startsWith('pi_') && stripeKey) {
@@ -327,6 +331,10 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     if (Number(booking.credit_applied ?? 0) > 0) {
       const { error: creditErr } = await db.rpc('return_booking_credit', { p_booking: bookingId, p_percent: actualRefundPercent });
       if (creditErr) console.error('cancel-booking: credit return failed', bookingId, creditErr.message);
+    }
+    try { await cancelParentExtensions(db, bookingId); }
+    catch (extensionError) {
+      console.error('cancel-booking: extension cancellation failed', bookingId, String(extensionError));
     }
 
     const recipientId = isStudent ? booking.tutor_id : booking.student_id;

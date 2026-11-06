@@ -1,6 +1,7 @@
 import type Stripe from 'https://esm.sh/stripe@16?target=deno';
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { BookingError, assertPayoutReady } from './booking.ts';
+import { cancelParentExtensions } from './extensions.ts';
 import { otherOutcomeTransferExists, payTutor } from './payouts.ts';
 import { capturedRefundCents, chargeRefundedCents, chargeRefundPercent, refundOwedCents } from './refunds.ts';
 import { updateConfirmedBookingRaiseOnly } from './refundWrite.ts';
@@ -65,6 +66,11 @@ export async function settleNoShow(
           if (!flagged) {
             await db.from('bookings').update({ payout_failed_at: failedAt }).eq('id', bookingId);
             console.error('settle-no-show: captured, transfer failed and booking left confirmed', bookingId, chargeId);
+          } else {
+            try { await cancelParentExtensions(db, bookingId); }
+            catch (extensionError) {
+              console.error('settle-no-show: extension cancellation failed', bookingId, String(extensionError));
+            }
           }
           console.error('settle-no-show: captured but transfer failed', bookingId, `owed ${payout.shortfallCents}c`, String(payout.error));
           return {
@@ -149,6 +155,10 @@ export async function settleNoShow(
       p_percent: Number(settled.refund_percent),
     });
     if (creditError) console.error('settle-no-show: credit return failed', bookingId, creditError.message);
+  }
+  try { await cancelParentExtensions(db, bookingId); }
+  catch (extensionError) {
+    console.error('settle-no-show: extension cancellation failed', bookingId, String(extensionError));
   }
   return {
     status: 200,

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import type Stripe from 'https://esm.sh/stripe@16?target=deno';
 import { assertPayoutReady, assertSessionElapsed } from './booking.ts';
+import { cancelParentExtensions, effectiveDurationMinutes } from './extensions.ts';
 import { payTutor } from './payouts.ts';
 
 type BookingToComplete = {
@@ -12,6 +13,7 @@ type BookingToComplete = {
   stripe_payment_intent_id: string | null;
   tutor_payout_amount: number;
   price: number;
+  extends_booking_id?: string | null;
   stripe_transfer_id?: string | null;
   payout_failed_at?: string | null;
 };
@@ -36,6 +38,22 @@ async function awardInvites(url: string, bookingId: string): Promise<void> {
 
 const CANCELLED_MESSAGE = 'This session was cancelled or reported as a no-show.';
 
+async function settleParentExtensions(
+  db: SupabaseClient,
+  url: string,
+  parent: BookingToComplete,
+  stripeClient?: Stripe,
+): Promise<CompleteResult> {
+  if (parent.extends_booking_id) return { status: 200, body: { status: 'completed' } };
+  await cancelParentExtensions(db, parent.id, ['pending']);
+  const { data: extension, error } = await db.from('bookings')
+    .select('id, tutor_id, status, scheduled_at, duration_minutes, stripe_payment_intent_id, tutor_payout_amount, price, extends_booking_id, stripe_transfer_id, payout_failed_at')
+    .eq('extends_booking_id', parent.id).eq('status', 'confirmed').maybeSingle();
+  if (error) throw error;
+  if (!extension) return { status: 200, body: { status: 'completed' } };
+  return await completeBooking(db, url, extension as BookingToComplete, stripeClient);
+}
+
 export async function completeBooking(
   db: SupabaseClient,
   url: string,
@@ -48,14 +66,21 @@ export async function completeBooking(
   const pi = booking.stripe_payment_intent_id;
   if (alreadyComplete && (!paidSession || pi?.startsWith('sim_pi_')
       || (booking.stripe_transfer_id && !booking.payout_failed_at))) {
-    if (paidSession) await awardInvites(url, bookingId);
+    const extensionResult = await settleParentExtensions(db, url, booking, stripeClient);
+    if (extensionResult.status !== 200) return extensionResult;
+    if (paidSession && !booking.extends_booking_id) await awardInvites(url, bookingId);
     return { status: 200, body: { status: 'completed', captured: false, alreadyComplete: true } };
   }
   if (!alreadyComplete && booking.status !== 'confirmed') {
     return { status: 400, body: { error: `Cannot complete a ${booking.status} session` } };
   }
 
-  if (!alreadyComplete) assertSessionElapsed(booking.scheduled_at, Number(booking.duration_minutes));
+  if (!alreadyComplete) {
+    const duration = booking.extends_booking_id
+      ? Number(booking.duration_minutes)
+      : await effectiveDurationMinutes(db, bookingId, Number(booking.duration_minutes));
+    assertSessionElapsed(booking.scheduled_at, duration);
+  }
 
   const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
   if (stripeKey && paidSession && !pi) {
@@ -94,6 +119,7 @@ export async function completeBooking(
       if (!expiredRows?.length) {
         return { status: 409, body: { error: CANCELLED_MESSAGE } };
       }
+      await cancelParentExtensions(db, bookingId);
       console.error('complete-session: payment hold expired', bookingId);
       return {
         status: 409,
@@ -152,7 +178,13 @@ export async function completeBooking(
         console.error('complete-session: captured, transfer failed and the booking left confirmed meanwhile', bookingId, chargeId);
       }
       console.error('complete-session: captured but transfer failed', bookingId, `owed ${payout.shortfallCents}c`, String(payout.error));
-      if (paidSession) await awardInvites(url, bookingId);
+      if (flagged?.length) {
+        const extensionResult = await settleParentExtensions(db, url, booking, stripeClient);
+        if (extensionResult.status !== 200) {
+          console.error('complete-session: extension settlement failed', bookingId);
+        }
+      }
+      if (paidSession && !booking.extends_booking_id) await awardInvites(url, bookingId);
       return {
         status: 502,
         body: {
@@ -176,7 +208,9 @@ export async function completeBooking(
     return { status: 409, body: { error: CANCELLED_MESSAGE } };
   }
 
-  if (paidSession) await awardInvites(url, bookingId);
+  const extensionResult = await settleParentExtensions(db, url, booking, stripeClient);
+  if (extensionResult.status !== 200) return extensionResult;
+  if (paidSession && !booking.extends_booking_id) await awardInvites(url, bookingId);
 
   return { status: 200, body: { status: 'completed', captured, transferId, ...(alreadyComplete ? { alreadyComplete: true } : {}) } };
 }

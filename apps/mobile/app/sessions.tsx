@@ -18,6 +18,7 @@ import { tutorMeta } from '../lib/tutorMeta';
 import { formatSessionTime } from '../lib/formatSessionTime';
 import { useSessionClock } from '../lib/useSessionClock';
 import { JoinVideoButton } from '../lib/JoinVideoButton';
+import { SessionExtensionPanel } from '../lib/SessionExtensionPanel';
 import { PaymentUpdateBanner } from '../lib/PaymentUpdateBanner';
 import { BookAgainButton } from '../lib/BookAgainButton';
 import { confirmAction } from '../lib/confirm';
@@ -406,6 +407,7 @@ export default function Sessions() {
                       </View>
                     </View>
                     {online ? <JoinVideoButton bookingId={b.id} /> : null}
+                    <SessionExtensionPanel booking={b} role="student" counterpartName={tutorName} now={now} onUpdated={onRefresh} />
                     <PaymentUpdateBanner booking={b} now={now} onUpdated={onRefresh} />
                     {b.status === 'pending' ? (
                       <>
@@ -495,6 +497,7 @@ export default function Sessions() {
                     </View>
                   </View>
                   {b.sessionType === 'video' && b.status === 'confirmed' ? <JoinVideoButton bookingId={b.id} /> : null}
+                  <SessionExtensionPanel booking={b} role="student" counterpartName={tutor?.name ?? 'Your tutor'} now={now} onUpdated={onRefresh} />
                   <AdaptiveRow style={styles.btnRow}>
                     <Button label="Message" kind="secondary" size="sm" iconRight="chat" style={{ flex: 1 }} onPress={() => message(tutor)} />
                     {tutor && canRate ? (

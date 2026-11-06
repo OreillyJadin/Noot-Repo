@@ -62,12 +62,20 @@ export function payoutDb() {
       const query = {
         update(values: Params) { patch = values; return query; },
         eq(column: string, value: unknown) { filters.push([column, value]); return query; },
+        in(column: string, values: unknown[]) { filters.push([column, values]); return query; },
         select() { return patch ? query.execute() : query; },
-        maybeSingle: async () => ({ data: { stripe_connect_account_id: 'acct_test' }, error: null }),
+        maybeSingle: async () => ({
+          data: filters.some(([column]) => column === 'extends_booking_id')
+            ? null
+            : { stripe_connect_account_id: 'acct_test' },
+          error: null,
+        }),
         execute: async () => {
           assert.equal(table, 'bookings');
           if (control.failWrite) { control.failWrite = false; return { data: null, error: new Error('Stubbed database failure') }; }
-          if (!filters.every(([key, value]) => (booking as Params)[key] === value)) return { data: [], error: null };
+          if (!filters.every(([key, value]) => Array.isArray(value)
+            ? value.includes((booking as Params)[key])
+            : (booking as Params)[key] === value)) return { data: [], error: null };
           Object.assign(booking, patch);
           return { data: [{ id: booking.id }], error: null };
         },

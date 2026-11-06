@@ -49,11 +49,14 @@ serveWithErrorReporting('respond-booking-request', async (req: Request) => {
 
     const { data: booking, error: loadError } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, subject, request_note, status, accept_by, scheduled_at, stripe_payment_intent_id')
+      .select('id, student_id, tutor_id, subject, request_note, status, accept_by, scheduled_at, stripe_payment_intent_id, extends_booking_id')
       .eq('id', bookingId)
       .maybeSingle();
     if (loadError) throw loadError;
     if (!booking) return Response.json({ error: 'Booking not found' }, { status: 404, headers: cors });
+    if (booking.extends_booking_id) {
+      return Response.json({ error: 'Manage this from the main session' }, { status: 400, headers: cors });
+    }
     if (booking.tutor_id !== user.id) {
       return Response.json({ error: 'Not authorized to respond to this request' }, { status: 403, headers: cors });
     }

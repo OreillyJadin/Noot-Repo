@@ -13,6 +13,30 @@ test('confirmed sessions remain upcoming/active through their full duration, wit
   }
 });
 
+test('a confirmed extension extends the parent session phase and no-show boundary', () => {
+  const extended = { ...booking, extensions: [{
+    id: 'extension-id',
+    extendsBookingId: 'parent-id',
+    status: 'confirmed' as const,
+    durationMinutes: 30,
+    price: 15,
+    studentFee: 2.55,
+    tutorPayoutAmount: 10,
+    acceptBy: null,
+    acceptedAt: null,
+    cancelReason: null,
+  }] };
+  assert.equal(sessionPhase(extended, start + 60 * 60_000), 'active');
+  assert.equal(isUpcomingSession(extended, start + 60 * 60_000), true);
+  assert.equal(isPastSession(extended, start + 90 * 60_000), true);
+  assert.equal(canReportNoShow(extended, start + 60 * 60_000), false);
+  assert.equal(canReportNoShow(extended, start + 90 * 60_000), true);
+  assert.equal(sessionPhase({
+    ...booking,
+    extensions: [{ ...extended.extensions[0]!, status: 'pending' }],
+  }, start + 60 * 60_000), 'ended');
+});
+
 test('the lookback covers the longest server-allowed session until its end boundary', () => {
   const longest = { ...booking, durationMinutes: 480 };
   assert.equal(isUpcomingSession(longest, start + SESSION_LOOKBACK_MS - 1), true);

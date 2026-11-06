@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { fetchAttendance, classifyAttendance } from '../_shared/daily.ts';
+import { effectiveDurationMinutes } from '../_shared/extensions.ts';
 import { settleNoShow } from '../_shared/settleNoShow.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
@@ -46,12 +47,15 @@ serveWithErrorReporting('contest-session-claim', async (req: Request) => {
     }
     const note = typeof noteValue === 'string' ? noteValue.trim() : '';
     const { data: booking, error } = await db.from('bookings')
-      .select('id, student_id, tutor_id, subject, status, session_type, daily_room_name, scheduled_at, duration_minutes, dispute_status, no_show_claim_party, no_show_claimed_at, no_show_contested_at, completion_claimed_at, completion_objected_at')
+      .select('id, student_id, tutor_id, subject, status, session_type, daily_room_name, scheduled_at, duration_minutes, dispute_status, no_show_claim_party, no_show_claimed_at, no_show_contested_at, completion_claimed_at, completion_objected_at, extends_booking_id')
       .eq('id', bookingId).maybeSingle();
     if (error || !booking) return Response.json({ error: 'Booking not found' }, { status: 404, headers: cors });
     const isStudent = booking.student_id === user.id;
     const isTutor = booking.tutor_id === user.id;
     if (!isStudent && !isTutor) return Response.json({ error: 'Not a party to this booking' }, { status: 403, headers: cors });
+    if (booking.extends_booking_id) {
+      return Response.json({ error: 'Manage this from the main session' }, { status: 400, headers: cors });
+    }
     if (booking.dispute_status === 'flagged') return Response.json({ error: REVIEW_MESSAGE }, { status: 409, headers: cors });
     if (booking.status !== 'confirmed') return Response.json({ error: 'This claim is no longer open' }, { status: 409, headers: cors });
 
@@ -67,7 +71,9 @@ serveWithErrorReporting('contest-session-claim', async (req: Request) => {
       }
       const evidence = booking.session_type === 'video' && booking.daily_room_name
         ? await fetchAttendance(
-          booking.daily_room_name, booking.scheduled_at, Number(booking.duration_minutes), booking.student_id, booking.tutor_id,
+          booking.daily_room_name, booking.scheduled_at,
+          await effectiveDurationMinutes(db, booking.id, Number(booking.duration_minutes)),
+          booking.student_id, booking.tutor_id,
         )
         : null;
       const checkedAt = new Date().toISOString();

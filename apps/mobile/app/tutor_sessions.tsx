@@ -15,6 +15,7 @@ import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
 import { useSessionClock } from '../lib/useSessionClock';
 import { JoinVideoButton } from '../lib/JoinVideoButton';
+import { SessionExtensionPanel } from '../lib/SessionExtensionPanel';
 import { confirmAction } from '../lib/confirm';
 
 type Tab = 'upcoming' | 'past';
@@ -277,6 +278,7 @@ export default function TutorSessions() {
                     </View>
                   </Pressable>
                   {r.booking.sessionType === 'video' ? <JoinVideoButton bookingId={r.id} /> : null}
+                  <SessionExtensionPanel booking={r.booking} role="tutor" counterpartName={r.name} now={now} onUpdated={onRefresh} />
                   {r.status === 'pending' ? (
                     <AdaptiveRow style={styles.requestActions}>
                       <Button
@@ -329,6 +331,7 @@ export default function TutorSessions() {
                     </View>
                   </View>
                   {r.booking.sessionType === 'video' && r.status === 'confirmed' ? <JoinVideoButton bookingId={r.id} /> : null}
+                  <SessionExtensionPanel booking={r.booking} role="tutor" counterpartName={r.name} now={now} onUpdated={onRefresh} />
                   {needsComplete ? (
                     <Button
                       label={busyId === r.id ? 'Submitting…' : 'Mark session complete'}
