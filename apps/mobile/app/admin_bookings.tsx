@@ -7,6 +7,7 @@ import { useMe } from '../lib/useMe';
 import { AdminTabs, safetyTabs, useAdminHubCounts } from '../lib/AdminTabs';
 import { AdminMfaGate } from '../lib/AdminMfaGate';
 import { AdminRow, AdminSection, StatusDot } from '../lib/adminUi';
+import { confirmAction } from '../lib/confirm';
 
 function when(iso: string): string {
   return formatCampusTime(iso);
@@ -61,23 +62,46 @@ function AdminBookingsScreen() {
     ? bookings.filter((booking) => booking.disputeStatus === 'flagged')
     : bookings;
 
-  const dispute = async (booking: AdminBooking, action: 'flag' | 'resolve') => {
+  const dispute = async (
+    booking: AdminBooking,
+    action: 'flag' | 'resolve',
+    outcome?: 'tutor_no_show' | 'student_no_show' | 'completed',
+  ) => {
     if (busy) return;
     setBusy(booking.id);
     try {
       const result = await api.admin.resolveDispute(
         booking.id,
         action,
-        action === 'flag' ? { reason: 'Flagged by admin' } : { resolution: 'Resolved by admin' },
+        action === 'flag'
+          ? { reason: 'Flagged by admin' }
+          : outcome ? { outcome } : { resolution: 'Resolved by admin' },
       );
       setBookings((previous) => previous.map((item) => (
-        item.id === booking.id ? { ...item, disputeStatus: result.disputeStatus } : item
+        item.id === booking.id ? {
+          ...item,
+          disputeStatus: result.disputeStatus,
+          ...(outcome ? { status: outcome === 'completed' ? 'completed' : 'no_show' } : {}),
+        } : item
       )));
     } catch (error) {
       Alert.alert('Could not update', error instanceof Error ? error.message : 'Please try again.');
     } finally {
       setBusy(null);
     }
+  };
+
+  const confirmOutcome = (
+    booking: AdminBooking,
+    outcome: 'tutor_no_show' | 'student_no_show' | 'completed',
+  ) => {
+    const label = outcome === 'tutor_no_show' ? 'tutor no-show'
+      : outcome === 'student_no_show' ? 'student no-show' : 'completed';
+    confirmAction({
+      title: `Set outcome: ${label}?`,
+      message: 'This will settle the booking payment and close the review.',
+      onConfirm: () => void dispute(booking, 'resolve', outcome),
+    });
   };
 
   const groups = [...visibleBookings]
@@ -118,7 +142,7 @@ function AdminBookingsScreen() {
                     disputedOnly={tab === 'disputes'}
                     busy={busy === booking.id}
                     onFlag={() => void dispute(booking, 'flag')}
-                    onResolve={() => void dispute(booking, 'resolve')}
+                    onResolveOutcome={(outcome) => confirmOutcome(booking, outcome)}
                   />
                 ))}
               </AdminSection>
@@ -135,27 +159,65 @@ function BookingRow({
   disputedOnly,
   busy,
   onFlag,
-  onResolve,
+  onResolveOutcome,
 }: {
   booking: AdminBooking;
   disputedOnly: boolean;
   busy: boolean;
   onFlag: () => void;
-  onResolve: () => void;
+  onResolveOutcome: (outcome: 'tutor_no_show' | 'student_no_show' | 'completed') => void;
 }) {
   const t = useTheme();
-  const action = booking.disputeStatus === 'none' ? 'Flag' : booking.disputeStatus === 'flagged' ? 'Resolve' : null;
+  const action = booking.disputeStatus === 'none' ? 'Flag' : null;
   const color = booking.disputeStatus === 'flagged' ? '#C2783A' : statusColor(booking.status, t);
   const amount = `$${(booking.price + booking.studentFee).toFixed(2).replace(/\.00$/, '')}`;
   const subtitle = `${booking.subject} · ${when(booking.scheduledAt)}`;
+  const evidence = booking.attendance
+    ? booking.attendance.unavailable
+      ? 'Video attendance unavailable'
+      : `Video attendance · student ${booking.attendance.studentSeconds ?? 0}s · tutor ${booking.attendance.tutorSeconds ?? 0}s`
+    : null;
+  const detail = (
+    <View style={{ gap: 5 }}>
+      {booking.disputeReason ? <Text style={[styles.reason, { color: t.text2 }]}>{booking.disputeReason}</Text> : null}
+      {booking.noShowClaimParty ? (
+        <Text style={[styles.reason, { color: t.text2 }]}>
+          No-show claim: {booking.noShowClaimParty} reported absent
+          {booking.noShowClaimedAt ? ` · ${when(booking.noShowClaimedAt)}` : ''}
+        </Text>
+      ) : null}
+      {booking.noShowContestNote ? <Text style={[styles.reason, { color: t.text2 }]}>Contest note: {booking.noShowContestNote}</Text> : null}
+      {booking.completionClaimedAt ? <Text style={[styles.reason, { color: t.text2 }]}>Completion claim: {when(booking.completionClaimedAt)}</Text> : null}
+      {booking.completionObjectionNote ? <Text style={[styles.reason, { color: t.text2 }]}>Student objection: {booking.completionObjectionNote}</Text> : null}
+      {evidence ? <Text style={[styles.reason, { color: t.text2 }]}>{evidence}</Text> : null}
+      {booking.disputeStatus === 'flagged' ? (
+        <View style={styles.outcomeActions}>
+          {([
+            ['tutor_no_show', 'Tutor no-show'],
+            ['student_no_show', 'Student no-show'],
+            ['completed', 'Completed'],
+          ] as const).map(([outcome, label]) => (
+            <Pressable
+              key={outcome}
+              onPress={() => onResolveOutcome(outcome)}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={`Resolve as ${label.toLowerCase()}`}
+              style={({ pressed }) => [styles.outcomeButton, { opacity: pressed || busy ? 0.55 : 1 }]}
+            >
+              <Text style={[styles.outcomeText, { color: t.text }]}>{busy ? '…' : label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
   return (
     <AdminRow
       title={`${booking.studentName} → ${booking.tutorName}`}
       subtitle={subtitle}
       subtitleLines={disputedOnly ? 0 : 1}
-      detail={disputedOnly && booking.disputeReason
-        ? <Text style={[styles.reason, { color: t.text2 }]}>{booking.disputeReason}</Text>
-        : undefined}
+      detail={booking.disputeStatus === 'flagged' || disputedOnly ? detail : undefined}
       trailing={
         <View style={styles.trailing}>
           <Text style={[styles.amount, { color: t.text }]}>{amount}</Text>
@@ -165,13 +227,13 @@ function BookingRow({
           />
           {action ? (
             <Pressable
-              onPress={action === 'Flag' ? onFlag : onResolve}
+              onPress={onFlag}
               disabled={busy}
               accessibilityRole="button"
-              accessibilityLabel={`${action} dispute for ${booking.subject}`}
+              accessibilityLabel={`Flag dispute for ${booking.subject}`}
               style={({ pressed }) => [styles.action, { opacity: pressed || busy ? 0.55 : 1 }]}
             >
-              <Text style={[styles.actionText, { color: booking.disputeStatus === 'flagged' ? '#C2783A' : t.text2 }]}>
+              <Text style={[styles.actionText, { color: t.text2 }]}>
                 {busy ? '…' : action}
               </Text>
             </Pressable>
@@ -191,6 +253,9 @@ const styles = StyleSheet.create({
   reason: { fontSize: 12, lineHeight: 17 },
   action: { paddingVertical: 2, paddingHorizontal: 4 },
   actionText: { fontSize: 11.5, fontWeight: '700' },
+  outcomeActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 5 },
+  outcomeButton: { borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: '#C2783A', paddingHorizontal: 9, paddingVertical: 6 },
+  outcomeText: { fontSize: 11, fontWeight: '600' },
 });
 
 export default function AdminBookings() {

@@ -59,7 +59,7 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
     const { data: booking, error: loadErr } = await db
       .from('bookings')
       .select(
-        'id, student_id, tutor_id, subject, status, scheduled_at, duration_minutes, reschedule_proposed_at, reschedule_proposed_by, stripe_payment_intent_id, hold_placed_at, created_at',
+        'id, student_id, tutor_id, subject, status, dispute_status, scheduled_at, duration_minutes, reschedule_proposed_at, reschedule_proposed_by, stripe_payment_intent_id, hold_placed_at, created_at',
       )
       .eq('id', bookingId)
       .single();
@@ -68,6 +68,9 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
     }
     if (booking.student_id !== user.id && booking.tutor_id !== user.id) {
       return Response.json({ error: 'Not a party to this booking' }, { status: 403, headers: cors });
+    }
+    if (booking.dispute_status === 'flagged') {
+      return Response.json({ error: 'This session is under review by the noot team.' }, { status: 409, headers: cors });
     }
 
     // Only confirmed bookings can be rescheduled.

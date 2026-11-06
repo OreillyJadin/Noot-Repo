@@ -241,6 +241,13 @@ export type SessionType = 'video' | 'in_person';
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
 export type RefundStatus = 'not_applicable' | 'refunded' | 'not_refunded';
 export type BookingSeriesStatus = 'pending' | 'active' | 'stopped' | 'completed' | 'ended' | 'cancelled';
+export type NoShowParty = 'student' | 'tutor';
+export interface BookingAttendance {
+  checkedAt: Timestamp;
+  studentSeconds?: number;
+  tutorSeconds?: number;
+  unavailable?: boolean;
+}
 
 export interface Booking {
   id: UUID;
@@ -271,6 +278,17 @@ export interface Booking {
   /** Populated when in_person. */
   location: string | null;
   status: BookingStatus;
+  disputeStatus: 'none' | 'flagged' | 'resolved';
+  disputeReason: string | null;
+  noShowClaimParty: NoShowParty | null;
+  noShowClaimedBy: UUID | null;
+  noShowClaimedAt: Timestamp | null;
+  noShowContestedAt: Timestamp | null;
+  noShowContestNote: string | null;
+  completionClaimedAt: Timestamp | null;
+  completionObjectedAt: Timestamp | null;
+  completionObjectionNote: string | null;
+  attendance: BookingAttendance | null;
   acceptBy: Timestamp | null;
   acceptedAt: Timestamp | null;
   cancelledByRole: 'student' | 'tutor' | null;
