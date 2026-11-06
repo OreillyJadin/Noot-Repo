@@ -11,6 +11,8 @@ const fixture: Booking = {
   scheduledAt: '2026-10-16T13:00:00.000Z',
   rescheduleProposedAt: null,
   rescheduleProposedBy: null,
+  lockedRefundPercent: null,
+  rescheduleWaiveLateFee: false,
   durationMinutes: 60,
   price: 40,
   creditApplied: 0,

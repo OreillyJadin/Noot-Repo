@@ -5,6 +5,8 @@ import {
   cancellationDeadlineFor,
   lateCancelTutorPayoutCents,
   studentCancelRefundPercent,
+  lockedRefundPercentOnAccept,
+  studentCancelRefundPercentWithLock,
 } from '../functions/_shared/cancellation.ts';
 
 test('student cancellation refunds use the 12h and 2h cutoffs', () => {
@@ -14,6 +16,26 @@ test('student cancellation refunds use the 12h and 2h cutoffs', () => {
   assert.equal(studentCancelRefundPercent(1.99), 0);
   assert.equal(studentCancelRefundPercent(-1), 0);
   assert.equal(studentCancelRefundPercent(48), 100);
+});
+
+test('accepted reschedules preserve the strictest original fee unless waived', () => {
+  const now = Date.parse('2026-09-25T12:00:00Z');
+  const at = (hours: number) => new Date(now + hours * 3600_000).toISOString();
+  assert.equal(lockedRefundPercentOnAccept(at(1), now, null, false), 0);
+  assert.equal(lockedRefundPercentOnAccept(at(5), now, null, false), 50);
+  assert.equal(lockedRefundPercentOnAccept(at(12), now, null, false), null);
+  assert.equal(lockedRefundPercentOnAccept(at(48), now, 0, false), 0);
+  assert.equal(lockedRefundPercentOnAccept(at(1), now, 50, false), 0);
+  assert.equal(lockedRefundPercentOnAccept(at(1), now, 0, true), null);
+  assert.equal(lockedRefundPercentOnAccept(at(-1), now, null, false), 0);
+});
+
+test('cancellation uses the stricter of the new time and the locked refund cap', () => {
+  assert.equal(studentCancelRefundPercentWithLock(48, null), 100);
+  assert.equal(studentCancelRefundPercentWithLock(48, 0), 0);
+  assert.equal(studentCancelRefundPercentWithLock(48, 50), 50);
+  assert.equal(studentCancelRefundPercentWithLock(1, 50), 0);
+  assert.equal(studentCancelRefundPercentWithLock(5, null), 50);
 });
 
 test('late cancellation payout is the non-refunded share of the stored tutor payout', () => {

@@ -13,7 +13,7 @@ import {
   BookingError,
   interviewClash,
 } from '../_shared/booking.ts';
-import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
+import { cancellationDeadlineFor, lockedRefundPercentOnAccept } from '../_shared/cancellation.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -28,6 +28,7 @@ interface Body {
   bookingId?: string;
   action?: Action;
   newScheduledAt?: string;
+  waiveLateFee?: boolean;
 }
 
 serveWithErrorReporting('reschedule-booking', async (req: Request) => {
@@ -48,7 +49,7 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
     if (inactiveResponse) return inactiveResponse;
 
     const body: Body = await req.json().catch(() => ({}));
-    const { bookingId, action, newScheduledAt } = body;
+    const { bookingId, action, newScheduledAt, waiveLateFee } = body;
 
     if (!bookingId) return Response.json({ error: 'Missing bookingId' }, { status: 400, headers: cors });
     if (action !== 'propose' && action !== 'accept' && action !== 'decline') {
@@ -59,7 +60,7 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
     const { data: booking, error: loadErr } = await db
       .from('bookings')
       .select(
-        'id, student_id, tutor_id, subject, status, dispute_status, scheduled_at, duration_minutes, reschedule_proposed_at, reschedule_proposed_by, stripe_payment_intent_id, hold_placed_at, created_at',
+        'id, student_id, tutor_id, subject, status, dispute_status, scheduled_at, duration_minutes, reschedule_proposed_at, reschedule_proposed_by, reschedule_waive_late_fee, locked_refund_percent, stripe_payment_intent_id, hold_placed_at, created_at',
       )
       .eq('id', bookingId)
       .single();
@@ -196,6 +197,7 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
         .update({
           reschedule_proposed_at: when.toISOString(),
           reschedule_proposed_by: user.id,
+          reschedule_waive_late_fee: user.id === booking.tutor_id && waiveLateFee === true,
           // status stays 'confirmed' while a proposal is pending.
         })
         .eq('id', bookingId);
@@ -237,6 +239,11 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
       }
       // New cancellation deadline is 12h before the new session time.
       const deadline = cancellationDeadlineFor(newTime);
+      const waived = (booking.reschedule_proposed_by === booking.tutor_id && booking.reschedule_waive_late_fee) ||
+        (user.id === booking.tutor_id && waiveLateFee === true);
+      const lockedRefundPercent = lockedRefundPercentOnAccept(
+        booking.scheduled_at, Date.now(), booking.locked_refund_percent, waived,
+      );
       const applyProposal = () =>
         db
           .from('bookings')
@@ -245,9 +252,14 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
             cancellation_deadline: deadline.toISOString(),
             reschedule_proposed_at: null,
             reschedule_proposed_by: null,
+            reschedule_waive_late_fee: false,
+            locked_refund_percent: lockedRefundPercent,
           })
           .eq('id', bookingId).eq('status', 'confirmed')
-          .eq('reschedule_proposed_at', booking.reschedule_proposed_at).select('id').maybeSingle();
+          .eq('reschedule_proposed_at', booking.reschedule_proposed_at)
+          .eq('reschedule_proposed_by', booking.reschedule_proposed_by)
+          .eq('reschedule_waive_late_fee', booking.reschedule_waive_late_fee)
+          .eq('scheduled_at', booking.scheduled_at).select('id').maybeSingle();
       // A concurrent write for this tutor can deadlock against the exclusion constraint
       // (40P01); the abort is transient, so retry the identical update once.
       let { data: moved, error } = await applyProposal();
@@ -268,7 +280,7 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
         'Session moved',
         (name) => `${name} accepted the new time for ${booking.subject}.`,
       );
-      return Response.json({ ok: true }, { headers: cors });
+      return Response.json({ ok: true, lockedRefundPercent }, { headers: cors });
     }
 
     // action === 'decline'
@@ -277,6 +289,7 @@ serveWithErrorReporting('reschedule-booking', async (req: Request) => {
       .update({
         reschedule_proposed_at: null,
         reschedule_proposed_by: null,
+        reschedule_waive_late_fee: false,
       })
       .eq('id', bookingId);
     if (error) throw error;
