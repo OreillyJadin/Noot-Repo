@@ -261,6 +261,8 @@ export interface Booking {
   scheduledAt: Timestamp;
   rescheduleProposedAt: Timestamp | null;
   rescheduleProposedBy: UUID | null;
+  lockedRefundPercent: 0 | 50 | null;
+  rescheduleWaiveLateFee: boolean;
   durationMinutes: number;
   price: number; // session price (tutor fee and payout are computed on this)
   studentFee: number;

@@ -6,7 +6,9 @@ import { View, Text, ScrollView, Pressable, StyleSheet, Alert } from 'react-nati
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Ic, H1, Sub, Label, HeroIcon, useTheme } from '@noot/ui';
-import { campusInstant, campusSlotISO, tryCampusSlotISO, addCampusDays, api, type BusyTime } from '@noot/core';
+import { campusInstant, campusSlotISO, tryCampusSlotISO, addCampusDays, api, studentCancelRefundPercent, type BusyTime } from '@noot/core';
+import { LateCancelFeeWaiver } from '../lib/LateCancelFeeWaiver';
+import { useSessionClock } from '../lib/useSessionClock';
 import { useApp, type BookingDraft } from '../lib/store';
 import { BOOKABLE_DAYS, DAYS, MONTHS } from '../lib/data';
 import { bookedSlots, slotsFromWindows } from '../lib/availability';
@@ -44,6 +46,13 @@ export default function XReschedulePropose() {
   const [day, setDay] = useState<number>(0);
   const [slot, setSlot] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [waiveLateFee, setWaiveLateFee] = useState(false);
+  const now = useSessionClock();
+  const refundPercent = studentCancelRefundPercent(
+    booking.scheduledAt ? (Date.parse(booking.scheduledAt) - now) / 3600_000 : Infinity,
+    booking.lockedRefundPercent ?? null,
+  );
+  const canWaive = role === 'tutor' && refundPercent < 100;
   const length = booking.lengthMin ?? 60;
   const booked = useMemo(() => bookedSlots(slots, busy, length), [slots, busy, length]);
   const didInitialSnap = useRef(false);
@@ -122,6 +131,7 @@ export default function XReschedulePropose() {
         bookingId: booking.bookingId,
         action: 'propose',
         newScheduledAt: scheduledAtISO(day, slot),
+        waiveLateFee: canWaive && waiveLateFee,
       });
       setSent(true);
     } catch (e) {
@@ -243,6 +253,7 @@ export default function XReschedulePropose() {
             );
           })}
         </View>
+        {canWaive ? <LateCancelFeeWaiver feePercent={100 - refundPercent} waived={waiveLateFee} onChange={setWaiveLateFee} /> : null}
         {daySlots.length === 0 ? (
           <Text style={{ fontSize: 13, color: t.text3, paddingVertical: 4 }}>
             {slotsLoading || busyLoading ? 'Loading availability…' : 'No open times this day — try another.'}

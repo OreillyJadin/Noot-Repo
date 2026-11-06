@@ -155,6 +155,8 @@ export default function Sessions() {
         lengthMin: b.durationMinutes,
         rescheduleProposedAt: b.rescheduleProposedAt,
         rescheduleProposedBy: b.rescheduleProposedBy,
+        lockedRefundPercent: b.lockedRefundPercent,
+        rescheduleWaiveLateFee: b.rescheduleWaiveLateFee,
       });
       router.push(b.rescheduleProposedAt && b.rescheduleProposedBy === b.tutorId ? '/xsr' : '/xtr');
     } catch (e) {
@@ -164,7 +166,7 @@ export default function Sessions() {
   const cancelSession = (tutor: Tutor | null, bookingId?: string, scheduledAt?: string) => {
     try {
       if (!bookingId) {
-        patchBooking({ tutor: tutor ?? undefined, tutorPayoutAmount: undefined });
+        patchBooking({ tutor: tutor ?? undefined, tutorPayoutAmount: undefined, lockedRefundPercent: undefined });
         router.push('/xsc');
         return;
       }
@@ -179,6 +181,7 @@ export default function Sessions() {
         studentFee: realBooking?.studentFee,
         creditApplied: realBooking?.creditApplied,
         tutorPayoutAmount: realBooking?.tutorPayoutAmount,
+        lockedRefundPercent: realBooking?.lockedRefundPercent,
         course: realBooking?.subject,
         lengthMin: realBooking?.durationMinutes,
       });

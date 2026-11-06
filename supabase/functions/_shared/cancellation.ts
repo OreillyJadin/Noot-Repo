@@ -6,6 +6,27 @@ export function studentCancelRefundPercent(hoursUntilStart: number): 0 | 50 | 10
   return hoursUntilStart >= FULL_REFUND_HOURS ? 100 : hoursUntilStart >= HALF_REFUND_HOURS ? 50 : 0;
 }
 
+export function lockedRefundPercentOnAccept(
+  originalScheduledAt: string,
+  now: number,
+  existingLock: 0 | 50 | null,
+  waived: boolean,
+): 0 | 50 | null {
+  if (waived) return null;
+  const refund = studentCancelRefundPercentWithLock(
+    (new Date(originalScheduledAt).getTime() - now) / 3600_000,
+    existingLock,
+  );
+  return refund === 100 ? null : refund;
+}
+
+export function studentCancelRefundPercentWithLock(
+  hoursUntilStart: number,
+  lock: 0 | 50 | null,
+): 0 | 50 | 100 {
+  return Math.min(studentCancelRefundPercent(hoursUntilStart), lock ?? 100) as 0 | 50 | 100;
+}
+
 /** Tutor's share (cents) of a late student cancel: the non-refunded share of the booking's stored payout. */
 export function lateCancelTutorPayoutCents(tutorPayoutAmount: number, refundPercent: number): number {
   return Math.round((Math.round(tutorPayoutAmount * 100) * (100 - refundPercent)) / 100);

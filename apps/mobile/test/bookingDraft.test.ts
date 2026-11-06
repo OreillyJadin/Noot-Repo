@@ -11,6 +11,8 @@ const fixture: Booking = {
   scheduledAt: '2026-10-16T13:00:00.000Z',
   rescheduleProposedAt: null,
   rescheduleProposedBy: null,
+  lockedRefundPercent: null,
+  rescheduleWaiveLateFee: false,
   durationMinutes: 60,
   price: 40,
   creditApplied: 0,
@@ -39,6 +41,14 @@ test('draftFromBooking carries the student request note', () => {
 
 test('draftFromBooking preserves a null request note', () => {
   assert.equal(draftFromBooking({ ...fixture, requestNote: null }).requestNote, null);
+});
+
+test('draft carries reschedule fee hints and blank fields clear them', () => {
+  const draft = draftFromBooking({ ...fixture, lockedRefundPercent: 50, rescheduleWaiveLateFee: true });
+  assert.equal(draft.lockedRefundPercent, 50);
+  assert.equal(draft.rescheduleWaiveLateFee, true);
+  assert.equal(blankSessionFields().lockedRefundPercent, undefined);
+  assert.equal(blankSessionFields().rescheduleWaiveLateFee, undefined);
 });
 
 test('draftFromBooking does not set draft-only student fields', () => {

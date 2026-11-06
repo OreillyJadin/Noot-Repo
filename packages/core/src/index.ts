@@ -2,6 +2,7 @@
 // package (and supabase/functions) may touch Supabase/Stripe directly.
 export * from './models';
 export * from './bookingRules';
+export { studentCancelRefundPercent } from './cancellation';
 export { ACADEMIC_YEAR_OPTIONS, academicYearLabel, currentAcademicYear, validGraduationYear, graduationPromptDue } from './graduation';
 export { sessionPhase, isUpcomingSession, isPastSession, canReportNoShow } from './sessionTiming';
 export * from './tutorResponse';

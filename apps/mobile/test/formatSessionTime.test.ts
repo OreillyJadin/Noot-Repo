@@ -45,6 +45,8 @@ test('uses the booking draft scheduledAt instead of the placeholder time', () =>
     scheduledAt: '2026-11-02T06:31:00.000Z',
     rescheduleProposedAt: null,
     rescheduleProposedBy: null,
+    lockedRefundPercent: null,
+    rescheduleWaiveLateFee: false,
     durationMinutes: 60,
     price: 40,
     creditApplied: 0,

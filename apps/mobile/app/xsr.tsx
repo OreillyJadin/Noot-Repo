@@ -4,7 +4,10 @@ import React, { useState } from 'react';
 import { View, Text, Alert, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api } from '@noot/core';
+import { api, studentCancelRefundPercent } from '@noot/core';
+import { confirmAction } from '../lib/confirm';
+import { LateCancelFeeWaiver } from '../lib/LateCancelFeeWaiver';
+import { useSessionClock } from '../lib/useSessionClock';
 import { Screen, NavTop, Body, ActionBar, Button, Card, Avatar, Divider, Ic, H1, H2, Sub, HeroIcon, useTheme } from '@noot/ui';
 import { useApp } from '../lib/store';
 import { NoSession } from '../lib/NoSession';
@@ -38,6 +41,29 @@ function XRescheduleRequestInner() {
   const currentTime = booking.scheduledAt ? formatSessionTime(booking.scheduledAt) : '—';
   const [result, setResult] = useState<Result>(null);
   const [busy, setBusy] = useState(false);
+  const [waiveLateFee, setWaiveLateFee] = useState(false);
+  const now = useSessionClock();
+  const refundPercent = studentCancelRefundPercent(
+    booking.scheduledAt ? (Date.parse(booking.scheduledAt) - now) / 3600_000 : Infinity,
+    booking.lockedRefundPercent ?? null,
+  );
+  const canWaive = isTutor && refundPercent < 100;
+
+  function confirmAccept() {
+    const refundNow = studentCancelRefundPercent(
+      booking.scheduledAt ? (Date.parse(booking.scheduledAt) - Date.now()) / 3600_000 : Infinity,
+      booking.lockedRefundPercent ?? null,
+    );
+    const feeWarning = !isTutor && refundNow < 100 && !booking.rescheduleWaiveLateFee
+      ? ` Cancelling later still costs ${100 - refundNow}% because this was moved within the late-cancel window.`
+      : '';
+    confirmAction({
+      title: 'Accept new time?',
+      message: `Your session will move to ${newTime}.${feeWarning}`,
+      confirmText: 'Accept new time',
+      onConfirm: () => { void respond('accept'); },
+    });
+  }
 
   async function respond(action: 'accept' | 'decline') {
     if (busy) return;
@@ -48,7 +74,7 @@ function XRescheduleRequestInner() {
     }
     setBusy(true);
     try {
-      await api.bookings.reschedule({ bookingId: booking.bookingId, action });
+      await api.bookings.reschedule({ bookingId: booking.bookingId, action, waiveLateFee: canWaive && waiveLateFee });
       setResult(action === 'accept' ? 'accepted' : 'declined');
     } catch (e) {
       Alert.alert('Could not update request', errText(e, 'Please try again.'));
@@ -100,7 +126,7 @@ function XRescheduleRequestInner() {
               ) : (
                 <>
                   There&apos;s no limit on reschedules, and a new time only applies when you both agree. If {otherFirst} cancels,
-                  you&apos;re refunded in full; if you cancel, you get a full refund 12+ hours ahead, 50% at 2–12 hours, and none under 2 hours.
+                  you&apos;re refunded in full; if you cancel, you get a full refund 12+ hours ahead, 50% at 2–12 hours, and none under 2 hours. A late-cancel fee kept from a reschedule still applies unless your tutor waives it.
                 </>
               )}
             </Text>
@@ -155,14 +181,15 @@ function XRescheduleRequestInner() {
           <View style={styles.priceRow}>
             <Ic name="check" size={15} color={t.good} strokeWidth={2.4} />
             <Text style={{ fontSize: 13, color: t.text2 }}>
-              Same price. Nothing else changes.
+              Same session price. Cancellation fees may still apply.
             </Text>
           </View>
         </Card>
+        {canWaive ? <LateCancelFeeWaiver feePercent={100 - refundPercent} waived={waiveLateFee} onChange={setWaiveLateFee} /> : null}
       </Body>
       <ActionBar>
         <Button kind="secondary" size="md" label="Decline" style={{ flex: 1 }} disabled={busy} onPress={() => respond('decline')} />
-        <Button kind="primary" label="Accept new time" style={{ flex: 1.6 }} disabled={busy} onPress={() => respond('accept')} />
+        <Button kind="primary" label="Accept new time" style={{ flex: 1.6 }} disabled={busy} onPress={confirmAccept} />
       </ActionBar>
     </Screen>
   );

@@ -484,6 +484,8 @@ function mapBooking(row: any): Booking {
     scheduledAt: row.scheduled_at,
     rescheduleProposedAt: row.reschedule_proposed_at ?? null,
     rescheduleProposedBy: row.reschedule_proposed_by ?? null,
+    lockedRefundPercent: row.locked_refund_percent ?? null,
+    rescheduleWaiveLateFee: row.reschedule_waive_late_fee ?? false,
     durationMinutes: row.duration_minutes,
     price: num(row.price),
     studentFee: num(row.student_fee),
@@ -851,6 +853,7 @@ export interface CreatePaymentIntentInput {
 }
 
 export interface RescheduleBookingInput {
+  waiveLateFee?: boolean;
   bookingId: string;
   action: 'propose' | 'accept' | 'decline';
   newScheduledAt?: string;
@@ -2480,7 +2483,7 @@ export const api = {
     },
 
     /** Propose/accept/decline a reschedule of a booking (reschedule-booking). */
-    reschedule(input: RescheduleBookingInput): Promise<{ ok: true }> {
+    reschedule(input: RescheduleBookingInput): Promise<{ ok: true; lockedRefundPercent?: 0 | 50 | null }> {
       return invokeFn('reschedule-booking', input as unknown as Record<string, unknown>);
     },
 
