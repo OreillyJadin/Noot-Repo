@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { formatCampusSession, api, NO_SHOW_FLAG_AT, TUTOR_CANCEL_FLAG_OVER, type AdminUserHistory, type AdminUserHistoryBooking } from '@noot/core';
+import { formatCampusSession, formatRelativeTime, api, NO_SHOW_FLAG_AT, TUTOR_CANCEL_FLAG_OVER, type AdminUserHistory, type AdminUserHistoryBooking } from '@noot/core';
 import { AdaptiveRow, Avatar, Body, Button, EmptyState, NavTop, Screen, Skeleton, useLargeText, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
@@ -201,6 +201,7 @@ function AdminUserScreen() {
                   />
                   <Text style={[styles.joined, { color: t.text3 }]}>Joined {dateLabel(user.createdAt)}</Text>
                 </View>
+                <Text style={[styles.joined, { color: t.text3 }]}>Last online {formatRelativeTime(user.lastActiveAt)}</Text>
               </View>
             </View>
 

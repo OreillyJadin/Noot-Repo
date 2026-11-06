@@ -106,6 +106,7 @@ export interface AdminUser {
   /** When the owner deleted the account; its name and email are scrubbed by then. */
   deletedAt: string | null;
   createdAt: string;
+  lastActiveAt: string | null;
   tutorCancels30d: number;
   noShows: number;
 }
@@ -119,6 +120,7 @@ export interface AdminUserHistoryUser {
   email: string;
   status: string;
   createdAt: string;
+  lastActiveAt: string | null;
   roles: string[];
 }
 export interface AdminPreviousAccount {
@@ -181,7 +183,7 @@ export interface AdminUserHistory {
   previousAccounts: AdminPreviousAccount[];
 }
 export type AdminUserRole = 'student' | 'tutor' | 'ambassador' | 'admin';
-export type AdminUserStatus = 'active' | 'suspended' | 'banned' | 'deleted';
+export type AdminUserStatus = 'active' | 'suspended' | 'banned' | 'deleted' | 'inactive';
 /** What to list in admin user management. Everything is optional: no filter lists everyone. */
 export interface AdminUserQuery {
   /** Matched against name and email. */
@@ -572,6 +574,7 @@ function mapAdminUserHistory(payload: unknown): AdminUserHistory {
           email: user.email,
           status: user.status,
           createdAt: user.created_at,
+          lastActiveAt: null,
           roles: user.roles ?? [],
         }
       : null,
@@ -865,6 +868,11 @@ export const REMINDER_CHOICES = [5, 10, 15, 30, 60, 120, 1440] as const;
 export const DEFAULT_REMINDERS = [60] as const;
 
 export const api = {
+  async touchLastActive(): Promise<void> {
+    const { error } = await getSupabase().rpc('touch_last_active');
+    if (error) throw error;
+  },
+
   // --- users / profiles ---
   async getMe(): Promise<User | null> {
     const uid = await requireUid();
@@ -1793,6 +1801,7 @@ export const api = {
         disputes,
         reports,
         ambassadors,
+        inactiveUsers,
       ] = await Promise.all([
         sb
           .from('tutor_profiles')
@@ -1828,6 +1837,7 @@ export const api = {
           .eq('dispute_status', 'flagged'),
         api.admin.listReports(),
         api.admin.ambassadorCounts(),
+        api.admin.listUsers({ status: 'inactive', limit: 1 }),
       ]);
       if (applications.error) throw applications.error;
       if (gradeChecks.error) throw gradeChecks.error;
@@ -1845,6 +1855,7 @@ export const api = {
         disputes: disputes.count ?? 0,
         ambassadorApplications: ambassadors.applications,
         cashouts: ambassadors.cashouts,
+        inactive30d: inactiveUsers.total,
       };
     },
 
@@ -2048,6 +2059,7 @@ export const api = {
           status: u.status,
           deletedAt: u.deleted_at ?? null,
           createdAt: u.created_at,
+          lastActiveAt: u.last_active_at ?? null,
           tutorCancels30d: Number(u.tutor_cancels_30d ?? 0),
           noShows: Number(u.no_shows ?? 0),
         })),
@@ -2056,9 +2068,17 @@ export const api = {
 
     /** A user's account, booking, report, and admin-action history. */
     async userHistory(userId: string): Promise<AdminUserHistory> {
-      const { data, error } = await getSupabase().rpc('admin_user_history', { p_user: userId });
-      if (error) throw error;
-      return mapAdminUserHistory(data);
+      const sb = getSupabase();
+      const [history, lastActive] = await Promise.all([
+        sb.rpc('admin_user_history', { p_user: userId }),
+        sb.from('users').select('last_active_at').eq('id', userId).maybeSingle(),
+      ]);
+      if (history.error) throw history.error;
+      if (lastActive.error) throw lastActive.error;
+      const mapped = mapAdminUserHistory(history.data);
+      return mapped.user
+        ? { ...mapped, user: { ...mapped.user, lastActiveAt: lastActive.data?.last_active_at ?? null } }
+        : mapped;
     },
 
     /** Suspend / ban / reactivate an account (admin-set-user-status Edge Function). */
