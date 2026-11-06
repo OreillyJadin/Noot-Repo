@@ -26,7 +26,9 @@ import {
   HeroIcon,
   useTheme,
 } from '@noot/ui';
-import { api, studentFeeFor, tutorEarnedAmount } from '@noot/core';
+import { api, studentFeeFor, tutorEarnedAmount, studentCancelRefundPercent } from '@noot/core';
+import { useSessionClock } from '../lib/useSessionClock';
+import { confirmAction } from '../lib/confirm';
 import { useApp, type BookingDraft } from '../lib/store';
 import { DAYS, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
@@ -109,11 +111,14 @@ function XStudentCancelInner() {
   const refundCentsFor = (pct: number) => paidCents - Math.round((paidCents * (100 - pct)) / 100);
   // Which tier actually applies, from the booked start time. No session time (an older draft
   // that never carried one) → no tier is highlighted rather than guessing a favourable one.
+  const now = useSessionClock();
   const hoursUntil = booking.scheduledAt
-    ? (new Date(booking.scheduledAt).getTime() - Date.now()) / 3600000
+    ? (new Date(booking.scheduledAt).getTime() - now) / 3600000
     : null;
+  const refundPercent = booking.status === 'pending' ? 100 : hoursUntil == null ? null
+    : studentCancelRefundPercent(hoursUntil, booking.lockedRefundPercent ?? null);
   const tier: TierId | null =
-    booking.status === 'pending' ? 'early' : hoursUntil == null ? null : hoursUntil >= 12 ? 'early' : hoursUntil >= 2 ? 'mid' : 'late';
+    refundPercent == null ? null : refundPercent === 100 ? 'early' : refundPercent === 50 ? 'mid' : 'late';
   const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [stoppingSeries, setStoppingSeries] = useState(false);
@@ -137,34 +142,29 @@ function XStudentCancelInner() {
   const canStopSeries = !!booking.seriesId && !!booking.seriesWeeks &&
     (booking.seriesStatus === 'pending' || booking.seriesStatus === 'active');
 
-  const stopSeries = () => Alert.alert(
-    'Stop weekly sessions?',
-    "Future weeks won't be booked. Sessions already booked stay on your calendar. Cancel them separately if needed.",
-    [
-      { text: 'Keep series', style: 'cancel' },
-      {
-        text: 'Stop weekly sessions',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            setStoppingSeries(true);
-            try {
-              await api.bookings.stopSeries(booking.seriesId!);
-              patchBooking({ seriesStatus: 'stopped' });
-              if (booking.bookingId) {
-                const refreshed = await api.bookings.get(booking.bookingId);
-                if (refreshed) patchBooking(draftFromBooking(refreshed));
-              }
-            } catch (error) {
-              Alert.alert('Could not stop weekly sessions', error instanceof Error ? error.message : 'Please try again.');
-            } finally {
-              setStoppingSeries(false);
-            }
-          })();
-        },
-      },
-    ],
-  );
+  const stopSeries = () => confirmAction({
+    title: 'Stop weekly sessions?',
+    message: "Future weeks won't be booked. Sessions already booked stay on your calendar. Cancel them separately if needed.",
+    cancelText: 'Keep series',
+    confirmText: 'Stop weekly sessions',
+    onConfirm: () => {
+      void (async () => {
+        setStoppingSeries(true);
+        try {
+          await api.bookings.stopSeries(booking.seriesId!);
+          patchBooking({ seriesStatus: 'stopped' });
+          if (booking.bookingId) {
+            const refreshed = await api.bookings.get(booking.bookingId);
+            if (refreshed) patchBooking(draftFromBooking(refreshed));
+          }
+        } catch (error) {
+          Alert.alert('Could not stop weekly sessions', error instanceof Error ? error.message : 'Please try again.');
+        } finally {
+          setStoppingSeries(false);
+        }
+      })();
+    },
+  });
 
   const onCancel = async () => {
     // Demo path: no real booking (e.g. reached via the dev launcher) — keep tier UI.
@@ -245,7 +245,6 @@ function XStudentCancelInner() {
           {TIERS.map((x) => {
             const on = tier === x.id;
             return (
-              // Read-only: the tier is a fact about when you're cancelling, not a choice.
               <View key={x.id} style={styles.tierTab}>
                 <Text
                   style={[
@@ -253,7 +252,9 @@ function XStudentCancelInner() {
                     { color: on ? t.text : t.text3, backgroundColor: on ? t.surface : 'transparent' },
                   ]}
                 >
-                  {x.label}
+                  {booking.status !== 'pending' && booking.lockedRefundPercent != null
+                    ? `${Math.round(x.refundPct * 100)}% refund`
+                    : x.label}
                 </Text>
               </View>
             );
@@ -286,7 +287,9 @@ function XStudentCancelInner() {
               <Ic name="shield" size={15} color={t.text3} strokeWidth={1.8} />
             </View>
             <Text style={{ fontSize: 12, color: t.text3, lineHeight: 17, flex: 1 }}>
-              {tobj?.note ?? 'Your refund is calculated from how far ahead you cancel; the exact amount is confirmed when you cancel.'}
+              {booking.status !== 'pending' && booking.lockedRefundPercent != null
+                ? `Your reschedule kept a ${100 - booking.lockedRefundPercent}% minimum cancellation fee. ${tobj?.note ?? ''}`
+                : tobj?.note ?? 'Your refund is calculated from how far ahead you cancel; the exact amount is confirmed when you cancel.'}
             </Text>
           </View>
         </Card>
