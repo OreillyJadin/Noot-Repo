@@ -68,7 +68,6 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     }
 
     const isStudent = booking.student_id === user.id;
-    const isTutor = booking.tutor_id === user.id;
 
     if (booking.dispute_status === 'flagged') {
       return Response.json({ error: 'This session is under review by the noot team.' }, { status: 409, headers: cors });
