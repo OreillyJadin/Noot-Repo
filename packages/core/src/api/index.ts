@@ -28,6 +28,7 @@ export type { AdminHubCounts } from '../adminHub';
 import type {
   AmbassadorProfile,
   Booking,
+  BookingAttendance,
   BusyTime,
   CatalogCourse,
   ContentReport,
@@ -50,6 +51,7 @@ import type {
   TutorInterview,
   TutorCourse,
   MyTutorProfile,
+  NoShowParty,
   TutorSummary,
   YourTutor,
   TutoringLocation,
@@ -217,6 +219,14 @@ export interface AdminBooking {
   studentFee: number;
   disputeStatus: string;
   disputeReason: string | null;
+  noShowClaimParty: NoShowParty | null;
+  noShowClaimedAt: string | null;
+  noShowContestedAt: string | null;
+  noShowContestNote: string | null;
+  completionClaimedAt: string | null;
+  completionObjectedAt: string | null;
+  completionObjectionNote: string | null;
+  attendance: BookingAttendance | null;
 }
 
 export interface AdminCalendarEvent {
@@ -488,6 +498,22 @@ function mapBooking(row: any): Booking {
     dailyRoomDeletedAt: row.daily_room_deleted_at ?? null,
     location: row.location ?? null,
     status: row.status,
+    disputeStatus: row.dispute_status ?? 'none',
+    disputeReason: row.dispute_reason ?? null,
+    noShowClaimParty: row.no_show_claim_party ?? null,
+    noShowClaimedBy: row.no_show_claimed_by ?? null,
+    noShowClaimedAt: row.no_show_claimed_at ?? null,
+    noShowContestedAt: row.no_show_contested_at ?? null,
+    noShowContestNote: row.no_show_contest_note ?? null,
+    completionClaimedAt: row.completion_claimed_at ?? null,
+    completionObjectedAt: row.completion_objected_at ?? null,
+    completionObjectionNote: row.completion_objection_note ?? null,
+    attendance: row.attendance ? {
+      checkedAt: row.attendance.checked_at,
+      ...(row.attendance.student_seconds === undefined ? {} : { studentSeconds: Number(row.attendance.student_seconds) }),
+      ...(row.attendance.tutor_seconds === undefined ? {} : { tutorSeconds: Number(row.attendance.tutor_seconds) }),
+      ...(row.attendance.unavailable ? { unavailable: true } : {}),
+    } : null,
     acceptBy: row.accept_by ?? null,
     acceptedAt: row.accepted_at ?? null,
     cancelledByRole:
@@ -833,6 +859,12 @@ export interface RescheduleBookingInput {
 export interface ReportNoShowInput {
   bookingId: string;
   party: 'student' | 'tutor';
+}
+
+export interface ContestClaimInput {
+  bookingId: string;
+  kind: 'no_show' | 'completion';
+  note?: string;
 }
 
 export interface SubmitRatingInput {
@@ -2187,7 +2219,7 @@ export const api = {
       const sb = getSupabase();
       const { data, error } = await sb
         .from('bookings')
-        .select('id, student_id, tutor_id, subject, scheduled_at, status, price, student_fee, dispute_status, dispute_reason')
+        .select('id, student_id, tutor_id, subject, scheduled_at, status, price, student_fee, dispute_status, dispute_reason, no_show_claim_party, no_show_claimed_at, no_show_contested_at, no_show_contest_note, completion_claimed_at, completion_objected_at, completion_objection_note, attendance')
         .order('scheduled_at', { ascending: false })
         .limit(100);
       if (error) throw error;
@@ -2208,6 +2240,19 @@ export const api = {
         studentFee: num(b.student_fee),
         disputeStatus: b.dispute_status ?? 'none',
         disputeReason: b.dispute_reason ?? null,
+        noShowClaimParty: b.no_show_claim_party ?? null,
+        noShowClaimedAt: b.no_show_claimed_at ?? null,
+        noShowContestedAt: b.no_show_contested_at ?? null,
+        noShowContestNote: b.no_show_contest_note ?? null,
+        completionClaimedAt: b.completion_claimed_at ?? null,
+        completionObjectedAt: b.completion_objected_at ?? null,
+        completionObjectionNote: b.completion_objection_note ?? null,
+        attendance: b.attendance ? {
+          checkedAt: b.attendance.checked_at,
+          ...(b.attendance.student_seconds === undefined ? {} : { studentSeconds: Number(b.attendance.student_seconds) }),
+          ...(b.attendance.tutor_seconds === undefined ? {} : { tutorSeconds: Number(b.attendance.tutor_seconds) }),
+          ...(b.attendance.unavailable ? { unavailable: true } : {}),
+        } : null,
       }));
     },
 
@@ -2302,8 +2347,8 @@ export const api = {
     resolveDispute(
       bookingId: string,
       action: 'flag' | 'resolve',
-      opts?: { reason?: string; resolution?: string },
-    ): Promise<{ ok: true; disputeStatus: string }> {
+      opts?: { reason?: string; resolution?: string; outcome?: 'tutor_no_show' | 'student_no_show' | 'completed' },
+    ): Promise<{ ok: true; disputeStatus: string; outcome?: string }> {
       return invokeFn('resolve-dispute', { bookingId, action, ...opts });
     },
   },
@@ -2439,20 +2484,24 @@ export const api = {
       return invokeFn('reschedule-booking', input as unknown as Record<string, unknown>);
     },
 
-    /** Report that a party didn't show; returns refund outcome (report-no-show). */
+    /** Open a no-show claim; settlement waits for the contest window (report-no-show). */
     reportNoShow(
       input: ReportNoShowInput,
-    ): Promise<{ status: string; refundPercent: number }> {
+    ): Promise<{ status: 'claimed' | 'under_review'; contestBy?: string }> {
       return invokeFn('report-no-show', input as unknown as Record<string, unknown>);
     },
 
+    contestClaim(input: ContestClaimInput): Promise<{ status: string }> {
+      return invokeFn('contest-session-claim', input as unknown as Record<string, unknown>);
+    },
+
     /**
-     * Tutor marks a confirmed session complete → captures the held payment and transfers
-     * the tutor's payout to their connected account (complete-session). Idempotent.
+     * Tutor marks a confirmed session complete → opens a 24-hour objection window.
+     * Settlement happens after auto-completion (complete-session).
      */
     complete(
       bookingId: string,
-    ): Promise<{ status: string; captured: boolean; transferId: string | null }> {
+    ): Promise<{ status: string; captured?: boolean; transferId?: string | null; objectBy?: string }> {
       return invokeFn('complete-session', { bookingId });
     },
   },

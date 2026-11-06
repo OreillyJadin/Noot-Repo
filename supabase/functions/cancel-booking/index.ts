@@ -49,7 +49,7 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
     // Load booking.
     const { data: booking, error: loadError } = await db
       .from('bookings')
-      .select('id, student_id, tutor_id, subject, scheduled_at, status, price, student_fee, credit_applied, tutor_payout_amount, stripe_payment_intent_id, stripe_setup_intent_id')
+      .select('id, student_id, tutor_id, subject, scheduled_at, status, dispute_status, price, student_fee, credit_applied, tutor_payout_amount, stripe_payment_intent_id, stripe_setup_intent_id')
       .eq('id', bookingId)
       .single();
 
@@ -65,6 +65,10 @@ serveWithErrorReporting('cancel-booking', async (req: Request) => {
         { error: 'Not authorized to cancel this booking' },
         { status: 403, headers: cors },
       );
+    }
+
+    if (booking.dispute_status === 'flagged') {
+      return Response.json({ error: 'This session is under review by the noot team.' }, { status: 409, headers: cors });
     }
 
     if (booking.status === 'cancelled') {

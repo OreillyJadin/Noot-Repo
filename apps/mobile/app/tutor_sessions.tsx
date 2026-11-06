@@ -15,6 +15,7 @@ import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { canRateBooking, isRatedBooking, type RatedLookup } from '../lib/rating';
 import { useSessionClock } from '../lib/useSessionClock';
 import { JoinVideoButton } from '../lib/JoinVideoButton';
+import { confirmAction } from '../lib/confirm';
 
 type Tab = 'upcoming' | 'past';
 
@@ -146,16 +147,45 @@ export default function TutorSessions() {
     if (busyId) return;
     setBusyId(id);
     try {
-      await api.bookings.complete(id);
+      const result = await api.bookings.complete(id);
       setPast((rows) => rows.map((r) => (r.id === id
-        ? { ...r, status: 'completed', booking: { ...r.booking, status: 'completed' } }
+        ? { ...r, booking: { ...r.booking, completionClaimedAt: new Date().toISOString() } }
         : r)));
-      Alert.alert('Session completed', 'Payment released to your Stripe account.');
+      Alert.alert(
+        'Completion submitted',
+        result.objectBy
+          ? 'The student has 24 hours to object. Payment will be processed after that window.'
+          : 'The session was completed.',
+      );
     } catch (e) {
       Alert.alert('Could not complete', e instanceof Error ? e.message : 'Please try again.');
     } finally {
       setBusyId(null);
     }
+  };
+
+  const contestNoShow = (booking: Booking) => {
+    if (busyId) return;
+    confirmAction({
+      title: 'Were you at the session?',
+      message: 'Contesting this no-show claim sends it to the noot team for review.',
+      cancelText: 'Not now',
+      confirmText: 'I was there',
+      onConfirm: () => {
+        setBusyId(booking.id);
+        void api.bookings.contestClaim({ bookingId: booking.id, kind: 'no_show' })
+          .then((result) => setPast((rows) => rows.map((r) => {
+            if (r.id !== booking.id) return r;
+            const contestedAt = new Date().toISOString();
+            if (result.status === 'no_show') {
+              return { ...r, status: 'no_show', booking: { ...r.booking, status: 'no_show', noShowContestedAt: contestedAt } };
+            }
+            return { ...r, booking: { ...r.booking, disputeStatus: 'flagged', noShowContestedAt: contestedAt } };
+          })))
+          .catch((error) => Alert.alert('Could not submit', error instanceof Error ? error.message : 'Please try again.'))
+          .finally(() => setBusyId(null));
+      },
+    });
   };
 
   return (
@@ -282,7 +312,8 @@ export default function TutorSessions() {
           <ListSection label="Past sessions">
             {past.map((r) => {
               const done = r.status === 'completed';
-              const needsComplete = r.status === 'confirmed';
+              const needsComplete = r.status === 'confirmed'
+                && !r.booking.completionClaimedAt && !r.booking.noShowClaimedAt;
               return (
                 <View key={r.id} style={styles.pastRow}>
                   <View style={styles.upcomingRow}>
@@ -300,7 +331,7 @@ export default function TutorSessions() {
                   {r.booking.sessionType === 'video' && r.status === 'confirmed' ? <JoinVideoButton bookingId={r.id} /> : null}
                   {needsComplete ? (
                     <Button
-                      label={busyId === r.id ? 'Completing…' : 'Mark session complete'}
+                      label={busyId === r.id ? 'Submitting…' : 'Mark session complete'}
                       kind="primary"
                       size="md"
                       full
@@ -308,6 +339,14 @@ export default function TutorSessions() {
                       onPress={() => markComplete(r.id)}
                       style={{ marginTop: 12 }}
                     />
+                  ) : r.booking.noShowClaimedAt && r.status === 'confirmed' ? (
+                    <View style={{ marginTop: 10, alignSelf: 'flex-start' }}>
+                      <Badge label="No-show claim pending" tone="neutral" />
+                    </View>
+                  ) : r.booking.completionClaimedAt && r.status === 'confirmed' ? (
+                    <View style={{ marginTop: 10, alignSelf: 'flex-start' }}>
+                      <Badge label="Awaiting student response" tone="neutral" />
+                    </View>
                   ) : (
                     <View style={{ marginTop: 10, alignSelf: 'flex-start' }}>
                       <Badge
@@ -324,7 +363,28 @@ export default function TutorSessions() {
                       />
                     </View>
                   )}
-                  {canReportNoShow(r.booking, now) ? (
+                  {r.booking.disputeStatus === 'flagged' ? (
+                    <View style={{ marginTop: 10, alignSelf: 'flex-start' }}>
+                      <Badge label="Under review" tone="neutral" />
+                    </View>
+                  ) : null}
+                  {r.booking.noShowClaimParty === 'tutor' && r.booking.noShowClaimedAt
+                    && !r.booking.noShowContestedAt && r.booking.disputeStatus !== 'flagged' ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={{ color: t.text2, fontSize: 13, lineHeight: 19 }}>
+                        You were reported as a no-show. Contest within 24 hours if you were there.
+                      </Text>
+                      <Button label={busyId === r.id ? 'Submitting…' : 'I was there'} kind="tint" size="md" full
+                        disabled={!!busyId} onPress={() => contestNoShow(r.booking)} style={{ marginTop: 8 }} />
+                    </View>
+                  ) : null}
+                  {r.booking.noShowClaimParty === 'student' && r.booking.noShowClaimedAt
+                    && !r.booking.noShowContestedAt && r.booking.disputeStatus !== 'flagged' ? (
+                    <Text style={{ marginTop: 10, color: t.text2, fontSize: 13, lineHeight: 19 }}>
+                      You reported a no-show. The other person has 24 hours to respond.
+                    </Text>
+                  ) : null}
+                  {!r.booking.noShowClaimedAt && r.booking.disputeStatus === 'none' && canReportNoShow(r.booking, now) ? (
                     <Button label="Report a student no-show" kind="tint" size="md" full
                       disabled={!!busyId} onPress={() => void reportNoShow(r)} style={{ marginTop: 12 }} />
                   ) : null}

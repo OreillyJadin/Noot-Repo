@@ -20,6 +20,7 @@ import { useSessionClock } from '../lib/useSessionClock';
 import { JoinVideoButton } from '../lib/JoinVideoButton';
 import { PaymentUpdateBanner } from '../lib/PaymentUpdateBanner';
 import { BookAgainButton } from '../lib/BookAgainButton';
+import { confirmAction } from '../lib/confirm';
 
 type SegmentKey = 'upcoming' | 'past' | 'saved';
 
@@ -52,6 +53,7 @@ export default function Sessions() {
   const [saved, setSaved] = useState<Tutor[]>([]);
   const [past, setPast] = useState<UpcomingItem[]>([]);
   const [ratedLookup, setRatedLookup] = useState<RatedLookup | null>(null);
+  const [claimBusyId, setClaimBusyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [savedLoading, setSavedLoading] = useState(true);
 
@@ -192,6 +194,39 @@ export default function Sessions() {
     } catch (e) {
       Alert.alert('Something went wrong', 'Could not open no-show report. Please try again.');
     }
+  };
+  const contestClaim = (b: Booking, kind: 'no_show' | 'completion') => {
+    if (claimBusyId) return;
+    const title = kind === 'no_show' ? 'Were you at the session?' : 'Object to completion?';
+    const body = kind === 'no_show'
+      ? 'Contesting this no-show claim sends it to the noot team for review.'
+      : 'Your objection sends the session to the noot team for review.';
+    confirmAction({
+      title,
+      message: body,
+      cancelText: 'Not now',
+      confirmText: kind === 'no_show' ? 'I was there' : 'Object',
+      onConfirm: () => {
+        setClaimBusyId(b.id);
+        void api.bookings.contestClaim({ bookingId: b.id, kind })
+          .then((result) => setPast((rows) => rows.map((item) => {
+            if (item.booking.id !== b.id) return item;
+            const contestedAt = new Date().toISOString();
+            if (kind === 'no_show' && result.status === 'no_show') {
+              return { ...item, booking: { ...item.booking, status: 'no_show', noShowContestedAt: contestedAt } };
+            }
+            return { ...item, booking: {
+              ...item.booking,
+              disputeStatus: 'flagged',
+              ...(kind === 'no_show'
+                ? { noShowContestedAt: contestedAt }
+                : { completionObjectedAt: contestedAt }),
+            } };
+          })))
+          .catch((error) => Alert.alert('Could not submit', error instanceof Error ? error.message : 'Please try again.'))
+          .finally(() => setClaimBusyId(null));
+      },
+    });
   };
   const openTutor = (tutor: Tutor, course?: string) => {
     patchBooking({ tutor, course: course || '' });
@@ -475,7 +510,45 @@ export default function Sessions() {
                       <BookAgainButton tutorId={b.tutorId} course={b.subject} durationMinutes={b.durationMinutes} />
                     </View>
                   ) : null}
-                  {tutor && canReportNoShow(b, now) ? (
+                  {b.disputeStatus === 'flagged' ? (
+                    <View style={{ marginTop: 10, alignSelf: 'flex-start' }}>
+                      <Badge label="Under review" tone="neutral" />
+                    </View>
+                  ) : null}
+                  {b.noShowClaimParty === 'student' && b.noShowClaimedAt && !b.noShowContestedAt
+                    && b.disputeStatus !== 'flagged' ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={{ color: t.text2, fontSize: 13, lineHeight: 19 }}>
+                        You were reported as a no-show. Contest within 24 hours if you were there.
+                      </Text>
+                      <Button label={claimBusyId === b.id ? 'Submitting…' : 'I was there'} kind="tint" size="sm" full
+                        disabled={!!claimBusyId} style={{ marginTop: 8 }}
+                        onPress={() => contestClaim(b, 'no_show')} />
+                    </View>
+                  ) : null}
+                  {b.noShowClaimParty === 'tutor' && b.noShowClaimedAt && !b.noShowContestedAt
+                    && b.disputeStatus !== 'flagged' ? (
+                    <Text style={{ marginTop: 10, color: t.text2, fontSize: 13, lineHeight: 19 }}>
+                      You reported a no-show. The other person has 24 hours to respond.
+                    </Text>
+                  ) : null}
+                  {b.completionClaimedAt && !b.completionObjectedAt && !b.noShowClaimedAt
+                    && b.disputeStatus !== 'flagged' ? (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={{ color: t.text2, fontSize: 13, lineHeight: 19 }}>
+                        {(tutor?.name ?? 'Your tutor')} marked this complete. Tell us within 24 hours if the session did not happen.
+                      </Text>
+                      <Button label={claimBusyId === b.id ? 'Submitting…' : 'This session didn’t happen'} kind="tint" size="sm" full
+                        disabled={!!claimBusyId} style={{ marginTop: 8 }}
+                        onPress={() => contestClaim(b, 'completion')} />
+                    </View>
+                  ) : null}
+                  {b.noShowContestedAt || b.completionObjectedAt ? (
+                    <View style={{ marginTop: 10, alignSelf: 'flex-start' }}>
+                      <Badge label="Under review" tone="neutral" />
+                    </View>
+                  ) : null}
+                  {tutor && !b.noShowClaimedAt && b.disputeStatus === 'none' && canReportNoShow(b, now) ? (
                     <Button label="Report a no-show" kind="tint" size="sm" full
                       style={{ marginTop: 10 }} onPress={() => reportNoShow(tutor, b)} />
                   ) : null}
