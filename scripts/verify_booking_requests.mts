@@ -1,7 +1,7 @@
 import { DEV_PASSWORD } from './_devPassword.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { api, auth, initSupabase, studentFeeFor } from '../packages/core/src/index.ts';
-import { authorizeHold, cancelHold } from './_stripe_test.mts';
+import { authorizeHold, cancelHold, setPaymentIntentMetadata, stripeTestMode } from './_stripe_test.mts';
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
 if (!['127.0.0.1', 'localhost'].includes(new globalThis.URL(URL).hostname)) {
@@ -265,19 +265,34 @@ try {
     tooSoonConfirm.status === 400 && /at least 2 hours ahead/i.test(String(tooSoonConfirm.body.error)),
     `HTTP ${tooSoonConfirm.status}: ${tooSoonConfirm.body.error ?? ''}`);
 
-  const graceAt = await addAvailabilityAtLead(112, 1, 106);
+  const graceAt = await addAvailabilityAtLead(112, 30, 106);
+  let gracePaymentIntentId = `sim_pi_checkout_grace_${crypto.randomUUID()}`;
+  if (stripeTestMode()) {
+    const graceIntentAt = await addAvailabilityAtLead(180, 30, 120);
+    const graceIntent = await api.createPaymentIntent({
+      tutorId, courseCode, durationMinutes: 30, scheduledAt: graceIntentAt,
+    });
+    intents.push(graceIntent.paymentIntentId);
+    const metadata = await setPaymentIntentMetadata(graceIntent.paymentIntentId, {
+      scheduled_at: graceAt,
+      duration_minutes: '30',
+    });
+    if (metadata.error) throw new Error(metadata.error.message ?? 'Could not bind grace PaymentIntent');
+    await authorizeHold(graceIntent.paymentIntentId);
+    gracePaymentIntentId = graceIntent.paymentIntentId;
+  }
   const graceConfirm = await call('confirm-booking', {
-    tutorId, courseCode, durationMinutes: 1, scheduledAt: graceAt,
-    sessionType: 'in_person', paymentIntentId: `sim_pi_checkout_grace_${crypto.randomUUID()}`,
+    tutorId, courseCode, durationMinutes: 30, scheduledAt: graceAt,
+    sessionType: 'in_person', paymentIntentId: gracePaymentIntentId,
   }, studentToken);
   if (typeof graceConfirm.body.bookingId === 'string') bookings.push(graceConfirm.body.bookingId);
-  step('confirm-booking accepts a booking about 1h52 out in simulated mode',
+  step('confirm-booking accepts a booking about 1h52 out',
     graceConfirm.status === 200 && typeof graceConfirm.body.bookingId === 'string',
     `HTTP ${graceConfirm.status}: ${graceConfirm.body.error ?? ''}`);
 
   const belowGraceAt = hoursFromNow(1 + 40 / 60);
   const belowGraceConfirm = await call('confirm-booking', {
-    tutorId, courseCode, durationMinutes: 1, scheduledAt: belowGraceAt,
+    tutorId, courseCode, durationMinutes: 30, scheduledAt: belowGraceAt,
     sessionType: 'in_person', paymentIntentId: `sim_pi_checkout_expired_${crypto.randomUUID()}`,
   }, studentToken);
   step('confirm-booking rejects a booking about 1h40 out',
