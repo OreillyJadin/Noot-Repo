@@ -42,14 +42,26 @@ serveWithErrorReporting('admin-set-user-status', async (req: Request) => {
       return Response.json({ error: 'admins cannot change their own status here' }, { status: 400, headers: cors });
     }
 
+    const { data: target, error: targetErr } = await db.from('users')
+      .select('deleted_at')
+      .eq('id', userId)
+      .maybeSingle();
+    if (targetErr) return Response.json({ error: targetErr.message }, { status: 400, headers: cors });
+    if (!target) return Response.json({ error: 'User not found' }, { status: 404, headers: cors });
+
     const { error: uErr } = await db.from('users').update({ status }).eq('id', userId);
     if (uErr) return Response.json({ error: uErr.message }, { status: 400, headers: cors });
 
-    // Real enforcement: ban blocks the account from getting/refreshing tokens.
-    const { error: banErr } = await db.auth.admin.updateUserById(userId, {
-      ban_duration: status === 'active' ? 'none' : '876000h',
-    });
-    if (banErr) return Response.json({ error: banErr.message }, { status: 400, headers: cors });
+    const { error: blockErr } = await db.rpc('sync_blocked_signup_email', { p_user: userId });
+    if (blockErr) return Response.json({ error: blockErr.message }, { status: 400, headers: cors });
+
+    if (target.deleted_at === null) {
+      // Real enforcement: ban blocks the account from getting/refreshing tokens.
+      const { error: banErr } = await db.auth.admin.updateUserById(userId, {
+        ban_duration: status === 'active' ? 'none' : '876000h',
+      });
+      if (banErr) return Response.json({ error: banErr.message }, { status: 400, headers: cors });
+    }
 
     await logAdminAction(db, {
       actorId: user.id,
