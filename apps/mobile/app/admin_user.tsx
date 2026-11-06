@@ -143,6 +143,31 @@ function AdminUserScreen() {
     ]);
   };
 
+  const blockDeletedEmail = async () => {
+    if (!user || !deleted || busy) return;
+    setBusy(true);
+    try {
+      await api.admin.blockDeletedEmail(user.id);
+      Alert.alert('Email blocked', 'This signup email can no longer be used to create an account.');
+    } catch (error) {
+      Alert.alert('Could not block email', errText(error, 'Please try again.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmBlockDeletedEmail = () => {
+    if (!user || !deleted || busy) return;
+    Alert.alert(
+      'Block this email from signing up again?',
+      'This address will be blocked from creating another Noot account.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Block email', style: 'destructive', onPress: () => void blockDeletedEmail() },
+      ],
+    );
+  };
+
   return (
     <Screen>
       <NavTop title={user ? name : 'User history'} onBack={() => router.back()} />
@@ -189,6 +214,31 @@ function AdminUserScreen() {
                   <Button label={busy ? 'Working…' : 'Reactivate'} kind="primary" size="sm" style={{ flex: 1 }} disabled={busy} onPress={() => confirmStatus('active')} />
                 )}
               </AdaptiveRow>
+            ) : null}
+
+            {deleted ? (
+              <AdaptiveRow style={styles.actions}>
+                <Button
+                  label={busy ? 'Blocking…' : 'Block this email from signing up again'}
+                  kind="tint"
+                  size="sm"
+                  style={{ flex: 1 }}
+                  disabled={busy}
+                  onPress={confirmBlockDeletedEmail}
+                />
+              </AdaptiveRow>
+            ) : null}
+
+            {history.previousAccounts.length ? (
+              <AdminSection label="Previous deleted accounts">
+                {history.previousAccounts.map((previous) => (
+                  <AdminRow
+                    key={previous.id}
+                    title={previous.deletedAt ? `Deleted ${dateLabel(previous.deletedAt)}` : 'Deleted account'}
+                    subtitle={`No-shows: ${previous.noShows} · Tutor cancels (30d): ${previous.tutorCancels30d}`}
+                  />
+                ))}
+              </AdminSection>
             ) : null}
 
             <AdminSection label="Flags">
