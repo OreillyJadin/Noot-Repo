@@ -121,6 +121,12 @@ export interface AdminUserHistoryUser {
   createdAt: string;
   roles: string[];
 }
+export interface AdminPreviousAccount {
+  id: string;
+  deletedAt: string | null;
+  noShows: number;
+  tutorCancels30d: number;
+}
 export interface AdminUserHistoryCounts {
   sessionsAsStudent: number;
   sessionsAsTutor: number;
@@ -172,6 +178,7 @@ export interface AdminUserHistory {
   bookings: AdminUserHistoryBooking[];
   reports: AdminUserHistoryReport[];
   adminActions: AdminUserHistoryAction[];
+  previousAccounts: AdminPreviousAccount[];
 }
 export type AdminUserRole = 'student' | 'tutor' | 'ambassador' | 'admin';
 export type AdminUserStatus = 'active' | 'suspended' | 'banned' | 'deleted';
@@ -544,6 +551,12 @@ type AdminUserHistoryPayload = {
     details: unknown;
     created_at: string;
   }>;
+  previous_accounts?: Array<{
+    id: string;
+    deleted_at: string | null;
+    no_shows: number | string | null;
+    tutor_cancels_30d: number | string | null;
+  }>;
 };
 
 function mapAdminUserHistory(payload: unknown): AdminUserHistory {
@@ -622,6 +635,12 @@ function mapAdminUserHistory(payload: unknown): AdminUserHistory {
         createdAt: action.created_at,
       };
     }),
+    previousAccounts: (raw?.previous_accounts ?? []).map((account) => ({
+      id: account.id,
+      deletedAt: account.deleted_at ?? null,
+      noShows: Number(account.no_shows ?? 0),
+      tutorCancels30d: Number(account.tutor_cancels_30d ?? 0),
+    })),
   };
 }
 
@@ -2045,6 +2064,12 @@ export const api = {
     /** Suspend / ban / reactivate an account (admin-set-user-status Edge Function). */
     setUserStatus(userId: string, status: 'active' | 'suspended' | 'banned'): Promise<{ ok: true; status: string }> {
       return invokeFn('admin-set-user-status', { userId, status });
+    },
+
+    /** Block the signup email recorded for a deleted account. */
+    async blockDeletedEmail(userId: string): Promise<void> {
+      const { error } = await getSupabase().rpc('admin_block_deleted_email', { p_user: userId });
+      if (error) throw error;
     },
 
     /** Reviews awaiting moderation, with reviewer/subject names + course. */

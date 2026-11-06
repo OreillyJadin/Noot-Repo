@@ -168,9 +168,20 @@ try {
   const del = await svc.auth.admin.deleteUser(again.uid);
   if (del.error) throw del.error;
   const tagged = againUser!.email.replace('@', '+2@');
-  for (const addr of [againUser!.email, tagged]) {
+  for (const [index, addr] of [againUser!.email, tagged].entries()) {
     const reborn = await newUser('Reborn', code, addr);
     check(`a new account as ${addr === tagged ? 'a +tag of the same email' : 'the same email'} can't use a code again`, (await referredBy(reborn.uid)) === null);
+    if (index === 0) {
+      await svc.from('users').update({
+        email: `deleted+${reborn.uid}@removed.invalid`,
+        first_name: '',
+        last_name: '',
+      }).eq('id', reborn.uid);
+      const createdIndex = created.indexOf(reborn.uid);
+      if (createdIndex >= 0) created.splice(createdIndex, 1);
+      const deletedReborn = await svc.auth.admin.deleteUser(reborn.uid);
+      if (deletedReborn.error) throw deletedReborn.error;
+    }
   }
 
   const legacy = await newUser('Legacy', code);
