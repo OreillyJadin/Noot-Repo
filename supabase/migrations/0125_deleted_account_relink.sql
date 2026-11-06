@@ -18,6 +18,7 @@ as $$
   end;
 $$;
 revoke all on function public.canonical_email(text) from public, anon, authenticated;
+grant execute on function public.canonical_email(text) to authenticated;
 
 create or replace function public.canonical_email_hash(addr text)
 returns text

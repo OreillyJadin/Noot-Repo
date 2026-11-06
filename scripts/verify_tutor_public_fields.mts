@@ -44,7 +44,7 @@ const TUTOR_PROFILES_SENSITIVE = [
 ];
 const AMBASSADOR_SENSITIVE = ['stripe_connect_account_id', 'referral_code', 'total_earned'];
 
-const tag = `pubfields+${Date.now()}`;
+const tag = `pubfields-${Date.now()}`;
 const made: string[] = [];
 async function createUser(label: string, first: string, last: string): Promise<{ id: string; email: string }> {
   const email = `${tag}.${label}@crimson.ua.edu`;
