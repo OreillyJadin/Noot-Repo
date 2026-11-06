@@ -22,6 +22,9 @@ import { getPayoutStatus, type PayoutStatus } from './connect.ts';
 export const BOOKING_HORIZON_DAYS = 14;
 export const IMMEDIATE_HOLD_DAYS = 6;
 
+// Keep in step with LENGTHS in apps/mobile/app/b3.tsx.
+export const SESSION_LENGTHS = [30, 60, 90, 120] as const;
+
 export type ResolveBookingInput = {
   studentId: string;
   tutorId: unknown;
@@ -179,8 +182,8 @@ export async function resolveBooking(
   if (!tutorId || !courseCode || !scheduledAtRaw) {
     throw new BookingError('tutorId, courseCode and scheduledAt are required');
   }
-  if (!Number.isFinite(durationMinutes) || durationMinutes <= 0 || durationMinutes > 480) {
-    throw new BookingError('durationMinutes must be between 1 and 480');
+  if (!Number.isFinite(durationMinutes) || !SESSION_LENGTHS.some((length) => length === durationMinutes)) {
+    throw new BookingError('Sessions can be 30 minutes, 1, 1.5 or 2 hours');
   }
   if (tutorId === input.studentId) {
     throw new BookingError('You cannot book yourself');
@@ -207,11 +210,13 @@ export async function resolveBooking(
   const { data: tutor, error: tutorErr } = await db
     .from('users')
     // !user_id disambiguates: tutor_profiles also references users via reviewed_by.
-    .select('id, deleted_at, tutor_profiles!user_id!inner(approval_status, stripe_charges_enabled, grades_verified_at)')
+    .select('id, status, deleted_at, tutor_profiles!user_id!inner(approval_status, stripe_charges_enabled, grades_verified_at)')
     .eq('id', tutorId)
     .maybeSingle();
   if (tutorErr) dbFail('tutor lookup', tutorErr);
-  if (!tutor || tutor.deleted_at !== null) throw new BookingError('That tutor is no longer available', 404);
+  if (!tutor || tutor.status !== 'active' || tutor.deleted_at !== null) {
+    throw new BookingError('That tutor is no longer available', 404);
+  }
 
   const profile = Array.isArray(tutor.tutor_profiles) ? tutor.tutor_profiles[0] : tutor.tutor_profiles;
   if (!profile || profile.approval_status !== 'approved') {

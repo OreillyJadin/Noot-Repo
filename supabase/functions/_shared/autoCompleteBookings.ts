@@ -47,10 +47,32 @@ export async function autoCompleteBookings(
     return { status: 500, body: { error: 'Could not load payout retries' } };
   }
 
+  const candidates = [...(bookings ?? []), ...(retries ?? [])];
+  const tutorIds: string[] = [...new Set(
+    candidates.map((booking) => booking.tutor_id).filter((id): id is string => typeof id === 'string' && id.length > 0),
+  )];
+  const tutorById = new Map<string, { status: string; deleted_at: string | null }>();
+  if (tutorIds.length) {
+    const { data: tutors, error: tutorError } = await db
+      .from('users')
+      .select('id, status, deleted_at')
+      .in('id', tutorIds);
+    if (tutorError) {
+      console.error('auto-complete-sessions: tutor lookup failed');
+      return { status: 500, body: { error: 'Could not check tutor availability' } };
+    }
+    for (const tutor of tutors ?? []) tutorById.set(tutor.id, tutor);
+  }
+
   let completed = 0;
   let holdExpired = 0;
   let failed = 0;
-  for (const booking of [...(bookings ?? []), ...(retries ?? [])]) {
+  for (const booking of candidates) {
+    const tutor = tutorById.get(booking.tutor_id);
+    if (!tutor || tutor.status !== 'active' || tutor.deleted_at !== null) {
+      console.error('auto-complete-sessions: skipped booking for inactive tutor', booking.id);
+      continue;
+    }
     try {
       if (booking.status === 'completed') {
         // Claim before checking Connect/Stripe, so even early failures back off and rotate.

@@ -29,6 +29,7 @@ import { defaultMeetingSpot, meetingSpotSections, OTHER_SPOT } from '../lib/meet
 import { NoSession } from '../lib/NoSession';
 import { VerifiedBadge } from '../lib/VerifiedBadge';
 
+// Keep in step with SESSION_LENGTHS in supabase/functions/_shared/booking.ts.
 const LENGTHS: [number, string][] = [
   [30, '30 min'],
   [60, '1 hr'],
