@@ -11,7 +11,8 @@
     "web": "expo start --web",
     "build:web": "expo export --platform web",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint app lib"
+    "lint": "eslint app lib web e2e",
+    "e2e:web": "playwright test -c e2e/playwright.config.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.16",
@@ -21,13 +22,18 @@
     "@opentelemetry/api": "^1.9.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
+    "@sentry/react": "10.37.0",
     "@sentry/react-native": "~7.11.0",
+    "@stripe/react-stripe-js": "6.12.0",
+    "@stripe/stripe-js": "9.17.0",
     "@stripe/stripe-react-native": "0.64.0",
     "expo": "~57.0.24",
+    "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.19",
     "expo-dev-client": "~57.0.19",
     "expo-document-picker": "~57.0.2",
     "expo-file-system": "~57.0.7",
+    "expo-font": "~57.0.4",
     "expo-image-picker": "~57.0.19",
     "expo-linking": "~57.0.10",
     "expo-local-authentication": "~57.0.3",
@@ -52,6 +58,7 @@
   "devDependencies": {
     "@expo/ngrok": "^4.1.0",
     "@noot/config": "workspace:*",
+    "@playwright/test": "1.63.0",
     "@react-native/metro-config": "0.86.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "~19.2.7",

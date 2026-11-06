@@ -15,6 +15,8 @@ function booking(overrides: Partial<Booking> = {}): Booking {
     scheduledAt: new Date(now + 60 * 60 * 1000).toISOString(),
     rescheduleProposedAt: null,
     rescheduleProposedBy: null,
+    lockedRefundPercent: null,
+    rescheduleWaiveLateFee: false,
     durationMinutes: 60,
     price: 40,
     creditApplied: 0,
@@ -254,6 +256,25 @@ test('an interview system notice opens tutor home', () => {
     assert.equal(target.role, 'tutor');
     assert.equal(target.route, '/tutor_home');
   }
+});
+
+test('a tutor weekly digest opens tutor home in tutor mode', () => {
+  const target = targetFor(notice('system', { event: 'tutor_weekly_digest' }), {
+    uid: 'tutor-1',
+    currentRole: 'student',
+    now,
+  });
+  assert.equal(target.role, 'tutor');
+  assert.equal(target.route, '/tutor_home');
+});
+
+test('a course coverage notice opens the matching course search as a student', () => {
+  const target = targetFor(notice('system', {
+    event: 'course_request_covered',
+    courseCode: 'MATH 125',
+  }), { uid: 'student-1', currentRole: 'tutor', now });
+  assert.equal(target.role, 'student');
+  assert.equal(target.route, '/b1?q=MATH%20125');
 });
 
 test('an unknown notification opens the feed in the current role', () => {

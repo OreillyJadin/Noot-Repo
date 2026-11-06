@@ -5,7 +5,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser, requireAdmin } from '../_shared/auth.ts';
 import { logAdminAction } from '../_shared/audit.ts';
+import { completeBooking } from '../_shared/completeBooking.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
+import { settleNoShow } from '../_shared/settleNoShow.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -33,17 +35,44 @@ serveWithErrorReporting('resolve-dispute', async (req: Request) => {
     const notAdmin = await requireAdmin(userClient, cors);
     if (notAdmin) return notAdmin;
 
-    const { bookingId, action, reason, resolution } = await req.json().catch(() => ({}));
+    const { bookingId, action, reason, resolution, outcome } = await req.json().catch(() => ({}));
     if (!bookingId || (action !== 'flag' && action !== 'resolve')) {
       return Response.json({ error: 'bookingId and action (flag|resolve) required' }, { status: 400, headers: cors });
+    }
+    if (outcome !== undefined && (
+      action !== 'resolve'
+      || !['tutor_no_show', 'student_no_show', 'completed'].includes(outcome)
+    )) {
+      return Response.json({ error: 'Invalid dispute outcome' }, { status: 400, headers: cors });
+    }
+
+    let settlementBody: Record<string, unknown> | null = null;
+    if (action === 'resolve' && outcome) {
+      const { data: booking, error: bookingError } = await db.from('bookings')
+        .select('id, tutor_id, status, dispute_status, scheduled_at, duration_minutes, stripe_payment_intent_id, stripe_transfer_id, payout_failed_at, tutor_payout_amount, price, created_at')
+        .eq('id', bookingId).maybeSingle();
+      if (bookingError) throw bookingError;
+      if (!booking) return Response.json({ error: 'booking not found' }, { status: 404, headers: cors });
+      if (booking.dispute_status !== 'flagged') {
+        return Response.json({ error: 'Only flagged sessions can be settled with an outcome' }, { status: 409, headers: cors });
+      }
+      const result = outcome === 'completed'
+        ? await completeBooking(db, url, booking)
+        : await settleNoShow(db, bookingId, outcome === 'tutor_no_show' ? 'tutor' : 'student');
+      if (result.status !== 200) return Response.json(result.body, { status: result.status, headers: cors });
+      settlementBody = result.body;
     }
 
     const patch = action === 'flag'
       ? { dispute_status: 'flagged', dispute_reason: reason ?? null }
-      : { dispute_status: 'resolved', dispute_resolution: resolution ?? null };
+      : {
+        dispute_status: 'resolved',
+        dispute_resolution: outcome ?? resolution ?? null,
+      };
 
-    const { data: updated, error } = await db
-      .from('bookings').update(patch).eq('id', bookingId).select('id, dispute_status, student_id, tutor_id').maybeSingle();
+    let updateQuery = db.from('bookings').update(patch).eq('id', bookingId);
+    if (action === 'resolve' && outcome) updateQuery = updateQuery.eq('dispute_status', 'flagged');
+    const { data: updated, error } = await updateQuery.select('id, dispute_status, student_id, tutor_id').maybeSingle();
     if (error) return Response.json({ error: error.message }, { status: 400, headers: cors });
     if (!updated) return Response.json({ error: 'booking not found' }, { status: 404, headers: cors });
 
@@ -55,12 +84,17 @@ serveWithErrorReporting('resolve-dispute', async (req: Request) => {
       details: {
         dispute_status: updated.dispute_status,
         ...(action === 'flag' ? { reason: reason ?? null } : { resolution: resolution ?? null }),
+        ...(outcome ? { outcome } : {}),
         student_id: updated.student_id,
         tutor_id: updated.tutor_id,
       },
     });
 
-    return Response.json({ ok: true, disputeStatus: updated.dispute_status }, { headers: cors });
+    return Response.json({
+      ok: true,
+      disputeStatus: updated.dispute_status,
+      ...(outcome ? { outcome, ...(settlementBody ?? {}) } : {}),
+    }, { headers: cors });
   } catch (e) {
     return Response.json({ error: String(e) }, { status: 400, headers: cors });
   }

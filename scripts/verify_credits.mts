@@ -101,11 +101,16 @@ try {
   };
   const friendCode = (await friend.c.rpc('my_invite_code')).data as string;
   await refusedFor(inviter.c, friendCode, /joined before you/, 'claiming the code of someone who joined after you is refused (no loops)');
-  // The join date that counts is the sign-in account's, not the profile row the owner can edit.
-  await inviter.c.from('users').update({ created_at: '2099-01-01T00:00:00Z' }).eq('id', inviter.uid);
-  const { data: rewritten } = await svc.from('users').select('created_at').eq('id', inviter.uid).single();
-  check('(setup) the profile row\'s join date really was rewritten', String(rewritten?.created_at).startsWith('2099'), String(rewritten?.created_at));
-  await refusedFor(inviter.c, friendCode, /joined before you/, '…even after rewriting your own profile\'s join date');
+  const original = await svc.from('users').select('created_at').eq('id', inviter.uid).single();
+  if (original.error) throw original.error;
+  const forged = await inviter.c.from('users').update({ created_at: '2099-01-01T00:00:00Z' }).eq('id', inviter.uid);
+  check('student cannot rewrite their profile\'s join date', forged.error?.code === '42501', forged.error?.message ?? 'ALLOWED');
+  const unchanged = await svc.from('users').select('created_at').eq('id', inviter.uid).single();
+  check('refused join-date write leaves the profile unchanged', !unchanged.error && unchanged.data?.created_at === original.data.created_at);
+  // Referral ordering uses the Auth join date even if a trusted writer changes the profile.
+  const rewritten = await svc.from('users').update({ created_at: '2099-01-01T00:00:00Z' }).eq('id', inviter.uid).select('created_at').single();
+  check('(setup) service role rewrites the profile\'s join date', !rewritten.error && String(rewritten.data?.created_at).startsWith('2099'), rewritten.error?.message ?? String(rewritten.data?.created_at));
+  await refusedFor(inviter.c, friendCode, /joined before you/, '…even after a trusted rewrite of the profile\'s join date');
   blocked(await inviter.c.rpc('claim_invite', { p_code: code }), 'your own code is refused');
   const booked = await newUser('Booked');
   await completedBooking(booked.uid);
@@ -163,9 +168,20 @@ try {
   const del = await svc.auth.admin.deleteUser(again.uid);
   if (del.error) throw del.error;
   const tagged = againUser!.email.replace('@', '+2@');
-  for (const addr of [againUser!.email, tagged]) {
+  for (const [index, addr] of [againUser!.email, tagged].entries()) {
     const reborn = await newUser('Reborn', code, addr);
     check(`a new account as ${addr === tagged ? 'a +tag of the same email' : 'the same email'} can't use a code again`, (await referredBy(reborn.uid)) === null);
+    if (index === 0) {
+      await svc.from('users').update({
+        email: `deleted+${reborn.uid}@removed.invalid`,
+        first_name: '',
+        last_name: '',
+      }).eq('id', reborn.uid);
+      const createdIndex = created.indexOf(reborn.uid);
+      if (createdIndex >= 0) created.splice(createdIndex, 1);
+      const deletedReborn = await svc.auth.admin.deleteUser(reborn.uid);
+      if (deletedReborn.error) throw deletedReborn.error;
+    }
   }
 
   const legacy = await newUser('Legacy', code);

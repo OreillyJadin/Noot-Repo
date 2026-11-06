@@ -12,10 +12,15 @@ assert.match(screen, /const tutorPayout = tobj && booking\.tutorPayoutAmount != 
 assert.match(screen, /refundPercent: Math\.round\(tobj\.refundPct \* 100\),\s*refundStatus: 'not_applicable',/);
 assert.match(screen, /Paid to tutor[\s\S]*?\{tutorPayout == null \? '—' : money\(tutorPayout\)\}/);
 assert.doesNotMatch(screen, /sessionPrice\s*\*\s*tobj\.tutorPct|@supabase\//);
-assert.match(screen, /booking\.status === 'pending' \? 'early'/);
+assert.match(screen, /booking\.status === 'pending' \? 100/);
+assert.match(screen, /studentCancelRefundPercent\(hoursUntil, booking\.lockedRefundPercent \?\? null\)/);
+assert.match(screen, /refundPercent === 100 \? 'early' : refundPercent === 50 \? 'mid' : 'late'/);
+assert.match(screen, /Your reschedule kept a/);
+assert.match(screen, /\$\{Math\.round\(x\.refundPct \* 100\)\}% refund/);
 const sessions = readFileSync(new URL('../apps/mobile/app/sessions.tsx', import.meta.url), 'utf8');
 const cancelSession = sessions.slice(sessions.indexOf('const cancelSession ='), sessions.indexOf('const reportNoShow ='));
 assert.match(cancelSession, /tutorPayoutAmount: realBooking\?\.tutorPayoutAmount/);
+assert.match(cancelSession, /lockedRefundPercent: realBooking\?\.lockedRefundPercent/);
 assert.match(cancelSession, /if \(!bookingId\) \{\s*patchBooking\(\{[^}]*tutorPayoutAmount: undefined/);
 
 for (const payout of [20.25, 0]) {
@@ -26,6 +31,7 @@ for (const payout of [20.25, 0]) {
   }
 }
 console.log('PASS: cancellation uses stored tutor payout: $20.25 / $10.13 / $0, including free bookings');
+console.log('PASS: cancellation preview uses the locked refund cap and carries it from the session');
 
 // Exercise quarter-hours and sub-minute clocks around both DST changes and a normal midnight.
 for (const date of ['2026-03-07', '2026-10-31', '2026-07-01']) {

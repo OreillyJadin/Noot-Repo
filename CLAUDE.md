@@ -24,18 +24,25 @@ device-verified in Expo Go): what changed, the gotchas, and what still needs a n
 submission, and the split between what Jadin must do (§3, needs credentials/domain/device)
 and what a session can pick up unaided (§3.5). Read it before planning work.
 
-## Current scope — mobile only, no web (2026-09-04)
+## Current scope — mobile app + its web build (2026-11-04)
 
-**We are only working on the mobile app (iOS + Android) right now. Web is out of scope.**
-That means both:
+**The app ships on iOS, Android and the web.** The web app is the same `apps/mobile` code
+built with Expo + react-native-web (`pnpm --filter @noot/mobile build:web`, i.e.
+`expo export --platform web`, a static SPA), so people can use the phone app and a laptop
+browser interchangeably: accounts and data live in Supabase via `@noot/core`. This reverses
+the 2026-09-04 "mobile only, no web" scope.
 
-- **`apps/web`** (the Next.js marketing site) — don't touch it, don't feature-work it.
-- **The mobile app's own web target** (`platform=web` / react-native-web at :8081) — not a
-  supported surface right now. **Its Metro bundle is currently broken on SDK 57** (see
-  `docs/archive/PICKUP_HERE.md`). Do not spend time fixing it unless asked; do not treat a web bundle
-  failure as a blocker for mobile work.
-
-iOS and Android are the only targets that must build and run.
+- **The mobile app's web target** (`platform=web`, the :8081 dev server and the web export)
+  is a supported surface. A change that breaks the web bundle is a bug, same as iOS/Android.
+- **iOS and Android must keep working unchanged.** Check UI/dependency PRs with
+  `npx expo export --platform ios` and `--platform android` as well as web.
+- **Native-only packages stay out of the web graph.** Give the web its own path with a
+  `.web.ts(x)` platform file next to the native one, or, for a package whose import alone
+  breaks the bundle, a stand-in in `apps/mobile/web/` mapped in `metro.config.js`
+  (`WEB_SHIMS`). Don't import `react-native/Libraries/...` internals: react-native-web
+  doesn't have them.
+- **`apps/web`** stays the Next.js marketing site — don't build product features there, and
+  don't feature-work it unless asked.
 
 ## Verifying changes before committing
 
@@ -48,8 +55,8 @@ commit on it. Verify against the live local backend instead:
   `pnpm dlx tsx scripts/verify_backend.mts` (14 checks against the live stack).
 - Backend is live locally via Supabase (see below); inspect data in Studio at
   http://localhost:54323.
-- **Do NOT verify at http://localhost:8081.** The mobile app's web bundle is broken on
-  SDK 57 and web is out of scope (see "Current scope" above).
+- Web changes: check them in a browser at http://localhost:8081 (`pnpm --filter @noot/mobile web`)
+  or against the static export (`pnpm --filter @noot/mobile build:web`, served with an SPA fallback).
 
 ## Git workflow
 
@@ -124,9 +131,8 @@ production Supabase project, so migrations are meant to reach production through
 ## Layout
 
 - `apps/mobile` — Expo (**SDK 57**, RN 0.86, React 19.2) app. Screens read/write through
-  `@noot/core`. iOS + Android only; the :8081 web dev server is not a supported surface.
-- `apps/web` — Next.js marketing site (`pnpm web` → :3000). Not where app features live,
-  and **out of scope right now**.
+  `@noot/core`. iOS, Android and the web (react-native-web; see "Current scope").
+- `apps/web` — Next.js marketing site (`pnpm web` → :3000). Not where app features live.
 - `packages/core` — the data/auth boundary. **Screens must NEVER import `@supabase/*`
   directly** — everything goes through `@noot/core` (ARCHITECTURE.md §10).
 - `packages/ui`, `packages/theme`, `packages/config`.

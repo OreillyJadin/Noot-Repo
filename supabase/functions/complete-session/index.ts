@@ -3,11 +3,11 @@
 // held PaymentIntent, transfers the tutor's payout to their Connect account funded from
 // that charge (see _shared/payouts.ts), sets status='completed', then fires
 // award-referral-bonus (non-fatal). Idempotent: a booking
-// already 'completed' is a no-op apart from re-firing the award. Simulated bookings
+// already 'completed' retries an unpaid/failed payout before re-firing the award. Simulated bookings
 // (sim_pi_…) just flip to completed.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
-import { BookingError } from '../_shared/booking.ts';
+import { BookingError, assertSessionElapsed } from '../_shared/booking.ts';
 import { completeBooking } from '../_shared/completeBooking.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
@@ -37,11 +37,43 @@ serveWithErrorReporting('complete-session', async (req: Request) => {
 
     const { data: booking } = await db
       .from('bookings')
-      .select('id, tutor_id, status, scheduled_at, duration_minutes, stripe_payment_intent_id, tutor_payout_amount, price, created_at')
+      .select('id, student_id, tutor_id, subject, status, scheduled_at, duration_minutes, stripe_payment_intent_id, stripe_transfer_id, payout_failed_at, tutor_payout_amount, price, created_at, dispute_status, completion_claimed_at')
       .eq('id', bookingId)
       .maybeSingle();
     if (!booking) return Response.json({ error: 'booking not found' }, { status: 404, headers: cors });
     if (booking.tutor_id !== user.id) return Response.json({ error: 'forbidden' }, { status: 403, headers: cors });
+    if (booking.dispute_status === 'flagged') {
+      return Response.json({ error: 'This session is under review by the noot team.' }, { status: 409, headers: cors });
+    }
+    if (booking.status === 'confirmed') {
+      assertSessionElapsed(booking.scheduled_at, Number(booking.duration_minutes));
+      if (booking.completion_claimed_at) {
+        return Response.json({
+          status: 'completion_pending',
+          objectBy: new Date(Date.parse(booking.completion_claimed_at) + 24 * 60 * 60 * 1000).toISOString(),
+        }, { headers: cors });
+      }
+      const claimedAt = new Date().toISOString();
+      const { data: claimed, error } = await db.from('bookings').update({ completion_claimed_at: claimedAt })
+        .eq('id', bookingId).eq('status', 'confirmed').eq('dispute_status', 'none')
+        .is('completion_claimed_at', null).select('id').maybeSingle();
+      if (error) throw error;
+      if (!claimed) return Response.json({ error: 'This session changed. Refresh and try again.' }, { status: 409, headers: cors });
+      const { data: tutor } = await db.from('users').select('first_name').eq('id', user.id).maybeSingle();
+      const tutorName = tutor?.first_name?.trim() || 'Your tutor';
+      const { error: notificationError } = await db.rpc('create_notification', {
+        p_user: booking.student_id,
+        p_type: 'booking',
+        p_title: 'Session marked complete',
+        p_body: `${tutorName} marked ${booking.subject} complete. If the session didn't happen, tell us within 24 hours.`,
+        p_data: { bookingId },
+      });
+      if (notificationError) console.error('complete-session: completion notification failed', bookingId);
+      return Response.json({
+        status: 'completion_pending',
+        objectBy: new Date(Date.parse(claimedAt) + 24 * 60 * 60 * 1000).toISOString(),
+      }, { headers: cors });
+    }
     const result = await completeBooking(db, url, booking);
     return Response.json(result.body, { status: result.status, headers: cors });
   } catch (err) {

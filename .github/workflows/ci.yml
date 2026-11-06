@@ -38,6 +38,14 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+      # The web app is the same apps/mobile code (react-native-web). The dev bundle is
+      # the strict one: it refuses react-native internals that the production one hides.
+      - name: Export web bundle (dev + production)
+        working-directory: apps/mobile
+        run: |
+          npx expo export --platform web --dev --output-dir "$RUNNER_TEMP/web-dev"
+          npx expo export --platform web --output-dir "$RUNNER_TEMP/web"
+
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.1.4
@@ -116,12 +124,14 @@ jobs:
             verify_booking
             verify_booking_process_ui
             verify_booking_request_note_db
+            verify_booking_series
             verify_browse
             verify_campus_gate
             verify_campus_time
             verify_cancel_payout_ui
             verify_chat_attachments
             verify_course_catalog
+            verify_course_requests
             verify_credits
             verify_deferred_hold
             verify_definer_lockdown
@@ -153,6 +163,7 @@ jobs:
             verify_reschedule_copy
             verify_s1_sync
             verify_session_reminders
+            verify_silent_system_messages
             verify_video_sessions
             verify_sign_out
             verify_forced_sign_out
@@ -161,8 +172,10 @@ jobs:
             verify_terms
             verify_terms_gate
             verify_tutor_busy_times
+            verify_tutor_demand
             verify_tutor_session_detail_ui
             verify_tutor_public_fields
+            verify_tutor_response_stats
             verify_tutor_avatar
             verify_tutor_rate_bounds
             verify_tutor_standing
@@ -175,3 +188,72 @@ jobs:
             verify_verified_grade_lock
             verify_option_b_booking
             verify_option_b_onboarding
+
+  # Browser smoke test of the web app: the static web export (what a host serves) against a
+  # fresh local Supabase stack with its Edge Functions. No Stripe key here, so checkout takes
+  # the simulated-payment path; apps/mobile/e2e/web.spec.ts has the test-card (4242) variant.
+  web-e2e:
+    name: Web E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.120.0
+
+      - name: Start local Supabase
+        run: supabase start -x studio,postgres-meta,imgproxy,logflare,vector,supavisor
+
+      - name: Seed demo data
+        run: node supabase/seed_demo.mjs
+
+      - name: Serve Edge Functions
+        run: |
+          nohup supabase functions serve > "$RUNNER_TEMP/functions.log" 2>&1 &
+          for _ in $(seq 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X OPTIONS http://127.0.0.1:54321/functions/v1/create-payment-intent || true)
+            case "$code" in 000|502|503|504) sleep 2 ;; *) echo "functions up ($code)"; exit 0 ;; esac
+          done
+          cat "$RUNNER_TEMP/functions.log"
+          exit 1
+
+      - name: Export the web app against the local stack
+        working-directory: apps/mobile
+        run: |
+          eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY)=')"
+          EXPO_PUBLIC_SUPABASE_URL="$API_URL" EXPO_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY" \
+            npx expo export --platform web --output-dir dist
+
+      - name: Install Chromium
+        working-directory: apps/mobile
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Playwright
+        working-directory: apps/mobile
+        run: pnpm e2e:web
+
+      - name: Edge Function logs
+        if: failure()
+        run: cat "$RUNNER_TEMP/functions.log" || true
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: web-e2e-report
+          path: |
+            apps/mobile/e2e/report
+            apps/mobile/e2e/results
+          retention-days: 7

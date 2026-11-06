@@ -92,13 +92,14 @@ try {
   check('DENY: incomplete application is refused with what is missing', /application incomplete: photo, courses, rates, availability, agreement, payouts/.test(early), early);
 
   await svc.from('users').update({ avatar_url: 'https://example.invalid/q.jpg' }).eq('id', uid);
-  await api.profile.setTutorCourses([{ courseCode: code, grade: 'A', hourlyRate: 5, currentlyTaking: false }]);
+  const lowSave = await rejects(() => api.profile.setTutorCourses([{ courseCode: code, grade: 'A', hourlyRate: 5, currentlyTaking: false }]));
+  check('DENY: a course under $20/hr cannot be saved (0103 floor)', /rates are \$20 to \$120/.test(lowSave), lowSave);
   await api.profile.updateAvailability([{ dayOfWeek: 3, startTime: '14:00', endTime: '17:00' }]);
   const signedAt = await api.profile.signAgreement('Quinn Park', 'test-v1');
   check('agreement signature is server-stamped', !Number.isNaN(Date.parse(signedAt)), signedAt);
   await svc.from('tutor_profiles').update({ stripe_payouts_enabled: true }).eq('user_id', uid); // what connect-status caches
   const lowRate = await rejects(() => api.profile.submitTutorApplication());
-  check('DENY: a course under $10/hr still blocks submission', /application incomplete: rates$/.test(lowRate), lowRate);
+  check('DENY: no saved course rate still blocks submission', /application incomplete: courses, rates$/.test(lowRate), lowRate);
 
   await api.profile.setTutorCourses([{ courseCode: code, grade: 'A', hourlyRate: 28, currentlyTaking: false }]);
   await api.profile.submitTutorApplication();

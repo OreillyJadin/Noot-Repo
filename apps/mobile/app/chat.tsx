@@ -23,6 +23,7 @@ import { api, auth, type Message as ApiMessage, type OutgoingAttachment } from '
 import { useApp } from '../lib/store';
 import { NoSession } from '../lib/NoSession';
 import { pickAndUploadChatAttachment } from '../lib/chatAttachments';
+import { ChatAttachmentView } from '../lib/ChatAttachment';
 import { useAttachmentUrls } from '../lib/useAttachmentUrls';
 import { separatorLabel } from '../lib/chatTime';
 import { openSafetyMenu, reportMessage } from '../lib/moderation';
@@ -71,12 +72,6 @@ function stagedToLocal(a: OutgoingAttachment): Attachment {
   return { name: a.filename, kind: a.kind, size: a.sizeBytes, storagePath: a.storagePath };
 }
 
-function fmtSize(b: number): string {
-  if (b < 1024) return `${b} B`;
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
-  return `${(b / 1024 / 1024).toFixed(1)} MB`;
-}
-
 export default function Chat() {
   const { booking } = useApp();
   if (!booking.tutor) {
@@ -99,6 +94,7 @@ function ChatInner() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
   const [pending, setPending] = useState<OutgoingAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [convId, setConvId] = useState<string | null>(null);
@@ -144,7 +140,7 @@ function ChatInner() {
     };
   }, [tutorId]);
 
-  const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading && !blocked;
+  const canSend = (draft.trim().length > 0 || pending.length > 0) && !uploading && !blocked && !sending;
 
   const addAttachment = async () => {
     if (!convId || uploading) return;
@@ -160,28 +156,24 @@ function ChatInner() {
   const removePending = (i: number) => setPending((p) => p.filter((_, j) => j !== i));
 
   const send = async () => {
+    if (sending) return;
     const text = draft.trim();
     const attachments = pending;
     if ((!text && attachments.length === 0) || !convId) return;
-    setDraft('');
-    setPending([]);
+    setSending(true);
     try {
       const created = await api.chat.sendMessage(convId, text, attachments);
+      setDraft('');
+      setPending([]);
       // Append optimistically; the live subscription guards against a duplicate.
       setMessages((prev) =>
         prev.some((p) => p.id === created.id) ? prev : [...prev, toLocal(created, uid, 'student', 'tutor')],
       );
     } catch (e) {
-      // Restore the draft so a failed send doesn't silently discard what they wrote/attached.
-      setDraft(text);
-      setPending(attachments);
       Alert.alert('Message not sent', errText(e, 'Please try again.'));
+    } finally {
+      setSending(false);
     }
-  };
-
-  const notify = () => {
-    // TODO(api): real notification center, backed by @noot/core.
-    Alert.alert('Notifications', 'Built with backend.');
   };
 
   return (
@@ -225,7 +217,7 @@ function ChatInner() {
           keyboardDismissMode="on-drag"
         >
           <Text style={[styles.threadHint, { color: t.text3 }]}>
-            This is your full conversation with {other.split(' ')[0]}.
+            This is your full conversation with {other.split(' ')[0]}. Touch and hold a received message to report it.
           </Text>
 
           {messages.map((m, i) => {
@@ -246,7 +238,7 @@ function ChatInner() {
                   key={a.storagePath}
                   a={stagedToLocal(a)}
                   url={urls[a.storagePath]}
-                  onRemove={() => removePending(i)}
+                  onRemove={() => { if (!sending) removePending(i); }}
                 />
               ))}
             </View>
@@ -256,7 +248,7 @@ function ChatInner() {
         <View style={[styles.composer, { backgroundColor: t.surface, borderTopColor: t.border }]}>
           <Pressable
             onPress={addAttachment}
-            disabled={!convId || uploading}
+            disabled={!convId || uploading || sending}
             accessibilityLabel="Attach"
             style={[styles.roundBtn, { backgroundColor: t.surface2, opacity: convId && !uploading ? 1 : 0.5 }]}
           >
@@ -271,7 +263,7 @@ function ChatInner() {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              editable={!blocked}
+              editable={!blocked && !sending}
               placeholder={blocked ? 'You can’t message this person' : `Message ${other.split(' ')[0]}…`}
               placeholderTextColor={t.text3}
               multiline
@@ -314,7 +306,15 @@ function Bubble({
       accessibilityHint={mine ? undefined : 'Long press to report this message'}
       style={[styles.bubbleWrap, { alignSelf: mine ? 'flex-end' : 'flex-start', alignItems: mine ? 'flex-end' : 'flex-start' }]}
     >
-      {m.attach?.map((a, i) => <AttachView key={i} a={a} mine={mine} url={urls[a.storagePath]} />)}
+      {m.attach?.map((a, i) => (
+        <ChatAttachmentView
+          key={i}
+          attachment={a}
+          mine={mine}
+          url={urls[a.storagePath]}
+          onLongPress={mine ? undefined : onReport}
+        />
+      ))}
       {m.text ? (
         <View
           style={[
@@ -328,36 +328,6 @@ function Bubble({
         </View>
       ) : null}
     </Pressable>
-  );
-}
-
-// Attachment rendered inside a sent message. Images show inline once their signed URL
-// resolves; everything else (and an image still resolving) stays the icon + name row.
-function AttachView({ a, mine, url }: { a: Attachment; mine: boolean; url?: string }) {
-  const t = useTheme();
-  const iconName: IconName = a.kind === 'image' ? 'image' : 'doc';
-
-  if (a.kind === 'image' && url) {
-    return (
-      <Image
-        source={{ uri: url }}
-        accessibilityLabel={a.name}
-        resizeMode="cover"
-        style={[styles.attachImage, { backgroundColor: t.surface2 }]}
-      />
-    );
-  }
-
-  return (
-    <View style={[styles.attachView, { backgroundColor: mine ? t.accent : t.surface2 }]}>
-      <Ic name={iconName} size={20} color={mine ? t.onAccent : t.accent} strokeWidth={1.7} />
-      <View style={{ minWidth: 0 }}>
-        <Text numberOfLines={1} style={[styles.attachName, { color: mine ? t.onAccent : t.text }]}>{a.name}</Text>
-        {a.size != null && (
-          <Text style={[styles.attachSize, { color: mine ? t.onAccent : t.text }]}>{fmtSize(a.size)}</Text>
-        )}
-      </View>
-    </View>
   );
 }
 
@@ -396,11 +366,6 @@ const styles = StyleSheet.create({
 
   bubbleWrap: { maxWidth: '80%', gap: 5 },
   bubble: { paddingHorizontal: 13, paddingVertical: 9 },
-
-  attachView: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 14 },
-  attachName: { fontSize: 13.5, fontWeight: '600', maxWidth: 150 },
-  attachSize: { fontSize: 11, opacity: 0.75 },
-  attachImage: { width: 200, height: 200, borderRadius: 14 },
 
   pendingRow: { alignSelf: 'flex-end', flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end', maxWidth: '80%' },
   attachChip: { position: 'relative', flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 12, borderWidth: 1 },

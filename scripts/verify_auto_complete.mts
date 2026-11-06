@@ -141,7 +141,7 @@ async function stripePost(path: string, body: Record<string, string>): Promise<J
 
 async function booking(id: string): Promise<Json> {
   const { data, error } = await svc.from('bookings')
-    .select('status, cancelled_at, cancelled_from_status, refund_percent, refund_status, hold_released_at, cancel_reason, cancelled_by_role')
+    .select('status, completion_claimed_at, cancelled_at, cancelled_from_status, refund_percent, refund_status, hold_released_at, cancel_reason, cancelled_by_role')
     .eq('id', id)
     .single();
   if (error || !data) throw new Error('Could not read verification booking');
@@ -176,22 +176,15 @@ try {
   const expired = await callFunction('complete-session', expiredTutor.token, { bookingId: expiredBookingId });
   const expiredRow = await booking(expiredBookingId);
   check(
-    'complete-session reports the expired hold without charging the student',
-    expired.status === 409 && expired.body.holdExpired === true,
-    `${expired.status} ${JSON.stringify(expired.body)}`,
+    'complete-session opens an objection window for an elapsed session with an expired hold',
+    expired.status === 200 && expired.body.status === 'completion_pending'
+      && expiredRow.status === 'confirmed' && !!expiredRow.completion_claimed_at,
+    `${expired.status} ${JSON.stringify(expired.body)}; booking=${JSON.stringify(expiredRow)}`,
   );
-  check(
-    'expired-hold booking is closed and fully refunded with no cancel actor/reason',
-    expiredRow.status === 'cancelled' &&
-      expiredRow.cancelled_from_status === 'confirmed' &&
-      !!expiredRow.cancelled_at &&
-      expiredRow.refund_percent === 100 &&
-      expiredRow.refund_status === 'refunded' &&
-      !!expiredRow.hold_released_at &&
-      expiredRow.cancel_reason === null &&
-      expiredRow.cancelled_by_role === null,
-    JSON.stringify(expiredRow),
-  );
+  const { error: claimAgeError } = await svc.from('bookings').update({
+    completion_claimed_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+  }).eq('id', expiredBookingId);
+  if (claimAgeError) throw claimAgeError;
 
   const dueStudent = await makeUser('student');
   const dueTutor = await makeUser('tutor');
@@ -208,11 +201,27 @@ try {
   const agedTutor = await makeUser('tutor');
   const agedBookingId = await makeBooking(agedStudent, agedTutor, {
     scheduledAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 6 * 86400000 - 60000).toISOString(),
   });
-  const { error: ageError } = await svc.from('bookings').update({
-    hold_placed_at: new Date(Date.now() - 4 * 86400000 - 60000).toISOString(),
-  }).eq('id', agedBookingId);
-  if (ageError) throw ageError;
+  const agedPi = await stripePost('payment_intents', {
+    amount: '1000',
+    currency: 'usd',
+    capture_method: 'manual',
+    confirm: 'true',
+    payment_method: 'pm_card_visa',
+    return_url: 'https://noot.app/return',
+  });
+  if (typeof agedPi.id !== 'string') throw new Error('Stripe test PaymentIntent was not created');
+  const cancelledAgedPi = await stripePost(`payment_intents/${agedPi.id}/cancel`, {});
+  if (cancelledAgedPi.status !== 'canceled') throw new Error('Could not cancel aged Stripe test PaymentIntent');
+  const agedPaymentStudent = await makeUser('student');
+  const agedPaymentTutor = await makeUser('tutor');
+  const agedPaymentBookingId = await makeBooking(agedPaymentStudent, agedPaymentTutor, {
+    scheduledAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    price: 10,
+    paymentIntentId: agedPi.id,
+    createdAt: new Date(Date.now() - 6 * 86400000 - 60000).toISOString(),
+  });
 
   const flaggedStudent = await makeUser('student');
   const flaggedTutor = await makeUser('tutor');
@@ -228,13 +237,27 @@ try {
   const dueRow = await booking(dueBookingId);
   const recentRow = await booking(recentBookingId);
   const flaggedRow = await booking(flaggedBookingId);
-  check('four-day-old payment completes an ended session before the 48h fallback',
-    autoComplete.status === 200 && (await booking(agedBookingId)).status === 'completed');
+  const expiredRowAfter = await booking(expiredBookingId);
+  const agedRowAfter = await booking(agedPaymentBookingId);
+  check(
+    'a completion claim settles an expired PaymentIntent after its objection window',
+    expiredRowAfter.status === 'cancelled' && expiredRowAfter.refund_percent === 100
+      && expiredRowAfter.refund_status === 'refunded' && !!expiredRowAfter.hold_released_at
+      && expiredRowAfter.cancel_reason === null && expiredRowAfter.cancelled_by_role === null,
+    JSON.stringify(expiredRowAfter),
+  );
+  check(
+    'created_at hold-expiry fallback requires a PaymentIntent',
+    autoComplete.status === 200 && agedRowAfter.status === 'cancelled'
+      && (await booking(agedBookingId)).status === 'confirmed'
+      && Number(autoComplete.body.holdExpired) >= 2,
+    `holdExpired=${String(autoComplete.body.holdExpired)}, with PI=${agedRowAfter.status}, without PI=${String((await booking(agedBookingId)).status)}`,
+  );
   check(
     'auto-complete-sessions completes the due free session',
     autoComplete.status === 200 &&
       autoComplete.body.completed >= 1 &&
-      autoComplete.body.holdExpired === 0 &&
+      Number(autoComplete.body.holdExpired) >= 2 &&
       autoComplete.body.failed === 0 &&
       dueRow.status === 'completed',
     `${autoComplete.status} ${JSON.stringify(autoComplete.body)}; booking=${dueRow.status}`,

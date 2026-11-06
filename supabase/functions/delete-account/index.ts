@@ -17,6 +17,7 @@
 // Storage and messages are cleared explicitly — SQL cascades don't reach object storage.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { purgeFolder } from '../_shared/storage.ts';
+import { clearTutorDiscovery } from '../_shared/tutorDiscovery.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
 
 const cors = {
@@ -106,6 +107,8 @@ serveWithErrorReporting('delete-account', async (req: Request) => {
       );
     }
 
+    await clearTutorDiscovery(db, uid);
+
     // 1. Files. Avatars and transcripts are keyed {uid}/…; chat attachments are keyed by
     //    conversation, so they're removed per message below.
     await purgeFolder(db, 'avatars', uid);
@@ -141,6 +144,11 @@ serveWithErrorReporting('delete-account', async (req: Request) => {
     const { error: blockErr } = await db.rpc('block_signup_email', { p_user: uid });
     if (blockErr) {
       return Response.json({ error: blockErr.message }, { status: 400, headers: cors });
+    }
+
+    const { error: relinkErr } = await db.rpc('record_deleted_account_email', { p_user: uid });
+    if (relinkErr) {
+      return Response.json({ error: relinkErr.message }, { status: 400, headers: cors });
     }
 
     // 3. De-identify the retained row. The email must stay unique and NOT NULL, and .invalid

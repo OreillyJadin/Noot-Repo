@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireActiveUser } from '../_shared/auth.ts';
 import { attachBookingHold, bookingChargeCents } from '../_shared/deferredHolds.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
+import { ownedCustomerId } from '../_shared/stripeCustomer.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -47,6 +48,9 @@ serveWithErrorReporting('booking-hold', async (req: Request) => {
       const setup = await stripe.setupIntents.retrieve(booking.stripe_setup_intent_id);
       customerId = typeof setup.customer === 'string' ? setup.customer : setup.customer?.id ?? null;
       if (!customerId) throw new Error('Missing customer');
+      if (customerId !== await ownedCustomerId(stripe, db, user.id, user.email ?? '')) {
+        throw new Error('Payment customer does not belong to this student');
+      }
     }
     if (action === 'create') {
       const pi = stripe ? await stripe.paymentIntents.create({

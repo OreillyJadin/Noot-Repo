@@ -34,7 +34,7 @@ export default function Saved() {
 
   const open = (tutor: Tutor) => {
     patchBooking({ tutor, course: tutor.courses[0]?.[0] ?? '' });
-    router.push('/b2');
+    router.push('/b2?source=saved');
   };
 
   const scrollRef = useRef<ScrollView>(null);

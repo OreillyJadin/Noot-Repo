@@ -95,7 +95,7 @@ export default function SignIn() {
         keyboardDismissMode="on-drag"
         bottomOffset={24}
       >
-        <Text style={[styles.h1, { color: t.text }]}>Log in with your campus email</Text>
+        <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>Log in with your campus email</Text>
 
         <Field
           label="Campus email"
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   back: { fontSize: 16, fontWeight: '600', minWidth: 48 },
   navTitle: { fontSize: 16, fontWeight: '700' },
   body: { padding: 20, gap: 16 },
-  h1: { fontSize: 26, fontWeight: '700' },
+  h1: { fontSize: 26 },
   link: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
   divider: { borderBottomWidth: 1, alignItems: 'center', marginVertical: 2 },
   dividerText: { fontSize: 12, fontWeight: '600', transform: [{ translateY: 8 }], paddingHorizontal: 10 },

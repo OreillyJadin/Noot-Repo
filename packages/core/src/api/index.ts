@@ -12,8 +12,11 @@ import { tutorEarnedAmount } from '../earnings';
 import { SESSION_LOOKBACK_MS, isUpcomingSession, isPastSession } from '../sessionTiming';
 import { getSupabase } from '../supabase';
 import { notifyUserChanged } from '../changes';
-import { normalizeCourseQuery, rankCourseMatches } from '../courseSearch';
+import { normalizeCourseQuery } from '../courseSearch';
+import { mapAdminCourseRequest, mapCourseRequest } from '../courseRequests';
+import { mapTutorDemand } from '../tutorDemand';
 import { mergeAvailabilityWindows } from '../availability';
+import { mapCashout } from '../cashout';
 import {
   friendlyStorageError,
   MIME_BY_EXT,
@@ -25,6 +28,7 @@ export type { AdminHubCounts } from '../adminHub';
 import type {
   AmbassadorProfile,
   Booking,
+  BookingAttendance,
   BusyTime,
   CatalogCourse,
   ContentReport,
@@ -37,13 +41,19 @@ import type {
   OutgoingAttachment,
   Notification,
   NotificationType,
+  GrowthFunnel,
+  TutorDemand,
+  CourseRequest,
+  AdminCourseRequest,
   RefundStatus,
   ReviewSummary,
   TutorAvailability,
   TutorInterview,
   TutorCourse,
   MyTutorProfile,
+  NoShowParty,
   TutorSummary,
+  YourTutor,
   TutoringLocation,
   User,
   Cashout,
@@ -98,6 +108,7 @@ export interface AdminUser {
   /** When the owner deleted the account; its name and email are scrubbed by then. */
   deletedAt: string | null;
   createdAt: string;
+  lastActiveAt: string | null;
   tutorCancels30d: number;
   noShows: number;
 }
@@ -111,7 +122,14 @@ export interface AdminUserHistoryUser {
   email: string;
   status: string;
   createdAt: string;
+  lastActiveAt: string | null;
   roles: string[];
+}
+export interface AdminPreviousAccount {
+  id: string;
+  deletedAt: string | null;
+  noShows: number;
+  tutorCancels30d: number;
 }
 export interface AdminUserHistoryCounts {
   sessionsAsStudent: number;
@@ -164,9 +182,10 @@ export interface AdminUserHistory {
   bookings: AdminUserHistoryBooking[];
   reports: AdminUserHistoryReport[];
   adminActions: AdminUserHistoryAction[];
+  previousAccounts: AdminPreviousAccount[];
 }
 export type AdminUserRole = 'student' | 'tutor' | 'ambassador' | 'admin';
-export type AdminUserStatus = 'active' | 'suspended' | 'banned' | 'deleted';
+export type AdminUserStatus = 'active' | 'suspended' | 'banned' | 'deleted' | 'inactive';
 /** What to list in admin user management. Everything is optional: no filter lists everyone. */
 export interface AdminUserQuery {
   /** Matched against name and email. */
@@ -200,6 +219,14 @@ export interface AdminBooking {
   studentFee: number;
   disputeStatus: string;
   disputeReason: string | null;
+  noShowClaimParty: NoShowParty | null;
+  noShowClaimedAt: string | null;
+  noShowContestedAt: string | null;
+  noShowContestNote: string | null;
+  completionClaimedAt: string | null;
+  completionObjectedAt: string | null;
+  completionObjectionNote: string | null;
+  attendance: BookingAttendance | null;
 }
 
 export interface AdminCalendarEvent {
@@ -277,12 +304,23 @@ function emailFileName(email: string): string {
 }
 
 /** Columns of `messages` — spelled out so embeds can be appended without pulling `*`. */
-const MESSAGE_SELECT = 'id, conversation_id, sender_id, content, read_at, created_at, attachment_count';
+const MESSAGE_SELECT = 'id, conversation_id, sender_id, content, read_at, created_at, attachment_count, is_system';
 
 /** Bytes in an upload body — used to reject empty files before they hit Storage. */
 function byteLength(data: Blob | ArrayBuffer | Uint8Array): number {
   if (data instanceof Uint8Array || data instanceof ArrayBuffer) return data.byteLength;
   return data.size;
+}
+
+function truncateFilename(filename: string, maxLength: number): string {
+  if (filename.length <= maxLength) return filename;
+  const extensionIndex = filename.lastIndexOf('.');
+  const extension = extensionIndex > 0 ? filename.slice(extensionIndex) : '';
+  const preservedExtension = extension.length > maxLength
+    ? `.${extension.slice(-(maxLength - 1))}`
+    : extension;
+  const base = extensionIndex > 0 ? filename.slice(0, extensionIndex) : filename;
+  return `${base.slice(0, maxLength - preservedExtension.length)}${preservedExtension}`;
 }
 
 /**
@@ -426,25 +464,35 @@ function mapTutorSummary(row: any): TutorSummary {
     totalSessions: row.total_sessions ?? 0,
     verifiedGrade: row.verified_grade ?? null,
     verified: row.grades_verified === true,
+    responseRate: numOrNull(row.response_rate),
+    responseMinutes: numOrNull(row.response_median_minutes),
     courses: (row.tutor_courses ?? []).map(mapTutorCourse),
   };
 }
 
 function mapBooking(row: any): Booking {
+  const relation = Array.isArray(row.booking_series) ? row.booking_series[0] : row.booking_series;
   return {
     id: row.id,
+    seriesId: row.series_id ?? null,
+    seriesIndex: row.series_index == null ? null : Number(row.series_index),
+    seriesStatus: relation?.status ?? null,
+    seriesWeeks: relation?.weeks == null ? null : Number(relation.weeks),
     studentId: row.student_id,
     tutorId: row.tutor_id,
     subject: row.subject,
     scheduledAt: row.scheduled_at,
     rescheduleProposedAt: row.reschedule_proposed_at ?? null,
     rescheduleProposedBy: row.reschedule_proposed_by ?? null,
+    lockedRefundPercent: row.locked_refund_percent ?? null,
+    rescheduleWaiveLateFee: row.reschedule_waive_late_fee ?? false,
     durationMinutes: row.duration_minutes,
     price: num(row.price),
     studentFee: num(row.student_fee),
     creditApplied: num(row.credit_applied),
     platformFee: num(row.platform_fee),
     tutorPayoutAmount: num(row.tutor_payout_amount),
+    payoutFailedAt: row.payout_failed_at ?? null,
     sessionType: row.session_type,
     meetingLink: row.meeting_link ?? null,
     dailyRoomName: row.daily_room_name ?? null,
@@ -452,6 +500,22 @@ function mapBooking(row: any): Booking {
     dailyRoomDeletedAt: row.daily_room_deleted_at ?? null,
     location: row.location ?? null,
     status: row.status,
+    disputeStatus: row.dispute_status ?? 'none',
+    disputeReason: row.dispute_reason ?? null,
+    noShowClaimParty: row.no_show_claim_party ?? null,
+    noShowClaimedBy: row.no_show_claimed_by ?? null,
+    noShowClaimedAt: row.no_show_claimed_at ?? null,
+    noShowContestedAt: row.no_show_contested_at ?? null,
+    noShowContestNote: row.no_show_contest_note ?? null,
+    completionClaimedAt: row.completion_claimed_at ?? null,
+    completionObjectedAt: row.completion_objected_at ?? null,
+    completionObjectionNote: row.completion_objection_note ?? null,
+    attendance: row.attendance ? {
+      checkedAt: row.attendance.checked_at,
+      ...(row.attendance.student_seconds === undefined ? {} : { studentSeconds: Number(row.attendance.student_seconds) }),
+      ...(row.attendance.tutor_seconds === undefined ? {} : { tutorSeconds: Number(row.attendance.tutor_seconds) }),
+      ...(row.attendance.unavailable ? { unavailable: true } : {}),
+    } : null,
     acceptBy: row.accept_by ?? null,
     acceptedAt: row.accepted_at ?? null,
     cancelledByRole:
@@ -517,6 +581,12 @@ type AdminUserHistoryPayload = {
     details: unknown;
     created_at: string;
   }>;
+  previous_accounts?: Array<{
+    id: string;
+    deleted_at: string | null;
+    no_shows: number | string | null;
+    tutor_cancels_30d: number | string | null;
+  }>;
 };
 
 function mapAdminUserHistory(payload: unknown): AdminUserHistory {
@@ -532,6 +602,7 @@ function mapAdminUserHistory(payload: unknown): AdminUserHistory {
           email: user.email,
           status: user.status,
           createdAt: user.created_at,
+          lastActiveAt: null,
           roles: user.roles ?? [],
         }
       : null,
@@ -595,6 +666,12 @@ function mapAdminUserHistory(payload: unknown): AdminUserHistory {
         createdAt: action.created_at,
       };
     }),
+    previousAccounts: (raw?.previous_accounts ?? []).map((account) => ({
+      id: account.id,
+      deletedAt: account.deleted_at ?? null,
+      noShows: Number(account.no_shows ?? 0),
+      tutorCancels30d: Number(account.tutor_cancels_30d ?? 0),
+    })),
   };
 }
 
@@ -619,6 +696,7 @@ function mapCatalogCourse(row: any): CatalogCourse {
     subjectName: row.subject_name ?? '',
     creditHours: row.credit_hours ?? null,
     collegeName: row.college_name ?? '',
+    hasTutor: Boolean(row.has_tutor),
   };
 }
 
@@ -665,6 +743,7 @@ function mapMessage(row: any): Message {
     readAt: row.read_at ?? null,
     createdAt: row.created_at,
     attachmentCount: row.attachment_count ?? 0,
+    isSystem: row.is_system === true,
     ...(row.message_attachments
       ? { attachments: (row.message_attachments as any[]).map(mapAttachment) }
       : {}),
@@ -681,6 +760,7 @@ function mapMessage(row: any): Message {
 const TUTOR_SELECT = `
   id, first_name, last_name, year, major, avatar_url,
   bio, subjects, hourly_rate, rating_avg, total_sessions, verified_grade, grades_verified, approval_status,
+  response_rate, response_median_minutes,
   tutor_courses ( id, tutor_id, course_code, grade, currently_taking, hourly_rate, sessions, created_at )
 `;
 
@@ -755,6 +835,7 @@ export interface ConfirmBookingInput {
   /** The confirmed payment, or saved card for a later session; omitted for a free booking. */
   paymentIntentId?: string | null;
   setupIntentId?: string | null;
+  repeatWeeks?: number;
 }
 
 /** The booking being paid for. The server derives the amount from these (T5). */
@@ -763,9 +844,16 @@ export interface CreatePaymentIntentInput {
   courseCode: string;
   durationMinutes: number;
   scheduledAt: string;
+  repeatWeeks?: number;
+  /**
+   * Card only, no redirect-based methods: the web app confirms in place and would lose the
+   * booking if a payment method sent the browser away. Native builds leave it unset.
+   */
+  cardOnly?: boolean;
 }
 
 export interface RescheduleBookingInput {
+  waiveLateFee?: boolean;
   bookingId: string;
   action: 'propose' | 'accept' | 'decline';
   newScheduledAt?: string;
@@ -774,6 +862,12 @@ export interface RescheduleBookingInput {
 export interface ReportNoShowInput {
   bookingId: string;
   party: 'student' | 'tutor';
+}
+
+export interface ContestClaimInput {
+  bookingId: string;
+  kind: 'no_show' | 'completion';
+  note?: string;
 }
 
 export interface SubmitRatingInput {
@@ -788,16 +882,6 @@ export interface SubmitRatingInput {
 // ---------------------------------------------------------------------------
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- untyped Supabase row, like the mappers above */
-function mapCashout(row: Record<string, unknown>): Cashout {
-  return {
-    id: row.id as string,
-    amountCents: Number(row.amount_cents ?? 0),
-    status: row.status as Cashout['status'],
-    createdAt: row.created_at as string,
-    paidAt: (row.paid_at as string | null) ?? null,
-    rejectedAt: (row.rejected_at as string | null) ?? null,
-  };
-}
 function mapAmbassadorProfile(row: any): AmbassadorProfile {
   return {
     id: row.id,
@@ -819,6 +903,11 @@ export const REMINDER_CHOICES = [5, 10, 15, 30, 60, 120, 1440] as const;
 export const DEFAULT_REMINDERS = [60] as const;
 
 export const api = {
+  async touchLastActive(): Promise<void> {
+    const { error } = await getSupabase().rpc('touch_last_active');
+    if (error) throw error;
+  },
+
   // --- users / profiles ---
   async getMe(): Promise<User | null> {
     const uid = await requireUid();
@@ -1280,13 +1369,6 @@ export const api = {
         .then(({ data }) => data.session?.user.id ?? null)
         .catch(() => null);
       if (meId) q = q.neq('id', meId);
-      // Blocking must remove them from search too, not only from chat — otherwise you keep
-      // seeing and can still book someone you blocked.
-      if (meId) {
-        const { data: blocks } = await sb.from('user_blocks').select('blocked_id').eq('blocker_id', meId);
-        const ids = (blocks ?? []).map((b) => b.blocked_id as string);
-        if (ids.length) q = q.not('id', 'in', `(${ids.join(',')})`);
-      }
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []).map(mapTutorSummary);
@@ -1338,6 +1420,53 @@ export const api = {
       return data ? mapTutorSummary(data) : null;
     },
 
+    /** A currently approved, non-deleted tutor, excluding blocks in either direction. */
+    async getForBooking(userId: string): Promise<TutorSummary | null> {
+      const uid = await requireUid();
+      if (uid === userId) return null;
+      const [profile, eligible] = await Promise.all([
+        getSupabase().from('tutor_public_profiles').select(TUTOR_SELECT)
+          .eq('id', userId).eq('approval_status', 'approved').maybeSingle(),
+        getSupabase().rpc('rebookable_tutor_ids', { p_tutor_ids: [userId] }),
+      ]);
+      if (profile.error) throw profile.error;
+      if (eligible.error) throw eligible.error;
+      return profile.data && eligible.data?.length ? mapTutorSummary(profile.data) : null;
+    },
+
+    /** Tutors from the caller's own completed student sessions, most recent first. */
+    async listYourTutors(): Promise<YourTutor[]> {
+      const uid = await requireUid();
+      const latest = new Map<string, Booking>();
+      const pageSize = 500;
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await getSupabase().from('bookings').select('*,booking_series!bookings_series_id_fkey(status,weeks)')
+          .eq('student_id', uid).eq('status', 'completed')
+          .order('scheduled_at', { ascending: false }).order('id', { ascending: false })
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        for (const row of data ?? []) {
+          if (!latest.has(row.tutor_id)) latest.set(row.tutor_id, mapBooking(row));
+        }
+        if ((data ?? []).length < pageSize) break;
+      }
+      if (!latest.size) return [];
+      const eligible = await getSupabase().rpc('rebookable_tutor_ids', { p_tutor_ids: [...latest.keys()] });
+      if (eligible.error) throw eligible.error;
+      const ids = (eligible.data ?? []).map((row: { tutor_id: string }) => row.tutor_id);
+      const tutors = new Map<string, TutorSummary>();
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        const { data, error } = await getSupabase().from('tutor_public_profiles').select(TUTOR_SELECT)
+          .eq('approval_status', 'approved').in('id', ids.slice(offset, offset + 100));
+        if (error) throw error;
+        for (const row of data ?? []) tutors.set(row.id, mapTutorSummary(row));
+      }
+      return [...latest.values()].flatMap((lastBooking) => {
+        const tutor = tutors.get(lastBooking.tutorId);
+        return tutor ? [{ tutor, lastBooking }] : [];
+      });
+    },
+
     /** The signed-in student's saved tutors (b2). */
     async listSaved(): Promise<TutorSummary[]> {
       const uid = await requireUid();
@@ -1386,7 +1515,7 @@ export const api = {
     const now = Date.now();
     let query = getSupabase()
       .from('bookings')
-      .select('*')
+      .select('*,booking_series!bookings_series_id_fkey(status,weeks)')
       .in('status', ['pending', 'confirmed'])
       .gte('scheduled_at', new Date(now - SESSION_LOOKBACK_MS).toISOString());
     query = side
@@ -1408,7 +1537,7 @@ export const api = {
     const nowMs = Date.now();
     let query = getSupabase()
       .from('bookings')
-      .select('*')
+      .select('*,booking_series!bookings_series_id_fkey(status,weeks)')
       .in('status', ['confirmed', 'completed', 'cancelled', 'no_show']);
     query = side
       ? query.eq(side === 'student' ? 'student_id' : 'tutor_id', uid)
@@ -1495,6 +1624,12 @@ export const api = {
       noShowCount: noShows.length,
       cancelRate: denom ? (cancelled.length + noShows.length) / denom : 0,
     };
+  },
+
+  async tutorDemand(): Promise<TutorDemand> {
+    const { data, error } = await getSupabase().rpc('my_tutor_demand');
+    if (error) throw error;
+    return mapTutorDemand(data);
   },
 
   /** Live study stats for the signed-in student, derived from their real bookings. */
@@ -1649,16 +1784,45 @@ export const api = {
     async cashouts(): Promise<Cashout[]> {
       const { data, error } = await getSupabase()
         .from('credit_cashouts')
-        .select('id, amount_cents, status, created_at, paid_at, rejected_at')
+        .select('id, amount_cents, status, created_at, paid_at, rejected_at, paying_at, pay_unknown_at, stripe_transfer_id')
         .order('created_at', { ascending: false })
         .limit(20);
       if (error) throw error;
       return ((data ?? []) as Record<string, unknown>[]).map(mapCashout);
     },
+
+    async cashoutTotals(): Promise<{ paidCents: number; pendingCents: number }> {
+      const uid = await requireUid();
+      const { data, error } = await getSupabase()
+        .from('credit_cashouts')
+        .select('status, amount_cents')
+        .eq('user_id', uid)
+        .in('status', ['paid', 'pending']);
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).reduce<{ paidCents: number; pendingCents: number }>(
+        (totals, row) => {
+          const cents = Number(row.amount_cents ?? 0);
+          if (row.status === 'paid') totals.paidCents += cents;
+          if (row.status === 'pending') totals.pendingCents += cents;
+          return totals;
+        },
+        { paidCents: 0, pendingCents: 0 },
+      );
+    },
   },
 
   // --- admin (RLS is_admin() already permits these reads; writes go through Edge Functions) ---
   admin: {
+    async growthFunnel(since: string | null, until: string | null): Promise<GrowthFunnel> {
+      const { data, error } = await getSupabase().rpc('admin_growth_funnel', { p_since: since, p_until: until });
+      if (error) throw error;
+      return data as GrowthFunnel;
+    },
+    async courseRequests(): Promise<AdminCourseRequest[]> {
+      const { data, error } = await getSupabase().rpc('admin_course_requests');
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map(mapAdminCourseRequest);
+    },
     /** Counts for the admin hub, using the same report queue as the reports screen. */
     async hubCounts(): Promise<AdminHubCounts> {
       const sb = getSupabase();
@@ -1672,6 +1836,7 @@ export const api = {
         disputes,
         reports,
         ambassadors,
+        inactiveUsers,
       ] = await Promise.all([
         sb
           .from('tutor_profiles')
@@ -1707,6 +1872,7 @@ export const api = {
           .eq('dispute_status', 'flagged'),
         api.admin.listReports(),
         api.admin.ambassadorCounts(),
+        api.admin.listUsers({ status: 'inactive', limit: 1 }),
       ]);
       if (applications.error) throw applications.error;
       if (gradeChecks.error) throw gradeChecks.error;
@@ -1724,6 +1890,7 @@ export const api = {
         disputes: disputes.count ?? 0,
         ambassadorApplications: ambassadors.applications,
         cashouts: ambassadors.cashouts,
+        inactive30d: inactiveUsers.total,
       };
     },
 
@@ -1927,6 +2094,7 @@ export const api = {
           status: u.status,
           deletedAt: u.deleted_at ?? null,
           createdAt: u.created_at,
+          lastActiveAt: u.last_active_at ?? null,
           tutorCancels30d: Number(u.tutor_cancels_30d ?? 0),
           noShows: Number(u.no_shows ?? 0),
         })),
@@ -1935,14 +2103,28 @@ export const api = {
 
     /** A user's account, booking, report, and admin-action history. */
     async userHistory(userId: string): Promise<AdminUserHistory> {
-      const { data, error } = await getSupabase().rpc('admin_user_history', { p_user: userId });
-      if (error) throw error;
-      return mapAdminUserHistory(data);
+      const sb = getSupabase();
+      const [history, lastActive] = await Promise.all([
+        sb.rpc('admin_user_history', { p_user: userId }),
+        sb.from('users').select('last_active_at').eq('id', userId).maybeSingle(),
+      ]);
+      if (history.error) throw history.error;
+      if (lastActive.error) throw lastActive.error;
+      const mapped = mapAdminUserHistory(history.data);
+      return mapped.user
+        ? { ...mapped, user: { ...mapped.user, lastActiveAt: lastActive.data?.last_active_at ?? null } }
+        : mapped;
     },
 
     /** Suspend / ban / reactivate an account (admin-set-user-status Edge Function). */
     setUserStatus(userId: string, status: 'active' | 'suspended' | 'banned'): Promise<{ ok: true; status: string }> {
       return invokeFn('admin-set-user-status', { userId, status });
+    },
+
+    /** Block the signup email recorded for a deleted account. */
+    async blockDeletedEmail(userId: string): Promise<void> {
+      const { error } = await getSupabase().rpc('admin_block_deleted_email', { p_user: userId });
+      if (error) throw error;
     },
 
     /** Reviews awaiting moderation, with reviewer/subject names + course. */
@@ -1988,7 +2170,7 @@ export const api = {
     async listReports(): Promise<ContentReport[]> {
       const { data, error } = await getSupabase()
         .from('content_reports')
-        .select('*, reporter:users!reporter_id(first_name,last_name), target:users!target_user_id(first_name,last_name), message:messages!target_message_id(content, sender:users!sender_id(first_name,last_name))')
+        .select('*, reporter:users!reporter_id(first_name,last_name), target:users!target_user_id(first_name,last_name), message:messages!target_message_id(content, sender:users!sender_id(first_name,last_name)), review:reviews!target_review_id(comment, author:users!reviewer_id(first_name,last_name), tutor:users!subject_user_id(first_name,last_name))')
         .eq('status', 'open')
         // A flag whose message has since been deleted has nothing left to show or act on.
         .or('auto_flagged.eq.false,target_message_id.not.is.null,target_kind.eq.user')
@@ -2012,6 +2194,13 @@ export const api = {
         reporterName: `${r.reporter?.first_name ?? ''} ${r.reporter?.last_name ?? ''}`.trim() || 'Someone',
         targetName: r.target ? `${r.target.first_name ?? ''} ${r.target.last_name ?? ''}`.trim() : undefined,
         messageContent: r.message?.content ?? null,
+        reviewContent: r.review?.comment ?? null,
+        reviewAuthorName: r.review?.author
+          ? `${r.review.author.first_name ?? ''} ${r.review.author.last_name ?? ''}`.trim() || 'Deleted account'
+          : undefined,
+        reviewTutorName: r.review?.tutor
+          ? `${r.review.tutor.first_name ?? ''} ${r.review.tutor.last_name ?? ''}`.trim() || 'Deleted account'
+          : undefined,
         messageSenderName: r.message?.sender
           ? `${r.message.sender.first_name ?? ''} ${r.message.sender.last_name ?? ''}`.trim() || undefined
           : undefined,
@@ -2033,7 +2222,7 @@ export const api = {
       const sb = getSupabase();
       const { data, error } = await sb
         .from('bookings')
-        .select('id, student_id, tutor_id, subject, scheduled_at, status, price, student_fee, dispute_status, dispute_reason')
+        .select('id, student_id, tutor_id, subject, scheduled_at, status, price, student_fee, dispute_status, dispute_reason, no_show_claim_party, no_show_claimed_at, no_show_contested_at, no_show_contest_note, completion_claimed_at, completion_objected_at, completion_objection_note, attendance')
         .order('scheduled_at', { ascending: false })
         .limit(100);
       if (error) throw error;
@@ -2054,6 +2243,19 @@ export const api = {
         studentFee: num(b.student_fee),
         disputeStatus: b.dispute_status ?? 'none',
         disputeReason: b.dispute_reason ?? null,
+        noShowClaimParty: b.no_show_claim_party ?? null,
+        noShowClaimedAt: b.no_show_claimed_at ?? null,
+        noShowContestedAt: b.no_show_contested_at ?? null,
+        noShowContestNote: b.no_show_contest_note ?? null,
+        completionClaimedAt: b.completion_claimed_at ?? null,
+        completionObjectedAt: b.completion_objected_at ?? null,
+        completionObjectionNote: b.completion_objection_note ?? null,
+        attendance: b.attendance ? {
+          checkedAt: b.attendance.checked_at,
+          ...(b.attendance.student_seconds === undefined ? {} : { studentSeconds: Number(b.attendance.student_seconds) }),
+          ...(b.attendance.tutor_seconds === undefined ? {} : { tutorSeconds: Number(b.attendance.tutor_seconds) }),
+          ...(b.attendance.unavailable ? { unavailable: true } : {}),
+        } : null,
       }));
     },
 
@@ -2148,8 +2350,8 @@ export const api = {
     resolveDispute(
       bookingId: string,
       action: 'flag' | 'resolve',
-      opts?: { reason?: string; resolution?: string },
-    ): Promise<{ ok: true; disputeStatus: string }> {
+      opts?: { reason?: string; resolution?: string; outcome?: 'tutor_no_show' | 'student_no_show' | 'completed' },
+    ): Promise<{ ok: true; disputeStatus: string; outcome?: string }> {
       return invokeFn('resolve-dispute', { bookingId, action, ...opts });
     },
   },
@@ -2188,8 +2390,8 @@ export const api = {
 
   // --- bookings (trust-sensitive writes → Edge Functions, see ARCHITECTURE.md §5) ---
   bookings: {
-    joinVideo(bookingId: string): Promise<{ url: string }> {
-      return invokeFn('join-video-session', { bookingId });
+    joinVideo(bookingId: string, opts?: { device?: 'phone' | 'computer' }): Promise<{ url: string }> {
+      return invokeFn('join-video-session', { bookingId, ...(opts ?? {}) });
     },
 
     createPaymentUpdate(bookingId: string): Promise<{
@@ -2211,11 +2413,36 @@ export const api = {
       await requireUid();
       const { data, error } = await getSupabase()
         .from('bookings')
-        .select('*')
+        .select('*,booking_series!bookings_series_id_fkey(status,weeks)')
         .eq('id', id)
         .maybeSingle();
       if (error) throw error;
       return data ? mapBooking(data) : null;
+    },
+
+    async getSeries(id: string): Promise<{
+      id: string;
+      studentId: string;
+      tutorId: string;
+      status: string;
+      weeks: number;
+    } | null> {
+      await requireUid();
+      const { data, error } = await getSupabase().from('booking_series')
+        .select('id,student_id,tutor_id,status,weeks').eq('id', id).maybeSingle();
+      if (error) throw error;
+      return data ? {
+        id: data.id,
+        studentId: data.student_id,
+        tutorId: data.tutor_id,
+        status: data.status,
+        weeks: Number(data.weeks),
+      } : null;
+    },
+
+    async stopSeries(seriesId: string): Promise<void> {
+      const { error } = await getSupabase().rpc('stop_booking_series', { p_series: seriesId });
+      if (error) throw error;
     },
 
     /** Count this tutor's confirmed-session cancellations in the last 30 days. */
@@ -2235,7 +2462,7 @@ export const api = {
     /** Create a pending booking request with a confirmed payment or saved card. */
     confirm(
       input: ConfirmBookingInput,
-    ): Promise<{ bookingId: string; price: number; studentFee: number; acceptBy: string; free?: boolean }> {
+    ): Promise<{ bookingId: string; price: number; studentFee: number; acceptBy: string; free?: boolean; seriesId?: string }> {
       return invokeFn('confirm-booking', input as unknown as Record<string, unknown>);
     },
 
@@ -2256,24 +2483,28 @@ export const api = {
     },
 
     /** Propose/accept/decline a reschedule of a booking (reschedule-booking). */
-    reschedule(input: RescheduleBookingInput): Promise<{ ok: true }> {
+    reschedule(input: RescheduleBookingInput): Promise<{ ok: true; lockedRefundPercent?: 0 | 50 | null }> {
       return invokeFn('reschedule-booking', input as unknown as Record<string, unknown>);
     },
 
-    /** Report that a party didn't show; returns refund outcome (report-no-show). */
+    /** Open a no-show claim; settlement waits for the contest window (report-no-show). */
     reportNoShow(
       input: ReportNoShowInput,
-    ): Promise<{ status: string; refundPercent: number }> {
+    ): Promise<{ status: 'claimed' | 'under_review'; contestBy?: string }> {
       return invokeFn('report-no-show', input as unknown as Record<string, unknown>);
     },
 
+    contestClaim(input: ContestClaimInput): Promise<{ status: string }> {
+      return invokeFn('contest-session-claim', input as unknown as Record<string, unknown>);
+    },
+
     /**
-     * Tutor marks a confirmed session complete → captures the held payment and transfers
-     * the tutor's payout to their connected account (complete-session). Idempotent.
+     * Tutor marks a confirmed session complete → opens a 24-hour objection window.
+     * Settlement happens after auto-completion (complete-session).
      */
     complete(
       bookingId: string,
-    ): Promise<{ status: string; captured: boolean; transferId: string | null }> {
+    ): Promise<{ status: string; captured?: boolean; transferId?: string | null; objectBy?: string }> {
       return invokeFn('complete-session', { bookingId });
     },
   },
@@ -2281,8 +2512,12 @@ export const api = {
   // --- Stripe Connect (tutor payouts, see ARCHITECTURE.md §8) ---
   connect: {
     /** Create/reuse the tutor's Express account and return a hosted onboarding URL. */
-    onboardingLink(): Promise<{ url: string | null; accountId?: string; simulated?: boolean }> {
-      return invokeFn('connect-onboarding-link');
+    /**
+     * `returnTo: 'web'` makes Stripe end on a "close this tab" page instead of redirecting
+     * to the app's noot:// address (the web app opens onboarding in a browser tab).
+     */
+    onboardingLink(opts?: { returnTo?: 'web' }): Promise<{ url: string | null; accountId?: string; simulated?: boolean }> {
+      return opts ? invokeFn('connect-onboarding-link', opts) : invokeFn('connect-onboarding-link');
     },
     /**
      * Same account, but a client secret for Stripe's in-app onboarding form instead of a
@@ -2441,7 +2676,7 @@ export const api = {
       return {
         storagePath,
         kind: type.startsWith('image/') ? 'image' : 'file',
-        filename: filename || safeName,
+        filename: truncateFilename(filename || safeName, 200),
         sizeBytes: size,
         mimeType: type,
       };
@@ -2603,6 +2838,15 @@ export const api = {
       if (error) throw error;
     },
 
+    async reportReview(reviewId: string, reason: ReportReason, detail?: string): Promise<void> {
+      const uid = await requireUid();
+      const { error } = await getSupabase().from('content_reports').insert({
+        reporter_id: uid, target_kind: 'review', target_review_id: reviewId,
+        reason, detail: detail?.trim() || null,
+      });
+      if (error) throw error;
+    },
+
     /** Report a user (their conduct rather than one message). */
     async reportUser(userId: string, reason: ReportReason, detail?: string): Promise<void> {
       const uid = await requireUid();
@@ -2645,10 +2889,10 @@ export const api = {
 
     /** The people you've blocked, with names, for the unblock screen. */
     async listBlocked(): Promise<ChatParticipant[]> {
-      const ids = await this.blockedIds();
-      if (!ids.length) return [];
-      const map = await api.chat.listParticipants(ids);
-      return ids.map((id) => map[id]).filter(Boolean) as ChatParticipant[];
+      const { data, error } = await getSupabase().rpc('my_blocked_users');
+      if (error) throw error;
+      return (data ?? []).map((row: { id: string; first_name: string | null; last_initial: string | null; avatar_url: string | null }) =>
+        mapParticipant({ ...row, last_name: row.last_initial }));
     },
 
     /** True if either party has blocked the other — the composer disables on this. */
@@ -2691,22 +2935,12 @@ export const api = {
      */
     async search(query: string, limit = 25): Promise<CatalogCourse[]> {
       const q = normalizeCourseQuery(query);
-      const active = () => getSupabase().from('courses').select(CATALOG_SELECT).eq('is_active', true);
-      if (!q) {
-        const { data, error } = await active().order('course_code').limit(limit);
-        if (error) throw error;
-        return (data ?? []).map(mapCatalogCourse);
-      }
-      const byCode = await active().ilike('course_code', `${q}%`).order('course_code').limit(limit);
-      if (byCode.error) throw byCode.error;
-      const first = (byCode.data ?? []).map(mapCatalogCourse);
-      if (first.length >= limit) return first;
-      const anywhere = await active()
-        .or(`course_code.ilike.%${q}%,course_title.ilike.%${q}%,subject_name.ilike.%${q}%`)
-        .order('course_code')
-        .limit(limit);
-      if (anywhere.error) throw anywhere.error;
-      return rankCourseMatches(first, (anywhere.data ?? []).map(mapCatalogCourse), limit);
+      const { data, error } = await getSupabase().rpc('search_courses', {
+        p_query: q,
+        p_limit: limit,
+      });
+      if (error) throw error;
+      return (data ?? []).map(mapCatalogCourse);
     },
 
     /**
@@ -2738,6 +2972,26 @@ export const api = {
       const out: Record<string, CatalogCourse> = {};
       for (const row of data ?? []) out[row.course_code] = mapCatalogCourse(row);
       return out;
+    },
+  },
+
+  courseRequests: {
+    async request(courseCode: string): Promise<CourseRequest> {
+      const { data, error } = await getSupabase().rpc('request_course_tutor', { p_course_code: courseCode });
+      if (error) throw error;
+      return mapCourseRequest(data as Record<string, unknown>);
+    },
+
+    async listMine(): Promise<CourseRequest[]> {
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await getSupabase()
+        .from('course_requests')
+        .select('id, course_code, status, created_at')
+        .eq('status', 'open')
+        .gt('created_at', cutoff)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return ((data ?? []) as Record<string, unknown>[]).map(mapCourseRequest);
     },
   },
 

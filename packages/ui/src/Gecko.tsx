@@ -1,6 +1,6 @@
-// The Noot gecko mark — the single source of truth for the brand graphic across the
-// whole app (headers, cards, the Home tab, the wordmark). Swapping in a new approved
-// asset is a one-file change: replace packages/ui/assets/gecko-sage.png.
+// The Noot gecko mark — the single source of truth for the gecko graphic across the
+// whole app (headers, cards and the Home tab). Swapping in a new approved asset is a
+// one-file change: replace packages/ui/assets/gecko-sage.png.
 import React from 'react';
 import { Image, type ImageStyle, type StyleProp } from 'react-native';
 

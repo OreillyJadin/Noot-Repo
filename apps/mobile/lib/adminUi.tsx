@@ -7,7 +7,6 @@ import { splitClock } from './monthGrid';
 
 export { LargeHeader as AdminLargeHeader, ListSection as AdminSection, ListRow as AdminRow, StatusDot, CountPill, STACK_FONT_SCALE } from '@noot/ui';
 
-export const INTERVIEW_INDIGO = '#5B6CC2';
 export const WARNING_AMBER = '#C2783A';
 
 export function eventMuted(event: AdminCalendarEvent): boolean {
@@ -16,7 +15,7 @@ export function eventMuted(event: AdminCalendarEvent): boolean {
 
 export function eventColor(event: AdminCalendarEvent, t: ReturnType<typeof useTheme>): string {
   if (event.disputeStatus === 'flagged') return WARNING_AMBER;
-  if (event.kind === 'interview') return INTERVIEW_INDIGO;
+  if (event.kind === 'interview') return t.danger;
   return eventMuted(event) ? t.text3 : t.accent;
 }
 

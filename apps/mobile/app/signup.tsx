@@ -5,7 +5,7 @@
 // public.users on first insert. An optional friend's invite code is kept on the device and
 // claimed once they sign in from the link (lib/pendingInvite, 0040).
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -25,6 +25,8 @@ function splitName(full: string): { first: string; last: string } {
   return { first: parts[0] ?? '', last: parts.slice(1).join(' ') };
 }
 
+
+const OPEN_LINK_HERE = Platform.OS === 'web' ? 'Open the link in this browser' : 'Tap the link on this phone';
 export default function SignUp() {
   const t = useTheme();
   const router = useRouter();
@@ -102,7 +104,7 @@ export default function SignUp() {
       >
         {!sent ? (
           <>
-            <Text style={[styles.h1, { color: t.text }]}>Create your account</Text>
+            <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>Create your account</Text>
 
             <Text style={[styles.sub, { color: t.text2 }]}>noot is closed to verified students.</Text>
 
@@ -158,9 +160,9 @@ export default function SignUp() {
           </>
         ) : (
           <>
-            <Text style={[styles.h1, { color: t.text }]}>Check your inbox</Text>
+            <Text style={[styles.h1, { color: t.text, fontFamily: t.headingFont }]}>Check your inbox</Text>
             <Text style={[styles.sub, { color: t.text2 }]}>
-              We sent a verification link and a code to {email || 'your email'}. Tap the link on this phone, or
+              We sent a verification link and a code to {email || 'your email'}. {OPEN_LINK_HERE}, or
               enter the code below, to continue and set your password.
             </Text>
             {/* Same landing as the link: routeAfterAuth sends a new account on to create its
@@ -187,7 +189,7 @@ const styles = StyleSheet.create({
   back: { fontSize: 16, fontWeight: '600', minWidth: 48 },
   navTitle: { fontSize: 16, fontWeight: '700' },
   body: { padding: 20, gap: 16 },
-  h1: { fontSize: 26, fontWeight: '700' },
+  h1: { fontSize: 26 },
   sub: { fontSize: 15, lineHeight: 21 },
   hint: { fontSize: 13, textAlign: 'center' },
   dateOfBirth: { gap: 8 },

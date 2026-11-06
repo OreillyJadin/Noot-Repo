@@ -14,7 +14,7 @@ export { Divider, ProgressDots, Stepper, type ProgressDotsProps, type StepperPro
 export { Screen, NavTop, Body, ActionBar, AdaptiveRow, BandHeader, type NavTopProps, type BodyProps, type AdaptiveRowProps, type BandHeaderProps } from './Layout';
 export { LargeHeader, ListSection, ListRow, StatusDot, CountPill, STACK_FONT_SCALE, type LargeHeaderProps, type ListSectionProps, type ListRowProps } from './List';
 export { useLargeText, LARGE_TEXT_SCALE, TEXT_CAPS } from './textScale';
-export { TabBar, type TabBarProps } from './TabBar';
+export { TabBar, WideShell, useWideLayout, type TabBarProps } from './TabBar';
 export { TabPressScale } from './TabPressScale';
 export {
   RoleSwitcher,
@@ -27,6 +27,13 @@ export {
 } from './RoleSwitcher';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { Skeleton, type SkeletonProps } from './Skeleton';
-export { Wordmark, HeroIcon, type WordmarkProps, type HeroIconProps } from './Brand';
+export {
+  Wordmark,
+  WordmarkImage,
+  HeroIcon,
+  type WordmarkProps,
+  type WordmarkImageProps,
+  type HeroIconProps,
+} from './Brand';
 export { GeckoMark, type GeckoMarkProps } from './Gecko';
 export { resolveTheme, DIRECTIONS, type Direction, type Theme } from '@noot/theme';

@@ -7,7 +7,7 @@
 // under the sort row. Previously the results array was hard-empty until you typed a query, so
 // adjusting a filter appeared to do nothing at all — that was the "filters don't update the
 // results" report, not a broken filter predicate.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -19,6 +19,7 @@ import { GraduatedCap } from '../lib/GraduatedCap';
 import { nextFromWindows } from '../lib/availability';
 import { VERIFIED_EXPLAINER } from '../lib/VerifiedBadge';
 import { courseForQuery, searchTutors } from '../lib/browse';
+import { errText } from '../lib/errText';
 
 type SortKey = 'best' | 'sessions' | 'price' | 'soon';
 type AvailKey = 'any' | 'today' | 'week';
@@ -66,11 +67,17 @@ export default function B1() {
   // tutors actually shown (used for the "Next available" line + sorting).
   const [availById, setAvailById] = useState<Record<string, { dayIndex: number; label: string }>>({});
   const [loading, setLoading] = useState(true);
+  const [searchReady, setSearchReady] = useState(false);
+  const [requestMatches, setRequestMatches] = useState<Awaited<ReturnType<typeof api.courses.search>>>([]);
+  const [requestMatchesQuery, setRequestMatchesQuery] = useState('');
+  const [requestedCourseCodes, setRequestedCourseCodes] = useState<Record<string, boolean>>({});
+  const [requestingCourseCode, setRequestingCourseCode] = useState<string | null>(null);
+  const requestSearchSeq = useRef(0);
   useEffect(() => {
     let active = true;
     api.tutors
       .search({})
-      .then((rows) => { if (active) setTutors(rows.map(toTutor)); })
+      .then((rows) => { if (active) { setTutors(rows.map(toTutor)); setSearchReady(true); } })
       .catch(() => { if (active) setTutors([]); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -138,10 +145,63 @@ export default function B1() {
       (avail === 'any' || (avail === 'today' && tt.availDayIndex === 0) || (avail === 'week' && tt.availDayIndex <= 6)),
   );
   const list = [...filtered].sort(SORTERS[sort]);
+  useEffect(() => {
+    if (loading || !trimmed || list.length > 0) return;
+    let active = true;
+    const mine = ++requestSearchSeq.current;
+    const timer = setTimeout(() => {
+      Promise.all([api.courses.search(trimmed, 25), api.courseRequests.listMine()])
+        .then(([courses, requests]) => {
+          if (!active || requestSearchSeq.current !== mine) return;
+          setRequestMatches(courses.filter((course) => !course.hasTutor).slice(0, 3));
+          setRequestedCourseCodes(Object.fromEntries(requests.map((request) => [request.courseCode, true])));
+          setRequestMatchesQuery(trimmed);
+        })
+        .catch(() => {
+          if (active && requestSearchSeq.current === mine) {
+            setRequestMatches([]);
+            setRequestMatchesQuery(trimmed);
+          }
+        });
+    }, 280);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [loading, trimmed, list.length]);
+  const visibleRequestMatches = requestMatchesQuery === trimmed ? requestMatches : [];
+  const lastSearch = useRef('');
+  const resultCount = list.length;
+  const availabilityReady = avail === 'any' || matched.every((tt) => availById[tt.id] !== undefined);
+  useEffect(() => {
+    if (!searchReady || !availabilityReady) return;
+    const key = JSON.stringify([trimmed, maxPrice, avail, resultCount]);
+    const timer = setTimeout(() => {
+      if (lastSearch.current === key) return;
+      lastSearch.current = key;
+      const match = trimmed.match(/^([a-z]{2,5})\s*(\d{3}[a-z]?)$/i);
+      const props = { query: trimmed.slice(0, 300), ...(match ? { courseCode: `${match[1]} ${match[2]}`.toUpperCase() } : {}) };
+      void api.analytics.track('search_performed', { ...props, resultCount });
+      if (resultCount === 0) void api.analytics.track('search_empty', props);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [searchReady, availabilityReady, trimmed, maxPrice, avail, resultCount]);
 
   const open = (tutor: Tutor) => {
     patchBooking({ tutor, course: courseForQuery(tutor, trimmed) });
-    router.push('/b2');
+    router.push('/b2?source=search');
+  };
+
+  const requestCourse = async (courseCode: string) => {
+    setRequestingCourseCode(courseCode);
+    try {
+      await api.courseRequests.request(courseCode);
+      setRequestedCourseCodes((current) => ({ ...current, [courseCode]: true }));
+    } catch (error) {
+      Alert.alert('Could not request a tutor', errText(error, 'Please try again.'));
+    } finally {
+      setRequestingCourseCode(null);
+    }
   };
 
   return (
@@ -297,18 +357,46 @@ export default function B1() {
               })}
             </ListSection>
           ) : (
-            <View style={styles.empty}>
-              <Ic name="search" size={28} color={t.text3} strokeWidth={1.6} />
-              <Text style={{ marginTop: 10, fontSize: 15, color: t.text3, textAlign: 'center' }}>
-                {loading
-                  ? 'Loading tutors…'
-                  : trimmed
-                    ? `No tutors found for “${trimmed}”.`
-                    : activeFilters
-                      ? 'No tutors match these filters. Try removing one.'
-                      : 'No tutors are available yet.'}
-              </Text>
-            </View>
+            !loading && trimmed && visibleRequestMatches.length > 0 ? (
+              <ListSection>
+                {visibleRequestMatches.map((course) => {
+                  const requested = requestedCourseCodes[course.courseCode] === true;
+                  return (
+                    <View key={course.courseCode} style={[styles.requestRow, { borderBottomColor: t.border }]}>
+                      <Text style={[styles.requestTitle, { color: t.text }]}>
+                        {course.courseCode} · {course.courseTitle}
+                      </Text>
+                      {requested ? (
+                        <Text style={{ color: t.good, fontSize: 13, lineHeight: 19 }}>
+                          Requested — we'll let you know when a tutor for {course.courseCode} joins.
+                        </Text>
+                      ) : (
+                        <Button
+                          label="Request a tutor for this course"
+                          size="sm"
+                          kind="secondary"
+                          disabled={requestingCourseCode === course.courseCode}
+                          onPress={() => { void requestCourse(course.courseCode); }}
+                        />
+                      )}
+                    </View>
+                  );
+                })}
+              </ListSection>
+            ) : (
+              <View style={styles.empty}>
+                <Ic name="search" size={28} color={t.text3} strokeWidth={1.6} />
+                <Text style={{ marginTop: 10, fontSize: 15, color: t.text3, textAlign: 'center' }}>
+                  {loading
+                    ? 'Loading tutors…'
+                    : trimmed
+                      ? `No tutors found for “${trimmed}”.`
+                      : activeFilters
+                        ? 'No tutors match these filters. Try removing one.'
+                        : 'No tutors are available yet.'}
+                </Text>
+              </View>
+            )
           )}
         </View>
       </Body>
@@ -457,6 +545,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   tutorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  requestRow: { gap: 10, paddingHorizontal: 14, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  requestTitle: { fontSize: 14, fontWeight: '600' },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   nextRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   empty: { alignItems: 'center', padding: 40 },

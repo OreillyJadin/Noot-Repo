@@ -8,6 +8,7 @@
 // Both functions call resolveBooking() and use ONLY what it returns. Nothing about money
 // or tutor eligibility is read from the request body.
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { MIN_BOOKING_LEAD_HOURS } from './acceptance.ts';
 import { splitPrice, studentFeeFor } from './fees.ts';
 import { getPayoutStatus, type PayoutStatus } from './connect.ts';
 
@@ -21,12 +22,16 @@ import { getPayoutStatus, type PayoutStatus } from './connect.ts';
 export const BOOKING_HORIZON_DAYS = 14;
 export const IMMEDIATE_HOLD_DAYS = 6;
 
+// Keep in step with LENGTHS in apps/mobile/app/b3.tsx.
+export const SESSION_LENGTHS = [30, 60, 90, 120] as const;
+
 export type ResolveBookingInput = {
   studentId: string;
   tutorId: unknown;
   courseCode: unknown;
   durationMinutes: unknown;
   scheduledAt: unknown;
+  minLeadMs?: number;
 };
 
 /**
@@ -64,9 +69,9 @@ export type ResolvedBooking = {
 /** Thrown for anything the client is allowed to be told about. */
 export class BookingError extends Error {
   status: number;
-  /** Marks the slot-taken failures so a caller can release the card hold they left behind. */
-  reason?: 'slot_taken' | 'outside_availability';
-  constructor(message: string, status = 400, reason?: 'slot_taken' | 'outside_availability') {
+  /** Marks failures where a caller may release an unclaimed card hold. */
+  reason?: 'slot_taken' | 'too_soon' | 'outside_availability';
+  constructor(message: string, status = 400, reason?: 'slot_taken' | 'too_soon' | 'outside_availability') {
     super(message);
     this.name = 'BookingError';
     this.status = status;
@@ -177,8 +182,8 @@ export async function resolveBooking(
   if (!tutorId || !courseCode || !scheduledAtRaw) {
     throw new BookingError('tutorId, courseCode and scheduledAt are required');
   }
-  if (!Number.isFinite(durationMinutes) || durationMinutes <= 0 || durationMinutes > 480) {
-    throw new BookingError('durationMinutes must be between 1 and 480');
+  if (!Number.isFinite(durationMinutes) || !SESSION_LENGTHS.some((length) => length === durationMinutes)) {
+    throw new BookingError('Sessions can be 30 minutes, 1, 1.5 or 2 hours');
   }
   if (tutorId === input.studentId) {
     throw new BookingError('You cannot book yourself');
@@ -192,6 +197,10 @@ export async function resolveBooking(
   if (Number.isNaN(scheduled.getTime())) throw new BookingError('scheduledAt is not a valid date');
   const now = Date.now();
   if (scheduled.getTime() <= now) throw new BookingError('That time is in the past');
+  const minLeadMs = input.minLeadMs ?? MIN_BOOKING_LEAD_HOURS * 60 * 60 * 1000;
+  if (scheduled.getTime() < now + minLeadMs) {
+    throw new BookingError('Sessions need to be booked at least 2 hours ahead', 400, 'too_soon');
+  }
   if (scheduled.getTime() > now + BOOKING_HORIZON_DAYS * 24 * 60 * 60 * 1000) {
     throw new BookingError(`Sessions can only be booked up to ${BOOKING_HORIZON_DAYS} days ahead`);
   }
@@ -201,11 +210,13 @@ export async function resolveBooking(
   const { data: tutor, error: tutorErr } = await db
     .from('users')
     // !user_id disambiguates: tutor_profiles also references users via reviewed_by.
-    .select('id, deleted_at, tutor_profiles!user_id!inner(approval_status, stripe_charges_enabled, grades_verified_at)')
+    .select('id, status, deleted_at, tutor_profiles!user_id!inner(approval_status, stripe_charges_enabled, grades_verified_at)')
     .eq('id', tutorId)
     .maybeSingle();
   if (tutorErr) dbFail('tutor lookup', tutorErr);
-  if (!tutor || tutor.deleted_at !== null) throw new BookingError('That tutor is no longer available', 404);
+  if (!tutor || tutor.status !== 'active' || tutor.deleted_at !== null) {
+    throw new BookingError('That tutor is no longer available', 404);
+  }
 
   const profile = Array.isArray(tutor.tutor_profiles) ? tutor.tutor_profiles[0] : tutor.tutor_profiles;
   if (!profile || profile.approval_status !== 'approved') {

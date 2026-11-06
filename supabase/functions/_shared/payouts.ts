@@ -103,19 +103,38 @@ export async function payTutor(args: PayoutArgs): Promise<PayoutResult> {
     const refunded = charge ? await capturedRefundCents(stripe, charge) : 0;
     let target = refundAdjustedPayout(payoutCents, args.originalPayoutCents, charge, refunded);
     let baseline = refunded;
+    const existing: Stripe.Transfer[] = [];
     for await (const transfer of stripe.transfers.list({ transfer_group: bookingId, limit: 100 })) {
       if ((transfer.metadata?.reason ?? '') !== (metadata.reason ?? '')) continue;
-      if (transfer.metadata?.payout_target_cents !== undefined) {
+      existing.push(transfer);
+      if (existing.length === 1 && transfer.metadata?.payout_target_cents !== undefined) {
         target = Number(transfer.metadata.payout_target_cents);
         baseline = Number(transfer.metadata.refund_baseline_cents ?? 0);
-        break;
       }
     }
     metadata = { ...metadata, payout_target_cents: String(target), refund_baseline_cents: String(baseline) };
     owed = target;
     const { fromCharge, fromBalance } = splitPayoutFunding(target, chargeAvailableCents(charge, baseline));
+    let chargeTransfer: Stripe.Transfer | undefined;
+    let balanceTransfer: Stripe.Transfer | undefined;
+    // Stripe forgets idempotency keys after 24h. Reconcile durable transfers as well,
+    // including reversed ones: a refund/dispute reversal must never be paid again.
+    for (const transfer of existing) {
+      const fromSession = transfer.metadata?.funding === 'session_charge' || !!transfer.source_transaction;
+      const expected = fromSession ? fromCharge : fromBalance;
+      const source = typeof transfer.source_transaction === 'string'
+        ? transfer.source_transaction : transfer.source_transaction?.id;
+      const dest = typeof transfer.destination === 'string' ? transfer.destination : transfer.destination?.id;
+      if (expected <= 0 || transfer.amount !== expected || transfer.currency !== 'usd' || dest !== destination
+          || (fromSession && source !== charge?.id)
+          || (fromSession ? chargeTransfer : balanceTransfer)) {
+        throw new Error('Existing tutor transfer requires reconciliation');
+      }
+      if (fromSession) chargeTransfer = transfer;
+      else balanceTransfer = transfer;
+    }
     if (fromCharge > 0) {
-      const t = await stripe.transfers.create(
+      const t = chargeTransfer ?? await stripe.transfers.create(
         {
           ...base,
           amount: fromCharge,
@@ -128,7 +147,7 @@ export async function payTutor(args: PayoutArgs): Promise<PayoutResult> {
       owed -= fromCharge;
     }
     if (fromBalance > 0) {
-      const t = await stripe.transfers.create(
+      const t = balanceTransfer ?? await stripe.transfers.create(
         {
           ...base,
           amount: fromBalance,

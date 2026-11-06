@@ -8,10 +8,11 @@
 // pay once the team has approved them; credit earned in the last 7 days can't be cashed out.
 // Cash-outs are paid by Stripe transfer (0088), so an ambassador first sets up the same
 // payout account tutors have (lib/payoutSetup), and sees each request's status below.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, Share, Alert, StyleSheet, useWindowDimensions, type TextStyle } from 'react-native';
 import { Card, Badge, Avatar, Ic, Eyebrow, Skeleton, EmptyState, useTheme, useLargeText, TEXT_CAPS, type IconName } from '@noot/ui';
 import { api, type Cashout, type Invite, type Milestone } from '@noot/core';
+import * as Clipboard from 'expo-clipboard';
 import { useMe } from './useMe';
 import { SITE_URL } from './legal';
 import { errText } from './errText';
@@ -20,6 +21,15 @@ import { openPayoutSetup } from './payoutSetup';
 const CASHOUT_MIN_CENTS = 1000; // request_credit_cashout's minimum
 
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const cashoutStatusLabel = (cashout: Cashout) => cashout.status === 'paid'
+  ? 'Sent to your payout account'
+  : cashout.status === 'rejected'
+    ? 'Returned to your credit'
+    : cashout.payUnknownAt
+      ? 'Payment being confirmed'
+      : cashout.payingAt
+        ? 'Sending to your payout account'
+        : 'Waiting for the noot team';
 
 export const dollars = (cents: number) => `$${(cents / 100).toFixed(2).replace(/\.00$/, '')}`;
 
@@ -34,11 +44,13 @@ export function InviteView({
   const large = useLargeText();
   const { fontScale } = useWindowDimensions();
   const groupedPresentation = presentation === 'referralsTab';
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sectionLabel = (label: string, style?: TextStyle) =>
     groupedPresentation
       ? <Text style={[styles.sectionTitle, { color: t.text2 }, style]}>{label}</Text>
       : <Eyebrow style={{ color: t.text3, ...style }}>{label}</Eyebrow>;
   const [codeWidth, setCodeWidth] = useState(0);
+  const [copied, setCopied] = useState(false);
   const { isAmbassador } = useMe();
   const [code, setCode] = useState<string | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
@@ -51,8 +63,13 @@ export function InviteView({
   const [bump, setBump] = useState(0);
   const [payouts, setPayouts] = useState<{ connected: boolean; chargesEnabled: boolean } | null>(null);
   const [cashouts, setCashouts] = useState<Cashout[]>([]);
+  const [cashoutTotals, setCashoutTotals] = useState({ paidCents: 0, pendingCents: 0 });
   const [settingUp, setSettingUp] = useState(false);
   const payoutReady = !!payouts?.chargesEnabled; // transfers active = we can send them money
+
+  useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -64,6 +81,7 @@ export function InviteView({
       api.credits.ambassadorApproved().then((a) => { if (alive) setApproved(a); }).catch(() => {});
       api.credits.cashable().then((c) => { if (alive) setCashable(c); }).catch(() => {});
       api.credits.cashouts().then((l) => { if (alive) setCashouts(l); }).catch(() => {});
+      api.credits.cashoutTotals().then((totals) => { if (alive) setCashoutTotals(totals); }).catch(() => {});
       api.connect.status().then((s) => { if (alive) setPayouts(s); }).catch(() => { if (alive) setPayouts({ connected: false, chargesEnabled: false }); });
       api.credits
         .history()
@@ -78,11 +96,29 @@ export function InviteView({
   const share = async () => {
     if (!code) return;
     try {
-      await Share.share({
+      const result = await Share.share({
         message: `Join me on noot — book a tutor who already aced your course. Use my invite code ${code} when you sign up: ${SITE_URL}`,
       });
+      if (result.action === Share.sharedAction) {
+        void api.analytics.track('invite_shared', result.activityType ? { channel: result.activityType } : {});
+      }
     } catch {
       /* user dismissed the sheet */
+    }
+  };
+
+  const copyCode = async () => {
+    if (!code) return;
+    try {
+      await Clipboard.setStringAsync(code);
+      setCopied(true);
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => {
+        setCopied(false);
+        copiedTimer.current = null;
+      }, 2000);
+    } catch {
+      Alert.alert('Could not copy your invite code', 'Please try again.');
     }
   };
 
@@ -192,36 +228,51 @@ export function InviteView({
       {/* code + share */}
       <Card style={{ padding: 20, alignItems: 'center', marginTop: 12 }}>
         {sectionLabel('Your invite code')}
-        {code === '' ? (
-          <Text style={[styles.code, { color: t.text3 }]}>—</Text>
-        ) : code ? (
-          // One line that shrinks to fit (tracker A1). Selectable, so a long-press copies it.
-          <Text
-            selectable
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.5}
-            accessibilityLabel={`Your invite code, ${code.split('').join(' ')}`}
-            // At the largest sizes Android's shrink-to-fit can draw nothing, so size it from the measured width.
-            allowFontScaling={!large}
-            onLayout={large ? (e) => setCodeWidth(e.nativeEvent.layout.width) : undefined}
-            style={[
-              styles.code,
-              groupedPresentation && styles.codeGrouped,
-              { color: t.accent },
-              large && {
-                fontSize: Math.min(
-                  30 * Math.min(fontScale, TEXT_CAPS.label),
-                  codeWidth ? codeWidth / (code.length * 0.72) : 30,
-                ),
-              },
-            ]}
+        <View style={styles.codeRow}>
+          {code === '' ? (
+            <Text style={[styles.code, styles.codeValue, { color: t.text3 }]}>—</Text>
+          ) : code ? (
+            // One line that shrinks to fit (tracker A1). Selectable, so a long-press copies it.
+            <Text
+              selectable
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+              accessibilityLabel={`Your invite code, ${code.split('').join(' ')}`}
+              // At the largest sizes Android's shrink-to-fit can draw nothing, so size it from the measured width.
+              allowFontScaling={!large}
+              onLayout={large ? (e) => setCodeWidth(e.nativeEvent.layout.width) : undefined}
+              style={[
+                styles.code,
+                styles.codeValue,
+                groupedPresentation && styles.codeGrouped,
+                { color: t.accent },
+                large && {
+                  fontSize: Math.min(
+                    30 * Math.min(fontScale, TEXT_CAPS.label),
+                    codeWidth ? codeWidth / (code.length * 0.72) : 30,
+                  ),
+                },
+              ]}
+            >
+              {code}
+            </Text>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <Skeleton width={180} height={34} />
+            </View>
+          )}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Copy your invite code"
+            accessibilityState={{ disabled: !code }}
+            onPress={() => { void copyCode(); }}
+            disabled={!code}
+            style={[styles.copyBtn, { backgroundColor: t.surface, borderColor: t.border }]}
           >
-            {code}
-          </Text>
-        ) : (
-          <Skeleton width={180} height={34} style={{ marginTop: 8 }} />
-        )}
+            <Text style={[styles.copyLabel, { color: code ? t.accent : t.text3 }]}>{copied ? 'Copied' : 'Copy code'}</Text>
+          </Pressable>
+        </View>
         <Pressable
           onPress={share}
           disabled={!code}
@@ -349,13 +400,15 @@ export function InviteView({
           {cashouts.length ? (
             <>
               {sectionLabel('Your cash-outs', { marginTop: 22, marginBottom: 10 })}
+              <Text style={[styles.cashoutTotals, { color: t.text3 }]}>
+                Cashed out {dollars(cashoutTotals.paidCents)}
+                {cashoutTotals.pendingCents > 0
+                  ? ` · ${dollars(cashoutTotals.pendingCents)} pending`
+                  : ''}
+              </Text>
               <Card style={{ paddingVertical: 4, paddingHorizontal: 16 }}>
                 {cashouts.map((c, i) => {
-                  const label = c.status === 'paid'
-                    ? 'Sent to your payout account'
-                    : c.status === 'rejected'
-                      ? 'Returned to your credit'
-                      : 'Pending';
+                  const label = cashoutStatusLabel(c);
                   const date = c.status === 'paid'
                     ? shortDate(c.paidAt ?? c.createdAt)
                     : c.status === 'rejected'
@@ -363,14 +416,31 @@ export function InviteView({
                       : `Requested ${shortDate(c.createdAt)}`;
                   const color = c.status === 'paid' ? t.good : c.status === 'rejected' ? t.text3 : t.accent;
                   return (
-                    <View key={c.id} style={[styles.cashoutRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border }]}>
+                    <Pressable
+                      key={c.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${dollars(c.amountCents)} cash-out. ${label}. Requested ${shortDate(c.createdAt)}`}
+                      onPress={() => {
+                        const details = [`Requested ${shortDate(c.createdAt)}`, label];
+                        if (c.status === 'paid') {
+                          details.push(`Sent ${shortDate(c.paidAt ?? c.createdAt)}`);
+                          details.push('Stripe moves it from your payout account to your bank on your payout schedule.');
+                          if (c.transferRef) details.push(`Reference …${c.transferRef}`);
+                        } else if (c.status === 'rejected') {
+                          details.push(`Returned ${shortDate(c.rejectedAt ?? c.createdAt)}`);
+                          details.push('The amount went back to your Noot credit.');
+                        }
+                        Alert.alert(`${dollars(c.amountCents)} cash-out`, details.join('\n'));
+                      }}
+                      style={[styles.cashoutRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.border }]}
+                    >
                       <View style={[styles.dot, { backgroundColor: color }]} />
                       <View style={styles.cashoutText}>
                         <Text style={[styles.cashoutLabel, { color: t.text2 }]}>{label}</Text>
                         <Text style={[styles.cashoutDate, { color: t.text3 }]}>{date}</Text>
                       </View>
                       <Text style={[styles.cashoutAmt, { color: t.text }]}>{dollars(c.amountCents)}</Text>
-                    </View>
+                    </Pressable>
                   );
                 })}
               </Card>
@@ -414,7 +484,11 @@ const styles = StyleSheet.create({
   balanceValue: { fontSize: 40, fontWeight: '800', marginTop: 4 },
   balanceSub: { fontSize: 12.5, opacity: 0.9, marginTop: 2 },
   code: { fontSize: 30, fontWeight: '700', letterSpacing: 1, marginTop: 8, alignSelf: 'stretch', textAlign: 'center' },
+  codeRow: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', gap: 8, marginTop: 8 },
+  codeValue: { flex: 1, minWidth: 0, marginTop: 0, alignSelf: 'auto' },
   codeGrouped: { letterSpacing: 0 },
+  copyBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 10, borderRadius: 12, borderWidth: 1 },
+  copyLabel: { fontSize: 13, fontWeight: '700' },
   shareBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16, minHeight: 48, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 14, alignSelf: 'stretch' },
   shareLabel: { fontSize: 15, fontWeight: '700', flexShrink: 1, textAlign: 'center' },
   how: { marginTop: 12, padding: 16 },
@@ -438,6 +512,7 @@ const styles = StyleSheet.create({
   cashoutText: { flex: 1 },
   cashoutLabel: { fontSize: 13 },
   cashoutDate: { fontSize: 12, marginTop: 1 },
+  cashoutTotals: { fontSize: 12.5, marginBottom: 8 },
   cashoutAmt: { fontSize: 14, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
   invitesGroup: { borderRadius: 20, overflow: 'hidden', paddingHorizontal: 4 },

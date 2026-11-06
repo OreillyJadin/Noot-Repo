@@ -22,8 +22,8 @@ const check = (id: string, name: string, ok: boolean, detail = '') => {
 
 const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-const mk = async (): Promise<TestTutor> => {
-  const email = `qa-rate-bounds-${tag}@crimson.ua.edu`;
+const mk = async (label: string): Promise<TestTutor> => {
+  const email = `qa-rate-bounds-${tag}-${label}@crimson.ua.edu`;
   const { data, error } = await svc.auth.admin.createUser({
     email,
     password: PASSWORD,
@@ -93,14 +93,19 @@ try {
     .select('course_code')
     .eq('is_active', true)
     .order('course_code')
-    .limit(2);
-  if (courseError || !courses || courses.length < 2) {
-    throw courseError ?? new Error('at least two active courses are needed for the fixture');
+    .limit(6);
+  if (courseError || !courses || courses.length < 6) {
+    throw courseError ?? new Error('at least six active courses are needed for the fixture');
   }
   const courseCode = courses[0]!.course_code as string;
   const insertCourseCode = courses[1]!.course_code as string;
+  const lowNewCourseCode = courses[2]!.course_code as string;
+  const highNewCourseCode = courses[3]!.course_code as string;
+  const validNewCourseCode = courses[4]!.course_code as string;
+  const untouchedCourseCode = courses[5]!.course_code as string;
 
-  const tutor = await mk();
+  const tutor = await mk('primary');
+  const otherTutor = await mk('other');
   const { data: course, error: insertError } = await svc.from('tutor_courses').insert({
     tutor_id: tutor.id,
     course_code: courseCode,
@@ -109,6 +114,14 @@ try {
   }).select('hourly_rate').single();
   if (insertError || !course) throw insertError ?? new Error('tutor course insert returned no row');
   check('fixture', 'unverified tutor course created at $30/hr', Number(course.hourly_rate) === 30);
+
+  const { error: otherInsertError } = await svc.from('tutor_courses').insert({
+    tutor_id: otherTutor.id,
+    course_code: untouchedCourseCode,
+    grade: 'B',
+    hourly_rate: 55,
+  });
+  if (otherInsertError) throw otherInsertError;
 
   const rejectDirectRate = async (rate: number) => {
     const { error } = await tutor.client.from('tutor_courses')
@@ -126,19 +139,19 @@ try {
   await rejectDirectRate(121);
   await rejectDirectRate(5000);
   await rejectDirectRate(-1);
-  // TUT-4 (0087): the app's $10/hr floor is enforced by the database too.
-  await rejectDirectRate(9);
-  await rejectDirectRate(9.99);
+  // TUT-4 (0103): the app's $20/hr floor is enforced by the database too.
+  await rejectDirectRate(19);
+  await rejectDirectRate(19.99);
   await rejectDirectRate(0);
 
   const directFloor = await tutor.client.from('tutor_courses')
-    .update({ hourly_rate: 10 })
+    .update({ hourly_rate: 20 })
     .eq('tutor_id', tutor.id)
     .eq('course_code', courseCode)
     .select('hourly_rate')
     .maybeSingle();
-  check('direct-10', 'direct update to exactly $10/hr (the floor) succeeds',
-    !directFloor.error && Number(directFloor.data?.hourly_rate) === 10, directFloor.error?.message ?? `stored=${directFloor.data?.hourly_rate}`);
+  check('direct-20', 'direct update to exactly $20/hr (the floor) succeeds',
+    !directFloor.error && Number(directFloor.data?.hourly_rate) === 20, directFloor.error?.message ?? `stored=${directFloor.data?.hourly_rate}`);
 
   const directUpdate = await tutor.client.from('tutor_courses')
     .update({ hourly_rate: 45 })
@@ -156,20 +169,20 @@ try {
   });
   check('rpc-121', 'set_tutor_courses still rejects $121/hr', !!tooHigh.error, tooHigh.error?.message ?? 'accepted');
 
-  for (const low of [9, 0, 0.5]) {
+  for (const low of [19, 0, 9.5]) {
     const tooLow = await tutor.client.rpc('set_tutor_courses', {
       p_courses: [{ course_code: courseCode, grade: 'A', hourly_rate: low, currently_taking: false }],
     });
     const storedLow = await getRate(tutor.id, courseCode);
     check(`rpc-${low}`, `set_tutor_courses rejects $${low}/hr and keeps the stored rate`,
-      !!tooLow.error && /\$10 to \$120/.test(tooLow.error.message) && storedLow === 45,
+      !!tooLow.error && /\$20 to \$120/.test(tooLow.error.message) && storedLow === 45,
       tooLow.error?.message ?? `accepted, stored=${storedLow}`);
   }
   const floorRate = await tutor.client.rpc('set_tutor_courses', {
-    p_courses: [{ course_code: courseCode, grade: 'A', hourly_rate: 10, currently_taking: false }],
+    p_courses: [{ course_code: courseCode, grade: 'A', hourly_rate: 20, currently_taking: false }],
   });
-  check('rpc-10', 'set_tutor_courses accepts exactly $10/hr',
-    !floorRate.error && (await getRate(tutor.id, courseCode)) === 10, floorRate.error?.message ?? `stored=${await getRate(tutor.id, courseCode)}`);
+  check('rpc-20', 'set_tutor_courses accepts exactly $20/hr',
+    !floorRate.error && (await getRate(tutor.id, courseCode)) === 20, floorRate.error?.message ?? `stored=${await getRate(tutor.id, courseCode)}`);
 
   const validRate = await tutor.client.rpc('set_tutor_courses', {
     p_courses: [{ course_code: courseCode, grade: 'A', hourly_rate: 30, currently_taking: false }],
@@ -179,7 +192,7 @@ try {
     !validRate.error && rpcStoredRate === 30,
     validRate.error?.message ?? `stored=${rpcStoredRate}`);
 
-  for (const rate of [500, 0, 9.5]) {
+  for (const rate of [500, 0, 19.5]) {
     const serviceInsert = await svc.from('tutor_courses').insert({
       tutor_id: tutor.id,
       course_code: insertCourseCode,
@@ -191,6 +204,73 @@ try {
         && serviceInsert.error.message.includes('tutor_courses_hourly_rate_bounds'),
       `${serviceInsert.error?.code ?? 'none'} ${serviceInsert.error?.message ?? 'inserted'}`);
   }
+
+  const legacyPlaceholder = await tutor.client.rpc('set_tutor_courses', {
+    p_courses: [
+      { course_code: courseCode, grade: 'A', hourly_rate: 30, currently_taking: false },
+      { course_code: lowNewCourseCode, grade: 'A', hourly_rate: 10, currently_taking: false },
+    ],
+  });
+  const storedNewLowRate = await getRate(tutor.id, lowNewCourseCode);
+  check('rpc-new-10', 'new course at $10/hr is accepted and stored at $20/hr',
+    !legacyPlaceholder.error && storedNewLowRate === 20,
+    legacyPlaceholder.error?.message ?? `stored=${storedNewLowRate}`);
+
+  const existingLow = await tutor.client.rpc('set_tutor_courses', {
+    p_courses: [
+      { course_code: courseCode, grade: 'A', hourly_rate: 15, currently_taking: false },
+      { course_code: lowNewCourseCode, grade: 'A', hourly_rate: 20, currently_taking: false },
+    ],
+  });
+  const storedExistingLowRate = await getRate(tutor.id, courseCode);
+  check('rpc-existing-15', 'existing course update to $15/hr is rejected and retains its rate',
+    existingLow.error?.message.includes('$20 to $120') === true && storedExistingLowRate === 30,
+    existingLow.error?.message ?? `stored=${storedExistingLowRate}`);
+
+  const existingHigh = await tutor.client.rpc('set_tutor_courses', {
+    p_courses: [
+      { course_code: courseCode, grade: 'A', hourly_rate: 130, currently_taking: false },
+      { course_code: lowNewCourseCode, grade: 'A', hourly_rate: 20, currently_taking: false },
+    ],
+  });
+  const storedExistingHighRate = await getRate(tutor.id, courseCode);
+  check('rpc-existing-130', 'existing course update to $130/hr is rejected and retains its rate',
+    existingHigh.error?.message.includes('$20 to $120') === true && storedExistingHighRate === 30,
+    existingHigh.error?.message ?? `stored=${storedExistingHighRate}`);
+
+  const newHigh = await tutor.client.rpc('set_tutor_courses', {
+    p_courses: [
+      { course_code: courseCode, grade: 'A', hourly_rate: 30, currently_taking: false },
+      { course_code: lowNewCourseCode, grade: 'A', hourly_rate: 20, currently_taking: false },
+      { course_code: highNewCourseCode, grade: 'A', hourly_rate: 130, currently_taking: false },
+    ],
+  });
+  const storedNewHighRate = await getRate(tutor.id, highNewCourseCode);
+  check('rpc-new-130', 'new course at $130/hr is rejected and not stored',
+    newHigh.error?.message.includes('$20 to $120') === true && Number.isNaN(storedNewHighRate),
+    newHigh.error?.message ?? `stored=${storedNewHighRate}`);
+
+  const validNew = await tutor.client.rpc('set_tutor_courses', {
+    p_courses: [
+      { course_code: courseCode, grade: 'A', hourly_rate: 30, currently_taking: false },
+      { course_code: lowNewCourseCode, grade: 'A', hourly_rate: 20, currently_taking: false },
+      { course_code: validNewCourseCode, grade: 'A', hourly_rate: 35, currently_taking: false },
+    ],
+  });
+  const storedValidNewRate = await getRate(tutor.id, validNewCourseCode);
+  check('rpc-new-35', 'new course at $35/hr remains at $35/hr',
+    !validNew.error && storedValidNewRate === 35,
+    validNew.error?.message ?? `stored=${storedValidNewRate}`);
+
+  const { data: otherRows, error: otherRowsError } = await svc.from('tutor_courses')
+    .select('course_code, hourly_rate')
+    .eq('tutor_id', otherTutor.id);
+  check('rpc-owner-isolation', 'saving one tutor’s courses leaves the second tutor’s row untouched',
+    !otherRowsError
+      && otherRows?.length === 1
+      && otherRows[0]?.course_code === untouchedCourseCode
+      && Number(otherRows[0]?.hourly_rate) === 55,
+    otherRowsError?.message ?? JSON.stringify(otherRows));
 } catch (error) {
   check('setup', 'verification setup and requests complete', false, errorText(error));
 } finally {

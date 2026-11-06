@@ -81,6 +81,8 @@ serveWithErrorReporting('connect-onboarding-link', async (req: Request) => {
     // The body is optional: older builds send none.
     const body = await req.json().catch(() => ({}));
     const wantsSession = (body as { mode?: unknown } | null)?.mode === 'session';
+    // The web app opens onboarding in a tab; it ends on a "close this tab" page, not noot://.
+    const fromWeb = (body as { returnTo?: unknown } | null)?.returnTo === 'web';
 
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
     if (!stripeKey) {
@@ -266,8 +268,8 @@ serveWithErrorReporting('connect-onboarding-link', async (req: Request) => {
     const returnBase = `${(Deno.env.get('CONNECT_RETURN_BASE_URL') ?? url).replace(/\/+$/, '')}/functions/v1/connect-return`;
     const link = await stripe.accountLinks.create({
       account: accountId!,
-      refresh_url: `${returnBase}?to=refresh`,
-      return_url: `${returnBase}?to=return`,
+      refresh_url: `${returnBase}?to=${fromWeb ? 'web-refresh' : 'refresh'}`,
+      return_url: `${returnBase}?to=${fromWeb ? 'web' : 'return'}`,
       type: 'account_onboarding',
     });
 

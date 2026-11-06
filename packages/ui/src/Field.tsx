@@ -83,7 +83,7 @@ export function Field({
 
 const styles = StyleSheet.create({
   wrap: { gap: 6, alignSelf: 'stretch' },
-  label: { fontSize: 12, fontWeight: '600' },
+  label: { fontSize: 12, fontWeight: '500' },
   box: { flexDirection: 'row', gap: 8, borderWidth: 1.5, paddingHorizontal: 14 },
   input: { flex: 1, fontSize: 16, paddingVertical: 0 },
   hint: { fontSize: 12, lineHeight: 17 },

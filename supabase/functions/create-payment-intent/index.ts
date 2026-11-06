@@ -20,6 +20,7 @@ import { BookingAgeError, requireBookingAge } from '../_shared/age.ts';
 import { BookingError, freeBookingFor, IMMEDIATE_HOLD_DAYS, resolveBooking } from '../_shared/booking.ts';
 import { creditToApply } from '../_shared/credits.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
+import { ownedCustomerId } from '../_shared/stripeCustomer.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -45,6 +46,13 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
     if (inactiveResponse) return inactiveResponse;
 
     const body = await req.json().catch(() => ({}));
+    const repeatWeeks = body?.repeatWeeks;
+    // The web app (optional; older builds never send it): a redirect-based method would
+    // leave the page before confirm-booking runs, so it gets cards only.
+    const cardOnly = body?.cardOnly === true;
+    if (repeatWeeks !== undefined && (!Number.isInteger(repeatWeeks) || repeatWeeks < 2 || repeatWeeks > 12)) {
+      return Response.json({ error: 'repeatWeeks must be an integer from 2 to 12.' }, { status: 400, headers: cors });
+    }
     await requireBookingAge(db, user.id, body?.tutorId);
     let resolved = await resolveBooking(db, {
       studentId: user.id,
@@ -54,7 +62,14 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
       scheduledAt: body?.scheduledAt,
     });
 
+    if (repeatWeeks !== undefined && new Date(resolved.scheduledAt).getTime() < Date.now() + 24 * 60 * 60 * 1000) {
+      return Response.json({ error: 'Weekly sessions require the first session to be at least 24 hours away.' }, { status: 400, headers: cors });
+    }
+
     if (await isAdmin(userClient)) {
+      if (repeatWeeks !== undefined) {
+        return Response.json({ error: "Repeat weekly isn't available on this booking." }, { status: 400, headers: cors });
+      }
       resolved = freeBookingFor(resolved);
       return Response.json(
         {
@@ -78,7 +93,8 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
     const { data: bal } = await db.rpc('credit_balance_cents', { p_user: user.id });
     const creditCents = creditToApply(Number(bal ?? 0), resolved.amountCents);
     const chargeCents = resolved.amountCents - creditCents;
-    const deferred = new Date(resolved.scheduledAt).getTime() > Date.now() + IMMEDIATE_HOLD_DAYS * 86400000;
+    const deferred = repeatWeeks !== undefined ||
+      new Date(resolved.scheduledAt).getTime() > Date.now() + IMMEDIATE_HOLD_DAYS * 86400000;
 
     const stripeKey = Deno.env.get('STRIPE_SECRET_KEY');
 
@@ -109,25 +125,7 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
     const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
     const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
 
-    // A persistent Stripe Customer per user powers PaymentSheet (saved cards / Link).
-    // A stored id can be from the other Stripe mode (T10), so treat resource_missing as
-    // "make a new one" rather than failing the booking.
-    const { data: urow } = await db.from('users').select('stripe_customer_id').eq('id', user.id).maybeSingle();
-    let customerId = (urow?.stripe_customer_id as string | null | undefined) ?? null;
-    if (customerId) {
-      try {
-        const existing = await stripe.customers.retrieve(customerId);
-        if ((existing as { deleted?: boolean }).deleted) customerId = null;
-      } catch (err) {
-        if ((err as { code?: string })?.code === 'resource_missing') customerId = null;
-        else throw err;
-      }
-    }
-    if (!customerId) {
-      const customer = await stripe.customers.create({ email: user.email ?? undefined, metadata: { user_id: user.id } });
-      customerId = customer.id;
-      await db.from('users').update({ stripe_customer_id: customerId }).eq('id', user.id);
-    }
+    const customerId = await ownedCustomerId(stripe, db, user.id, user.email ?? '');
 
     const ephemeralKey = await stripe.ephemeralKeys.create({ customer: customerId }, { apiVersion: '2024-06-20' });
 
@@ -145,6 +143,7 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
           student_fee_cents: String(Math.round(resolved.studentFee * 100)),
           credit_cents: String(creditCents),
           amount: String(chargeCents),
+          ...(repeatWeeks !== undefined ? { repeat_weeks: String(repeatWeeks) } : {}),
         },
       });
       return Response.json({
@@ -161,7 +160,7 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
       currency: 'usd',
       capture_method: 'manual', // held until session completion (captured in complete-session)
       customer: customerId,
-      automatic_payment_methods: { enabled: true },
+      ...(cardOnly ? { payment_method_types: ['card'] } : { automatic_payment_methods: { enabled: true } }),
       // confirm-booking re-derives the price and checks it against this metadata, so a
       // PaymentIntent can't be reused for a different tutor, course, or duration.
       metadata: {

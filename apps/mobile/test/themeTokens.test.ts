@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DIRECTIONS, resolveTheme } from '@noot/theme';
+import { BODY_FONT, DIRECTIONS, resolveTheme } from '@noot/theme';
 
 function relativeLuminance(hex: string): number {
   const channels = hex.slice(1).match(/.{2}/g)?.map((value) => Number.parseInt(value, 16) / 255);
@@ -28,8 +28,20 @@ test('header color tokens have readable contrast in every theme direction and mo
   }
 });
 
-test('only sage and crimson directions remain, with shared body and heading fonts', () => {
+test('danger event colors are available in every theme direction and mode', () => {
+  for (const { id } of DIRECTIONS) {
+    for (const dark of [false, true]) {
+      const theme = resolveTheme(id, dark);
+      assert.equal(theme.danger, dark ? '#FF6B5E' : '#D23F31');
+      assert.equal(theme.dangerWeak, dark ? 'rgba(255,107,94,0.16)' : 'rgba(210,63,49,0.12)');
+    }
+  }
+});
+
+test('only sage and crimson directions remain, with separate heading fonts and unchanged body font', () => {
   assert.deepEqual(DIRECTIONS.map(({ id }) => id), ['sage', 'crimson']);
   const sage = resolveTheme('sage');
-  assert.equal(sage.headingFont, sage.bodyFont);
+  assert.equal(sage.headingFont, 'NootHeading-Bold');
+  assert.equal(sage.headingFontSemi, 'NootHeading-SemiBold');
+  assert.equal(sage.bodyFont, BODY_FONT);
 });

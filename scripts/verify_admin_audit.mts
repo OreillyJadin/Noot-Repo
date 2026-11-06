@@ -57,7 +57,7 @@ const expectNone = async (name: string, targetType: string, targetId: string, ac
 };
 const newUser = async (tag: string) => {
   const { data, error } = await svc.auth.admin.createUser({
-    email: `audit+${tag}${Date.now()}@crimson.ua.edu`, password: DEV_PASSWORD, email_confirm: true,
+    email: `audit-${tag}-${Date.now()}@crimson.ua.edu`, password: DEV_PASSWORD, email_confirm: true,
   });
   if (error) throw error;
   return data.user!.id;

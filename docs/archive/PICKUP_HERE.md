@@ -10,8 +10,8 @@ project ("upgrade to 57 or use an iOS simulator"). Expo Go ships one SDK at a ti
 matching it is the only way to keep QR-scan testing on a real phone.
 
 **Scope decision: mobile (iOS + Android) only. Web is out of scope** — see CLAUDE.md
-"Current scope". The mobile app's `platform=web` bundle is **broken** and we chose not to
-chase it (details in "Known broken" below).
+"Current scope". *(Reversed 2026-11-04: the web build is in scope again and its bundle is
+fixed; see "Known broken" below.)*
 
 ### Status: shipped and device-verified
 
@@ -53,7 +53,15 @@ chase it (details in "Known broken" below).
 
 ### Known broken (accepted, do not chase)
 
-- **Mobile app's web bundle (`platform=web`) fails to resolve:**
+- **Fixed 2026-11-05 (web is in scope again, see CLAUDE.md).** Diagnosis: nothing in the
+  app imports `setUpReactDevTools` directly. `@stripe/stripe-react-native` deep-imports
+  `react-native/Libraries/ReactNative/RendererProxy` (its CardField/CardForm native specs),
+  which pulls in the Fabric renderer → `ReactNativePrivateInitializeCore` → `InitializeCore`
+  → `setUpReactDevTools`; react-native-web only aliases the bare `react-native` import, so
+  those internals reach the web graph. The production export happened to bundle (the
+  DevTools require sits behind `__DEV__`); dev bundles failed. Fix: `metro.config.js` maps
+  `@stripe/stripe-react-native` to a web stand-in (`apps/mobile/web/`) on web only.
+- **(Historical)** **Mobile app's web bundle (`platform=web`) fails to resolve:**
   `ReactDevToolsSettingsManager` from `react-native/Libraries/Core/setUpReactDevTools.js`.
   That module only ships `.android.js`/`.ios.js` — there is no web variant — and Expo's metro
   config injects `Libraries/Core/InitializeCore` as a pre-module for *every* platform, which

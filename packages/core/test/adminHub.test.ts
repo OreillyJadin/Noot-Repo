@@ -12,6 +12,7 @@ const emptyCounts: AdminHubCounts = {
   disputes: 0,
   ambassadorApplications: 0,
   cashouts: 0,
+  inactive30d: 0,
 };
 
 test('attentionTotal sums actionable queues and excludes interviews', () => {

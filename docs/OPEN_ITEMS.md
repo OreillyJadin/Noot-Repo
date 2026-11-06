@@ -50,23 +50,18 @@ production project, Stripe, App Store Connect or the website. File names below a
   "CS100" / "CS 100" can both exist. Only `courses` has a unique constraint.
 - **`tutor_profiles.subjects[]` isn't content-filtered** (T20; left out of `0032` because it's
   picker-only, but the column takes any text).
-- **A failed payout isn't retried** (3.3): `complete-session` on a completed booking returns
-  `alreadyComplete` without retrying the transfer. Check after the payouts-from-charge PR.
 - **Cash-out collects no payout details and shows no status to the ambassador** (3.5). Check
   whether the cash-out admin PR covers the ambassador side.
 - **A new account's name comes from whoever first requests its sign-up link** (3.7):
   `handle_new_user` (`0040`) reads `first_name` / `last_name` from the link request's metadata.
-- **Owners can still write `created_at` / `deleted_at` on their own `users` row** (3.8).
-  `email` is locked (`0071`) and `active_role` / `status` are guarded; the rest of
-  `users_update` has no column restriction.
 - **No auto-complete 24h after a session** — done by the `auto-complete-sessions` cron in
   migration `0092`.
 - **7 `TODO(api)` stubs left in `apps/mobile`**: student name on `tutor_calendar`, booking id
   on calendar sessions, `b5` → chat, the notification centre in `chat` / `chat_tutor`, the
   exact payout in `c4`, the past-sessions note in `sessions`.
 - No one-tap Copy for the referral code (`expo-clipboard` not added; `DECISIONS_NEEDED` A1).
-- Tests that don't exist yet (`ISSUES_2026-10-03.md` §5): the `complete-session` payout-failure
-  path, credit returned on a tutor no-show via `report-no-show`, a tutor-initiated cancel and a
+- Tests that don't exist yet (`ISSUES_2026-10-03.md` §5): credit returned on a tutor no-show
+  via `report-no-show`, a tutor-initiated cancel and a
   cancel under 2 hours, two reversals racing an award, `lib/pendingInvite.ts` on real AsyncStorage.
 
 ## Waiting on brand assets (marketing partner)
@@ -83,6 +78,12 @@ Jadin's marketing partner, who is out of town:
 - **"Primary Noot" logo** to replace the `gecko-sage.png` stand-in in
   `packages/ui/src/GeckoWatermark.tsx`.
 
+## Web app (Jadin, see `docs/WEB_HOSTING.md`)
+
+- Create the Cloudflare Pages project for the web app and set its env vars.
+- Add the Pages address (`https://<name>.pages.dev/**`) to Supabase → Auth → URL Configuration → Redirect URLs.
+- Custom domain `app.trynoot.com`, DNS record and Marble font swap: `docs/WEB_APP_DOMAIN_AND_BRANDING.md`.
+
 ## Decisions for Jadin
 
 - Bump the Terms version for the T6 edits to §9, §11 and §17? `TERMS_VERSION` is still
@@ -92,3 +93,9 @@ Jadin's marketing partner, who is out of town:
 
 Limits left as they are by decision (won disputes, clawbacks, invite-claim rules, `ua.edu` vs
 `crimson.ua.edu`) are in `ISSUES_2026-10-03.md` §4.
+
+## Completed server guards
+
+- Users `created_at` / `deleted_at` writes (0.6 / 3.8): migration
+  `0110_users_timestamp_guard.sql` restricts client INSERT/UPDATE column privileges;
+  service-role and SECURITY DEFINER lifecycle writes remain available.

@@ -23,6 +23,7 @@ export function targetFor(
     currentRole: Role;
     conversation?: Conversation | null;
     booking?: Booking | null;
+    series?: { studentId: string; tutorId: string } | null;
     tutor?: Tutor | null;
     canRate?: boolean;
     now?: number;
@@ -46,6 +47,10 @@ export function targetFor(
   if (n.type === 'booking') {
     const booking = ctx.booking;
     if (!booking) {
+      if (ctx.series) {
+        const role: Role = ctx.series.tutorId === ctx.uid ? 'tutor' : 'student';
+        return { role, route: role === 'tutor' ? '/tutor_sessions' : '/sessions' };
+      }
       return {
         role: ctx.currentRole,
         route: ctx.currentRole === 'tutor' ? '/tutor_sessions' : '/sessions',
@@ -112,8 +117,16 @@ export function targetFor(
     return { role, route: { pathname: '/sessions', params: { tab: 'past' } } };
   }
 
+  if (n.type === 'system' && n.data.event === 'tutor_weekly_digest') {
+    return { role: 'tutor', route: '/tutor_home' };
+  }
+
   if (n.type === 'system' && (n.data.interviewId || n.data.scheduledAt)) {
     return { role: 'tutor', route: '/tutor_home' };
+  }
+
+  if (n.type === 'system' && n.data.event === 'course_request_covered' && typeof n.data.courseCode === 'string') {
+    return { role: 'student', route: `/b1?q=${encodeURIComponent(n.data.courseCode)}` };
   }
 
   return { role: ctx.currentRole, route: '/notifications' };

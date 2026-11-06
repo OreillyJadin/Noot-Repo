@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.watchmenventures.noot",
-      "buildNumber": "22",
+      "buildNumber": "24",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "noot needs access to your photos so you can set a profile picture and send images in chat.",
         "NSFaceIDUsageDescription": "Use Face ID to unlock noot.",
@@ -108,7 +108,8 @@
       "expo-web-browser",
       "expo-notifications",
       "@sentry/react-native/expo",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": false

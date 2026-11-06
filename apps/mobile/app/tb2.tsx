@@ -205,7 +205,9 @@ export default function TB2() {
           </View>
           <Text style={{ flex: 1, fontSize: 12, color: t.text2, lineHeight: 17 }}>
             {f.online
-              ? 'Your private Noot video link and meeting code arrive 1 hour before, once the session is accepted and payment is ready. Join from this page.'
+              ? booking.videoLinkSentAt
+                ? 'Your private Noot video link is ready. Join from this page.'
+                : 'Your private Noot video link and meeting code arrive 1 hour before, once the session is accepted and payment is ready. Join from this page.'
               : 'You’ll get reminders based on your notification settings. Confirm the exact meeting spot in chat.'}
           </Text>
         </Card>

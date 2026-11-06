@@ -1,13 +1,15 @@
 // Root layout — initializes Supabase and wraps the app in the theme.
 // expo-router: this file is the nav root. Model the handoff's stack here
 // (tabs-as-roots, onboarding locked after completion — ARCHITECTURE.md §12).
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { StatusBar } from 'expo-status-bar';
-import { ThemeProvider } from '@noot/ui';
+import { ThemeProvider, WideShell } from '@noot/ui';
 import { StripeProvider } from '@stripe/stripe-react-native';
 import Constants from 'expo-constants';
 import { initSupabase } from '@noot/core';
@@ -19,9 +21,12 @@ import { PushRegistrar } from '../lib/PushRegistrar';
 import { PushOpener } from '../lib/PushOpener';
 import { BookingConfirmedHost } from '../lib/BookingConfirmedHost';
 import { PayoutSetupHost } from '../lib/PayoutSetupHost';
+import { WebAlertHost } from '../lib/WebAlertHost';
 import { largeSecureStore } from '../lib/secureStorage';
 import { ThemePrefProvider, useThemePref } from '../lib/themePref';
 import { initSentry, trackSentryUser } from '../lib/sentry';
+
+void SplashScreen.preventAutoHideAsync();
 
 initSentry();
 
@@ -59,6 +64,7 @@ function ThemedApp() {
           <BookingConfirmedHost />
           {/* Tab roots switch instantly; tab bars provide press-scale feedback.
               Drill-down screens (booking, edit, etc.) keep the default push slide. */}
+          <WideShell>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="guidelines" options={{ gestureEnabled: false }} />
             <Stack.Screen name="age_gate" options={{ gestureEnabled: false }} />
@@ -89,9 +95,11 @@ function ThemedApp() {
               <Stack.Screen key={name} name={name} options={{ animationTypeForReplace: 'pop' }} />
             ))}
           </Stack>
+          </WideShell>
         </AuthGate>
         {/* Stripe's in-app payout form. Needs the native Stripe module, so not in Expo Go. */}
         {inExpoGo ? null : <PayoutSetupHost />}
+        <WebAlertHost />
       </MeProvider>
     </AppProvider>
   );
@@ -113,6 +121,19 @@ function ThemedApp() {
 }
 
 export default function RootLayout() {
+  const [loaded, error] = useFonts({
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    'NootHeading-Bold': require('../assets/fonts/Montserrat-Bold.ttf'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    'NootHeading-SemiBold': require('../assets/fonts/Montserrat-SemiBold.ttf'),
+  });
+
+  useEffect(() => {
+    if (loaded || error) void SplashScreen.hideAsync();
+  }, [loaded, error]);
+
+  if (!loaded && !error) return null;
+
   return (
     <SafeAreaProvider>
       <KeyboardProvider>

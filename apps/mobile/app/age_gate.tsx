@@ -48,7 +48,7 @@ export default function AgeGate() {
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: t.bg }]}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.title, { color: t.text }]}>Date of birth</Text>
+        <Text style={[styles.title, { color: t.text, fontFamily: t.headingFont }]}>Date of birth</Text>
         <Text style={[styles.body, { color: t.text2 }]}>
           noot is for people 18 and older. Select your date of birth to continue. You can&apos;t change it later.
         </Text>
@@ -69,7 +69,7 @@ export default function AgeGate() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { flexGrow: 1, padding: 20, gap: 18, paddingTop: 32, paddingBottom: 28 },
-  title: { fontSize: 26, fontWeight: '700' },
+  title: { fontSize: 26 },
   body: { fontSize: 15, lineHeight: 22 },
   error: { fontSize: 14, lineHeight: 20 },
   link: { fontSize: 14, fontWeight: '600', textAlign: 'center', marginTop: 6 },

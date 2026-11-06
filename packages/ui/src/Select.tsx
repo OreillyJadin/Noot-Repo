@@ -56,7 +56,7 @@ export function Select({ label, value, options, placeholder = 'Select…', onCha
 
 const styles = StyleSheet.create({
   wrap: { gap: 6, alignSelf: 'stretch' },
-  label: { fontSize: 12, fontWeight: '600' },
+  label: { fontSize: 12, fontWeight: '500' },
   control: { minHeight: 50, borderWidth: 1.5, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   value: { flex: 1, fontSize: 16 },
   menu: { marginTop: 6, borderWidth: 1.5, overflow: 'hidden' },

@@ -17,7 +17,7 @@ export function LargeHeader({ title, subtitle, trailing }: LargeHeaderProps) {
   return (
     <View style={[styles.header, stacked && styles.headerStacked]}>
       <View style={[styles.headerText, stacked && styles.headerTextStacked]}>
-        <Text maxFontSizeMultiplier={TEXT_CAPS.screenTitle} style={[styles.headerTitle, { color: t.text }]}>{title}</Text>
+        <Text maxFontSizeMultiplier={TEXT_CAPS.screenTitle} style={[styles.headerTitle, { color: t.text, fontFamily: t.headingFont }]}>{title}</Text>
         {subtitle ? <Text style={[styles.headerSubtitle, { color: t.text3 }]}>{subtitle}</Text> : null}
       </View>
       {trailing}
@@ -207,12 +207,12 @@ const styles = StyleSheet.create({
   headerText: { flex: 1, minWidth: 0 },
   headerStacked: { flexDirection: 'column', alignItems: 'stretch' },
   headerTextStacked: { flex: 0 },
-  headerTitle: { fontSize: 30, fontWeight: '700', letterSpacing: -0.5, lineHeight: 35 },
+  headerTitle: { fontSize: 30, letterSpacing: -0.5, lineHeight: 35 },
   headerSubtitle: { fontSize: 13, marginTop: 3 },
   section: { gap: 8 },
   sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4 },
-  sectionLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.2 },
-  sectionAction: { fontSize: 12, fontWeight: '600' },
+  sectionLabel: { fontSize: 12, fontWeight: '500', letterSpacing: 0.2 },
+  sectionAction: { fontSize: 12, fontWeight: '500' },
   pressedAction: { opacity: 0.65 },
   sectionSurface: { overflow: 'hidden' },
   divider: { height: StyleSheet.hairlineWidth },

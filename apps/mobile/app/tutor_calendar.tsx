@@ -9,7 +9,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, type ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Screen, Body, BandHeader, TabBar, Card, Avatar, Ic, useTheme, useLargeText, TEXT_CAPS } from '@noot/ui';
-import { campusParts, formatCampusSlot, formatCampusTime, api, type TutorInterview } from '@noot/core';
+import { campusParts, formatCampusSlot, formatCampusTime, api, type Booking, type TutorInterview } from '@noot/core';
+import { draftFromBooking } from '../lib/bookingDraft';
 import { useApp } from '../lib/store';
 import { useMe } from '../lib/useMe';
 import { DAYS, MONTHS } from '../lib/data';
@@ -18,14 +19,10 @@ import { useTabNav } from '../lib/useTabNav';
 import { usePullToRefresh } from '../lib/usePullToRefresh';
 import { INTERVIEW_MINUTES, interviewBlockedSlots, interviewRange } from '../lib/interviewBlock';
 
-// Something the noot team put on the calendar, not the tutor or a student: neither the
-// accent of open times nor the green of a booked session's pay.
-const ADMIN_EVENT = '#5B6CC2';
-const ADMIN_EVENT_WEAK = 'rgba(91,108,194,0.14)';
-
 const CAL_TIMES = ['9:00 AM', '10:30 AM', '12:00 PM', '1:30 PM', '3:00 PM', '4:30 PM', '6:00 PM', '7:30 PM'];
 
 interface CalSession {
+  booking: Booking;
   name: string;
   av: string;
   course: string;
@@ -63,7 +60,7 @@ export default function TutorCalendar() {
   const { reloadKey, onRefresh } = usePullToRefresh();
   const t = useTheme();
   const router = useRouter();
-  const { role } = useApp();
+  const { role, patchBooking } = useApp();
   const { me } = useMe();
 
   const [week, setWeek] = useState(0); // 0 = this week · 1 = next week
@@ -97,20 +94,24 @@ export default function TutorCalendar() {
 
   useEffect(() => {
     let active = true;
-    api
-      .listUpcoming()
-      .then((bookings) => {
-        if (!active || bookings.length === 0) return; // no sessions → grid stays empty (no fallback data)
+    Promise.all([
+      api.listUpcoming('tutor'),
+      api.resolveParticipantNames().catch(() => ({} as Record<string, { firstName: string; lastName: string }>)),
+    ])
+      .then(([bookings, names]) => {
+        if (!active) return;
         const byDay: Record<number, Record<string, CalSession>> = {};
         for (const b of bookings.filter((booking) => booking.status === 'confirmed')) {
           const at = new Date(b.scheduledAt);
           const di = dayIndexFor(at);
           if (di == null) continue; // outside the visible 14-day window
           const online = b.sessionType === 'video';
+          const student = names[b.studentId];
+          const name = `${student?.firstName ?? ''} ${student?.lastName ?? ''}`.trim() || 'Student';
           (byDay[di] ??= {})[slotLabel(at)] = {
-            // TODO(api): a booking exposes only studentId; no read endpoint resolves a student's name.
-            name: 'Student',
-            av: 'S',
+            booking: b,
+            name,
+            av: name.charAt(0),
             course: b.subject,
             where: online ? 'Virtual' : (b.location ?? 'In person'),
             pay: `$${Math.round(b.tutorPayoutAmount)}`,
@@ -163,9 +164,8 @@ export default function TutorCalendar() {
     setWeek(w);
     setDay(w * 7);
   };
-  // TODO(api): CalSession carries no booking id yet, so tb2 can't load this exact
-  // session — navigate to the tutor-side detail; it reads real data via listUpcoming.
-  const openDetail = () => {
+  const openDetail = (session: CalSession) => {
+    patchBooking(draftFromBooking(session.booking));
     router.push('/tb2' as never);
   };
 
@@ -246,7 +246,7 @@ export default function TutorCalendar() {
                   {interviewDay === d.i && (
                     // A square, so it still reads apart from the round dots on the selected day,
                     // where every marker is the same light colour.
-                    <View style={[styles.dot, { borderRadius: 1, backgroundColor: on ? t.onAccent : ADMIN_EVENT }]} />
+                    <View style={[styles.dot, { borderRadius: 1, backgroundColor: on ? t.onAccent : t.danger }]} />
                   )}
                   {nOpen > 0 && (
                     <View
@@ -275,9 +275,9 @@ export default function TutorCalendar() {
         </View>
         <Text style={[styles.dayLabel, { color: t.text2 }]}>{dayObj.label}</Text>
         {interview && interviewAt && interviewDay === day ? (
-          <View style={[styles.interviewCard, { backgroundColor: ADMIN_EVENT_WEAK, borderColor: ADMIN_EVENT }]}>
-            <View style={[styles.interviewIcon, { backgroundColor: ADMIN_EVENT }]}>
-              <Ic name="cal" size={16} color="#FFFFFF" strokeWidth={1.9} />
+          <View style={[styles.interviewCard, { backgroundColor: t.dangerWeak, borderColor: t.danger }]}>
+            <View style={[styles.interviewIcon, { backgroundColor: t.danger }]}>
+              <Ic name="cal" size={16} color={t.surface} strokeWidth={1.9} />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.sessionName, { color: t.text }]}>Interview with noot</Text>
@@ -305,7 +305,7 @@ export default function TutorCalendar() {
                   {formatCampusSlot({ year: DAYS[day]!.year, month: MONTHS.indexOf(DAYS[day]!.month) + 1, day: DAYS[day]!.dom }, time)}
                 </Text>
                 {s ? (
-                  <Card onPress={openDetail} style={styles.sessionCard}>
+                  <Card onPress={() => openDetail(s)} style={styles.sessionCard}>
                     <Avatar size={36} label={s.av} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <View style={styles.sessionTopRow}>
@@ -324,9 +324,9 @@ export default function TutorCalendar() {
                     <Ic name="chevR" size={16} color={t.text3} strokeWidth={2} />
                   </Card>
                 ) : isBlocked ? (
-                  <View style={[styles.openSlot, { backgroundColor: ADMIN_EVENT_WEAK, borderColor: ADMIN_EVENT }]}>
+                  <View style={[styles.openSlot, { backgroundColor: t.dangerWeak, borderColor: t.danger }]}>
                     <View style={styles.openSlotLeft}>
-                      <View style={[styles.dotSm, { backgroundColor: ADMIN_EVENT }]} />
+                      <View style={[styles.dotSm, { backgroundColor: t.danger }]} />
                       <Text style={[styles.openSlotLabel, { color: t.text }]}>Interview with noot</Text>
                     </View>
                     <Text style={[styles.openSlotHint, { color: t.text3 }]}>Not bookable</Text>

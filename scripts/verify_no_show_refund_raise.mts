@@ -1,5 +1,5 @@
-// Verify report-no-show's raise-only refund writes and Stripe-side refund handling.
-// Needs the local Supabase stack, seeded demo users, and report-no-show functions served.
+// Verify the shared no-show settlement's raise-only refund writes and Stripe handling.
+// Needs local Supabase, seeded demo users, and report-no-show/resolve-dispute functions served.
 import { createClient } from '@supabase/supabase-js';
 import { studentFeeFor } from '../packages/core/src/index.ts';
 import { DEV_PASSWORD } from './_devPassword.mjs';
@@ -94,7 +94,7 @@ async function createBooking(options: {
 }
 
 async function reportNoShow(bookingId: string, party: 'student' | 'tutor', token: string) {
-  const response = await fetch(`${URL}/functions/v1/report-no-show`, {
+  const claimResponse = await fetch(`${URL}/functions/v1/report-no-show`, {
     method: 'POST',
     headers: {
       apikey: ANON,
@@ -103,13 +103,46 @@ async function reportNoShow(bookingId: string, party: 'student' | 'tutor', token
     },
     body: JSON.stringify({ bookingId, party }),
   });
-  const body = await response.json().catch(() => ({}));
+  const claimBody = await claimResponse.json().catch(() => ({}));
+  const { data: beforeSettlement, error: readError } = await admin.from('bookings')
+    .select('status, no_show_party, refund_percent, refund_status, refunded_cents, stripe_charge_id, stripe_transfer_id')
+    .eq('id', bookingId)
+    .single();
+  if (readError || !beforeSettlement) throw new Error(`Could not read no-show booking: ${readError?.message ?? 'no row returned'}`);
+  if (claimResponse.status !== 200 || claimBody.status !== 'claimed') {
+    return { response: claimResponse, body: claimBody, booking: beforeSettlement, claimResponse, claimBody, beforeSettlement };
+  }
+  const adminUser = await signIn('admin@crimson.ua.edu');
+  const adminCall = async (body: Record<string, string>) => {
+    const response = await fetch(`${URL}/functions/v1/resolve-dispute`, {
+      method: 'POST',
+      headers: {
+        apikey: ANON,
+        Authorization: `Bearer ${adminUser.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    return { response, body: await response.json().catch(() => ({})) };
+  };
+  const flag = await adminCall({ bookingId, action: 'flag', reason: 'verification settlement' });
+  if (flag.response.status !== 200) throw new Error(`Could not flag settlement fixture: ${JSON.stringify(flag.body)}`);
+  const settled = await adminCall({
+    bookingId, action: 'resolve', outcome: party === 'tutor' ? 'tutor_no_show' : 'student_no_show',
+  });
   const { data: booking, error } = await admin.from('bookings')
     .select('status, no_show_party, refund_percent, refund_status, refunded_cents, stripe_charge_id, stripe_transfer_id')
     .eq('id', bookingId)
     .single();
-  if (error || !booking) throw new Error(`Could not read no-show booking: ${error?.message ?? 'no row returned'}`);
-  return { response, body, booking };
+  if (error || !booking) throw new Error(`Could not read settled no-show booking: ${error?.message ?? 'no row returned'}`);
+  return {
+    response: settled.response,
+    body: settled.body,
+    booking,
+    claimResponse,
+    claimBody,
+    beforeSettlement,
+  };
 }
 
 function noShowResult(
@@ -125,7 +158,11 @@ function noShowResult(
     result.booking.status === 'no_show' &&
     result.booking.no_show_party === party &&
     Number(result.booking.refund_percent) === expectedPercent &&
-    result.booking.refund_status === expectedStatus;
+    result.booking.refund_status === expectedStatus &&
+    result.claimResponse.status === 200 &&
+    result.claimBody.status === 'claimed' &&
+    result.beforeSettlement.status === 'confirmed' &&
+    result.beforeSettlement.no_show_party === null;
 }
 
 try {
@@ -316,7 +353,10 @@ try {
   if (bookingIds.length) {
     const { error } = await admin.from('bookings').delete().in('id', bookingIds);
     if (error) check('booking cleanup', false, error.message);
-    else console.log(`🧹 cleaned up ${bookingIds.length} test bookings`);
+    else {
+      for (const bookingId of bookingIds) await admin.from('notifications').delete().contains('data', { bookingId });
+      console.log(`🧹 cleaned up ${bookingIds.length} test bookings`);
+    }
   }
 }
 

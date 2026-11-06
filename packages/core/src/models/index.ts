@@ -125,7 +125,14 @@ export interface TutorSummary {
   verifiedGrade: string | null;
   /** Grades checked by an admin (tutor_profiles.grades_verified_at) — the Verified badge. */
   verified: boolean;
+  responseRate: number | null;
+  responseMinutes: number | null;
   courses: TutorCourse[];
+}
+
+export interface YourTutor {
+  tutor: TutorSummary;
+  lastBooking: Booking;
 }
 
 /** A conversation plus the counterpart and last message, for the chat list. */
@@ -140,6 +147,40 @@ export interface ConversationSummary {
 }
 
 export type NotificationType = 'message' | 'booking' | 'system';
+
+export interface GrowthFunnel {
+  signups: number;
+  onboarded: number;
+  searchers: number;
+  searches: number;
+  emptySearches: number;
+  emptyDemand: { term: string; searches: number; users: number }[];
+  profileViewers: number;
+  bookingStarters: number;
+  bookingsRequested: number;
+  requesters: number;
+  accepted: number;
+  acceptedStudents: number;
+  declinedExpired: number;
+  cancelled: number;
+  completed: number;
+  completedStudents: number;
+  reviewed: number;
+  reviewedStudents: number;
+  invitesShared: number;
+  inviteSharers: number;
+  rebook: { students: number; completers: number; rate: number };
+  rebookAllTime: { students: number; completers: number; rate: number };
+}
+
+export interface TutorDemand {
+  profileViews: number;
+  uniqueViewers: number;
+  openRequests: { courseCode: string; requests: number }[];
+  openRequestTotal: number;
+  earned: number;
+  sessionsCompleted: number;
+}
 
 /** An in-app notification in a user's feed (0014). Created by DB triggers on events. */
 export interface Notification {
@@ -199,15 +240,29 @@ export interface ReferralBonus {
 export type SessionType = 'video' | 'in_person';
 export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
 export type RefundStatus = 'not_applicable' | 'refunded' | 'not_refunded';
+export type BookingSeriesStatus = 'pending' | 'active' | 'stopped' | 'completed' | 'ended' | 'cancelled';
+export type NoShowParty = 'student' | 'tutor';
+export interface BookingAttendance {
+  checkedAt: Timestamp;
+  studentSeconds?: number;
+  tutorSeconds?: number;
+  unavailable?: boolean;
+}
 
 export interface Booking {
   id: UUID;
+  seriesId: UUID | null;
+  seriesIndex: number | null;
+  seriesStatus: BookingSeriesStatus | null;
+  seriesWeeks: number | null;
   studentId: UUID;
   tutorId: UUID;
   subject: string;
   scheduledAt: Timestamp;
   rescheduleProposedAt: Timestamp | null;
   rescheduleProposedBy: UUID | null;
+  lockedRefundPercent: 0 | 50 | null;
+  rescheduleWaiveLateFee: boolean;
   durationMinutes: number;
   price: number; // session price (tutor fee and payout are computed on this)
   studentFee: number;
@@ -215,6 +270,7 @@ export interface Booking {
   creditApplied: number;
   platformFee: number; // noot's cut
   tutorPayoutAmount: number;
+  payoutFailedAt?: Timestamp | null;
   sessionType: SessionType;
   /** Populated when video (external link at launch, ARCHITECTURE.md §9). */
   meetingLink: string | null;
@@ -224,6 +280,17 @@ export interface Booking {
   /** Populated when in_person. */
   location: string | null;
   status: BookingStatus;
+  disputeStatus: 'none' | 'flagged' | 'resolved';
+  disputeReason: string | null;
+  noShowClaimParty: NoShowParty | null;
+  noShowClaimedBy: UUID | null;
+  noShowClaimedAt: Timestamp | null;
+  noShowContestedAt: Timestamp | null;
+  noShowContestNote: string | null;
+  completionClaimedAt: Timestamp | null;
+  completionObjectedAt: Timestamp | null;
+  completionObjectionNote: string | null;
+  attendance: BookingAttendance | null;
   acceptBy: Timestamp | null;
   acceptedAt: Timestamp | null;
   cancelledByRole: 'student' | 'tutor' | null;
@@ -281,6 +348,9 @@ export interface ContentReport {
   messageContent?: string | null;
   /** Who wrote the reported message. */
   messageSenderName?: string;
+  reviewContent?: string | null;
+  reviewAuthorName?: string;
+  reviewTutorName?: string;
 }
 
 /** A row from the real UA course catalog (`courses`), used to pick instead of free-type. */
@@ -295,6 +365,23 @@ export interface CatalogCourse {
   subjectName: string;
   creditHours: string | null;
   collegeName: string;
+  /** At least one approved, active, non-deleted tutor teaches this course. */
+  hasTutor: boolean;
+}
+
+export interface CourseRequest {
+  id: UUID;
+  courseCode: string;
+  status: 'open' | 'fulfilled' | 'expired';
+  createdAt: Timestamp;
+}
+
+export interface AdminCourseRequest {
+  courseCode: string;
+  courseTitle: string;
+  requests: number;
+  latestAt: Timestamp;
+  covered: boolean;
 }
 
 /** A campus location available for in-person tutoring sessions. */
@@ -320,6 +407,7 @@ export interface Message {
   content: string;
   readAt: Timestamp | null;
   createdAt: Timestamp;
+  isSystem: boolean;
   /** Denormalized on the row, so a preview can be rendered without loading `attachments`. */
   attachmentCount: number;
   /** Present on reads that embed them (listMessages); absent on lightweight rows. */
@@ -413,6 +501,9 @@ export interface Cashout {
   createdAt: string;
   paidAt: string | null;
   rejectedAt: string | null;
+  payingAt: string | null;
+  payUnknownAt: string | null;
+  transferRef: string | null;
 }
 
 /** An ambassador the team hasn't approved yet (admin_ambassador_queue). */

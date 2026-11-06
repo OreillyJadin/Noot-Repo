@@ -81,6 +81,7 @@ const slot = () => new Date(base + slotN++ * 90 * 60e3 + 7 * 60e3).toISOString()
 
 const bookingIds: string[] = [];
 const pis: string[] = [];
+let availabilityBackup: Record<string, unknown>[] = [];
 const mkBooking = (over: Record<string, unknown>) => ({
   student_id: SA,
   tutor_id: T1,
@@ -105,6 +106,23 @@ const insert = async (over: Record<string, unknown>) => {
 };
 
 try {
+  const { data: existingAvailability, error: availabilityError } = await svc
+    .from('tutor_availability').select('*').in('tutor_id', [T1, T2]);
+  if (availabilityError) throw availabilityError;
+  availabilityBackup = existingAvailability ?? [];
+  const { error: clearAvailabilityError } = await svc
+    .from('tutor_availability').delete().in('tutor_id', [T1, T2]);
+  if (clearAvailabilityError) throw clearAvailabilityError;
+  const { error: fullDayAvailabilityError } = await svc.from('tutor_availability').insert(
+    [T1, T2].flatMap((tutor_id) => Array.from({ length: 7 }, (_, day_of_week) => ({
+      tutor_id,
+      day_of_week,
+      start_time: '00:00',
+      end_time: '23:59',
+    }))),
+  );
+  if (fullDayAvailabilityError) throw fullDayAvailabilityError;
+
   // ---------- database ----------
   console.log('— concurrent inserts —');
   for (let round = 1; round <= 10; round++) {
@@ -167,17 +185,17 @@ try {
     'trigger recomputes scheduled_end from scheduled_at + duration on insert',
     `stored ${stored?.scheduled_end}`);
 
-  // A ends 60 min after start; B starts 2h after A — no overlap until A stretches.
+  // A ends 60 min after start; B starts 90 min after A — no overlap until A stretches.
   const tA = slot();
-  const neighbour = await insert({ scheduled_at: new Date(new Date(tA).getTime() + 120 * 60e3).toISOString() });
+  const neighbour = await insert({ scheduled_at: new Date(new Date(tA).getTime() + 90 * 60e3).toISOString() });
   const grow = await insert({ scheduled_at: tA });
   for (const r of [neighbour, grow]) if (r.data?.id) bookingIds.push(r.data.id as string);
-  const stretch = await svc.from('bookings').update({ duration_minutes: 150 }).eq('id', grow.data!.id);
+  const stretch = await svc.from('bookings').update({ duration_minutes: 120 }).eq('id', grow.data!.id);
   step('5b', (stretch.error as { code?: string } | null)?.code === '23P01',
     'widening duration_minutes into a neighbour is refused (trigger recomputes end)',
     `code ${(stretch.error as { code?: string } | null)?.code ?? stretch.error?.message ?? 'no error'}`);
 
-  slot(); // `neighbour` at tA+2h overlaps the next grid slot — use the one after
+  slot(); // Skip the grid slot that overlaps `neighbour`.
   const mover = await insert({});
   if (mover.data?.id) bookingIds.push(mover.data.id as string);
   const move = await svc.from('bookings').update({ scheduled_at: tA }).eq('id', mover.data!.id);
@@ -291,6 +309,10 @@ try {
       `propose ${propose.status}, accept ${accept.status} "${accept.body?.error}", at ${after?.scheduled_at} vs ${at9a}`);
   }
 } finally {
+  await svc.from('tutor_availability').delete().in('tutor_id', [T1, T2]);
+  if (availabilityBackup.length) {
+    await svc.from('tutor_availability').insert(availabilityBackup);
+  }
   for (const id of bookingIds) {
     await svc.from('notifications').delete().contains('data', { bookingId: id });
     await svc.from('credit_ledger').delete().eq('booking_id', id);

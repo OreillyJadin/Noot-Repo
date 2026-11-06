@@ -193,12 +193,6 @@ export default function EditRates() {
             />
           )}
         </ListSection>
-
-        <View style={styles.footNote}>
-          <Text style={[styles.footNoteText, { color: t.text3 }]}>
-            Most tutors on campus charge $22–$34/hr.
-          </Text>
-        </View>
       </Body>
       <ActionBar>
         <Button label="Save changes" full onPress={save} disabled={saving} />
@@ -214,6 +208,4 @@ const styles = StyleSheet.create({
   controls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   gradeBadge: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   ratePill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-  footNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 14, paddingHorizontal: 2 },
-  footNoteText: { flex: 1, fontSize: 12, lineHeight: 17.4 },
 });

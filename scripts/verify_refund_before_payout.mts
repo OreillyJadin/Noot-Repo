@@ -16,13 +16,22 @@ assert.deepEqual(reversalShares([
   { id: 'before', amount: 1000, created: 1, status: 'succeeded' },
   { id: 'after', amount: 500, created: 2, status: 'succeeded' },
 ], 2000, 900, 1000), [{ refundId: 'after', cents: 450 }]);
-for (const file of ['_shared/completeBooking.ts', 'cancel-booking/index.ts', 'report-no-show/index.ts']) {
+for (const file of ['_shared/completeBooking.ts', 'cancel-booking/index.ts', '_shared/settleNoShow.ts']) {
   const source = readFileSync(new URL(`../supabase/functions/${file}`, import.meta.url), 'utf8');
   assert.match(source, /payTutor\(\{/);
   assert.match(source, /originalPayoutCents: Math.round\(Number\(booking.tutor_payout_amount\) \* 100\)/);
 }
-for (const name of ['complete-session', 'auto-complete-sessions']) {
-  assert.match(readFileSync(new URL(`../supabase/functions/${name}/index.ts`, import.meta.url), 'utf8'), /completeBooking/);
+for (const [name, helper] of [['complete-session', 'completeBooking'], ['auto-complete-sessions', 'autoCompleteBookings']]) {
+  const source = readFileSync(new URL(`../supabase/functions/${name}/index.ts`, import.meta.url), 'utf8');
+  assert(source.includes(`../_shared/${helper}.ts`));
+  assert.match(source, new RegExp(`await ${helper}\\(`));
+}
+const autoComplete = readFileSync(new URL('../supabase/functions/_shared/autoCompleteBookings.ts', import.meta.url), 'utf8');
+assert.match(autoComplete, /complete: typeof completeBooking = completeBooking/);
+assert.match(autoComplete, /await complete\(db, url, booking\)/);
+for (const file of ['contest-session-claim/index.ts', '_shared/autoCompleteBookings.ts', 'resolve-dispute/index.ts']) {
+  const source = readFileSync(new URL(`../supabase/functions/${file}`, import.meta.url), 'utf8');
+  assert.match(source, /settleNoShow/);
 }
 console.log('PASS payout caps, credit-funded remainder, partial capture, reversal baseline, and all payout call paths');
 const key = process.env.STRIPE_SECRET_KEY;
