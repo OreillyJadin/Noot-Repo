@@ -21,7 +21,7 @@
 //   • useApp().role / users.active_role = which UI you're LOOKING at. Cosmetic (see 0007).
 //     No permission decision should ever read it.
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { api, auth, onUserChanged } from '@noot/core';
 import type { User, TutorApplicationStatus } from '@noot/core';
 import { useApp } from './store';
@@ -90,6 +90,10 @@ export function MeProvider({ children }: { children: React.ReactNode }) {
     setGradesVerified(standing.gradesVerified);
   }, []);
 
+  const touchLastActive = useCallback(() => {
+    void api.touchLastActive().catch(() => {});
+  }, []);
+
   useEffect(() => {
     let active = true;
     void load().finally(() => { if (active) setLoading(false); });
@@ -105,18 +109,33 @@ export function MeProvider({ children }: { children: React.ReactNode }) {
       }
       // Deferred: supabase-js holds its auth lock while this callback runs, and a query
       // issued inside it waits on that same lock.
-      setTimeout(() => { void load(); }, 0);
+      setTimeout(() => {
+        if (change === 'signed_in' || change === 'session_restored') touchLastActive();
+        void load();
+      }, 0);
     });
     const appState = AppState.addEventListener('change', (next) => {
-      if (next === 'active') void load();
+      if (next === 'active') {
+        void load();
+        touchLastActive();
+      }
     });
+    const visibilityChanged = () => {
+      if (document.visibilityState === 'visible') touchLastActive();
+    };
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', visibilityChanged);
+    }
     return () => {
       active = false;
       offUser();
       offAuth();
       appState.remove();
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', visibilityChanged);
+      }
     };
-  }, [load]);
+  }, [load, touchLastActive]);
 
   const value = useMemo<MeState>(() => {
     const roles = me?.roles ?? [];

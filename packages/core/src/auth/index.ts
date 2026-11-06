@@ -278,8 +278,8 @@ export async function getSessionUserId(): Promise<string | null> {
   return data.session?.user.id ?? null;
 }
 
-/** The auth transitions the app reacts to. Token refreshes are deliberately not surfaced. */
-export type AuthChange = 'signed_in' | 'signed_out' | 'user_updated';
+/** Auth transitions used by app lifecycle hooks; token refreshes are not surfaced. */
+export type AuthChange = 'signed_in' | 'session_restored' | 'signed_out' | 'user_updated';
 
 /**
  * Subscribe to sign-in / sign-out / account updates (e.g. a password change). Lets the app
@@ -287,8 +287,9 @@ export type AuthChange = 'signed_in' | 'signed_out' | 'user_updated';
  * of holding whatever it read at launch. Returns the unsubscribe function.
  */
 export function onAuthChange(fn: (change: AuthChange) => void): () => void {
-  const { data } = getSupabase().auth.onAuthStateChange((event) => {
+  const { data } = getSupabase().auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_IN') fn('signed_in');
+    else if (event === 'INITIAL_SESSION' && session) fn('session_restored');
     else if (event === 'SIGNED_OUT') fn('signed_out');
     else if (event === 'USER_UPDATED') fn('user_updated');
   });
