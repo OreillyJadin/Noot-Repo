@@ -1,5 +1,58 @@
 // Two participants can each use a phone and computer; unique IDs eject stale rejoins. Rooms stay private and token-only.
 export const ROOM_ACCESS = { max_participants: 4, enforce_unique_user_ids: true };
+export const ATTENDANCE_THRESHOLD_SECONDS = 300;
+
+export function classifyAttendance({ studentSeconds, tutorSeconds }: {
+  studentSeconds: number;
+  tutorSeconds: number;
+}) {
+  return {
+    studentAttended: studentSeconds >= ATTENDANCE_THRESHOLD_SECONDS,
+    tutorAttended: tutorSeconds >= ATTENDANCE_THRESHOLD_SECONDS,
+  };
+}
+
+export function dailyUserId(userId: string): string | null {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+    return userId.toLowerCase();
+  }
+  const computerId = /^c-([0-9a-f]{32})$/i.exec(userId)?.[1];
+  if (!computerId) return null;
+  return `${computerId.slice(0, 8)}-${computerId.slice(8, 12)}-${computerId.slice(12, 16)}-${computerId.slice(16, 20)}-${computerId.slice(20)}`.toLowerCase();
+}
+
+type DailyParticipant = { user_id?: string; join_time?: number; duration?: number };
+
+export function participantSecondsInWindow(
+  participant: DailyParticipant,
+  windowStart: number,
+  windowEnd: number,
+): number {
+  const joinedAt = Number(participant.join_time) * 1000;
+  const durationMs = Number(participant.duration) * 1000;
+  if (!Number.isFinite(joinedAt) || !Number.isFinite(durationMs) || durationMs <= 0) return 0;
+  return Math.max(0, Math.min(windowEnd, joinedAt + durationMs) - Math.max(windowStart, joinedAt)) / 1000;
+}
+
+export function attendanceForBooking(
+  meetings: { participants?: DailyParticipant[] }[],
+  studentId: string,
+  tutorId: string,
+  scheduledAt: string,
+  durationMinutes: number,
+): Map<string, number> {
+  const start = Date.parse(scheduledAt) - 15 * 60_000;
+  const end = Date.parse(scheduledAt) + (durationMinutes + 30) * 60_000;
+  const seconds = new Map<string, number>();
+  for (const meeting of meetings) {
+    for (const participant of meeting.participants ?? []) {
+      const id = participant.user_id ? dailyUserId(participant.user_id) : null;
+      if (id !== studentId && id !== tutorId) continue;
+      seconds.set(id, (seconds.get(id) ?? 0) + participantSecondsInWindow(participant, start, end));
+    }
+  }
+  return seconds;
+}
 
 export function videoWindow(scheduledAt: string, durationMinutes: number) {
   const start = new Date(scheduledAt).getTime();
@@ -85,6 +138,25 @@ export async function deleteVideoRoom(name: string): Promise<void> {
   if (!Deno.env.get('DAILY_API_KEY')) return;
   try { await daily(`/rooms/${encodeURIComponent(name)}`, 'DELETE'); }
   catch (error) { if (!(error instanceof DailyError) || error.status !== 404) throw error; }
+}
+
+export async function fetchAttendance(
+  roomName: string,
+  scheduledAt: string,
+  durationMinutes: number,
+  studentId: string,
+  tutorId: string,
+): Promise<Map<string, number> | null> {
+  if (!Deno.env.get('DAILY_API_KEY') || !/^noot-[a-z0-9]{8}$/.test(roomName)) return null;
+  try {
+    const response = await daily(`/meetings?room=${encodeURIComponent(roomName)}`, 'GET') as {
+      data?: { participants?: DailyParticipant[] }[];
+    };
+    if (!Array.isArray(response.data)) return null;
+    return attendanceForBooking(response.data, studentId, tutorId, scheduledAt, durationMinutes);
+  } catch {
+    return null;
+  }
 }
 
 export async function videoJoinUrl(

@@ -8,6 +8,8 @@ const tutorDetail = source('apps/mobile/app/tb2.tsx');
 const cancel = source('apps/mobile/app/xtc.tsx');
 const standing = source('apps/mobile/app/standing.tsx');
 const backend = source('supabase/functions/report-no-show/index.ts');
+const settlement = source('supabase/functions/_shared/settleNoShow.ts');
+const sessions = source('apps/mobile/app/sessions.tsx');
 const bookingRules = source('supabase/functions/_shared/booking.ts');
 const admin = source('apps/mobile/app/admin_user.tsx');
 let passed = 0, failed = 0;
@@ -32,7 +34,9 @@ check(tutorDetail.includes('Cancellations are recorded for admin review') && !/r
 check(tutorDetail.includes('patchBooking({ tutor: toTutor(own) })') && tutorDetail.includes('const tutor = booking.tutor;') && !tutorDetail.includes('fetchedTutor'), 'tutor detail stores the resolved profile for cold-start cancellation and reschedule routes');
 check(standing.includes('Counts do not automatically pause bookings') && !/Needs attention|Repeated no-shows can pause/.test(standing), 'session record no longer invents an automatic restriction');
 check(admin.includes('counts.tutorCancels30d') && admin.includes('counts.noShowsAsStudent + counts.noShowsAsTutor'), 'admin cancellation and no-show review counts remain available');
-check(backend.includes('let refundPercent = tutorNoShow ? 100 : 0') && backend.includes('payTutor('), 'existing refund and payout outcomes remain intact');
+check(backend.includes('no_show_claimed_at') && backend.includes("status: 'claimed'") && !backend.includes('payTutor('), 'reporting opens a claim without settling money');
+check(settlement.includes('let refundPercent = tutorNoShow ? 100 : 0') && settlement.includes('payTutor('), 'existing refund and payout outcomes remain in the shared settlement');
+check(report.includes('has 24h to respond') && sessions.includes('24 hours to respond'), 'reporters see the 24-hour response window');
 
 console.log(`${passed} passed, ${failed} failed`);
 process.exitCode = failed ? 1 : 0;

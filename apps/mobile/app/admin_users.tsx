@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, LayoutAnimation, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { api, NO_SHOW_FLAG_AT, TUTOR_CANCEL_FLAG_OVER, type AdminUser, type AdminUserRole, type AdminUserStatus } from '@noot/core';
+import { api, formatRelativeTime, NO_SHOW_FLAG_AT, TUTOR_CANCEL_FLAG_OVER, type AdminUser, type AdminUserRole, type AdminUserStatus } from '@noot/core';
 import { Avatar, Body, Ic, Screen, Skeleton, TabBar, useLargeText, useTheme } from '@noot/ui';
 import { useMe } from '../lib/useMe';
 import { errText } from '../lib/errText';
@@ -22,6 +22,7 @@ const STATUSES: [AdminUserStatus | null, string][] = [
   ['active', 'Active'],
   ['suspended', 'Suspended'],
   ['banned', 'Banned'],
+  ['inactive', 'Inactive 30+ days'],
   ['deleted', 'Deleted'],
 ];
 const PAGE = 30;
@@ -42,6 +43,8 @@ function AdminUsersScreen() {
   const t = useTheme();
   const largeText = useLargeText();
   const router = useRouter();
+  const params = useLocalSearchParams<{ status?: string | string[] }>();
+  const statusParam = Array.isArray(params.status) ? params.status[0] : params.status;
   const insets = useSafeAreaInsets();
   const bodyRef = useRef<ScrollView>(null);
   const { active, onTab } = useTabNav({ scrollRef: bodyRef });
@@ -50,7 +53,7 @@ function AdminUsersScreen() {
   const [typed, setTyped] = useState('');
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<AdminUserRole | null>(null);
-  const [status, setStatus] = useState<AdminUserStatus | null>(null);
+  const [status, setStatus] = useState<AdminUserStatus | null>(statusParam === 'inactive' ? 'inactive' : null);
   const [statusExpanded, setStatusExpanded] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
@@ -60,6 +63,10 @@ function AdminUsersScreen() {
   const request = useRef(0);
   const focused = useRef(false);
   const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    setStatus(statusParam === 'inactive' ? 'inactive' : null);
+  }, [statusParam]);
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(typed.trim()), 350);
@@ -263,8 +270,9 @@ function AdminUsersScreen() {
                     title={name}
                     subtitle={email}
                     detail={
-                      <Text numberOfLines={1} style={styles.userDetail}>
+                      <Text numberOfLines={2} style={styles.userDetail}>
                         <Text style={{ color: t.text3 }}>{roles}</Text>
+                        <Text style={{ color: t.text3 }}> · Last online {formatRelativeTime(user.lastActiveAt)}</Text>
                         {warnings ? <Text style={{ color: WARNING_AMBER }}> · {warnings}</Text> : null}
                       </Text>
                     }

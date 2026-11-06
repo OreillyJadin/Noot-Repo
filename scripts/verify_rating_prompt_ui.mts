@@ -16,7 +16,8 @@ assert.match(tutor, /label="Rate student"/);
 assert.match(tutor, /isRatedBooking\(r\.booking, ratedLookup\)/);
 assert.match(tutor, /label="Rated"/);
 assert.match(tutor, /patchBooking\(draftFromBooking\(r\.booking\)\);\s*router\.push\('\/c3'\)/);
-assert.match(tutor, /booking: \{ \.\.\.r\.booking, status: 'completed' \}/);
+assert.match(tutor, /booking: \{ \.\.\.r\.booking, completionClaimedAt: new Date\(\)\.toISOString\(\) \}/);
+assert.match(tutor, /label="Awaiting student response"/);
 assert.match(c3, /api\.reviews\.submit\(\{\s*bookingId: booking\.bookingId/);
 assert.match(c3, /router\.push\('\/c4\?role=tutor'\)/);
 assert.match(c4, /const isTutor = role === 'tutor'/);
@@ -28,4 +29,4 @@ assert.match(target, /n\.data\.event === 'rate_session'/);
 assert.match(target, /route: '\/c2',\s*draft: \{ \.\.\.draftFromBooking\(booking\), tutor: ctx\.tutor \}/);
 for (const source of [tutor, c3, c4, open]) assert.doesNotMatch(source, /from\s+['"]@supabase\//);
 
-console.log('verify_rating_prompt_ui: completion notices hydrate C2; tutors enter C3 only for completed unrated bookings');
+console.log('verify_rating_prompt_ui: completion claims remain pending; tutors enter C3 only for completed unrated bookings');

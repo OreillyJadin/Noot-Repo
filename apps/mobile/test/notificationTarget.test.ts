@@ -15,6 +15,8 @@ function booking(overrides: Partial<Booking> = {}): Booking {
     scheduledAt: new Date(now + 60 * 60 * 1000).toISOString(),
     rescheduleProposedAt: null,
     rescheduleProposedBy: null,
+    lockedRefundPercent: null,
+    rescheduleWaiveLateFee: false,
     durationMinutes: 60,
     price: 40,
     creditApplied: 0,

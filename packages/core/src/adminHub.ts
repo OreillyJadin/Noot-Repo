@@ -8,6 +8,7 @@ export interface AdminHubCounts {
   disputes: number;
   ambassadorApplications: number;
   cashouts: number;
+  inactive30d: number;
 }
 
 export function attentionTotal(counts: AdminHubCounts): number {

@@ -20,7 +20,7 @@ const step = (ok: boolean, msg: string) => {
 
 const tutorFootnote = 'Can&apos;t make it? Propose another time or cancel from the session. If you cancel, {otherFirst} is refunded in full.'
 const tutorDecline = 'Your session with {otherFirst} stays at{\' \'} <Text style={{ color: t.text, fontWeight: \'700\' }}>{currentTime}</Text>. We&apos;ve let them know you declined the new time.'
-const studentFootnote = 'There&apos;s no limit on reschedules, and a new time only applies when you both agree. If {otherFirst} cancels, you&apos;re refunded in full; if you cancel, you get a full refund 12+ hours ahead, 50% at 2–12 hours, and none under 2 hours.'
+const studentFootnote = 'There&apos;s no limit on reschedules, and a new time only applies when you both agree. If {otherFirst} cancels, you&apos;re refunded in full; if you cancel, you get a full refund 12+ hours ahead, 50% at 2–12 hours, and none under 2 hours. A late-cancel fee kept from a reschedule still applies unless your tutor waives it.'
 const studentDecline = '{otherFirst} will either honor the original time or cancel for a full refund.'
 
 step(src.includes(tutorFootnote), 'tutor footnote explains proposing another time or cancelling')
@@ -57,6 +57,18 @@ step(!!halfRefundHours && src.includes(`under ${halfRefundHours} hours`), 'stude
 
 const rescheduleSrc = readFileSync(new URL('../supabase/functions/reschedule-booking/index.ts', import.meta.url), 'utf8')
 step(!/reschedule_count|reschedules_count/.test(rescheduleSrc), 'server has no reschedule limit, so copy must not promise one')
+
+const propose = readFileSync(new URL('../apps/mobile/app/xtr.tsx', import.meta.url), 'utf8')
+const waiver = readFileSync(new URL('../apps/mobile/lib/LateCancelFeeWaiver.tsx', import.meta.url), 'utf8')
+step(waiver.includes('Waive late-cancel fee') && waiver.includes('accessibilityLabel="Waive late-cancel fee"'), 'waiver switch has visible and accessible labels')
+for (const [name, source] of [['propose', propose], ['accept', src]]) {
+  step(source.includes('studentCancelRefundPercent(') && source.includes('booking.lockedRefundPercent ?? null'), `${name} uses shared capped refund math`)
+  step(/const canWaive = (role === 'tutor'|isTutor) && refundPercent < 100/.test(source), `${name} shows waiver only to tutors when a fee would stick`)
+  step(source.includes('useState(false)') && source.includes('waiveLateFee: canWaive && waiveLateFee') && source.includes('<LateCancelFeeWaiver'), `${name} wires the default-off waiver to the function`)
+}
+step(src.includes('!isTutor && refundNow < 100 && !booking.rescheduleWaiveLateFee'), 'student warning is suppressed for tutor-waived proposals')
+step(src.includes('Cancelling later still costs ${100 - refundNow}% because this was moved within the late-cancel window.'), 'student accept warning shows the retained fee')
+step(src.includes('confirmAction({') && src.includes('onPress={confirmAccept}'), 'accept confirmation works on native and web')
 
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

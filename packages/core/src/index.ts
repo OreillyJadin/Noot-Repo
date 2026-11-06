@@ -2,6 +2,7 @@
 // package (and supabase/functions) may touch Supabase/Stripe directly.
 export * from './models';
 export * from './bookingRules';
+export { studentCancelRefundPercent } from './cancellation';
 export { ACADEMIC_YEAR_OPTIONS, academicYearLabel, currentAcademicYear, validGraduationYear, graduationPromptDue } from './graduation';
 export { sessionPhase, isUpcomingSession, isPastSession, canReportNoShow } from './sessionTiming';
 export * from './tutorResponse';
@@ -43,6 +44,7 @@ export {
 } from './pricing';
 export { UA_MAJORS, searchMajors, type Major } from './data/uaMajors';
 export { attentionTotal, type AdminHubCounts } from './adminHub';
+export { formatRelativeTime } from './relativeTime';
 export { mergeAvailabilityWindows, type AvailabilityWindow } from './availability';
 export {
   api,

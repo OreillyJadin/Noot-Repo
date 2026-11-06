@@ -21,6 +21,7 @@ const EMPTY_COUNTS: AdminHubCounts = {
   disputes: 0,
   ambassadorApplications: 0,
   cashouts: 0,
+  inactive30d: 0,
 };
 
 function AdminHomeScreen() {
@@ -243,6 +244,17 @@ function AdminHomeScreen() {
             subtitle={openCourseRequestCount ? `${openCourseRequestCount} course${openCourseRequestCount === 1 ? '' : 's'} with open requests` : 'Discovery, bookings and repeat sessions'}
             count={openCourseRequestCount && openCourseRequestCount > 0 ? openCourseRequestCount : undefined}
             onPress={() => router.push('/admin_growth' as never)}
+          />
+        </AdminSection>
+
+        <AdminSection label="Users">
+          <AdminRow
+            icon="list"
+            title="Inactive 30+ days"
+            subtitle="Active accounts with no recent activity"
+            count={counts?.inactive30d}
+            muted={!!counts && knownCounts.inactive30d === 0}
+            onPress={() => router.push('/admin_users?status=inactive')}
           />
         </AdminSection>
 

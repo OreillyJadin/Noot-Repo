@@ -39,6 +39,8 @@ export interface BookingDraft {
   declineNote?: string | null;
   rescheduleProposedAt?: string | null;
   rescheduleProposedBy?: string | null;
+  lockedRefundPercent?: 0 | 50 | null;
+  rescheduleWaiveLateFee?: boolean;
   dayIndex?: number;
   slot?: string;
   lengthMin?: number;

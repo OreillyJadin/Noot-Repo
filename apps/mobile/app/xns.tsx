@@ -1,6 +1,5 @@
 // X5 Report a No-Show — ported from screens-changes.jsx (XNoShow).
-// A persona toggle previews both sides of the same flow: a student reporting a
-// tutor no-show (full refund) and a tutor reporting a student no-show (payout).
+// A persona toggle previews both sides of the same no-show claim flow.
 // The signed-in role picks the starting persona. Done → Home.
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
@@ -13,25 +12,13 @@ import { DAYS, type Tutor } from '../lib/data';
 import { NoSession } from '../lib/NoSession';
 import { useCounterpart } from '../lib/useCounterpart';
 import { sessionDayAndTime } from '../lib/formatSessionTime';
-import { noShowAmount } from '../lib/noShowAmount';
 import { useSessionClock } from '../lib/useSessionClock';
-
-function money(n: number): string {
-  return '$' + n.toFixed(2).replace('.00', '');
-}
 
 function sessionFacts(booking: BookingDraft, tutor: Tutor) {
   const dayObj = DAYS.find((d) => d.i === booking.dayIndex) ?? DAYS[1]!;
   const slot = booking.slot ?? '3:00 PM';
   const course = booking.course ?? tutor.courses[0]![0];
-  const courseRow = tutor.courses.find((c) => c[0] === course) ?? tutor.courses[0]!;
-  const lengthMin = booking.lengthMin ?? 60;
-  const gross = courseRow[2] * (lengthMin / 60);
-  return { dayObj, slot, course, gross };
-}
-
-function baseCost(booking: BookingDraft, tutor: Tutor): number {
-  return sessionFacts(booking, tutor).gross;
+  return { dayObj, slot, course };
 }
 
 // Recap strip reused across the exceptions screens (inlined per-file — see PORTING_GUIDE).
@@ -70,44 +57,30 @@ function XNoShowInner() {
   const { booking, role } = useApp();
   const student = useCounterpart(booking.studentId);
   const tutor = booking.tutor!;
-  const fallbackGross = baseCost(booking, tutor);
   const persona: 'student' | 'tutor' = role === 'tutor' ? 'tutor' : 'student';
-  const amount = noShowAmount(persona, booking, fallbackGross);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<'claimed' | 'under_review' | null>(null);
   const [busy, setBusy] = useState(false);
   const reportOpen = !!booking.bookingId && booking.status === 'confirmed' && canReportNoShow({
     status: booking.status, scheduledAt: booking.scheduledAt ?? '', durationMinutes: booking.lengthMin ?? 0,
   }, now);
 
   if (done) {
-    const studentMarked = persona === 'student';
+    const underReview = done === 'under_review';
+    const otherName = persona === 'student' ? tutor.name.split(' ')[0]! : student.first;
     return (
       <Screen>
         <View style={{ height: insets.top, flexShrink: 0 }} />
         <Body pad={24}>
           <View style={styles.doneWrap}>
-            <HeroIcon name={studentMarked ? 'check' : 'dollar'} size={72} />
-            <H1 style={{ fontSize: 24, marginTop: 20 }}>{studentMarked ? 'Reported — full refund' : 'No-show recorded'}</H1>
+            <HeroIcon name="check" size={72} />
+            <H1 style={{ fontSize: 24, marginTop: 20 }}>{underReview ? 'Under review' : 'Report sent'}</H1>
             <Sub style={{ marginTop: 10, maxWidth: 264, textAlign: 'center' }}>
-              {studentMarked ? (
-                <>
-                  You&apos;ll be refunded <Text style={{ color: t.text, fontWeight: '700' }}>{money(amount)}</Text> in full.
-                  This is recorded on {tutor.name.split(' ')[0]!}&apos;s account.
-                </>
-              ) : (
-                <>
-                  Payment of <Text style={{ color: t.text, fontWeight: '700' }}>{money(amount)}</Text> is processed to you
-                  automatically — no review needed for routine no-shows.
-                </>
-              )}
+              {underReview
+                ? 'Video attendance conflicts with this report. The noot team will review it; no money moves while it is under review.'
+                : `Reported — ${otherName} has 24h to respond. Any refund or payout waits until the claim is resolved.`}
             </Sub>
           </View>
 
-          {!studentMarked ? (
-            <Text style={{ marginTop: 22, fontSize: 13, lineHeight: 19, color: t.text3, textAlign: 'center' }}>
-              No-shows are recorded on {student.first}&apos;s account for admin review.
-            </Text>
-          ) : null}
         </Body>
         <ActionBar>
           <Button kind="secondary" full label="Done" onPress={() => router.replace(persona === 'tutor' ? '/tutor_home' : '/home')} />
@@ -125,8 +98,8 @@ function XNoShowInner() {
     const party: 'student' | 'tutor' = studentView ? 'tutor' : 'student';
     setBusy(true);
     try {
-      await api.bookings.reportNoShow({ bookingId: booking.bookingId!, party });
-      setDone(true);
+      const result = await api.bookings.reportNoShow({ bookingId: booking.bookingId!, party });
+      setDone(result.status);
     } catch {
       Alert.alert('Something went wrong', "Couldn't report the no-show. Please try again.");
     } finally {
@@ -148,16 +121,12 @@ function XNoShowInner() {
             </Text>
             <Text style={{ fontSize: 13, color: t.text2, marginTop: 4, lineHeight: 19 }}>
               {studentView
-                ? 'If your tutor did not attend, report a no-show after the scheduled end, within 48 hours. You receive a full refund.'
-                : 'If your student did not attend, report a no-show after the scheduled end, within 48 hours. Your session payout is processed automatically.'}
+                ? 'If your tutor did not attend, report a no-show after the scheduled end, within 48 hours. They have 24 hours to contest, and any refund waits until the claim is resolved.'
+                : 'If your student did not attend, report a no-show after the scheduled end, within 48 hours. They have 24 hours to contest, and any payout waits until the claim is resolved.'}
             </Text>
           </View>
         </Card>
 
-        <Card flat style={{ marginTop: 12, padding: 14, backgroundColor: t.surfaceAlt, flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={{ fontSize: 14, color: t.text2 }}>{studentView ? 'Your refund' : 'Your payout'}</Text>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: t.good }}>{money(amount)}</Text>
-        </Card>
       </Body>
       <ActionBar style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
         <Button

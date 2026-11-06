@@ -22,7 +22,7 @@ export default function Standing() {
       <Body pad={16}>
         <Text style={[styles.status, { color: t.text }]}>Session record</Text>
         <Text style={[styles.statusSub, { color: t.text3 }]}>
-          Cancellations and no-shows are recorded for admin review.
+          No-show claims and completion objections have a 24-hour response window before money is settled.
         </Text>
 
         <ListSection>
@@ -51,7 +51,7 @@ export default function Standing() {
             Cancellations you make after confirming and sessions you miss are recorded. Student cancellations do not count against you.
           </Text>
           <Text style={[styles.tip, { color: t.text2 }]}>
-            Our team reviews these records. Counts do not automatically pause bookings, change your ranking, or add penalties.
+            Contested claims and sessions under review are decided by our team before any refund or payout. Counts do not automatically pause bookings, change your ranking, or add penalties.
           </Text>
         </ListSection>
       </Body>

@@ -28,6 +28,7 @@ export type { AdminHubCounts } from '../adminHub';
 import type {
   AmbassadorProfile,
   Booking,
+  BookingAttendance,
   BusyTime,
   CatalogCourse,
   ContentReport,
@@ -50,6 +51,7 @@ import type {
   TutorInterview,
   TutorCourse,
   MyTutorProfile,
+  NoShowParty,
   TutorSummary,
   YourTutor,
   TutoringLocation,
@@ -106,6 +108,7 @@ export interface AdminUser {
   /** When the owner deleted the account; its name and email are scrubbed by then. */
   deletedAt: string | null;
   createdAt: string;
+  lastActiveAt: string | null;
   tutorCancels30d: number;
   noShows: number;
 }
@@ -119,7 +122,14 @@ export interface AdminUserHistoryUser {
   email: string;
   status: string;
   createdAt: string;
+  lastActiveAt: string | null;
   roles: string[];
+}
+export interface AdminPreviousAccount {
+  id: string;
+  deletedAt: string | null;
+  noShows: number;
+  tutorCancels30d: number;
 }
 export interface AdminUserHistoryCounts {
   sessionsAsStudent: number;
@@ -172,9 +182,10 @@ export interface AdminUserHistory {
   bookings: AdminUserHistoryBooking[];
   reports: AdminUserHistoryReport[];
   adminActions: AdminUserHistoryAction[];
+  previousAccounts: AdminPreviousAccount[];
 }
 export type AdminUserRole = 'student' | 'tutor' | 'ambassador' | 'admin';
-export type AdminUserStatus = 'active' | 'suspended' | 'banned' | 'deleted';
+export type AdminUserStatus = 'active' | 'suspended' | 'banned' | 'deleted' | 'inactive';
 /** What to list in admin user management. Everything is optional: no filter lists everyone. */
 export interface AdminUserQuery {
   /** Matched against name and email. */
@@ -208,6 +219,14 @@ export interface AdminBooking {
   studentFee: number;
   disputeStatus: string;
   disputeReason: string | null;
+  noShowClaimParty: NoShowParty | null;
+  noShowClaimedAt: string | null;
+  noShowContestedAt: string | null;
+  noShowContestNote: string | null;
+  completionClaimedAt: string | null;
+  completionObjectedAt: string | null;
+  completionObjectionNote: string | null;
+  attendance: BookingAttendance | null;
 }
 
 export interface AdminCalendarEvent {
@@ -465,6 +484,8 @@ function mapBooking(row: any): Booking {
     scheduledAt: row.scheduled_at,
     rescheduleProposedAt: row.reschedule_proposed_at ?? null,
     rescheduleProposedBy: row.reschedule_proposed_by ?? null,
+    lockedRefundPercent: row.locked_refund_percent ?? null,
+    rescheduleWaiveLateFee: row.reschedule_waive_late_fee ?? false,
     durationMinutes: row.duration_minutes,
     price: num(row.price),
     studentFee: num(row.student_fee),
@@ -479,6 +500,22 @@ function mapBooking(row: any): Booking {
     dailyRoomDeletedAt: row.daily_room_deleted_at ?? null,
     location: row.location ?? null,
     status: row.status,
+    disputeStatus: row.dispute_status ?? 'none',
+    disputeReason: row.dispute_reason ?? null,
+    noShowClaimParty: row.no_show_claim_party ?? null,
+    noShowClaimedBy: row.no_show_claimed_by ?? null,
+    noShowClaimedAt: row.no_show_claimed_at ?? null,
+    noShowContestedAt: row.no_show_contested_at ?? null,
+    noShowContestNote: row.no_show_contest_note ?? null,
+    completionClaimedAt: row.completion_claimed_at ?? null,
+    completionObjectedAt: row.completion_objected_at ?? null,
+    completionObjectionNote: row.completion_objection_note ?? null,
+    attendance: row.attendance ? {
+      checkedAt: row.attendance.checked_at,
+      ...(row.attendance.student_seconds === undefined ? {} : { studentSeconds: Number(row.attendance.student_seconds) }),
+      ...(row.attendance.tutor_seconds === undefined ? {} : { tutorSeconds: Number(row.attendance.tutor_seconds) }),
+      ...(row.attendance.unavailable ? { unavailable: true } : {}),
+    } : null,
     acceptBy: row.accept_by ?? null,
     acceptedAt: row.accepted_at ?? null,
     cancelledByRole:
@@ -544,6 +581,12 @@ type AdminUserHistoryPayload = {
     details: unknown;
     created_at: string;
   }>;
+  previous_accounts?: Array<{
+    id: string;
+    deleted_at: string | null;
+    no_shows: number | string | null;
+    tutor_cancels_30d: number | string | null;
+  }>;
 };
 
 function mapAdminUserHistory(payload: unknown): AdminUserHistory {
@@ -559,6 +602,7 @@ function mapAdminUserHistory(payload: unknown): AdminUserHistory {
           email: user.email,
           status: user.status,
           createdAt: user.created_at,
+          lastActiveAt: null,
           roles: user.roles ?? [],
         }
       : null,
@@ -622,6 +666,12 @@ function mapAdminUserHistory(payload: unknown): AdminUserHistory {
         createdAt: action.created_at,
       };
     }),
+    previousAccounts: (raw?.previous_accounts ?? []).map((account) => ({
+      id: account.id,
+      deletedAt: account.deleted_at ?? null,
+      noShows: Number(account.no_shows ?? 0),
+      tutorCancels30d: Number(account.tutor_cancels_30d ?? 0),
+    })),
   };
 }
 
@@ -803,6 +853,7 @@ export interface CreatePaymentIntentInput {
 }
 
 export interface RescheduleBookingInput {
+  waiveLateFee?: boolean;
   bookingId: string;
   action: 'propose' | 'accept' | 'decline';
   newScheduledAt?: string;
@@ -811,6 +862,12 @@ export interface RescheduleBookingInput {
 export interface ReportNoShowInput {
   bookingId: string;
   party: 'student' | 'tutor';
+}
+
+export interface ContestClaimInput {
+  bookingId: string;
+  kind: 'no_show' | 'completion';
+  note?: string;
 }
 
 export interface SubmitRatingInput {
@@ -846,6 +903,11 @@ export const REMINDER_CHOICES = [5, 10, 15, 30, 60, 120, 1440] as const;
 export const DEFAULT_REMINDERS = [60] as const;
 
 export const api = {
+  async touchLastActive(): Promise<void> {
+    const { error } = await getSupabase().rpc('touch_last_active');
+    if (error) throw error;
+  },
+
   // --- users / profiles ---
   async getMe(): Promise<User | null> {
     const uid = await requireUid();
@@ -1774,6 +1836,7 @@ export const api = {
         disputes,
         reports,
         ambassadors,
+        inactiveUsers,
       ] = await Promise.all([
         sb
           .from('tutor_profiles')
@@ -1809,6 +1872,7 @@ export const api = {
           .eq('dispute_status', 'flagged'),
         api.admin.listReports(),
         api.admin.ambassadorCounts(),
+        api.admin.listUsers({ status: 'inactive', limit: 1 }),
       ]);
       if (applications.error) throw applications.error;
       if (gradeChecks.error) throw gradeChecks.error;
@@ -1826,6 +1890,7 @@ export const api = {
         disputes: disputes.count ?? 0,
         ambassadorApplications: ambassadors.applications,
         cashouts: ambassadors.cashouts,
+        inactive30d: inactiveUsers.total,
       };
     },
 
@@ -2029,6 +2094,7 @@ export const api = {
           status: u.status,
           deletedAt: u.deleted_at ?? null,
           createdAt: u.created_at,
+          lastActiveAt: u.last_active_at ?? null,
           tutorCancels30d: Number(u.tutor_cancels_30d ?? 0),
           noShows: Number(u.no_shows ?? 0),
         })),
@@ -2037,14 +2103,28 @@ export const api = {
 
     /** A user's account, booking, report, and admin-action history. */
     async userHistory(userId: string): Promise<AdminUserHistory> {
-      const { data, error } = await getSupabase().rpc('admin_user_history', { p_user: userId });
-      if (error) throw error;
-      return mapAdminUserHistory(data);
+      const sb = getSupabase();
+      const [history, lastActive] = await Promise.all([
+        sb.rpc('admin_user_history', { p_user: userId }),
+        sb.from('users').select('last_active_at').eq('id', userId).maybeSingle(),
+      ]);
+      if (history.error) throw history.error;
+      if (lastActive.error) throw lastActive.error;
+      const mapped = mapAdminUserHistory(history.data);
+      return mapped.user
+        ? { ...mapped, user: { ...mapped.user, lastActiveAt: lastActive.data?.last_active_at ?? null } }
+        : mapped;
     },
 
     /** Suspend / ban / reactivate an account (admin-set-user-status Edge Function). */
     setUserStatus(userId: string, status: 'active' | 'suspended' | 'banned'): Promise<{ ok: true; status: string }> {
       return invokeFn('admin-set-user-status', { userId, status });
+    },
+
+    /** Block the signup email recorded for a deleted account. */
+    async blockDeletedEmail(userId: string): Promise<void> {
+      const { error } = await getSupabase().rpc('admin_block_deleted_email', { p_user: userId });
+      if (error) throw error;
     },
 
     /** Reviews awaiting moderation, with reviewer/subject names + course. */
@@ -2142,7 +2222,7 @@ export const api = {
       const sb = getSupabase();
       const { data, error } = await sb
         .from('bookings')
-        .select('id, student_id, tutor_id, subject, scheduled_at, status, price, student_fee, dispute_status, dispute_reason')
+        .select('id, student_id, tutor_id, subject, scheduled_at, status, price, student_fee, dispute_status, dispute_reason, no_show_claim_party, no_show_claimed_at, no_show_contested_at, no_show_contest_note, completion_claimed_at, completion_objected_at, completion_objection_note, attendance')
         .order('scheduled_at', { ascending: false })
         .limit(100);
       if (error) throw error;
@@ -2163,6 +2243,19 @@ export const api = {
         studentFee: num(b.student_fee),
         disputeStatus: b.dispute_status ?? 'none',
         disputeReason: b.dispute_reason ?? null,
+        noShowClaimParty: b.no_show_claim_party ?? null,
+        noShowClaimedAt: b.no_show_claimed_at ?? null,
+        noShowContestedAt: b.no_show_contested_at ?? null,
+        noShowContestNote: b.no_show_contest_note ?? null,
+        completionClaimedAt: b.completion_claimed_at ?? null,
+        completionObjectedAt: b.completion_objected_at ?? null,
+        completionObjectionNote: b.completion_objection_note ?? null,
+        attendance: b.attendance ? {
+          checkedAt: b.attendance.checked_at,
+          ...(b.attendance.student_seconds === undefined ? {} : { studentSeconds: Number(b.attendance.student_seconds) }),
+          ...(b.attendance.tutor_seconds === undefined ? {} : { tutorSeconds: Number(b.attendance.tutor_seconds) }),
+          ...(b.attendance.unavailable ? { unavailable: true } : {}),
+        } : null,
       }));
     },
 
@@ -2257,8 +2350,8 @@ export const api = {
     resolveDispute(
       bookingId: string,
       action: 'flag' | 'resolve',
-      opts?: { reason?: string; resolution?: string },
-    ): Promise<{ ok: true; disputeStatus: string }> {
+      opts?: { reason?: string; resolution?: string; outcome?: 'tutor_no_show' | 'student_no_show' | 'completed' },
+    ): Promise<{ ok: true; disputeStatus: string; outcome?: string }> {
       return invokeFn('resolve-dispute', { bookingId, action, ...opts });
     },
   },
@@ -2390,24 +2483,28 @@ export const api = {
     },
 
     /** Propose/accept/decline a reschedule of a booking (reschedule-booking). */
-    reschedule(input: RescheduleBookingInput): Promise<{ ok: true }> {
+    reschedule(input: RescheduleBookingInput): Promise<{ ok: true; lockedRefundPercent?: 0 | 50 | null }> {
       return invokeFn('reschedule-booking', input as unknown as Record<string, unknown>);
     },
 
-    /** Report that a party didn't show; returns refund outcome (report-no-show). */
+    /** Open a no-show claim; settlement waits for the contest window (report-no-show). */
     reportNoShow(
       input: ReportNoShowInput,
-    ): Promise<{ status: string; refundPercent: number }> {
+    ): Promise<{ status: 'claimed' | 'under_review'; contestBy?: string }> {
       return invokeFn('report-no-show', input as unknown as Record<string, unknown>);
     },
 
+    contestClaim(input: ContestClaimInput): Promise<{ status: string }> {
+      return invokeFn('contest-session-claim', input as unknown as Record<string, unknown>);
+    },
+
     /**
-     * Tutor marks a confirmed session complete → captures the held payment and transfers
-     * the tutor's payout to their connected account (complete-session). Idempotent.
+     * Tutor marks a confirmed session complete → opens a 24-hour objection window.
+     * Settlement happens after auto-completion (complete-session).
      */
     complete(
       bookingId: string,
-    ): Promise<{ status: string; captured: boolean; transferId: string | null }> {
+    ): Promise<{ status: string; captured?: boolean; transferId?: string | null; objectBy?: string }> {
       return invokeFn('complete-session', { bookingId });
     },
   },

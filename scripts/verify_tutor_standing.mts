@@ -38,7 +38,7 @@ async function createUser(role: 'student' | 'tutor') {
 
 await check('Standing keeps counts for admin review without automatic restrictions', () => {
   const source = readFileSync(new globalThis.URL('../apps/mobile/app/standing.tsx', import.meta.url), 'utf8');
-  assert.match(source, /Cancellations and no-shows are recorded for admin review/);
+  assert.match(source, /No-show claims and completion objections have a 24-hour response window/);
   assert.match(source, /\{stats\.cancelledCount\}/);
   assert.doesNotMatch(source, /Needs attention|Repeated no-shows can pause/);
   assert.match(source, /\{stats\.noShowCount\}/);

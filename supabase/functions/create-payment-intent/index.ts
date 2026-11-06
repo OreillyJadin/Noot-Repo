@@ -20,6 +20,7 @@ import { BookingAgeError, requireBookingAge } from '../_shared/age.ts';
 import { BookingError, freeBookingFor, IMMEDIATE_HOLD_DAYS, resolveBooking } from '../_shared/booking.ts';
 import { creditToApply } from '../_shared/credits.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
+import { ownedCustomerId } from '../_shared/stripeCustomer.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -124,25 +125,7 @@ serveWithErrorReporting('create-payment-intent', async (req: Request) => {
     const { default: Stripe } = await import('https://esm.sh/stripe@16?target=deno');
     const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
 
-    // A persistent Stripe Customer per user powers PaymentSheet (saved cards / Link).
-    // A stored id can be from the other Stripe mode (T10), so treat resource_missing as
-    // "make a new one" rather than failing the booking.
-    const { data: urow } = await db.from('users').select('stripe_customer_id').eq('id', user.id).maybeSingle();
-    let customerId = (urow?.stripe_customer_id as string | null | undefined) ?? null;
-    if (customerId) {
-      try {
-        const existing = await stripe.customers.retrieve(customerId);
-        if ((existing as { deleted?: boolean }).deleted) customerId = null;
-      } catch (err) {
-        if ((err as { code?: string })?.code === 'resource_missing') customerId = null;
-        else throw err;
-      }
-    }
-    if (!customerId) {
-      const customer = await stripe.customers.create({ email: user.email ?? undefined, metadata: { user_id: user.id } });
-      customerId = customer.id;
-      await db.from('users').update({ stripe_customer_id: customerId }).eq('id', user.id);
-    }
+    const customerId = await ownedCustomerId(stripe, db, user.id, user.email ?? '');
 
     const ephemeralKey = await stripe.ephemeralKeys.create({ customer: customerId }, { apiVersion: '2024-06-20' });
 

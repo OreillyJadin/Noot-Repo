@@ -61,7 +61,7 @@ const standing = screens.get('apps/mobile/app/standing.tsx')!;
 for (const line of [
   'Complete your booked sessions and let students know if plans change.',
   'Cancellations you make after confirming and sessions you miss are recorded. Student cancellations do not count against you.',
-  'Our team reviews these records. Counts do not automatically pause bookings, change your ranking, or add penalties.',
+  'Contested claims and sessions under review are decided by our team before any refund or payout. Counts do not automatically pause bookings, change your ranking, or add penalties.',
 ]) {
   assert.ok(standing.includes(line), `standing.tsx: missing policy text: ${line}`);
 }

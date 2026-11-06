@@ -146,6 +146,11 @@ serveWithErrorReporting('delete-account', async (req: Request) => {
       return Response.json({ error: blockErr.message }, { status: 400, headers: cors });
     }
 
+    const { error: relinkErr } = await db.rpc('record_deleted_account_email', { p_user: uid });
+    if (relinkErr) {
+      return Response.json({ error: relinkErr.message }, { status: 400, headers: cors });
+    }
+
     // 3. De-identify the retained row. The email must stay unique and NOT NULL, and .invalid
     //    is a reserved TLD so the address can never be routed or re-registered.
     const { error: anonErr } = await db

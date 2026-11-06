@@ -39,7 +39,7 @@ function check(name: string, ok: boolean, detail = '') {
 initSupabase({ url: URL, anonKey: ANON });
 const svc = createClient(URL, SERVICE, { auth: { persistSession: false } });
 
-const email = `creditbook+${Date.now()}@crimson.ua.edu`;
+const email = `creditbook-${Date.now()}@crimson.ua.edu`;
 const { data: u, error: cErr } = await svc.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true });
 if (cErr) throw cErr;
 const uid = u.user!.id;
@@ -247,7 +247,7 @@ try {
 
   console.log('\n— account deletion waits for a pending cash-out —');
   // A separate approved ambassador with $10 of (old) credit and a pending cash-out.
-  const ae = `cashout+${Date.now()}@crimson.ua.edu`;
+  const ae = `cashout-${Date.now()}@crimson.ua.edu`;
   const { data: a } = await svc.auth.admin.createUser({ email: ae, password: PASSWORD, email_confirm: true });
   const ac = createClient(URL, ANON, { auth: { persistSession: false } });
   await ac.auth.signInWithPassword({ email: ae, password: PASSWORD });

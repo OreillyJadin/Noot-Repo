@@ -25,6 +25,8 @@ const check = (name: string, ok: boolean, detail = '') => {
   ok ? pass++ : fail++;
   console.log(`${ok ? '✅' : '❌'} ${name}${detail ? ` — ${detail}` : ''}`);
 };
+const errorDetail = (error: unknown) =>
+  error instanceof Error ? error.message : JSON.stringify(error) ?? String(error);
 
 const functionCall = async (name: string, body: unknown, token: string) => {
   const response = await fetch(`${URL}/functions/v1/${name}`, {
@@ -200,13 +202,15 @@ try {
   check('old token is rejected by create-payment-intent', edge.status === 401, `status=${edge.status}`);
 } catch (error) {
   fail++;
-  console.error(`❌ ${stage} — ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`❌ ${stage} — ${errorDetail(error)}`);
 } finally {
   if (cleanup.userId) {
     await remove('test reports', admin.from('content_reports').delete().eq('reporter_id', cleanup.userId));
     await remove('test push tokens', admin.from('push_tokens').delete().eq('user_id', cleanup.userId));
     await remove('test notifications', admin.from('notifications').delete().eq('user_id', cleanup.userId));
-    await remove('test messages', admin.from('messages').delete().eq('conversation_id', cleanup.conversationId ?? ''));
+    if (cleanup.conversationId) {
+      await remove('test messages', admin.from('messages').delete().eq('conversation_id', cleanup.conversationId));
+    }
     if (cleanup.bookingId) await remove('test booking', admin.from('bookings').delete().eq('id', cleanup.bookingId));
     if (cleanup.conversationId) {
       await remove('test conversation', admin.from('conversations').delete().eq('id', cleanup.conversationId));
