@@ -74,9 +74,8 @@ try {
   oldId = active.id;
   const livePlusEmail = activeEmail.replace('@', '+second@');
   const livePlusCheck = await anon().rpc('check_signup_email', { p_email: livePlusEmail });
-  check('live plus-address gets the duplicate-account message',
-    !!livePlusCheck.error && livePlusCheck.error.message.includes('An account with this email already exists'),
-    livePlusCheck.error?.message ?? '');
+  check('check_signup_email does not reveal a live account through its plus-address',
+    !livePlusCheck.error && livePlusCheck.data === true);
   const livePlusSignup = await anon().auth.signUp({ email: livePlusEmail, password: DEV_PASSWORD });
   const livePlusRow = await svc.from('users').select('id').eq('email', livePlusEmail).maybeSingle();
   if (livePlusRow.data?.id) ids.push(livePlusRow.data.id);
@@ -212,8 +211,8 @@ try {
     !statusBlockAfter.error && statusBlockAfter.data?.length === 0);
   check('reactivation unblocks the exact email while the account remains live',
     !exactUnblocked.error && exactUnblocked.data === true);
-  check('a live account still rejects its plus-address after reactivation',
-    !!plusUnblocked.error && plusUnblocked.error.message.includes('An account with this email already exists'));
+  check('reactivation unblocks the plus-address check without revealing the live account',
+    !plusUnblocked.error && plusUnblocked.data === true);
   const statusDeletion = await deleteAccount(statusUser.token);
   const plusAfterReactivation = statusEmail.replace('@', '+alias@');
   const plusAfterReactivationCheck = await anon().rpc('check_signup_email', { p_email: plusAfterReactivation });

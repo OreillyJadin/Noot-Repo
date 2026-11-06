@@ -223,16 +223,6 @@ begin
    order by created_at desc
    limit 1;
   if not found then
-    if exists (
-      select 1
-        from public.users
-       where deleted_at is null
-         and public.canonical_email(email) = public.canonical_email(p_email)
-         and email <> p_email
-    ) then
-      raise exception 'An account with this email already exists'
-        using errcode = 'check_violation';
-    end if;
     return true;
   end if;
 
