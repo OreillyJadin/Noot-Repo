@@ -122,10 +122,41 @@ export async function autoCompleteBookings(
     .order('updated_at', { ascending: true }).limit(25);
   if (retryError) return { status: 500, body: { error: 'Could not load payout retries' } };
 
+  const candidates = [
+    ...(fallback ?? []),
+    ...(noShowClaims ?? []),
+    ...(completionClaims ?? []),
+    ...(retries ?? []),
+  ];
+  const tutorIds: string[] = [...new Set(
+    candidates.map((booking) => booking.tutor_id).filter((id): id is string => typeof id === 'string' && id.length > 0),
+  )];
+  const tutorById = new Map<string, { status: string; deleted_at: string | null }>();
+  if (tutorIds.length) {
+    const { data: tutors, error: tutorError } = await db
+      .from('users')
+      .select('id, status, deleted_at')
+      .in('id', tutorIds);
+    if (tutorError) {
+      console.error('auto-complete-sessions: tutor lookup failed');
+      return { status: 500, body: { error: 'Could not check tutor availability' } };
+    }
+    for (const tutor of tutors ?? []) tutorById.set(tutor.id, tutor);
+  }
+
   let completed = 0;
   let noShowsSettled = 0;
   let holdExpiredCount = 0;
   let failed = 0;
+  const isTutorEligible = (booking: Pick<BookingRow, 'id' | 'tutor_id'>): boolean => {
+    const tutor = tutorById.get(booking.tutor_id);
+    if (!tutor || tutor.status !== 'active' || tutor.deleted_at !== null) {
+      console.error('auto-complete-sessions: skipped booking for inactive or deleted tutor', booking.id);
+      return false;
+    }
+    return true;
+  };
+
   const processCompletion = async (booking: BookingRow) => {
     const claimKind = booking.completion_claimed_at ? 'completion' : 'fallback';
     const { map, snapshot } = await attendance(booking);
@@ -158,6 +189,7 @@ export async function autoCompleteBookings(
     const claimAt = Date.parse(booking.no_show_claimed_at ?? '');
     const dueByWindow = Number.isFinite(claimAt) && claimAt <= clock.getTime() - 24 * 60 * 60 * 1000;
     if (!dueByWindow && !holdExpired(booking, held6DaysAgo)) continue;
+    if (!isTutorEligible(booking)) continue;
     try {
       const { map, snapshot } = await attendance(booking);
       const accusedId = booking.no_show_claim_party === 'tutor' ? booking.tutor_id : booking.student_id;
@@ -190,6 +222,7 @@ export async function autoCompleteBookings(
     const claimAt = Date.parse(booking.completion_claimed_at ?? '');
     if (!(Number.isFinite(claimAt) && claimAt <= clock.getTime() - 24 * 60 * 60 * 1000)
         && !holdExpired(booking, held6DaysAgo)) continue;
+    if (!isTutorEligible(booking)) continue;
     try { await processCompletion(booking); }
     catch {
       failed += 1;
@@ -197,6 +230,7 @@ export async function autoCompleteBookings(
     }
   }
   for (const booking of (fallback ?? []) as BookingRow[]) {
+    if (!isTutorEligible(booking)) continue;
     try { await processCompletion(booking); }
     catch {
       failed += 1;
@@ -205,6 +239,7 @@ export async function autoCompleteBookings(
   }
 
   for (const booking of retries ?? []) {
+    if (!isTutorEligible(booking)) continue;
     try {
       const { data: claimed, error } = await db.from('bookings').update({ payout_failed_at: now })
         .eq('id', booking.id).eq('status', 'completed').or(retryDue).select('id');

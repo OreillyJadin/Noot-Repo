@@ -24,6 +24,7 @@ import { BookingError, freeBookingFor, IMMEDIATE_HOLD_DAYS, resolveBooking, SLOT
 import { cancellationDeadlineFor } from '../_shared/cancellation.ts';
 import { creditToApply, parseCreditCents } from '../_shared/credits.ts';
 import { serveWithErrorReporting } from '../_shared/observability.ts';
+import { ownedCustomerId } from '../_shared/stripeCustomer.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -117,10 +118,23 @@ serveWithErrorReporting('confirm-booking', async (req) => {
               .select('id')
               .eq('stripe_payment_intent_id', paymentIntentId)
               .limit(1);
+            const requestedDate = typeof body?.scheduledAt === 'string' ? new Date(body.scheduledAt) : null;
+            const requestedScheduledAt = requestedDate && Number.isFinite(requestedDate.getTime())
+              ? requestedDate.toISOString()
+              : null;
+            if (
+              pi.metadata?.user_id === studentId &&
+              (pi.metadata?.scheduled_at !== requestedScheduledAt ||
+                pi.metadata?.duration_minutes !== String(Number(body?.durationMinutes)))
+            ) {
+              return Response.json({ error: 'The payment does not match this session' }, { status: 400, headers: cors });
+            }
             if (
               pi.metadata?.user_id === studentId &&
               typeof body?.tutorId === 'string' &&
               pi.metadata?.tutor_id === body.tutorId &&
+              pi.metadata?.scheduled_at === requestedScheduledAt &&
+              pi.metadata?.duration_minutes === String(Number(body?.durationMinutes)) &&
               pi.status === 'requires_capture' &&
               (claimed ?? []).length === 0
             ) {
@@ -175,11 +189,11 @@ serveWithErrorReporting('confirm-booking', async (req) => {
       const stripe = new Stripe(stripeKey, { apiVersion: '2024-06-20' });
       const setup = await stripe.setupIntents.retrieve(setupIntentId);
       const meta = setup.metadata;
-      const { data: owner, error: ownerError } = await db.from('users').select('stripe_customer_id').eq('id', studentId).single();
-      if (ownerError) throw ownerError;
+      const customerId = await ownedCustomerId(stripe, db, studentId, user.email ?? '');
+      const setupCustomerId = typeof setup.customer === 'string' ? setup.customer : setup.customer?.id;
       const claimed = parseCreditCents(meta?.credit_cents, resolved.amountCents);
       if (setup.status !== 'succeeded' || setup.usage !== 'off_session' ||
-          setup.customer !== owner.stripe_customer_id || !setup.payment_method ||
+          setupCustomerId !== customerId || !setup.payment_method ||
           meta?.user_id !== studentId || meta?.tutor_id !== resolved.tutorId ||
           meta?.course_code !== resolved.courseCode || meta?.scheduled_at !== resolved.scheduledAt ||
           meta?.duration_minutes !== String(resolved.durationMinutes) ||
@@ -207,6 +221,12 @@ serveWithErrorReporting('confirm-booking', async (req) => {
 
       if (pi.metadata?.user_id !== studentId) {
         return Response.json({ error: 'That payment belongs to someone else' }, { status: 403, headers: cors });
+      }
+      if (
+        pi.metadata?.scheduled_at !== resolved.scheduledAt ||
+        pi.metadata?.duration_minutes !== String(resolved.durationMinutes)
+      ) {
+        return Response.json({ error: 'The payment does not match this session' }, { status: 400, headers: cors });
       }
       if (pi.metadata?.tutor_id !== resolved.tutorId || pi.metadata?.course_code !== resolved.courseCode) {
         return Response.json({ error: 'That payment was for a different session' }, { status: 400, headers: cors });
