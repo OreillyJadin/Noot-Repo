@@ -23,7 +23,7 @@
     "test": "pnpm dlx tsx --test packages/core/test/*.test.ts apps/mobile/test/*.test.ts supabase/tests/*.test.ts"
   },
   "devDependencies": {
-    "turbo": "^2.11.7",
+    "turbo": "^2.11.13",
     "typescript": "~6.0.3"
   },
   "pnpm": {
